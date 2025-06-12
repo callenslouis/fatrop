@@ -5,10 +5,10 @@
 #include "fatrop/context/context.hpp"
 #include "fatrop/linear_algebra/linear_algebra.hpp"
 #include "fatrop/ocp/aug_system_solver.hpp"
-#include "fatrop/ocp/dims.hpp"
+#include "fatrop/ocp/dims.hpp" // inherit
 #include "fatrop/ocp/hessian.hpp"
 #include "fatrop/ocp/jacobian.hpp"
-#include "fatrop/ocp/problem_info.hpp"
+#include "fatrop/ocp/problem_info.hpp" //inherit
 #include "fatrop/ocp/type.hpp"
 #include <gtest/gtest.h>
 #include <vector>
