@@ -7,6 +7,7 @@
 #include "fatrop/common/options.hpp"
 #include "fatrop/ip_algorithm/ip_nlp_resto.hpp"
 #include "fatrop/nlp/dims.hpp"
+#include "fatrop/ocp/problem_info.hpp"
 #include <cmath>
 
 namespace fatrop
@@ -35,13 +36,13 @@ namespace fatrop
     }
 
     template <typename ProblemType>
-    const ProblemDims<ProblemType> &IpNlpResto<ProblemType>::problem_dims() const
+    const ProblemDims &IpNlpResto<ProblemType>::problem_dims() const
     {
         return nlp_orig_->problem_dims();
     }
 
     template <typename ProblemType>
-    Index IpNlpResto<ProblemType>::eval_lag_hess(const ProblemInfo<ProblemType> &info,
+    Index IpNlpResto<ProblemType>::eval_lag_hess(const ProblemInfo &info,
                                                  const Scalar objective_scale,
                                                  const VecRealView &primal_x,
                                                  const VecRealView &primal_s,
@@ -51,7 +52,7 @@ namespace fatrop
     }
 
     template <typename ProblemType>
-    Index IpNlpResto<ProblemType>::eval_constr_jac(const ProblemInfo<ProblemType> &info,
+    Index IpNlpResto<ProblemType>::eval_constr_jac(const ProblemInfo &info,
                                                    const VecRealView &primal_x,
                                                    const VecRealView &primal_s,
                                                    Jacobian<ProblemType> &jac)
@@ -60,7 +61,7 @@ namespace fatrop
     }
 
     template <typename ProblemType>
-    Index IpNlpResto<ProblemType>::eval_constraint_violation(const ProblemInfo<ProblemType> &info,
+    Index IpNlpResto<ProblemType>::eval_constraint_violation(const ProblemInfo &info,
                                                              const VecRealView &primal_x,
                                                              const VecRealView &primal_s,
                                                              VecRealView &res)
@@ -74,7 +75,7 @@ namespace fatrop
     }
 
     template <typename ProblemType>
-    Index IpNlpResto<ProblemType>::eval_objective_gradient(const ProblemInfo<ProblemType> &info,
+    Index IpNlpResto<ProblemType>::eval_objective_gradient(const ProblemInfo &info,
                                                            const Scalar objective_scale,
                                                            const VecRealView &primal_x,
                                                            const VecRealView &primal_s,
@@ -101,7 +102,7 @@ namespace fatrop
     }
 
     template <typename ProblemType>
-    Index IpNlpResto<ProblemType>::eval_objective(const ProblemInfo<ProblemType> &info,
+    Index IpNlpResto<ProblemType>::eval_objective(const ProblemInfo &info,
                                                   const Scalar objective_scale,
                                                   const VecRealView &primal_x,
                                                   const VecRealView &primal_s, Scalar &res)
@@ -123,7 +124,7 @@ namespace fatrop
     }
 
     template <typename ProblemType>
-    Index IpNlpResto<ProblemType>::get_bounds(const ProblemInfo<ProblemType> &info,
+    Index IpNlpResto<ProblemType>::get_bounds(const ProblemInfo &info,
                                               VecRealView &lower_bounds, VecRealView &upper_bounds)
     {
         // get the bounds for s
@@ -147,14 +148,14 @@ namespace fatrop
     }
 
     template <typename ProblemType>
-    Index IpNlpResto<ProblemType>::get_initial_primal(const ProblemInfo<ProblemType> &info,
+    Index IpNlpResto<ProblemType>::get_initial_primal(const ProblemInfo &info,
                                                       VecRealView &primal_x)
     {
         return nlp_orig_->get_initial_primal(info, primal_x);
     }
 
     template <typename ProblemType>
-    void IpNlpResto<ProblemType>::get_primal_damping(const ProblemInfo<ProblemType> &info,
+    void IpNlpResto<ProblemType>::get_primal_damping(const ProblemInfo &info,
                                                      VecRealView &damping)
     {
         VecRealView xs_orig =
@@ -166,7 +167,7 @@ namespace fatrop
     }
 
     template <typename ProblemType>
-    void IpNlpResto<ProblemType>::set_xs_reference(const ProblemInfo<ProblemType> &info,
+    void IpNlpResto<ProblemType>::set_xs_reference(const ProblemInfo &info,
                                                    const VecRealView &x_reference,
                                                    const VecRealView &s_reference)
     {
@@ -175,7 +176,7 @@ namespace fatrop
         dr_ = 1. / max(VecRealScalar(x_reference_.m(), 1.), abs(x_reference_));
     }
     template <typename ProblemType>
-    void IpNlpResto<ProblemType>::apply_jacobian_s_transpose(const ProblemInfo<ProblemType> &info,
+    void IpNlpResto<ProblemType>::apply_jacobian_s_transpose(const ProblemInfo &info,
                                                              const VecRealView &multipliers,
                                                              const Scalar alpha,
                                                              const VecRealView &y, VecRealView &out)

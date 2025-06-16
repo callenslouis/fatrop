@@ -16,7 +16,7 @@ namespace fatrop
         typedef IpData<ProblemType> IpDataType;
         typedef std::shared_ptr<IpDataType> IpDataSp;
         typedef IpIterate<ProblemType> IpIterateType;
-        typedef ProblemInfo<ProblemType> InfoType;
+        typedef ProblemInfo InfoType;
 
     public:
         IpInitializerResto(const IpDataSp &data_orig, const IpDataSp &data_resto)

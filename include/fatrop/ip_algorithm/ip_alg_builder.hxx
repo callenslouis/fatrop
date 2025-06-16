@@ -55,7 +55,7 @@ namespace fatrop
          * todo problem info also gets created by the constructor o fthe IpData
          */
         const auto &ocp_dims = nlp_orig_->problem_dims();
-        problem_info_ = std::make_shared<ProblemInfo<ProblemType>>(ocp_dims);
+        problem_info_ = std::make_shared<ProblemInfo>(ocp_dims);
         return *this;
     }
 

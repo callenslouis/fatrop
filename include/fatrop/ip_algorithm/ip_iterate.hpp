@@ -10,6 +10,7 @@
 #include "fatrop/ip_algorithm/fwd.hpp"
 #include "fatrop/linear_algebra/vector.hpp"
 #include "fatrop/nlp/fwd.hpp"
+#include "fatrop/ocp/problem_info.hpp"
 #include <memory>
 #include <utility>
 #include <vector>
@@ -56,7 +57,7 @@ namespace fatrop
          * @brief Returns the problem information.
          * @return Constant reference to the ProblemInfo object.
          */
-        const ProblemInfo<ProblemType> &info() const { return *info_; }
+        const ProblemInfo &info() const { return *info_; }
 
         /**
          * @brief Returns the NLP problem.
@@ -459,7 +460,7 @@ namespace fatrop
 
     private:
         NlpSp nlp_;
-        const ProblemInfo<ProblemType> *info_; ///< Information about the NLP.
+        const ProblemInfo *info_; ///< Information about the NLP.
         // Iteration point
         VecRealAllocated primal_x_;      ///< Primal variables of the NLP.
         VecRealAllocated primal_s_;      ///< Primal variables of the NLP.

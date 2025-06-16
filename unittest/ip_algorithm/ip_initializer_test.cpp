@@ -38,7 +38,7 @@ namespace fatrop
 
             std::shared_ptr<OcpTestProblem> problem;
             std::shared_ptr<NlpOcp> nlp;
-            ProblemInfo<OcpType> info;
+            ProblemInfo info;
             std::shared_ptr<IpData<OcpType>> ipdata;
             VecRealAllocated D_x, D_eq;
             std::shared_ptr<AugSystemSolver<OcpType>> aug_solver;

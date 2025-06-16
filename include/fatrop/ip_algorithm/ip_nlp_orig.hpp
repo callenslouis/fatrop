@@ -44,14 +44,14 @@ namespace fatrop
 
         /**
          * @brief Get the dimensions of the specific problem type.
-         * @return const ProblemDims<ProblemType>& The dimensions of the problem.
+         * @return const ProblemDims& The dimensions of the problem.
          */
-        virtual const ProblemDims<ProblemType> &problem_dims() const override;
+        virtual const ProblemDims &problem_dims() const override;
 
         /**
          * @brief Evaluate the Hessian of the Lagrangian.
          */
-        virtual Index eval_lag_hess(const ProblemInfo<ProblemType> &info,
+        virtual Index eval_lag_hess(const ProblemInfo &info,
                                     const Scalar objective_scale, const VecRealView &primal_x,
                                     const VecRealView &primal_s, const VecRealView &lam,
                                     Hessian<ProblemType> &hess) override;
@@ -59,14 +59,14 @@ namespace fatrop
         /**
          * @brief Evaluate the Jacobian of the constraints.
          */
-        virtual Index eval_constr_jac(const ProblemInfo<ProblemType> &info,
+        virtual Index eval_constr_jac(const ProblemInfo &info,
                                       const VecRealView &primal_x, const VecRealView &primal_s,
                                       Jacobian<ProblemType> &jac) override;
 
         /**
          * @brief Evaluate the constraint violation.
          */
-        virtual Index eval_constraint_violation(const ProblemInfo<ProblemType> &info,
+        virtual Index eval_constraint_violation(const ProblemInfo &info,
                                                 const VecRealView &primal_x,
                                                 const VecRealView &primal_s,
                                                 VecRealView &res) override;
@@ -74,7 +74,7 @@ namespace fatrop
         /**
          * @brief Evaluate the gradient of the objective function.
          */
-        virtual Index eval_objective_gradient(const ProblemInfo<ProblemType> &info,
+        virtual Index eval_objective_gradient(const ProblemInfo &info,
                                               const Scalar objective_scale,
                                               const VecRealView &primal_x,
                                               const VecRealView &primal_s, VecRealView &grad_x,
@@ -83,23 +83,23 @@ namespace fatrop
         /**
          * @brief Evaluate the objective function.
          */
-        virtual Index eval_objective(const ProblemInfo<ProblemType> &info,
+        virtual Index eval_objective(const ProblemInfo &info,
                                      const Scalar objective_scale, const VecRealView &primal_x,
                                      const VecRealView &primal_s, Scalar &res) override;
 
         /**
          * @brief Get the bounds of the problem.
          */
-        virtual Index get_bounds(const ProblemInfo<ProblemType> &info, VecRealView &lower_bounds,
+        virtual Index get_bounds(const ProblemInfo &info, VecRealView &lower_bounds,
                                  VecRealView &upper_bounds) override;
 
-        virtual Index get_initial_primal(const ProblemInfo<ProblemType> &info,
+        virtual Index get_initial_primal(const ProblemInfo &info,
                                          VecRealView &primal_x) override;
 
-        virtual void get_primal_damping(const ProblemInfo<ProblemType> &info,
+        virtual void get_primal_damping(const ProblemInfo &info,
                                         VecRealView &damping) override;
 
-        virtual void apply_jacobian_s_transpose(const ProblemInfo<ProblemType> &info,
+        virtual void apply_jacobian_s_transpose(const ProblemInfo &info,
                                                 const VecRealView &multipliers, const Scalar alpha,
                                                 const VecRealView &y, VecRealView &out) override;
         virtual void callback(const IpData<ProblemType> &ip_data) override

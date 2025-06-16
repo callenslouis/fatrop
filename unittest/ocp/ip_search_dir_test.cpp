@@ -46,7 +46,7 @@ protected:
 
     std::shared_ptr<OcpTestProblem> ocp;
     std::shared_ptr<NlpOcp> nlp;
-    ProblemInfo<OcpType> info;
+    ProblemInfo info;
     std::shared_ptr<IpData<OcpType>> data;
     VecRealAllocated D_x, D_eq, D_i;
     std::shared_ptr<AugSystemSolver<OcpType>> aug_solver;

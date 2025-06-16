@@ -56,7 +56,7 @@ protected:
     std::shared_ptr<OcpTestProblem> ocp;
     std::shared_ptr<NlpOcp> nlp;
     std::shared_ptr<IpNlpResto<OcpType>> nlp_resto;
-    ProblemInfo<OcpType> info;
+    ProblemInfo info;
     std::shared_ptr<IpData<OcpType>> data;
     std::shared_ptr<AugSystemSolver<OcpType>> aug_solver;
     std::shared_ptr<PdSolverOrig<OcpType>> solver;

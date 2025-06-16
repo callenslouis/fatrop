@@ -24,7 +24,7 @@
 
 namespace fatrop
 {
-    typedef ProblemInfo<OcpType> OcpInfo;
+    typedef ProblemInfo OcpInfo;
     /**
      * @brief Specialization of the Hessian structure for Optimal Control Problems.
      *
@@ -44,7 +44,7 @@ namespace fatrop
          *
          * @param dims The dimensions of the OCP, used to allocate appropriate memory.
          */
-        Hessian(const ProblemDims<OcpType> &dims);
+        Hessian(const ProblemDims &dims);
 
         /**
          * @brief Constraint Hessian of the dynamics.
@@ -87,8 +87,8 @@ namespace fatrop
     template <>
     struct Hessian<ImplicitOcpType> : public Hessian<OcpType>
     {
-        Hessian(const ProblemDims<ImplicitOcpType> &dims)
-            : Hessian<OcpType>(ProblemDims<OcpType>(dims))
+        Hessian(const ProblemDims &dims)
+            : Hessian<OcpType>(dims)
         {
             // Initialize additional members specific to ImplicitOcpType if needed
         }

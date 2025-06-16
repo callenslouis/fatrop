@@ -17,35 +17,17 @@ namespace fatrop
      *
      * This struct contains information about how variables and constraints of an OCP are ordered
      * internally.    */
-    template <typename T> struct ProblemInfo
+    struct ProblemInfo
     {
         /**
          * @brief Construct a new ProblemInfo object
          *
          * @param dims The dimensions of the OCP
          */
-        ProblemInfo(const ProblemDims<T> &dims);
-
-        template <typename U>
-        ProblemInfo(const ProblemDims<U> &dims){
-            // Copy constructor for different type
-            // This is useful for converting between OcpType and ImplicitOcpType
-            *this = ProblemInfo<T>(ProblemDims<T>(dims.K, dims.number_of_controls, dims.number_of_states,
-                                                  dims.number_of_eq_constraints, dims.number_of_ineq_constraints));
-        }
-
-        template <typename U>
-        ProblemInfo(const ProblemInfo<U> &other){
-            // Copy constructor for different type
-            // This is useful for converting between OcpType and ImplicitOcpType
-            *this = ProblemInfo<T>(ProblemDims<T>(other.dims.K, other.dims.number_of_controls,
-                                                  other.dims.number_of_states,
-                                                  other.dims.number_of_eq_constraints,
-                                                  other.dims.number_of_ineq_constraints));
-        };
+        ProblemInfo(const ProblemDims &dims);
 
         /// The dimensions of the OCP
-        const ProblemDims<T> dims;
+        const ProblemDims dims;
 
         // Number of primal variables
         Index number_of_primal_variables;
@@ -165,7 +147,5 @@ namespace fatrop
     };
 
 } // namespace fatrop
-
-#include "fatrop/ocp/problem_info.tpp"
 
 #endif // __fatrop_ocp_problem_info__

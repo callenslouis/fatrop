@@ -8,10 +8,10 @@
 namespace fatrop
 {
     struct NlpDims;
-    template <typename T> struct ProblemInfo;
+    // struct ProblemInfo;
     template <typename T> struct Jacobian;
     template <typename T> struct Hessian;
-    template <typename T> struct ProblemDims;
+    // struct ProblemDims;
     template <typename T> struct Nlp;
 } // namespace fatrop
 

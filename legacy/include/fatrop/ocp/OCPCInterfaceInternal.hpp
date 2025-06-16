@@ -18,32 +18,32 @@ namespace fatrop
         FatropOcpCDims s;
         FatropOcpCMapping(FatropOcpCInterface *ocp);
         const NlpDims &nlp_dims() const override;
-        const ProblemDims<OcpType> &problem_dims() const override;
-        Index eval_lag_hess(const ProblemInfo<OcpType> &info, const Scalar objective_scale,
+        const ProblemDims &problem_dims() const override;
+        Index eval_lag_hess(const ProblemInfo &info, const Scalar objective_scale,
                             const VecRealView &primal_x, const VecRealView &primal_s,
                             const VecRealView &lam, Hessian<OcpType> &hess) override;
-        Index eval_constr_jac(const ProblemInfo<OcpType> &info, const VecRealView &primal_x,
+        Index eval_constr_jac(const ProblemInfo &info, const VecRealView &primal_x,
                               const VecRealView &primal_s, Jacobian<OcpType> &jac) override;
-        Index eval_constraint_violation(const ProblemInfo<OcpType> &info,
+        Index eval_constraint_violation(const ProblemInfo &info,
                                         const VecRealView &primal_x, const VecRealView &primal_s,
                                         VecRealView &res) override;
-        Index eval_objective_gradient(const ProblemInfo<OcpType> &info,
+        Index eval_objective_gradient(const ProblemInfo &info,
                                       const Scalar objective_scale, const VecRealView &primal_x,
                                       const VecRealView &primal_s, VecRealView &grad_x,
                                       VecRealView &grad_s) override;
-        Index eval_objective(const ProblemInfo<OcpType> &info, const Scalar objective_scale,
+        Index eval_objective(const ProblemInfo &info, const Scalar objective_scale,
                              const VecRealView &primal_x, const VecRealView &primal_s,
                              Scalar &res) override;
-        Index get_bounds(const ProblemInfo<OcpType> &info, VecRealView &lower_bounds,
+        Index get_bounds(const ProblemInfo &info, VecRealView &lower_bounds,
                          VecRealView &upper_bounds) override;
-        Index get_initial_primal(const ProblemInfo<OcpType> &info, VecRealView &primal_x) override;
-        void get_primal_damping(const ProblemInfo<OcpType> &info, VecRealView &damping) override;
-        void apply_jacobian_s_transpose(const ProblemInfo<OcpType> &info,
+        Index get_initial_primal(const ProblemInfo &info, VecRealView &primal_x) override;
+        void get_primal_damping(const ProblemInfo &info, VecRealView &damping) override;
+        void apply_jacobian_s_transpose(const ProblemInfo &info,
                                         const VecRealView &multipliers, const Scalar alpha,
                                         const VecRealView &y, VecRealView &out) override;
 
     private:
-        ProblemDims<OcpType> ocp_dims_;
+        ProblemDims ocp_dims_;
         NlpDims nlp_dims_;
         Index K_;
         std::vector<MAT *> matrix_buffer_[3];

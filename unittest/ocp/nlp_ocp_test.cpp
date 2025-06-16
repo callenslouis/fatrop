@@ -18,7 +18,7 @@ class NlpOcpTest : public ::testing::Test
 protected:
     OcpTestSp ocp = std::make_shared<OcpTestProblem>();
     NlpOcp nlp_ocp = NlpOcp(ocp);
-    ProblemInfo<OcpType> ocp_info = ProblemInfo<OcpType>(nlp_ocp.problem_dims());
+    ProblemInfo ocp_info = ProblemInfo(nlp_ocp.problem_dims());
     VecRealAllocated primal_x = VecRealAllocated(nlp_ocp.nlp_dims().number_of_variables);
     VecRealAllocated primal_s = VecRealAllocated(nlp_ocp.nlp_dims().number_of_ineq_constraints);
     VecRealAllocated mult = VecRealAllocated(nlp_ocp.nlp_dims().number_of_eq_constraints);

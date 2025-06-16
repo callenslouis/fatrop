@@ -23,7 +23,7 @@ using namespace fatrop;
 // instantiate the template class
 template class fatrop::LinearSolver<PdSolverResto<OcpType>, PdSystemResto<OcpType>>;
 
-PdSolverResto<OcpType>::PdSolverResto(const ProblemInfo<OcpType> &info,
+PdSolverResto<OcpType>::PdSolverResto(const ProblemInfo &info,
                                       const std::shared_ptr<PdSolverOrig<OcpType>> &pd_solver_orig)
     : LinearSolver<PdSolverResto<OcpType>, PdSystemResto<OcpType>>(
           LinearSystem<PdSystemResto<OcpType>>::m(info)),
@@ -84,7 +84,7 @@ PdSolverResto<OcpType>::PdSolverResto(const ProblemInfo<OcpType> &info,
 
 void PdSolverResto<OcpType>::reduce(LinearSystem<PdSystemResto<OcpType>> &ls)
 {
-    const ProblemInfo<OcpType> &info = ls.info_;
+    const ProblemInfo &info = ls.info_;
     VecRealView f_p = ls.rhs_f_s_.block(info.number_of_eq_constraints, info.offset_p);
     VecRealView f_n = ls.rhs_f_s_.block(info.number_of_eq_constraints, info.offset_n);
     VecRealView rhs_cp = ls.rhs_cl_.block(info.number_of_eq_constraints, info.offset_p);
@@ -111,7 +111,7 @@ void PdSolverResto<OcpType>::reduce(LinearSystem<PdSystemResto<OcpType>> &ls)
 }
 void PdSolverResto<OcpType>::dereduce(LinearSystem<PdSystemResto<OcpType>> &ls, VecRealView &x)
 {
-    const ProblemInfo<OcpType> &info = ls.info_;
+    const ProblemInfo &info = ls.info_;
 
     VecRealView orig_primal_x =
         x_orig_.block(info.number_of_primal_variables, info.pd_orig_offset_primal);
@@ -154,7 +154,7 @@ void PdSolverResto<OcpType>::dereduce(LinearSystem<PdSystemResto<OcpType>> &ls, 
 LinsolReturnFlag PdSolverResto<OcpType>::solve_once_impl(LinearSystem<PdSystemResto<OcpType>> &ls,
                                                          VecRealView &x)
 {
-    const ProblemInfo<OcpType> &info = ls.info_;
+    const ProblemInfo &info = ls.info_;
     reduce(ls);
     LinsolReturnFlag ret;
     // set up the original linear system
@@ -178,7 +178,7 @@ LinsolReturnFlag PdSolverResto<OcpType>::solve_once_impl(LinearSystem<PdSystemRe
 void PdSolverResto<OcpType>::solve_rhs_impl(LinearSystem<PdSystemResto<OcpType>> &ls,
                                             VecRealView &x)
 {
-    const ProblemInfo<OcpType> &info = ls.info_;
+    const ProblemInfo &info = ls.info_;
     reduce(ls);
     VecRealView rhs_f_s = ls.rhs_f_s_.block(info.number_of_slack_variables, 0);
     VecRealView rhs_cl = ls.rhs_cl_.block(info.number_of_slack_variables, 0);

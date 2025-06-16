@@ -8,6 +8,7 @@
 #include "fatrop/ip_algorithm/fwd.hpp"
 #include "fatrop/nlp/fwd.hpp"
 #include "fatrop/linear_algebra/fwd.hpp"
+#include "fatrop/ocp/problem_info.hpp"
 #include <memory>
 
 namespace fatrop
@@ -80,7 +81,7 @@ namespace fatrop
          */
         IpSolverReturnFlag optimize(bool is_resto = false);
 
-        const ProblemInfo<ProblemType> &info() const;
+        const ProblemInfo &info() const;
 
         const VecRealView &solution_primal() const;
         const VecRealView &solution_dual() const;

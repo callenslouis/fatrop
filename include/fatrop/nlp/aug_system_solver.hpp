@@ -26,7 +26,7 @@ namespace fatrop
     //      * @param eq_mult [out] Solution vector for equality constraint multipliers.
     //      * @return Status flag indicating the outcome of the solve operation.
     //      */
-    //     LinsolReturnFlag solve(const ProblemInfo<ProblemType> &info, Jacobian<ProblemType> &jacobian,
+    //     LinsolReturnFlag solve(const ProblemInfo &info, Jacobian<ProblemType> &jacobian,
     //                            Hessian<ProblemType> &hessian, const VecRealView &D_x,
     //                            const VecRealView &D_s, const VecRealView &f, const VecRealView &g,
     //                            VecRealView &x, VecRealView &eq_mult);
@@ -45,7 +45,7 @@ namespace fatrop
     //      * @param eq_mult [out] Solution vector for equality constraint multipliers.
     //      * @return Status flag indicating the outcome of the solve operation.
     //      */
-    //     LinsolReturnFlag solve(const ProblemInfo<ProblemType> &info, Jacobian<ProblemType> &jacobian,
+    //     LinsolReturnFlag solve(const ProblemInfo &info, Jacobian<ProblemType> &jacobian,
     //                            Hessian<ProblemType> &hessian, const VecRealView &D_x,
     //                            const VecRealView &D_eq, const VecRealView &D_s,
     //                            const VecRealView &f, const VecRealView &g, VecRealView &x,
@@ -63,7 +63,7 @@ namespace fatrop
     //      * @param eq_mult [out] Solution vector for equality constraint multipliers.
     //      * @return Status flag indicating the outcome of the solve operation.
     //      */
-    //     LinsolReturnFlag solve_rhs(const ProblemInfo<ProblemType> &info,
+    //     LinsolReturnFlag solve_rhs(const ProblemInfo &info,
     //                                const Jacobian<ProblemType> &jacobian,
     //                                const Hessian<ProblemType> &hessian, const VecRealView &D_s,
     //                                const VecRealView &f, const VecRealView &g, VecRealView &x,
@@ -82,7 +82,7 @@ namespace fatrop
     //      * @param eq_mult [out] Solution vector for equality constraint multipliers.
     //      * @return Status flag indicating the outcome of the solve operation.
     //      */
-    //     LinsolReturnFlag solve_rhs(const ProblemInfo<ProblemType> &info,
+    //     LinsolReturnFlag solve_rhs(const ProblemInfo &info,
     //                                const Jacobian<ProblemType> &jacobian,
     //                                const Hessian<ProblemType> &hessian, const VecRealView &D_eq,
     //                                const VecRealView &D_s, const VecRealView &f,

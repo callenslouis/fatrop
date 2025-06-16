@@ -66,7 +66,7 @@ namespace fatrop
          * @brief Constructs an AugSystemSolver<OcpType> object.
          * @param info Problem information for the optimal control problem.
          */
-        AugSystemSolver(const ProblemInfo<OcpType> &info);
+        AugSystemSolver(const ProblemInfo &info);
 
         /**
          * @brief Solves the augmented system without path equality constraint regularization.
@@ -81,7 +81,7 @@ namespace fatrop
          * @param eq_mult [out] Solution vector for equality constraint multipliers.
          * @return Status flag indicating the outcome of the solve operation.
          */
-        virtual LinsolReturnFlag solve(const ProblemInfo<OcpType> &info, Jacobian<OcpType> &jacobian,
+        virtual LinsolReturnFlag solve(const ProblemInfo &info, Jacobian<OcpType> &jacobian,
                                        Hessian<OcpType> &hessian, const VecRealView &D_x,
                                        const VecRealView &D_s, const VecRealView &f, const VecRealView &g,
                                        VecRealView &x, VecRealView &eq_mult);
@@ -100,7 +100,7 @@ namespace fatrop
          * @param eq_mult [out] Solution vector for equality constraint multipliers.
          * @return Status flag indicating the outcome of the solve operation.
          */
-        virtual LinsolReturnFlag solve(const ProblemInfo<OcpType> &info, Jacobian<OcpType> &jacobian,
+        virtual LinsolReturnFlag solve(const ProblemInfo &info, Jacobian<OcpType> &jacobian,
                                        Hessian<OcpType> &hessian, const VecRealView &D_x,
                                        const VecRealView &D_eq, const VecRealView &D_s,
                                        const VecRealView &f, const VecRealView &g, VecRealView &x,
@@ -118,7 +118,7 @@ namespace fatrop
          * @param eq_mult [out] Solution vector for equality constraint multipliers.
          * @return Status flag indicating the outcome of the solve operation.
          */
-        virtual LinsolReturnFlag solve_rhs(const ProblemInfo<OcpType> &info,
+        virtual LinsolReturnFlag solve_rhs(const ProblemInfo &info,
                                            const Jacobian<OcpType> &jacobian,
                                            const Hessian<OcpType> &hessian, const VecRealView &D_s,
                                            const VecRealView &f, const VecRealView &g, VecRealView &x,
@@ -137,7 +137,7 @@ namespace fatrop
          * @param eq_mult [out] Solution vector for equality constraint multipliers.
          * @return Status flag indicating the outcome of the solve operation.
          */
-        virtual LinsolReturnFlag solve_rhs(const ProblemInfo<OcpType> &info,
+        virtual LinsolReturnFlag solve_rhs(const ProblemInfo &info,
                                            const Jacobian<OcpType> &jacobian,
                                            const Hessian<OcpType> &hessian, const VecRealView &D_eq,
                                            const VecRealView &D_s, const VecRealView &f,
@@ -204,7 +204,7 @@ namespace fatrop
          * @brief Constructs an AugSystemSolver<ImplicitOcpType> object.
          * @param info Problem information for the optimal control problem.
          */
-        AugSystemSolver(const ProblemInfo<ImplicitOcpType> &info);
+        AugSystemSolver(const ProblemInfo &info);
 
         /**
          * @brief Solves the augmented system without path equality constraint regularization.
@@ -219,7 +219,7 @@ namespace fatrop
          * @param eq_mult [out] Solution vector for equality constraint multipliers.
          * @return Status flag indicating the outcome of the solve operation.
          */
-        virtual LinsolReturnFlag solve(const ProblemInfo<ImplicitOcpType> &info, Jacobian<ImplicitOcpType> &jacobian,
+        virtual LinsolReturnFlag solve(const ProblemInfo &info, Jacobian<ImplicitOcpType> &jacobian,
                                        Hessian<ImplicitOcpType> &hessian, const VecRealView &D_x,
                                        const VecRealView &D_s, const VecRealView &f, const VecRealView &g,
                                        VecRealView &x, VecRealView &eq_mult);
@@ -238,7 +238,7 @@ namespace fatrop
          * @param eq_mult [out] Solution vector for equality constraint multipliers.
          * @return Status flag indicating the outcome of the solve operation.
          */
-        virtual LinsolReturnFlag solve(const ProblemInfo<ImplicitOcpType> &info, Jacobian<ImplicitOcpType> &jacobian,
+        virtual LinsolReturnFlag solve(const ProblemInfo &info, Jacobian<ImplicitOcpType> &jacobian,
                                        Hessian<ImplicitOcpType> &hessian, const VecRealView &D_x,
                                        const VecRealView &D_eq, const VecRealView &D_s,
                                        const VecRealView &f, const VecRealView &g, VecRealView &x,
@@ -256,7 +256,7 @@ namespace fatrop
          * @param eq_mult [out] Solution vector for equality constraint multipliers.
          * @return Status flag indicating the outcome of the solve operation.
          */
-        virtual LinsolReturnFlag solve_rhs(const ProblemInfo<ImplicitOcpType> &info,
+        virtual LinsolReturnFlag solve_rhs(const ProblemInfo &info,
                                            const Jacobian<ImplicitOcpType> &jacobian,
                                            const Hessian<ImplicitOcpType> &hessian, const VecRealView &D_s,
                                            const VecRealView &f, const VecRealView &g, VecRealView &x,
@@ -275,7 +275,7 @@ namespace fatrop
          * @param eq_mult [out] Solution vector for equality constraint multipliers.
          * @return Status flag indicating the outcome of the solve operation.
          */
-        virtual LinsolReturnFlag solve_rhs(const ProblemInfo<ImplicitOcpType> &info,
+        virtual LinsolReturnFlag solve_rhs(const ProblemInfo &info,
                                            const Jacobian<ImplicitOcpType> &jacobian,
                                            const Hessian<ImplicitOcpType> &hessian, const VecRealView &D_eq,
                                            const VecRealView &D_s, const VecRealView &f,

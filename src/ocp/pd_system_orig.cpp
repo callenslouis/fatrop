@@ -10,7 +10,7 @@
 
 using namespace fatrop;
 LinearSystem<PdSystemType<OcpType>>::LinearSystem(
-    const ProblemInfo<OcpType> &info, Jacobian<OcpType> &jac, Hessian<OcpType> &hess,
+    const ProblemInfo &info, Jacobian<OcpType> &jac, Hessian<OcpType> &hess,
     const VecRealView &D_x, bool De_is_zero, const VecRealView &D_e, const VecRealView &Sl_i,
     const VecRealView &Su_i, const VecRealView &Zl_i, const VecRealView &Zu_i, VecRealView &rhs_f_x,
     VecRealView &rhs_f_s, VecRealView &rhs_g, VecRealView &rhs_cl, VecRealView &rhs_cu)
@@ -21,7 +21,7 @@ LinearSystem<PdSystemType<OcpType>>::LinearSystem(
       rhs_cl_(rhs_cl), rhs_cu_(rhs_cu)
 {
 }
-Index LinearSystem<PdSystemType<OcpType>>::m(const ProblemInfo<OcpType> &info)
+Index LinearSystem<PdSystemType<OcpType>>::m(const ProblemInfo &info)
 {
     return info.number_of_primal_variables + 3 * info.number_of_slack_variables +
            info.number_of_eq_constraints;

@@ -9,6 +9,7 @@
 #include "fatrop/ip_algorithm/fwd.hpp"
 #include "fatrop/linear_algebra/fwd.hpp"
 #include "fatrop/nlp/fwd.hpp"
+#include "fatrop/ocp/problem_info.hpp"
 #include <memory>
 #include <optional>
 
@@ -128,7 +129,7 @@ namespace fatrop
     private:
         std::shared_ptr<IpNlpOrig<ProblemType>> nlp_orig_;
         std::shared_ptr<IpData<ProblemType>> ipdata_;
-        std::shared_ptr<ProblemInfo<ProblemType>> problem_info_;
+        std::shared_ptr<ProblemInfo> problem_info_;
         std::shared_ptr<AugSystemSolver<ProblemType>> aug_system_solver_;
         std::shared_ptr<PdSolverOrig<ProblemType>> pd_solver_;
         std::shared_ptr<LinearSolver<PdSolverOrig<ProblemType>, PdSystemType<ProblemType>>>

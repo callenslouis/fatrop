@@ -35,9 +35,9 @@ protected:
     std::vector<Index> ng_ineq = {0, 5, 10, 0,  0,
                                   0, 0, 0,  10, 0}; // Inequality constraints for each stage
 
-    ProblemDims<OcpType> dims{K, nu, nx, ng, ng_ineq};
+    ProblemDims dims{K, nu, nx, ng, ng_ineq};
 
-    ProblemInfo<OcpType> info{dims};
+    ProblemInfo info{dims};
     // Create Jacobian object
     Jacobian<OcpType> jacobian{dims};
     MatRealAllocated full_matrix_jacobian =

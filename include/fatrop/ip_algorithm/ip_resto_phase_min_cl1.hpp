@@ -22,7 +22,7 @@ namespace fatrop
         typedef IpIterate<ProblemType> IpIterateType;
         typedef IpData<ProblemType> IpDataType;
         typedef std::shared_ptr<IpDataType> IpDataSp;
-        typedef ProblemInfo<ProblemType> ProblemInfoType;
+        typedef ProblemInfo ProblemInfoType;
 
     public:
         IpRestoPhaseMinCl1(const IpAlgorithmSp &ip_algorithm,

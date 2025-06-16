@@ -8,6 +8,7 @@
 #include "fatrop/ip_algorithm/fwd.hpp"
 #include "fatrop/nlp/fwd.hpp"
 #include "fatrop/ip_algorithm/ip_convergence_check.hpp"
+#include "fatrop/ocp/problem_info.hpp"
 namespace fatrop
 {
     template <typename ProblemType>
@@ -16,7 +17,7 @@ namespace fatrop
         typedef IpConvergenceCheck<ProblemType> Base;
         typedef IpData<ProblemType> IpDataType;
         typedef std::shared_ptr<IpDataType> IpDataSp;
-        typedef ProblemInfo<ProblemType> ProblemInfoType;
+        typedef ProblemInfo ProblemInfoType;
         typedef IpIterate<ProblemType> IpIterateType;
         typedef std::shared_ptr<IpLineSearchBase> IpLineSearchSp;
 

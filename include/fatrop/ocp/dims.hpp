@@ -18,7 +18,6 @@ namespace fatrop
      * This structure holds the dimensions of various components in an OCP,
      * including the number of states, controls, and constraints for each stage.
      */
-    template <typename T>
     struct ProblemDims
     {
         /**
@@ -54,24 +53,8 @@ namespace fatrop
             number_of_eq_constraints; ///< Number of path equality constraints for each stage.
         const std::vector<Index>
             number_of_ineq_constraints; ///< Number of path inequality constraints for each stage.
-
-        /**
-         * @brief Copy constructor for ProblemDims.
-         * 
-         * This constructor allows creating a ProblemDims object from another
-         * ProblemDims object of potentially different type.
-         * @param other The ProblemDims object to copy from.
-         */
-        template <typename U>
-        ProblemDims(const ProblemDims<U> &other)
-            : K(other.K), number_of_controls(other.number_of_controls),
-              number_of_states(other.number_of_states),
-              number_of_eq_constraints(other.number_of_eq_constraints),
-              number_of_ineq_constraints(other.number_of_ineq_constraints) {};
     };
 
 } // namespace fatrop
-
-#include "fatrop/ocp/dims.tpp"
 
 #endif //__fatrop_ocp_dims_hpp__

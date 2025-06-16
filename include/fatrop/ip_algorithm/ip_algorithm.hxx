@@ -79,7 +79,7 @@ namespace fatrop
         return retval;
     }
     template <typename ProblemType>
-    const ProblemInfo<ProblemType> &IpAlgorithm<ProblemType>::info() const
+    const ProblemInfo &IpAlgorithm<ProblemType>::info() const
     {
         return ip_data_->current_iterate().info();
     }

@@ -21,7 +21,7 @@ namespace fatrop
     class PdSolverResto<OcpType> : public LinearSolver<PdSolverResto<OcpType>, PdSystemResto<OcpType>>
     {
     public:
-        PdSolverResto(const ProblemInfo<OcpType>& info, const std::shared_ptr<PdSolverOrig<OcpType>>& aug_system_solver);
+        PdSolverResto(const ProblemInfo& info, const std::shared_ptr<PdSolverOrig<OcpType>>& aug_system_solver);
         LinsolReturnFlag solve_once_impl(LinearSystem<PdSystemResto<OcpType>> &ls, VecRealView &x);
         void reduce(LinearSystem<PdSystemResto<OcpType>> &ls);
         void dereduce(LinearSystem<PdSystemResto<OcpType>> &ls, VecRealView &x);

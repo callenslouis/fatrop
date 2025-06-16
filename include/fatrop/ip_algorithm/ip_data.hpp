@@ -26,7 +26,7 @@ namespace fatrop
     {
         typedef std::shared_ptr<Nlp<ProblemType>> NlpSp;
         typedef IpIterate<ProblemType> Iterate;
-        typedef ProblemInfo<ProblemType> InfoType;
+        typedef ProblemInfo InfoType;
 
         /**
          * @brief Construct a new IpData object.

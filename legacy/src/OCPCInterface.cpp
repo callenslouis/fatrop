@@ -39,7 +39,7 @@ namespace fatrop
     {
         struct FatropOcpCAuxiliary
         {
-            static ProblemDims<OcpType> get_ocp_dims(const FatropOcpCInterface &ocp)
+            static ProblemDims get_ocp_dims(const FatropOcpCInterface &ocp)
             {
                 const Index K = ocp.get_horizon_length(ocp.user_data);
                 std::vector<Index> nu(K), nx(K), ng(K), ng_ineq(K);
@@ -50,9 +50,9 @@ namespace fatrop
                     ng[k] = ocp.get_ng(k, ocp.user_data);
                     ng_ineq[k] = ocp.get_ng_ineq(k, ocp.user_data);
                 }
-                return ProblemDims<OcpType>(K, nu, nx, ng, ng_ineq);
+                return ProblemDims(K, nu, nx, ng, ng_ineq);
             }
-            static NlpDims get_nlp_dims(const ProblemDims<OcpType> &ocp_dims)
+            static NlpDims get_nlp_dims(const ProblemDims &ocp_dims)
             {
                 Index number_of_variables = 0;
                 Index number_of_eq_constraints = 0;
@@ -96,8 +96,8 @@ namespace fatrop
     }
 
     const NlpDims &FatropOcpCMapping::nlp_dims() const { return nlp_dims_; };
-    const ProblemDims<OcpType> &FatropOcpCMapping::problem_dims() const { return ocp_dims_; };
-    Index FatropOcpCMapping::eval_lag_hess(const ProblemInfo<OcpType> &info,
+    const ProblemDims &FatropOcpCMapping::problem_dims() const { return ocp_dims_; };
+    Index FatropOcpCMapping::eval_lag_hess(const ProblemInfo &info,
                                            const Scalar objective_scale,
                                            const VecRealView &primal_x, const VecRealView &primal_s,
                                            const VecRealView &lam, Hessian<OcpType> &hess)
@@ -135,7 +135,7 @@ namespace fatrop
         }
         return 0;
     }
-    Index FatropOcpCMapping::eval_constr_jac(const ProblemInfo<OcpType> &info,
+    Index FatropOcpCMapping::eval_constr_jac(const ProblemInfo &info,
                                              const VecRealView &primal_x,
                                              const VecRealView &primal_s, Jacobian<OcpType> &jac)
     {
@@ -180,7 +180,7 @@ namespace fatrop
         }
         return 0;
     }
-    Index FatropOcpCMapping::eval_constraint_violation(const ProblemInfo<OcpType> &info,
+    Index FatropOcpCMapping::eval_constraint_violation(const ProblemInfo &info,
                                                        const VecRealView &primal_x,
                                                        const VecRealView &primal_s,
                                                        VecRealView &res)
@@ -223,7 +223,7 @@ namespace fatrop
             primal_s.block(info.number_of_g_eq_slack, 0);
         return 0;
     }
-    Index FatropOcpCMapping::eval_objective_gradient(const ProblemInfo<OcpType> &info,
+    Index FatropOcpCMapping::eval_objective_gradient(const ProblemInfo &info,
                                                      const Scalar objective_scale,
                                                      const VecRealView &primal_x,
                                                      const VecRealView &primal_s,
@@ -254,7 +254,7 @@ namespace fatrop
         }
         return 0;
     }
-    Index FatropOcpCMapping::eval_objective(const ProblemInfo<OcpType> &info,
+    Index FatropOcpCMapping::eval_objective(const ProblemInfo &info,
                                             const Scalar objective_scale,
                                             const VecRealView &primal_x,
                                             const VecRealView &primal_s, Scalar &res)
@@ -284,7 +284,7 @@ namespace fatrop
         }
         return 0;
     }
-    Index FatropOcpCMapping::get_bounds(const ProblemInfo<OcpType> &info, VecRealView &lower_bounds,
+    Index FatropOcpCMapping::get_bounds(const ProblemInfo &info, VecRealView &lower_bounds,
                                         VecRealView &upper_bounds)
     {
         if (info.number_of_slack_variables == 0)
@@ -299,7 +299,7 @@ namespace fatrop
         }
         return 0;
     }
-    Index FatropOcpCMapping::get_initial_primal(const ProblemInfo<OcpType> &info,
+    Index FatropOcpCMapping::get_initial_primal(const ProblemInfo &info,
                                                 VecRealView &primal_x)
     {
         Scalar *primal_x_ptr = primal_x.data();
@@ -312,12 +312,12 @@ namespace fatrop
         }
         return 0;
     }
-    void FatropOcpCMapping::get_primal_damping(const ProblemInfo<OcpType> &info,
+    void FatropOcpCMapping::get_primal_damping(const ProblemInfo &info,
                                                VecRealView &damping)
     {
         damping = 0.0;
     }
-    void FatropOcpCMapping::apply_jacobian_s_transpose(const ProblemInfo<OcpType> &info,
+    void FatropOcpCMapping::apply_jacobian_s_transpose(const ProblemInfo &info,
                                                        const VecRealView &multipliers,
                                                        const Scalar alpha, const VecRealView &y,
                                                        VecRealView &out)

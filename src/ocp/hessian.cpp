@@ -8,7 +8,7 @@
 #include "fatrop/ocp/problem_info.hpp"
 using namespace fatrop;
 
-Hessian<OcpType>::Hessian(const ProblemDims<OcpType> &dims)
+Hessian<OcpType>::Hessian(const ProblemDims &dims)
 {
     // reserve memory for the Jacobian matrices
     RSQrqt.reserve(dims.K);

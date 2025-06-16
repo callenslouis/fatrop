@@ -25,7 +25,7 @@
 
 namespace fatrop
 {
-    typedef ProblemInfo<OcpType> OcpInfo;
+    typedef ProblemInfo OcpInfo;
     /**
      * @brief Specialization of the Jacobian structure for Optimal Control Problems.
      *
@@ -45,7 +45,7 @@ namespace fatrop
          *
          * @param dims The dimensions of the OCP, used to allocate appropriate memory.
          */
-        Jacobian(const ProblemDims<OcpType> &dims);
+        Jacobian(const ProblemDims &dims);
 
         /**
          * @brief Constraint Jacobian of the dynamics.
@@ -100,27 +100,13 @@ namespace fatrop
         friend std::ostream &operator<<(std::ostream &os, const Jacobian &jac);
     };
 
-    typedef ProblemInfo<ImplicitOcpType> ImplicitOcpInfo;
     template<>
     struct Jacobian<ImplicitOcpType> : public Jacobian<OcpType>
     {
-        Jacobian(const ProblemDims<ImplicitOcpType> &dims)
-            : Jacobian<OcpType>(ProblemDims<OcpType>(dims))
+        Jacobian(const ProblemDims &dims)
+            : Jacobian<OcpType>(dims)
         {
             // Initialize the Jacobian for Implicit OCPs if needed
-        }
-
-        void apply_on_right(const ImplicitOcpInfo& info, const VecRealView &x, Scalar alpha, const VecRealView& y, VecRealView &out) const {
-            apply_on_right(OcpInfo(info), x, alpha, y, out);
-        }
-        void transpose_apply_on_right(const ImplicitOcpInfo& info, const VecRealView &mult_eq, Scalar alpha, const VecRealView& y, VecRealView &out) const {
-            transpose_apply_on_right(OcpInfo(info), mult_eq, alpha, y, out);
-        }
-        void get_rhs(const ImplicitOcpInfo& info, VecRealView &rhs) const {
-            get_rhs(OcpInfo(info), rhs);
-        }
-        void set_rhs(const ImplicitOcpInfo& info, const VecRealView &rhs) {
-            set_rhs(OcpInfo(info), rhs);
         }
         
     private:

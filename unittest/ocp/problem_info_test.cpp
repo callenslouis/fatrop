@@ -9,9 +9,9 @@ namespace fatrop
 class ProblemInfoTest : public ::testing::Test
 {
 protected:
-    ProblemDims<OcpType> createSampleDims()
+    ProblemDims createSampleDims()
     {
-        return ProblemDims<OcpType>(
+        return ProblemDims(
             3, // 3 stages
             std::vector<Index>{2, 3, 4}, // number_of_controls
             std::vector<Index>{4, 5, 6}, // number_of_states
@@ -23,8 +23,8 @@ protected:
 
 TEST_F(ProblemInfoTest, ConstructorAndOffsets)
 {
-    ProblemDims<OcpType> dims = createSampleDims();
-            ProblemInfo<OcpType> problem_info(dims);
+    ProblemDims dims = createSampleDims();
+            ProblemInfo problem_info(dims);
 
             // Test dimensions
             EXPECT_EQ(problem_info.dims.K, 3);

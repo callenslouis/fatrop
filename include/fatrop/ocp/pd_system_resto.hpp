@@ -18,7 +18,7 @@ namespace fatrop
 
     public:
         // constructor
-        LinearSystem(const ProblemInfo<OcpType> &info, Jacobian<OcpType> &jac,
+        LinearSystem(const ProblemInfo &info, Jacobian<OcpType> &jac,
                      Hessian<OcpType> &hess, const VecRealView &D_x, bool D_e_is_zero,
                      const VecRealView &D_e, const VecRealView &Sl_i, const VecRealView &Su_i,
                      const VecRealView &Zl_i, const VecRealView &Zu_i, VecRealView &rhs_f_x,
@@ -31,7 +31,7 @@ namespace fatrop
          * @return Index The number of rows.
          */
         Index m() const { return m_; };
-        static Index m(const ProblemInfo<OcpType> &info);
+        static Index m(const ProblemInfo &info);
 
         /**
          * @brief Get the right-hand side (RHS) of the linear system.
@@ -57,7 +57,7 @@ namespace fatrop
                             VecRealView &out);
 
     private:
-        const ProblemInfo<OcpType> &info_;
+        const ProblemInfo &info_;
         const Index m_;
         Jacobian<OcpType> &jac_;
         Hessian<OcpType> &hess_;

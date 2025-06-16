@@ -11,10 +11,10 @@
 namespace fatrop
 {
     template <typename ProblemType> struct Hessian;
-    //     void apply_on_right(const ProblemInfo<ProblemType>& info, const VecRealView& x, Scalar
+    //     void apply_on_right(const ProblemInfo& info, const VecRealView& x, Scalar
     //     alpha, const VecRealView& y, VecRealView& out) const; void get_rhs(const
-    //     ProblemInfo<ProblemType>& info, VecRealView& out) const; void set_rhs(const
-    //     ProblemInfo<ProblemType>& info, const VecRealView& in); void set_zero();
+    //     ProblemInfo& info, VecRealView& out) const; void set_rhs(const
+    //     ProblemInfo& info, const VecRealView& in); void set_zero();
     // };
 } // namespace fatrop
 

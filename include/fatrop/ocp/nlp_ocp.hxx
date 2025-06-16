@@ -16,7 +16,7 @@ namespace fatrop
     {
         template <typename OcpAbstractTag> struct NlpOcpAuxiliary
         {
-            static ProblemDims<OcpType> get_ocp_dims(const OcpAbstractTpl<OcpAbstractTag> &ocp)
+            static ProblemDims get_ocp_dims(const OcpAbstractTpl<OcpAbstractTag> &ocp)
             {
                 const Index K = ocp.get_horizon_length();
                 std::vector<Index> nu(K), nx(K), ng(K), ng_ineq(K);
@@ -27,9 +27,9 @@ namespace fatrop
                     ng[k] = ocp.get_ng(k);
                     ng_ineq[k] = ocp.get_ng_ineq(k);
                 }
-                return ProblemDims<OcpType>(K, nu, nx, ng, ng_ineq);
+                return ProblemDims(K, nu, nx, ng, ng_ineq);
             }
-            static NlpDims get_nlp_dims(const ProblemDims<OcpType> &ocp_dims)
+            static NlpDims get_nlp_dims(const ProblemDims &ocp_dims)
             {
                 Index number_of_variables = 0;
                 Index number_of_eq_constraints = 0;
@@ -186,7 +186,7 @@ namespace fatrop
     }
 
     template <typename OcpAbstractTag>
-    Index NlpOcpTpl<OcpAbstractTag>::get_initial_primal(const ProblemInfo<OcpType> &info,
+    Index NlpOcpTpl<OcpAbstractTag>::get_initial_primal(const ProblemInfo &info,
                                                         VecRealView &primal_x)
     {
         Scalar *primal_x_ptr = primal_x.data();
@@ -198,13 +198,13 @@ namespace fatrop
         return 0;
     }
     template <typename OcpAbstractTag>
-    void NlpOcpTpl<OcpAbstractTag>::get_primal_damping(const ProblemInfo<OcpType> &info,
+    void NlpOcpTpl<OcpAbstractTag>::get_primal_damping(const ProblemInfo &info,
                                                        VecRealView &damping)
     {
         damping = 0;
     }
     template <typename OcpAbstractTag>
-    void NlpOcpTpl<OcpAbstractTag>::apply_jacobian_s_transpose(const ProblemInfo<OcpType> &info,
+    void NlpOcpTpl<OcpAbstractTag>::apply_jacobian_s_transpose(const ProblemInfo &info,
                                                                const VecRealView &multipliers,
                                                                const Scalar alpha,
                                                                const VecRealView &y,
