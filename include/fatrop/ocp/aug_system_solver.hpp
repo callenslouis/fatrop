@@ -197,14 +197,17 @@ namespace fatrop
 
     // define ImplicitOcpType augmented system solver
     template<>
-    class AugSystemSolver<ImplicitOcpType>
+    class AugSystemSolver<ImplicitOcpType> : public AugSystemSolver<OcpType>
     {
     public:
         /**
          * @brief Constructs an AugSystemSolver<ImplicitOcpType> object.
          * @param info Problem information for the optimal control problem.
          */
-        AugSystemSolver(const ProblemInfo &info);
+        AugSystemSolver(const ProblemInfo &info) : AugSystemSolver<OcpType>(info)
+        {
+            // Initialize additional members specific to ImplicitOcpType if needed
+        };
 
         /**
          * @brief Solves the augmented system without path equality constraint regularization.
@@ -257,8 +260,8 @@ namespace fatrop
          * @return Status flag indicating the outcome of the solve operation.
          */
         virtual LinsolReturnFlag solve_rhs(const ProblemInfo &info,
-                                           const Jacobian<ImplicitOcpType> &jacobian,
-                                           const Hessian<ImplicitOcpType> &hessian, const VecRealView &D_s,
+                                           Jacobian<ImplicitOcpType> &jacobian,
+                                           Hessian<ImplicitOcpType> &hessian, const VecRealView &D_s,
                                            const VecRealView &f, const VecRealView &g, VecRealView &x,
                                            VecRealView &eq_mult);
 
@@ -276,61 +279,21 @@ namespace fatrop
          * @return Status flag indicating the outcome of the solve operation.
          */
         virtual LinsolReturnFlag solve_rhs(const ProblemInfo &info,
-                                           const Jacobian<ImplicitOcpType> &jacobian,
-                                           const Hessian<ImplicitOcpType> &hessian, const VecRealView &D_eq,
+                                           Jacobian<ImplicitOcpType> &jacobian,
+                                           Hessian<ImplicitOcpType> &hessian, const VecRealView &D_eq,
                                            const VecRealView &D_s, const VecRealView &f,
                                            const VecRealView &g, VecRealView &x, VecRealView &eq_mult);
 
     private:
-        // temporaries, pre-allocated during construction to avoid allocation during
-        // optimization
-        std::vector<MatRealAllocated> Ppt;
-        std::vector<MatRealAllocated> Hh;
-        std::vector<MatRealAllocated> AL;
-        std::vector<MatRealAllocated> RSQrqt_tilde;
-        std::vector<MatRealAllocated> Ggt_stripe;
-        std::vector<MatRealAllocated> Ggt_tilde;
-        std::vector<MatRealAllocated> GgLt;
-        std::vector<MatRealAllocated> RSQrqt_hat;
-        std::vector<MatRealAllocated> Llt;
-        std::vector<MatRealAllocated> Llt_shift;
-        std::vector<MatRealAllocated> GgIt_tilde;
-        std::vector<MatRealAllocated> GgLIt;
-        std::vector<MatRealAllocated> HhIt;
-        std::vector<MatRealAllocated> PpIt_hat;
-        std::vector<MatRealAllocated> LlIt;
-        std::vector<MatRealAllocated> Ggt_ineq_temp;
-        std::vector<VecRealAllocated> v_Ppt;
-        std::vector<VecRealAllocated> v_Hh;
-        std::vector<VecRealAllocated> v_AL;
-        std::vector<VecRealAllocated> v_RSQrqt_tilde;
-        std::vector<VecRealAllocated> v_Ggt_stripe;
-        std::vector<VecRealAllocated> v_Ggt_tilde;
-        std::vector<VecRealAllocated> v_GgLt;
-        std::vector<VecRealAllocated> v_RSQrqt_hat;
-        std::vector<VecRealAllocated> v_Llt;
-        std::vector<VecRealAllocated> v_Llt_shift;
-        std::vector<VecRealAllocated> v_GgIt_tilde;
-        std::vector<VecRealAllocated> v_GgLIt;
-        std::vector<VecRealAllocated> v_HhIt;
-        std::vector<VecRealAllocated> v_PpIt_hat;
-        std::vector<VecRealAllocated> v_LlIt;
-        std::vector<VecRealAllocated> v_Ggt_ineq_temp;
-        std::vector<VecRealAllocated> v_tmp;
-        std::vector<PermutationMatrix> Pl;
-        std::vector<PermutationMatrix> Pr;
-        std::vector<PermutationMatrix> PlI;
-        std::vector<PermutationMatrix> PrI;
-        std::vector<Index> gamma;
-        std::vector<Index> rho;
-        Index rankI = 0;
-        bool it_ref = true;
-        bool perturbed_mode = false;
-        double perturbed_mode_param = 1e-6;
-        Scalar it_ref_acc = 1e-8;
-        Scalar lu_fact_tol = 1e-5;
-        bool diagnostic = false;
-        bool increased_accuracy = true;
+        void PreProcess(const ProblemInfo &info, 
+                        Jacobian<ImplicitOcpType> &jacobian,
+                        Hessian<ImplicitOcpType> &hessian);
+
+        void PostProcess(const ProblemInfo &info, 
+                         const Jacobian<ImplicitOcpType> &jacobian,
+                         const Hessian<ImplicitOcpType> &hessian,
+                         VecRealView &x);
+
     };
 
 

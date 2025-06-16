@@ -106,10 +106,35 @@ namespace fatrop
         Jacobian(const ProblemDims &dims)
             : Jacobian<OcpType>(dims)
         {
-            // Initialize the Jacobian for Implicit OCPs if needed
+            // store the original BAbt matrices
+            BAbt_original.reserve(dims.K);
+            for (int k = 0; k < dims.K - 1; ++k){
+                BAbt_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1,
+                                  dims.number_of_states[k + 1]);
+            }
+
+            // store additional dynamics jacobian
+            Jt.reserve(dims.K - 1);
+            Jt_LU.reserve(dims.K - 1);
+            for (int k = 0; k < dims.K - 1; ++k)
+            {
+                Jt.emplace_back(dims.number_of_states[k + 1], dims.number_of_states[k + 1]);
+                Jt_LU.emplace_back(dims.number_of_states[k + 1], dims.number_of_states[k + 1]);
+            }
         }
         
-    private:
+        /**
+         * @brief Preprocess the Jacobian structure, by computing BAbt as
+         * J^-1 * BAbt_original
+         *
+         * This function is called to prepare the Jacobian structure for use.
+         * It can be used to allocate memory, initialize matrices, or perform
+         * any other necessary setup before the Jacobian is used in computations.
+         */
+        void PreProcess(const ProblemInfo &info);
+
+        void PrepareInverseOfJ(const ProblemInfo &info);
+
         /**
          * @brief Jacobian of the dynamics with respect to x[k+1].
          *
@@ -117,7 +142,10 @@ namespace fatrop
          * Where:
          *   nx[k+1]: number of states at time step k+1
          */
-        std::vector<MatRealAllocated> J;
+        std::vector<MatRealAllocated> Jt;
+    private:
+        std::vector<MatRealAllocated> Jt_LU;
+        std::vector<MatRealAllocated> BAbt_original;
     };
 } // namespace fatrop
 

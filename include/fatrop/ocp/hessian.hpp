@@ -90,9 +90,29 @@ namespace fatrop
         Hessian(const ProblemDims &dims)
             : Hessian<OcpType>(dims)
         {
-            // Initialize additional members specific to ImplicitOcpType if needed
+            // store the original RSQrqt matrices
+            RSQrqt_original.reserve(dims.K);
+            for (int k = 0; k < dims.K; ++k)
+            {
+                RSQrqt_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1,
+                                    dims.number_of_controls[k] + dims.number_of_states[k] + 1);
+            }
+
+            // store additional dynamics hessians
+            FuFxt.reserve(dims.K - 1);
+            for (int k = 0; k < dims.K - 1; ++k)
+            {
+                FuFxt.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k],
+                                   dims.number_of_states[k + 1]);
+            }
         }
-        std::vector<MatRealAllocated> FuFx;
+
+        void PreProcess(const ProblemInfo &info, const Jacobian<ImplicitOcpType> &jacobian);
+
+        // dimensions nu[k] + nx[k] x nx[k+1]
+        std::vector<MatRealAllocated> FuFxt;
+    private:
+        std::vector<MatRealAllocated> RSQrqt_original;
     };
 } // namespace fatrop
 

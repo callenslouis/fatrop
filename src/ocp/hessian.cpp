@@ -2,6 +2,7 @@
 // Copyright (c) Lander Vanroye, KU Leuven
 //
 #include "fatrop/ocp/hessian.hpp"
+#include "fatrop/ocp/jacobian.hpp"
 #include "fatrop/common/exception.hpp"
 #include "fatrop/linear_algebra/linear_algebra.hpp"
 #include "fatrop/ocp/dims.hpp"
@@ -77,4 +78,35 @@ namespace fatrop
         }
         return os;
     }
+}
+
+
+
+
+
+
+//////////////////////////////
+// ImplicitOcpType-specific //
+//////////////////////////////
+
+void Hessian<ImplicitOcpType>::PreProcess(const ProblemInfo &info, 
+                                          const Jacobian<ImplicitOcpType> &jacobian)
+{
+    std::cout << "preprocessing hessian" << std::endl;
+    for (int k = 0; k < info.dims.K - 1; ++k){
+        RSQrqt_original[k] = RSQrqt[k];
+    }   
+
+    for (int k = 0; k < info.dims.K - 1; ++k)
+    {
+        Index nu = info.dims.number_of_controls[k];
+        Index nx = info.dims.number_of_states[k];
+        Index nx_next = info.dims.number_of_states[k + 1];
+        
+        gemm_nt(nx+nu+1, nx_next, nx+nu, 1.0, jacobian.BAbt[k], 0, 0, 
+                FuFxt[k], 0, 0, 1.0, RSQrqt_original[k], 0, 0, RSQrqt[k], 0, 0);
+        gemm_nt(nu+nx, nx_next, nu+nx, 1.0, FuFxt[k], 0, 0,
+                jacobian.BAbt[k], 0, 0, 1.0, RSQrqt[k], 0, 0, RSQrqt[k], 0, 0);
+    }
+    std::cout << "\tPreprocessing done" << std::endl;
 }

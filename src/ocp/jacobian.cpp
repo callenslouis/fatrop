@@ -200,3 +200,64 @@ namespace fatrop
         return os;
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//////////////////////////////
+// ImplicitOcpType-specific //
+//////////////////////////////
+
+void Jacobian<ImplicitOcpType>::PreProcess(const ProblemInfo &info){
+    std::cout << "Preprocessing Jacobian for ImplicitOcpType..." << std::endl;
+    // Make sure to store the current BAbt into BAbt_original before modifying BAbt matrices
+    for (int k = 0; k < info.dims.K - 1; ++k){
+        BAbt_original[k] = BAbt[k];
+    }   
+
+    // Compute BAbt = J^-1 * BAbt_original
+    for (int k = 0; k < info.dims.K - 1; ++k){
+        Index nx_next = info.dims.number_of_states[k + 1];
+        Index nx = info.dims.number_of_states[k];
+        Index nu = info.dims.number_of_controls[k];
+
+
+        // Compute BAbt_original * Jt^-1 using Jt_LU
+        // (1) compute BAbt = BAbt_original * U^-1
+        // (2) compute BAbt = BAbt * L^-1
+        trsm_runn(nx + nu + 1, nx_next, 1.0, BAbt_original[k], 0, 0,
+                           Jt_LU[k], 0, 0, BAbt[k], 0, 0);
+        trsm_rlnu(nx + nu + 1, nx_next, 1.0, BAbt[k], 0, 0,
+                           Jt_LU[k], 0, 0, BAbt[k], 0, 0);
+    }    
+    std::cout << "\tPreprocessing of Jacobian completed." << std::endl;
+}
+
+void Jacobian<ImplicitOcpType>::PrepareInverseOfJ(const ProblemInfo &info){
+    // compute LU-factorizations of matrices J such that we can later easily compute J^-1 * BAbt
+    std::cout << "Preparing inverse of J for ImplicitOcpType..." << std::endl;
+    for (int k = 0; k < info.dims.K - 1; ++k)
+    {
+        // TODO: actually do LU instead of whatever this is
+        getr(info.dims.number_of_states[k+1], info.dims.number_of_controls[k+1],
+             Jt[k], 0, 0, Jt_LU[k], 0, 0);
+        
+        // print out the Jt_LU matrix for debugging
+        // std::cout << "Jt_LU[" << k << "] = \n" << Jt_LU[k] << std::endl;
+        std::cout << "Jt[" << k << "] = \n" << Jt[k] << std::endl;
+    }
+}

@@ -46,6 +46,8 @@ namespace fatrop
 #define GESC blasfeo_dgesc
 #define TRSM_RLTN blasfeo_dtrsm_rltn
 #define TRSM_RLNN blasfeo_dtrsm_rlnn
+#define TRSM_RUNN blasfeo_dtrsm_runn
+#define TRSM_RLNU blasfeo_dtrsm_rlnu
 #define GEMM_NT blasfeo_dgemm_nt
 #define GEAD blasfeo_dgead
 #define SYRK_LN_MN blasfeo_dsyrk_ln_mn
