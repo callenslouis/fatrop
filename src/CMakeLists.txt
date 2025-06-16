@@ -3,7 +3,7 @@ set(FATROP_SOURCES
     linear_algebra/lu_factorization.cpp
     linear_algebra/vector.cpp
     ocp/aug_system_solver.cpp
-    ocp/dims.cpp
+    # ocp/dims.cpp
     ocp/jacobian.cpp
     ocp/hessian.cpp
     ocp/ip_alg_builder.cpp
@@ -27,7 +27,7 @@ set(FATROP_SOURCES
     ocp/pd_system_resto.cpp
     ocp/pd_solver_orig.cpp
     ocp/pd_solver_resto.cpp
-    ocp/problem_info.cpp
+    # ocp/problem_info.cpp
     ip_algorithm/ip_filter.cpp
     ip_algorithm/ip_mu_update.cpp
     ip_algorithm/ip_utils.cpp

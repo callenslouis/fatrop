@@ -24,9 +24,7 @@ namespace fatrop
          * todo: rename to number of slack variables
          */
     };
-    template <typename ProblemType> struct ProblemDims
-    {
-    };
+    template <typename ProblemType> struct ProblemDims;
 
 } // namespace fatrop
 

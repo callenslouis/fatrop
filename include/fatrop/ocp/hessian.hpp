@@ -9,6 +9,7 @@
 #include "fatrop/linear_algebra/fwd.hpp"
 #include "fatrop/ocp/fwd.hpp"
 #include "fatrop/linear_algebra/matrix.hpp"
+#include "fatrop/ocp/dims.hpp"
 #include <vector>
 
 /**
@@ -69,6 +70,29 @@ namespace fatrop
         void set_zero();
         // make printable
         friend std::ostream& operator<<(std::ostream& os, const Hessian<OcpType>& hess);
+    };
+
+    /**
+     * @brief Specialization of the Hessian structure for Implicit Optimal Control Problems.
+     *
+     * This specialization of the Hessian structure is designed specifically
+     * for Implicit Optimal Control Problems (OCPs). It represents the Hessian
+     * of the Karush-Kuhn-Tucker (KKT) system for Implicit OCPs, taking into account their
+     * specific structure and requirements.
+     *
+     * The Hessian is structured to efficiently handle the block-sparse nature
+     * of Implicit OCPs, which typically involve dynamics constraints, path constraints,
+     * and terminal constraints over multiple time steps.
+     */
+    template <>
+    struct Hessian<ImplicitOcpType> : public Hessian<OcpType>
+    {
+        Hessian(const ProblemDims<ImplicitOcpType> &dims)
+            : Hessian<OcpType>(ProblemDims<OcpType>(dims))
+        {
+            // Initialize additional members specific to ImplicitOcpType if needed
+        }
+        std::vector<MatRealAllocated> FuFx;
     };
 } // namespace fatrop
 

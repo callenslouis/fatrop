@@ -66,7 +66,7 @@ namespace fatrop
          * @brief Constructs an AugSystemSolver<OcpType> object.
          * @param info Problem information for the optimal control problem.
          */
-        AugSystemSolver<OcpType>(const ProblemInfo<OcpType> &info);
+        AugSystemSolver(const ProblemInfo<OcpType> &info);
 
         /**
          * @brief Solves the augmented system without path equality constraint regularization.
@@ -81,10 +81,10 @@ namespace fatrop
          * @param eq_mult [out] Solution vector for equality constraint multipliers.
          * @return Status flag indicating the outcome of the solve operation.
          */
-        LinsolReturnFlag solve(const ProblemInfo<OcpType> &info, Jacobian<OcpType> &jacobian,
-                               Hessian<OcpType> &hessian, const VecRealView &D_x,
-                               const VecRealView &D_s, const VecRealView &f, const VecRealView &g,
-                               VecRealView &x, VecRealView &eq_mult);
+        virtual LinsolReturnFlag solve(const ProblemInfo<OcpType> &info, Jacobian<OcpType> &jacobian,
+                                       Hessian<OcpType> &hessian, const VecRealView &D_x,
+                                       const VecRealView &D_s, const VecRealView &f, const VecRealView &g,
+                                       VecRealView &x, VecRealView &eq_mult);
 
         /**
          * @brief Solves the augmented system with path equality constraint regularization.
@@ -100,11 +100,11 @@ namespace fatrop
          * @param eq_mult [out] Solution vector for equality constraint multipliers.
          * @return Status flag indicating the outcome of the solve operation.
          */
-        LinsolReturnFlag solve(const ProblemInfo<OcpType> &info, Jacobian<OcpType> &jacobian,
-                               Hessian<OcpType> &hessian, const VecRealView &D_x,
-                               const VecRealView &D_eq, const VecRealView &D_s,
-                               const VecRealView &f, const VecRealView &g, VecRealView &x,
-                               VecRealView &eq_mult);
+        virtual LinsolReturnFlag solve(const ProblemInfo<OcpType> &info, Jacobian<OcpType> &jacobian,
+                                       Hessian<OcpType> &hessian, const VecRealView &D_x,
+                                       const VecRealView &D_eq, const VecRealView &D_s,
+                                       const VecRealView &f, const VecRealView &g, VecRealView &x,
+                                       VecRealView &eq_mult);
 
         /**
          * @brief Solves the system for a new right-hand side without path equality constraint regularization.
@@ -118,11 +118,11 @@ namespace fatrop
          * @param eq_mult [out] Solution vector for equality constraint multipliers.
          * @return Status flag indicating the outcome of the solve operation.
          */
-        LinsolReturnFlag solve_rhs(const ProblemInfo<OcpType> &info,
-                                   const Jacobian<OcpType> &jacobian,
-                                   const Hessian<OcpType> &hessian, const VecRealView &D_s,
-                                   const VecRealView &f, const VecRealView &g, VecRealView &x,
-                                   VecRealView &eq_mult);
+        virtual LinsolReturnFlag solve_rhs(const ProblemInfo<OcpType> &info,
+                                           const Jacobian<OcpType> &jacobian,
+                                           const Hessian<OcpType> &hessian, const VecRealView &D_s,
+                                           const VecRealView &f, const VecRealView &g, VecRealView &x,
+                                           VecRealView &eq_mult);
 
         /**
          * @brief Solves the system for a new right-hand side with path equality constraint regularization.
@@ -137,11 +137,11 @@ namespace fatrop
          * @param eq_mult [out] Solution vector for equality constraint multipliers.
          * @return Status flag indicating the outcome of the solve operation.
          */
-        LinsolReturnFlag solve_rhs(const ProblemInfo<OcpType> &info,
-                                   const Jacobian<OcpType> &jacobian,
-                                   const Hessian<OcpType> &hessian, const VecRealView &D_eq,
-                                   const VecRealView &D_s, const VecRealView &f,
-                                   const VecRealView &g, VecRealView &x, VecRealView &eq_mult);
+        virtual LinsolReturnFlag solve_rhs(const ProblemInfo<OcpType> &info,
+                                           const Jacobian<OcpType> &jacobian,
+                                           const Hessian<OcpType> &hessian, const VecRealView &D_eq,
+                                           const VecRealView &D_s, const VecRealView &f,
+                                           const VecRealView &g, VecRealView &x, VecRealView &eq_mult);
 
     private:
         // temporaries, pre-allocated during construction to avoid allocation during
@@ -194,6 +194,145 @@ namespace fatrop
         bool diagnostic = false;
         bool increased_accuracy = true;
     };
+
+    // define ImplicitOcpType augmented system solver
+    template<>
+    class AugSystemSolver<ImplicitOcpType>
+    {
+    public:
+        /**
+         * @brief Constructs an AugSystemSolver<ImplicitOcpType> object.
+         * @param info Problem information for the optimal control problem.
+         */
+        AugSystemSolver(const ProblemInfo<ImplicitOcpType> &info);
+
+        /**
+         * @brief Solves the augmented system without path equality constraint regularization.
+         * @param info Problem information.
+         * @param jacobian Jacobian of the constraints.
+         * @param hessian Hessian of the Lagrangian.
+         * @param D_x Diagonal regularization for primal variables.
+         * @param D_s Diagonal regularization for slack variables.
+         * @param f Gradient of the objective function.
+         * @param g Constraint residuals.
+         * @param x [out] Solution vector for primal variables.
+         * @param eq_mult [out] Solution vector for equality constraint multipliers.
+         * @return Status flag indicating the outcome of the solve operation.
+         */
+        virtual LinsolReturnFlag solve(const ProblemInfo<ImplicitOcpType> &info, Jacobian<ImplicitOcpType> &jacobian,
+                                       Hessian<ImplicitOcpType> &hessian, const VecRealView &D_x,
+                                       const VecRealView &D_s, const VecRealView &f, const VecRealView &g,
+                                       VecRealView &x, VecRealView &eq_mult);
+
+        /**
+         * @brief Solves the augmented system with path equality constraint regularization.
+         * @param info Problem information.
+         * @param jacobian Jacobian of the constraints.
+         * @param hessian Hessian of the Lagrangian.
+         * @param D_x Diagonal regularization for primal variables.
+         * @param D_eq Diagonal regularization for equality constraints.
+         * @param D_s Diagonal regularization for slack variables.
+         * @param f Gradient of the objective function.
+         * @param g Constraint residuals.
+         * @param x [out] Solution vector for primal variables.
+         * @param eq_mult [out] Solution vector for equality constraint multipliers.
+         * @return Status flag indicating the outcome of the solve operation.
+         */
+        virtual LinsolReturnFlag solve(const ProblemInfo<ImplicitOcpType> &info, Jacobian<ImplicitOcpType> &jacobian,
+                                       Hessian<ImplicitOcpType> &hessian, const VecRealView &D_x,
+                                       const VecRealView &D_eq, const VecRealView &D_s,
+                                       const VecRealView &f, const VecRealView &g, VecRealView &x,
+                                       VecRealView &eq_mult);
+
+        /**
+         * @brief Solves the system for a new right-hand side without path equality constraint regularization.
+         * @param info Problem information.
+         * @param jacobian Jacobian of the constraints.
+         * @param hessian Hessian of the Lagrangian.
+         * @param D_s Diagonal regularization for slack variables.
+         * @param f Gradient of the objective function.
+         * @param g Constraint residuals.
+         * @param x [out] Solution vector for primal variables.
+         * @param eq_mult [out] Solution vector for equality constraint multipliers.
+         * @return Status flag indicating the outcome of the solve operation.
+         */
+        virtual LinsolReturnFlag solve_rhs(const ProblemInfo<ImplicitOcpType> &info,
+                                           const Jacobian<ImplicitOcpType> &jacobian,
+                                           const Hessian<ImplicitOcpType> &hessian, const VecRealView &D_s,
+                                           const VecRealView &f, const VecRealView &g, VecRealView &x,
+                                           VecRealView &eq_mult);
+
+        /**
+         * @brief Solves the system for a new right-hand side with path equality constraint regularization.
+         * @param info Problem information.
+         * @param jacobian Jacobian of the constraints.
+         * @param hessian Hessian of the Lagrangian.
+         * @param D_eq Diagonal regularization for equality constraints.
+         * @param D_s Diagonal regularization for slack variables.
+         * @param f Gradient of the objective function.
+         * @param g Constraint residuals.
+         * @param x [out] Solution vector for primal variables.
+         * @param eq_mult [out] Solution vector for equality constraint multipliers.
+         * @return Status flag indicating the outcome of the solve operation.
+         */
+        virtual LinsolReturnFlag solve_rhs(const ProblemInfo<ImplicitOcpType> &info,
+                                           const Jacobian<ImplicitOcpType> &jacobian,
+                                           const Hessian<ImplicitOcpType> &hessian, const VecRealView &D_eq,
+                                           const VecRealView &D_s, const VecRealView &f,
+                                           const VecRealView &g, VecRealView &x, VecRealView &eq_mult);
+
+    private:
+        // temporaries, pre-allocated during construction to avoid allocation during
+        // optimization
+        std::vector<MatRealAllocated> Ppt;
+        std::vector<MatRealAllocated> Hh;
+        std::vector<MatRealAllocated> AL;
+        std::vector<MatRealAllocated> RSQrqt_tilde;
+        std::vector<MatRealAllocated> Ggt_stripe;
+        std::vector<MatRealAllocated> Ggt_tilde;
+        std::vector<MatRealAllocated> GgLt;
+        std::vector<MatRealAllocated> RSQrqt_hat;
+        std::vector<MatRealAllocated> Llt;
+        std::vector<MatRealAllocated> Llt_shift;
+        std::vector<MatRealAllocated> GgIt_tilde;
+        std::vector<MatRealAllocated> GgLIt;
+        std::vector<MatRealAllocated> HhIt;
+        std::vector<MatRealAllocated> PpIt_hat;
+        std::vector<MatRealAllocated> LlIt;
+        std::vector<MatRealAllocated> Ggt_ineq_temp;
+        std::vector<VecRealAllocated> v_Ppt;
+        std::vector<VecRealAllocated> v_Hh;
+        std::vector<VecRealAllocated> v_AL;
+        std::vector<VecRealAllocated> v_RSQrqt_tilde;
+        std::vector<VecRealAllocated> v_Ggt_stripe;
+        std::vector<VecRealAllocated> v_Ggt_tilde;
+        std::vector<VecRealAllocated> v_GgLt;
+        std::vector<VecRealAllocated> v_RSQrqt_hat;
+        std::vector<VecRealAllocated> v_Llt;
+        std::vector<VecRealAllocated> v_Llt_shift;
+        std::vector<VecRealAllocated> v_GgIt_tilde;
+        std::vector<VecRealAllocated> v_GgLIt;
+        std::vector<VecRealAllocated> v_HhIt;
+        std::vector<VecRealAllocated> v_PpIt_hat;
+        std::vector<VecRealAllocated> v_LlIt;
+        std::vector<VecRealAllocated> v_Ggt_ineq_temp;
+        std::vector<VecRealAllocated> v_tmp;
+        std::vector<PermutationMatrix> Pl;
+        std::vector<PermutationMatrix> Pr;
+        std::vector<PermutationMatrix> PlI;
+        std::vector<PermutationMatrix> PrI;
+        std::vector<Index> gamma;
+        std::vector<Index> rho;
+        Index rankI = 0;
+        bool it_ref = true;
+        bool perturbed_mode = false;
+        double perturbed_mode_param = 1e-6;
+        Scalar it_ref_acc = 1e-8;
+        Scalar lu_fact_tol = 1e-5;
+        bool diagnostic = false;
+        bool increased_accuracy = true;
+    };
+
 
 } // namespace fatrop
 

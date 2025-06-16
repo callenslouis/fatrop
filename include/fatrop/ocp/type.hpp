@@ -26,6 +26,21 @@ namespace fatrop
     struct OcpType
     {
     };
+
+    /**
+     * @brief Structure representing the type of Optimal Control Problems with 
+     * Implicit integration.
+     * 
+     * This structure serves as a base for specializations of problem class-specific
+     * elements such as Jacobians and Hessians. These specializations depend on the
+     * problem's class structure and are crucial for efficient implementation of
+     * optimization algorithms for different types of Optimal Control Problems.
+     */
+    struct ImplicitOcpType : public OcpType
+    {
+    };
+
+
 } // namespace fatrop
 
 #endif //__fatrop_ocp_type_hpp__
