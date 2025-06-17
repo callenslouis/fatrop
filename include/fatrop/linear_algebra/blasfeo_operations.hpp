@@ -154,6 +154,14 @@ namespace fatrop
                                B.ai() + bi, B.aj() + bj, &D.mat(), D.ai() + di, D.aj() + dj);
     }
 
+    static inline void trsm_runu(int m, int n, Scalar alpha, const MatRealView &A, int ai, int aj,
+                                 const MatRealView &B, int bi, int bj, MatRealView &D, int di,
+                                 int dj)
+    {
+        blasfeo_trsm_runu_wrap(m, n, alpha, &A.mat(), A.ai() + ai, A.aj() + aj, &B.mat(),
+                               B.ai() + bi, B.aj() + bj, &D.mat(), D.ai() + di, D.aj() + dj);
+    }
+
     static inline void gemm_nt(int m, int n, int k, Scalar alpha, const MatRealView &A, int ai,
                                int aj, const MatRealView &B, int bi, int bj, Scalar beta,
                                const MatRealView &C, int ci, int cj, MatRealView &D, int di, int dj)

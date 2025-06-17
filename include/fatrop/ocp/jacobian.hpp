@@ -5,6 +5,7 @@
 #ifndef __fatrop_ocp_jacobian_hpp__
 #define __fatrop_ocp_jacobian_hpp__
 
+#include "fatrop/linear_algebra/lu_factorization.hpp"
 #include "fatrop/nlp/jacobian.hpp"
 #include "fatrop/linear_algebra/fwd.hpp"
 #include "fatrop/ocp/fwd.hpp"
@@ -116,10 +117,17 @@ namespace fatrop
             // store additional dynamics jacobian
             Jt.reserve(dims.K - 1);
             Jt_LU.reserve(dims.K - 1);
+            Jt_inv.reserve(dims.K - 1);
+            Pl.reserve(dims.K - 1);
+            Pr.reserve(dims.K - 1);
+            rho.reserve(dims.K - 1);
             for (int k = 0; k < dims.K - 1; ++k)
             {
                 Jt.emplace_back(dims.number_of_states[k + 1], dims.number_of_states[k + 1]);
                 Jt_LU.emplace_back(dims.number_of_states[k + 1], dims.number_of_states[k + 1]);
+                Jt_inv.emplace_back(dims.number_of_states[k + 1], dims.number_of_states[k + 1]);
+                Pl.emplace_back(dims.number_of_states[k + 1]);
+                Pr.emplace_back(dims.number_of_states[k + 1]);
             }
         }
         
@@ -132,8 +140,13 @@ namespace fatrop
          * any other necessary setup before the Jacobian is used in computations.
          */
         void PreProcess(const ProblemInfo &info);
+        void ResetPreProcess(const ProblemInfo &info);
 
         void PrepareInverseOfJ(const ProblemInfo &info);
+
+        // Overloading (to account for changed structure)
+        void apply_on_right(const OcpInfo& info, const VecRealView &x, Scalar alpha, const VecRealView& y, VecRealView &out) const;
+        void transpose_apply_on_right(const OcpInfo& info, const VecRealView &mult_eq, Scalar alpha, const VecRealView& y, VecRealView &out) const;
 
         /**
          * @brief Jacobian of the dynamics with respect to x[k+1].
@@ -143,8 +156,13 @@ namespace fatrop
          *   nx[k+1]: number of states at time step k+1
          */
         std::vector<MatRealAllocated> Jt;
+        std::vector<MatRealAllocated> Jt_inv;
+        bool ASSUME_INVERSE_GIVEN = true;
     private:
         std::vector<MatRealAllocated> Jt_LU;
+        std::vector<PermutationMatrix> Pl;
+        std::vector<PermutationMatrix> Pr;
+        std::vector<int> rho;
         std::vector<MatRealAllocated> BAbt_original;
     };
 } // namespace fatrop

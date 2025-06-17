@@ -290,12 +290,10 @@ namespace fatrop
                         Hessian<ImplicitOcpType> &hessian);
 
         void PostProcess(const ProblemInfo &info, 
-                         const Jacobian<ImplicitOcpType> &jacobian,
-                         const Hessian<ImplicitOcpType> &hessian,
-                         VecRealView &x);
-
+                         Jacobian<ImplicitOcpType> &jacobian,
+                         Hessian<ImplicitOcpType> &hessian,
+                         VecRealView &x, VecRealView &eq_mult);
     };
-
 
 } // namespace fatrop
 

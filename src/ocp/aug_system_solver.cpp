@@ -1063,6 +1063,7 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
 {
     PreProcess(info, jacobian, hessian);
     LinsolReturnFlag flag = AugSystemSolver<OcpType>::solve(info, jacobian, hessian, D_x, D_s, f, g, x, eq_mult);
+    PostProcess(info, jacobian, hessian, x, eq_mult);
     return flag;
 }
 LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info,
@@ -1074,6 +1075,7 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
 {
     PreProcess(info, jacobian, hessian);
     LinsolReturnFlag flag = AugSystemSolver<OcpType>::solve(info, jacobian, hessian, D_x, D_eq, D_s, f, g, x, eq_mult);
+    PostProcess(info, jacobian, hessian, x, eq_mult);
     return flag;
 }
 
@@ -1086,6 +1088,7 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve_rhs(const ProblemInfo &
 {
     PreProcess(info, jacobian, hessian);
     LinsolReturnFlag flag = AugSystemSolver<OcpType>::solve_rhs(info, jacobian, hessian, D_s, f, g, x, eq_mult);
+    PostProcess(info, jacobian, hessian, x, eq_mult);
     return flag;
 }
 LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve_rhs(const ProblemInfo &info,
@@ -1097,6 +1100,7 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve_rhs(const ProblemInfo &
 {
     PreProcess(info, jacobian, hessian);
     LinsolReturnFlag flag = AugSystemSolver<OcpType>::solve_rhs(info, jacobian, hessian, D_eq, D_s, f, g, x, eq_mult);
+    PostProcess(info, jacobian, hessian, x, eq_mult);
     return flag;
 }
 
@@ -1107,36 +1111,41 @@ void AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
     jacobian.PrepareInverseOfJ(info);
     jacobian.PreProcess(info);
     hessian.PreProcess(info, jacobian);
+}
 
-    // std::cout << "printing nx and nu values" << std::endl;
-    // for (Index k = 0; k < info.dims.K; k++)
-    // {
-    //     std::cout << "k = " << k << ", nx = " << info.dims.number_of_states[k]
-    //               << ", nu = " << info.dims.number_of_controls[k] << std::endl;
-    // }
+void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
+                                                   Jacobian<ImplicitOcpType> &jacobian,
+                                                   Hessian<ImplicitOcpType> &hessian,
+                                                   VecRealView &x, VecRealView &eq_mult){
+    for (int k = 0; k < info.dims.K - 1; ++k){
+        int nx = info.dims.number_of_states[k];
+        int nx_next = info.dims.number_of_states[k + 1];
+        int nu = info.dims.number_of_controls[k];
 
-    // std::cout << "printing BAbt matrices" << std::endl;
-    // for (Index k = 0; k < info.dims.K; k++)
-    // {
-    //     std::cout << "BAbt[" << k << "] = " << jacobian.BAbt[k] << std::endl;
-    // }
+        // pi_k+1 <-- pi_k+1 + Fu[k] uk + Fx[k] xk
+        gemv_t(nx_next, nu, 1.0, 
+               hessian.FuFxt[k], 0, 0, 
+               x, info.offsets_primal_u[k], 1.0, 
+               eq_mult, info.offsets_g_eq_dyn[k], 
+               eq_mult, info.offsets_g_eq_dyn[k]);
+        gemv_t(nx_next, nu, 1.0, 
+               hessian.FuFxt[k], 0, nu, 
+               x, info.offsets_primal_x[k], 1.0, 
+               eq_mult, info.offsets_g_eq_dyn[k], 
+               eq_mult, info.offsets_g_eq_dyn[k]);
+        
+        // pi_k+1 <-- Jt_inv * pi_k+1
+        if (jacobian.ASSUME_INVERSE_GIVEN){
+            gemv_n(nx_next, nx_next, 1.0,
+                jacobian.Jt_inv[k], 0, 0, 
+                eq_mult, info.offsets_g_eq_dyn[k], 0.0, 
+                eq_mult, info.offsets_g_eq_dyn[k], 
+                eq_mult, info.offsets_g_eq_dyn[k]);
+        } else {
+            throw std::runtime_error("Not implemented yet for ASSUME_INVERSE_GIVEN == false");
+        }
+    }
 
-    // std::cout << "printing Gg_eqt matrices" << std::endl;
-    // for (Index k = 0; k < info.dims.K; k++)
-    // {
-    //     std::cout << "Gg_eqt[" << k << "] = " << jacobian.Gg_eqt[k] << std::endl;
-    // }
-
-    // std::cout << "printing Gg_ineqt matrices" << std::endl;
-    // for (Index k = 0; k < info.dims.K; k++)
-    // {
-    //     std::cout << "Gg_ineqt[" << k << "] = " << jacobian.Gg_ineqt[k] << std::endl;
-    // }
-
-    // std::cout << "printing RSQrqt matrices" << std::endl;
-    // for (Index k = 0; k < info.dims.K; k++)
-    // {
-    //     std::cout << "RSQrqt[" << k << "] = " << hessian.RSQrqt[k] << std::endl;
-    // }
-
+    jacobian.ResetPreProcess(info);
+    hessian.ResetPreProcess(info, jacobian);
 }

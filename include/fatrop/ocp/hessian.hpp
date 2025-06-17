@@ -94,20 +94,24 @@ namespace fatrop
             RSQrqt_original.reserve(dims.K);
             for (int k = 0; k < dims.K; ++k)
             {
-                RSQrqt_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1,
-                                    dims.number_of_controls[k] + dims.number_of_states[k] + 1);
+                RSQrqt_original.emplace_back(1*(dims.number_of_controls[k] + dims.number_of_states[k] + 1),
+                                             1*(dims.number_of_controls[k] + dims.number_of_states[k]));
             }
 
             // store additional dynamics hessians
             FuFxt.reserve(dims.K - 1);
             for (int k = 0; k < dims.K - 1; ++k)
             {
-                FuFxt.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k],
-                                   dims.number_of_states[k + 1]);
+                FuFxt.emplace_back(1*(dims.number_of_controls[k] + dims.number_of_states[k]),
+                                   1*(dims.number_of_states[k + 1]));
             }
         }
 
         void PreProcess(const ProblemInfo &info, const Jacobian<ImplicitOcpType> &jacobian);
+        void ResetPreProcess(const ProblemInfo &info, const Jacobian<ImplicitOcpType> &jacobian);
+
+        // Overloading (to account for changed structure)
+        void apply_on_right(const OcpInfo& info, const VecRealView& x, Scalar alpha, const VecRealView& y, VecRealView& out) const;
 
         // dimensions nu[k] + nx[k] x nx[k+1]
         std::vector<MatRealAllocated> FuFxt;

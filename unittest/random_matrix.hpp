@@ -37,6 +37,31 @@ namespace fatrop
             trtr_l(m, ret, 0, 0, ret, 0, 0);
             return ret;
         }
+
+        MatRealAllocated identity_matrix(Index m, double diagonal_value = 1.0){
+            MatRealAllocated matrix(m, m);
+            for (Index i = 0; i < m; ++i)
+            {
+                for (Index j = 0; j < m; ++j)
+                {
+                    matrix(i, j) = (i == j) ? diagonal_value : 0.0;
+                }
+            }
+            return matrix;
+        }
+
+        MatRealAllocated empty_matrix(Index m, Index n)
+        {
+            MatRealAllocated matrix(m, n);
+            for (Index i = 0; i < m; ++i)
+            {
+                for (Index j = 0; j < n; ++j)
+                {
+                    matrix(i, j) = 0.0;
+                }
+            }
+            return matrix;
+        }
     } // namespace test
 } // namespace fatrop
 #endif // __fatrop_unittest_random_matrix_hpp__

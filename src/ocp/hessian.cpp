@@ -92,9 +92,11 @@ namespace fatrop
 void Hessian<ImplicitOcpType>::PreProcess(const ProblemInfo &info, 
                                           const Jacobian<ImplicitOcpType> &jacobian)
 {
-    std::cout << "preprocessing hessian" << std::endl;
     for (int k = 0; k < info.dims.K - 1; ++k){
-        RSQrqt_original[k] = RSQrqt[k];
+        // RSQrqt_original[k] = RSQrqt[k];
+        gecp(info.dims.number_of_controls[k] + info.dims.number_of_states[k] + 1,
+             info.dims.number_of_controls[k] + info.dims.number_of_states[k],
+             RSQrqt[k], 0, 0, RSQrqt_original[k], 0, 0);
     }   
 
     for (int k = 0; k < info.dims.K - 1; ++k)
@@ -102,11 +104,44 @@ void Hessian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
         Index nu = info.dims.number_of_controls[k];
         Index nx = info.dims.number_of_states[k];
         Index nx_next = info.dims.number_of_states[k + 1];
-        
-        gemm_nt(nx+nu+1, nx_next, nx+nu, 1.0, jacobian.BAbt[k], 0, 0, 
+
+        gemm_nt(nx+nu+1, nx+nu, nx_next, 1.0, jacobian.BAbt[k], 0, 0, 
                 FuFxt[k], 0, 0, 1.0, RSQrqt_original[k], 0, 0, RSQrqt[k], 0, 0);
-        gemm_nt(nu+nx, nx_next, nu+nx, 1.0, FuFxt[k], 0, 0,
+        gemm_nt(nu+nx, nx+nu, nx_next, 1.0, FuFxt[k], 0, 0,
                 jacobian.BAbt[k], 0, 0, 1.0, RSQrqt[k], 0, 0, RSQrqt[k], 0, 0);
     }
-    std::cout << "\tPreprocessing done" << std::endl;
+}
+
+void Hessian<ImplicitOcpType>::ResetPreProcess(const ProblemInfo &info, 
+                                               const Jacobian<ImplicitOcpType> &jacobian)
+{
+    for (int k = 0; k < info.dims.K - 1; ++k){
+        RSQrqt[k] = RSQrqt_original[k];
+    }   
+}
+
+void Hessian<ImplicitOcpType>::apply_on_right(const OcpInfo& info, 
+                                              const VecRealView& x, 
+                                              Scalar alpha, 
+                                              const VecRealView& y, 
+                                              VecRealView& out) const {
+    for (Index k = 0; k < info.dims.K; ++k)
+    {
+        // get the dimensions of the Hessian matrix
+        Index nu = info.dims.number_of_controls[k];
+        Index nx = info.dims.number_of_states[k];
+        // get the offsets of the current variables in x, and out
+        Index offset_ux = info.offsets_primal_u[k];
+        // apply out[offs:offs+nu+nx] =  RSQ @ x[offs:offs+nu+nx]
+        gemv_t(nu + nx, nu + nx, 1.0, RSQrqt[k], 0, 0, x, offset_ux, alpha, y, offset_ux, out,
+               offset_ux);
+
+        if (k < info.dims.K - 1){
+            // add additional terms
+            Index nx_next = info.dims.number_of_states[k + 1];
+            gemv_t(nx_next, nu, 1.0, FuFxt[k], 0, 0, 
+                   x, info.offsets_primal_u[k], 1.0, out, info.offsets_primal_x[k + 1], 
+                   out, info.offsets_primal_x[k + 1]);
+        }
+    }
 }

@@ -15,6 +15,34 @@
 
 using namespace fatrop;
 
+MatRealAllocated get_inverse(const MatRealView &A)
+{
+    fatrop_dbg_assert(A.m() == A.n() && "Matrix must be square for inversion");
+    MatRealAllocated A_inv(A.m(), A.m());
+    MatRealAllocated LU(A.m(), A.m());
+    blasfeo_dgetrf_np(A.m(), A.m(), const_cast<MAT *>(&A.mat()), 0, 0, &LU.mat(), 0, 0);
+
+    // Solve the system LU * X = I, where I is the identity matrix
+    MatRealAllocated I = ::test::identity_matrix(A.m());
+
+    // (1) solve L Y = I
+    blasfeo_dtrsm_llnu(A.m(), A.m(), 1.0, &LU.mat(), 0, 0, &I.mat(), 0, 0, &A_inv.mat(), 0, 0);
+    // (2) solve U X = Y
+    blasfeo_dtrsm_lunn(A.m(), A.m(), 1.0, &LU.mat(), 0, 0, &A_inv.mat(), 0, 0, &A_inv.mat(), 0, 0);
+
+    // check result
+    MatRealAllocated I_check = ::test::identity_matrix(A.m());
+    blasfeo_dgemm_nn(A.m(), A.m(), A.m(), 1.0, 
+                     const_cast<MAT *>(&A.mat()), 0, 0, 
+                     const_cast<MAT *>(&A_inv.mat()), 0, 0, 0.0, 
+                     const_cast<MAT *>(&I_check.mat()), 0, 0,
+                     const_cast<MAT *>(&I_check.mat()), 0, 0);
+    std::cout << "identity check: \n"
+              << I_check << std::endl;
+
+    return A_inv;
+}
+
 class AugSystemSolverTest : public ::testing::Test
 {
 protected:
@@ -186,6 +214,9 @@ protected:
     {
         x = 0;
         full_matrix_jacobian = 0.;
+
+        bool CREATE_EXPLICIT_EQUIVALENT = true;
+
         // fill the jacobian with random values
         for (Index k = 0; k < info.dims.K; ++k)
         {
@@ -196,11 +227,25 @@ protected:
                 Index nx_next = info.dims.number_of_states[k + 1];
                 jacobian.BAbt[k].block(nu + nx, nx_next, 0, 0) =
                     ::test::random_matrix(nu + nx, nx_next);
-                jacobian.Jt[k].block(nx_next, nx_next, 0, 0) =
-                    ::test::random_matrix(nx_next, nx_next);
-                std::cout << "k = " << k << ", nx_next = " << nx_next << std::endl;
-                std::cout << "Jt[" << k << "] = \n"
-                          << jacobian.Jt[k] << std::endl;
+                if (jacobian.ASSUME_INVERSE_GIVEN){
+                    if (CREATE_EXPLICIT_EQUIVALENT){
+                        jacobian.Jt_inv[k].block(nx_next, nx_next, 0, 0) =
+                            ::test::identity_matrix(nx_next, -1.0);
+                    } else {
+                        jacobian.Jt_inv[k].block(nx_next, nx_next, 0, 0) =
+                            ::test::random_matrix(nx_next, nx_next);
+                    }
+                    jacobian.Jt[k].block(nx_next, nx_next, 0, 0) =
+                        get_inverse(jacobian.Jt_inv[k].block(nx_next, nx_next, 0, 0));
+                } else {
+                    if (CREATE_EXPLICIT_EQUIVALENT){
+                        jacobian.Jt[k].block(nx_next, nx_next, 0, 0) =
+                            ::test::identity_matrix(nx_next, -1.0);
+                    } else {
+                        jacobian.Jt[k].block(nx_next, nx_next, 0, 0) =
+                            ::test::random_matrix(nx_next, nx_next);
+                    }
+                }
             }
             jacobian.Gg_eqt[k].block(nu + nx, info.dims.number_of_eq_constraints[k], 0, 0) =
                 ::test::random_matrix(nu + nx, info.dims.number_of_eq_constraints[k]);
@@ -227,8 +272,13 @@ protected:
                 transpose(jacobian.BAbt[k].block(nu + nx, nx_next, 0, 0));
             full_matrix_jacobian.block(nx_next, nx_next, offs_eq_dyn, offs_x_next).diagonal() =
                 -1.0;
-            hessian.FuFxt[k].block(nx + nu, nx_next, 0, 0) =
-                ::test::random_matrix(nx + nu, nx_next);
+            if (CREATE_EXPLICIT_EQUIVALENT){
+                hessian.FuFxt[k].block(nx + nu, nx_next, 0, 0) =
+                    ::test::empty_matrix(nx + nu, nx_next);
+            } else {
+                hessian.FuFxt[k].block(nx + nu, nx_next, 0, 0) =
+                    ::test::random_matrix(nx + nu, nx_next);
+            }
         }
         // equality path equality constraints
         for (Index k = 0; k < info.dims.K; ++k)
@@ -291,6 +341,7 @@ protected:
         }
     };
 };
+
 
 TEST_F(AugSystemSolverTest, TestSolve)
 {
@@ -421,10 +472,11 @@ TEST_F(AugSystemSolverTest, TestSolveDegenRhs)
     }
 }
 
+
 TEST_F(ImplicitAugSystemSolverTest, TestSolve)
 {
     Index ret = solver.solve(info, jacobian, hessian, D_x, D_s, rhs_x, rhs_g, x, mult);
-    // EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
+    EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
     VecRealAllocated jac_x(info.number_of_eq_constraints);
     jacobian.apply_on_right(info, x, 0.0, jac_x, jac_x);
     VecRealAllocated rhs_gg(info.number_of_eq_constraints);
@@ -441,14 +493,14 @@ TEST_F(ImplicitAugSystemSolverTest, TestSolve)
     jacobian.transpose_apply_on_right(info, mult, 0.0, tmp, tmp);
     grad = grad + tmp;
     grad = grad + rhs_x;
-    // for (Index i = 0; i < info.number_of_eq_constraints; ++i)
-    // {
-    //     EXPECT_NEAR(rhs_gg(i), 0, 1e-5);
-    // }
-    // for (Index i = 0; i < info.number_of_primal_variables; ++i)
-    // {
-    //     EXPECT_NEAR(grad(i), 0, 1e-5);
-    // }
+    for (Index i = 0; i < info.number_of_eq_constraints; ++i)
+    {
+        EXPECT_NEAR(rhs_gg(i), 0, 1e-5);
+    }
+    for (Index i = 0; i < info.number_of_primal_variables; ++i)
+    {
+        EXPECT_NEAR(grad(i), 0, 1e-5);
+    }
 }
 
 TEST_F(ImplicitAugSystemSolverTest, TestSolveRhs)
@@ -472,14 +524,14 @@ TEST_F(ImplicitAugSystemSolverTest, TestSolveRhs)
     jacobian.transpose_apply_on_right(info, mult, 0.0, tmp, tmp);
     grad = grad + tmp;
     grad = grad + rhs_x;
-    // for (Index i = 0; i < info.number_of_eq_constraints; ++i)
-    // {
-    //     EXPECT_NEAR(rhs_gg(i), 0, 1e-5);
-    // }
-    // for (Index i = 0; i < info.number_of_primal_variables; ++i)
-    // {
-    //     EXPECT_NEAR(grad(i), 0, 1e-5);
-    // }
+    for (Index i = 0; i < info.number_of_eq_constraints; ++i)
+    {
+        EXPECT_NEAR(rhs_gg(i), 0, 1e-5);
+    }
+    for (Index i = 0; i < info.number_of_primal_variables; ++i)
+    {
+        EXPECT_NEAR(grad(i), 0, 1e-5);
+    }
 }
 
 TEST_F(ImplicitAugSystemSolverTest, TestSolveDegen)
@@ -505,14 +557,14 @@ TEST_F(ImplicitAugSystemSolverTest, TestSolveDegen)
     jacobian.transpose_apply_on_right(info, mult, 0.0, tmp, tmp);
     grad = grad + tmp;
     grad = grad + rhs_x;
-    // for (Index i = 0; i < info.number_of_eq_constraints; ++i)
-    // {
-    //     EXPECT_NEAR(rhs_gg(i), 0, 1e-5);
-    // }
-    // for (Index i = 0; i < info.number_of_primal_variables; ++i)
-    // {
-    //     EXPECT_NEAR(grad(i), 0, 1e-5);
-    // }
+    for (Index i = 0; i < info.number_of_eq_constraints; ++i)
+    {
+        EXPECT_NEAR(rhs_gg(i), 0, 1e-5);
+    }
+    for (Index i = 0; i < info.number_of_primal_variables; ++i)
+    {
+        EXPECT_NEAR(grad(i), 0, 1e-5);
+    }
 }
 
 TEST_F(ImplicitAugSystemSolverTest, TestSolveDegenRhs)
@@ -540,12 +592,12 @@ TEST_F(ImplicitAugSystemSolverTest, TestSolveDegenRhs)
     jacobian.transpose_apply_on_right(info, mult, 0.0, tmp, tmp);
     grad = grad + tmp;
     grad = grad + rhs_x;
-    // for (Index i = 0; i < info.number_of_eq_constraints; ++i)
-    // {
-    //     EXPECT_NEAR(rhs_gg(i), 0, 1e-5);
-    // }
-    // for (Index i = 0; i < info.number_of_primal_variables; ++i)
-    // {
-    //     EXPECT_NEAR(grad(i), 0, 1e-5);
-    // }
+    for (Index i = 0; i < info.number_of_eq_constraints; ++i)
+    {
+        EXPECT_NEAR(rhs_gg(i), 0, 1e-5);
+    }
+    for (Index i = 0; i < info.number_of_primal_variables; ++i)
+    {
+        EXPECT_NEAR(grad(i), 0, 1e-5);
+    }
 }
