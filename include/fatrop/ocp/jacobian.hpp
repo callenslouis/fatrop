@@ -164,6 +164,8 @@ namespace fatrop
         std::vector<PermutationMatrix> Pr;
         std::vector<int> rho;
         std::vector<MatRealAllocated> BAbt_original;
+
+        bool print_debug = false;
     };
 } // namespace fatrop
 

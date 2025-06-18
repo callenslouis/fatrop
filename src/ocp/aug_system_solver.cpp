@@ -1061,6 +1061,7 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
                                            const VecRealView &f, const VecRealView &g,
                                            VecRealView &x, VecRealView &eq_mult)
 {
+    // return LinsolReturnFlag::SUCCESS;
     PreProcess(info, jacobian, hessian);
     LinsolReturnFlag flag = AugSystemSolver<OcpType>::solve(info, jacobian, hessian, D_x, D_s, f, g, x, eq_mult);
     PostProcess(info, jacobian, hessian, x, eq_mult);
@@ -1073,6 +1074,7 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
                                            const VecRealView &g, VecRealView &x,
                                            VecRealView &eq_mult)
 {
+    // return LinsolReturnFlag::SUCCESS;
     PreProcess(info, jacobian, hessian);
     LinsolReturnFlag flag = AugSystemSolver<OcpType>::solve(info, jacobian, hessian, D_x, D_eq, D_s, f, g, x, eq_mult);
     PostProcess(info, jacobian, hessian, x, eq_mult);
@@ -1086,6 +1088,7 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve_rhs(const ProblemInfo &
                                                const VecRealView &g, VecRealView &x,
                                                VecRealView &eq_mult)
 {
+    // return LinsolReturnFlag::SUCCESS;
     PreProcess(info, jacobian, hessian);
     LinsolReturnFlag flag = AugSystemSolver<OcpType>::solve_rhs(info, jacobian, hessian, D_s, f, g, x, eq_mult);
     PostProcess(info, jacobian, hessian, x, eq_mult);
@@ -1098,6 +1101,7 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve_rhs(const ProblemInfo &
                                                const VecRealView &f, const VecRealView &g,
                                                VecRealView &x, VecRealView &eq_mult)
 {
+    // return LinsolReturnFlag::SUCCESS;
     PreProcess(info, jacobian, hessian);
     LinsolReturnFlag flag = AugSystemSolver<OcpType>::solve_rhs(info, jacobian, hessian, D_eq, D_s, f, g, x, eq_mult);
     PostProcess(info, jacobian, hessian, x, eq_mult);
@@ -1108,35 +1112,39 @@ void AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
                                                   Jacobian<ImplicitOcpType> &jacobian,
                                                   Hessian<ImplicitOcpType> &hessian)
 {
+    // return;
     jacobian.PrepareInverseOfJ(info);
     jacobian.PreProcess(info);
     hessian.PreProcess(info, jacobian);
+    if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::PreProcess done" << std::endl;}
 }
 
 void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
                                                    Jacobian<ImplicitOcpType> &jacobian,
                                                    Hessian<ImplicitOcpType> &hessian,
                                                    VecRealView &x, VecRealView &eq_mult){
+    // return;
+    if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::PostProcess start" << std::endl;}
     for (int k = 0; k < info.dims.K - 1; ++k){
         int nx = info.dims.number_of_states[k];
         int nx_next = info.dims.number_of_states[k + 1];
         int nu = info.dims.number_of_controls[k];
 
         // pi_k+1 <-- pi_k+1 + Fu[k] uk + Fx[k] xk
-        gemv_t(nx_next, nu, 1.0, 
+        gemv_t(nu, nx_next, 1.0, 
                hessian.FuFxt[k], 0, 0, 
                x, info.offsets_primal_u[k], 1.0, 
                eq_mult, info.offsets_g_eq_dyn[k], 
-               eq_mult, info.offsets_g_eq_dyn[k]);
-        gemv_t(nx_next, nu, 1.0, 
-               hessian.FuFxt[k], 0, nu, 
+               eq_mult, info.offsets_g_eq_dyn[k]);        
+        gemv_t(nx, nx_next, 0.0, 
+               hessian.FuFxt[k], 0, nu,
                x, info.offsets_primal_x[k], 1.0, 
                eq_mult, info.offsets_g_eq_dyn[k], 
                eq_mult, info.offsets_g_eq_dyn[k]);
         
         // pi_k+1 <-- Jt_inv * pi_k+1
         if (jacobian.ASSUME_INVERSE_GIVEN){
-            gemv_n(nx_next, nx_next, 1.0,
+            gemv_n(nx_next, nx_next, -1.0,
                 jacobian.Jt_inv[k], 0, 0, 
                 eq_mult, info.offsets_g_eq_dyn[k], 0.0, 
                 eq_mult, info.offsets_g_eq_dyn[k], 
@@ -1146,6 +1154,8 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
         }
     }
 
+    if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::Resetting preprocess steps" << std::endl;}
     jacobian.ResetPreProcess(info);
     hessian.ResetPreProcess(info, jacobian);
+    if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::PostProcess done" << std::endl;}
 }

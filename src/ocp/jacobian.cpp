@@ -239,18 +239,6 @@ void Jacobian<ImplicitOcpType>::PreProcess(const ProblemInfo &info){
                              &BAbt_original[k].mat(), 0, 0, &Jt_inv[k].mat(), 0, 0, 0.0,
                              &BAbt[k].mat(), 0, 0, &BAbt[k].mat(), 0, 0);
         } else {
-
-            // std::cout << "BAbt[" << k << "] = \n" << BAbt[k] << std::endl;
-
-
-            // Compute BAbt_original * Jt^-1 using Jt_LU
-            // (1) compute BAbt = BAbt_original * U^-1
-            // (2) compute BAbt = BAbt * L^-1
-            // trsm_runn(nx + nu + 1, nx_next, 1.0, BAbt_original[k], 0, 0,
-            //                    Jt_LU[k], 0, 0, BAbt[k], 0, 0);
-            // trsm_rlnu(nx + nu + 1, nx_next, 1.0, BAbt[k], 0, 0,
-            //                    Jt_LU[k], 0, 0, BAbt[k], 0, 0);
-
             // (1) compute X1 = BAbt_original * Pr^T
             Pr[k].apply_on_cols(nx_next, &BAbt[k].mat());
             // (2) compute X2 * U^T = X1
@@ -260,12 +248,7 @@ void Jacobian<ImplicitOcpType>::PreProcess(const ProblemInfo &info){
             trsm_runu(nx+nu+1, nx_next, 1.0, Jt_LU[k], 0, 0, 
                     BAbt[k], 0, 0, BAbt[k], 0, 0);
             // (4) compute BAbt = X3 * Pl^T
-            Pl[k].apply_on_cols(nx_next, &BAbt[k].mat());
-
-            // to check, right multiply with Jt and see what we get
-            gemm_nt(nx + nu + 1, nx_next, nx_next, 1.0, BAbt[k], 0, 0,
-                    Jt[k], 0, 0, 0.0, BAbt[k], 0, 0, BAbt[k], 0, 0);
-            
+            Pl[k].apply_on_cols(nx_next, &BAbt[k].mat());            
         }
     }    
 }
@@ -456,6 +439,7 @@ void Jacobian<ImplicitOcpType>::PrepareInverseOfJ(const ProblemInfo &info){
 }
 
 void Jacobian<ImplicitOcpType>::apply_on_right(const OcpInfo& info, const VecRealView& x, Scalar alpha, const VecRealView& y, VecRealView& out) const{
+    if (print_debug){ std::cout << "Jacobian<ImplicitOcpType>::apply_on_right" << std::endl;}
     out = alpha * y;
     // dynamics constraints BA*ux - x_next
     for (Index k = 0; k < info.dims.K - 1; ++k)
@@ -497,12 +481,14 @@ void Jacobian<ImplicitOcpType>::apply_on_right(const OcpInfo& info, const VecRea
         gemv_t(nu + nx, ng_ineq, 1.0, Gg_ineqt[k], 0, 0, x, offset_ux, 1.0, out, offset_g_ineq, out,
                offset_g_ineq);
     }
+    if (print_debug){ std::cout << "Jacobian<ImplicitOcpType>::apply_on_right done" << std::endl;}
 };
 
 void Jacobian<ImplicitOcpType>::transpose_apply_on_right(const OcpInfo &info, const VecRealView &mult_eq,
                                                  Scalar alpha, const VecRealView &y,
                                                  VecRealView &out) const
 {
+    if (print_debug){ std::cout << "Jacobian<ImplicitOcpType>::transpose_apply_on_right" << std::endl;}
     // set the output to zero, we will add the contributions
     // dynamics constraints'contributions [BA.T ; 0; -I] @ mult_eq
     out = alpha * y;
@@ -545,4 +531,5 @@ void Jacobian<ImplicitOcpType>::transpose_apply_on_right(const OcpInfo &info, co
         gemv_n(nu + nx, ng_ineq, 1.0, Gg_ineqt[k], 0, 0, mult_eq, offset_g_ineq, 1.0, out,
                offset_ux, out, offset_ux);
     }
+    if (print_debug){ std::cout << "Jacobian<ImplicitOcpType>::transpose_apply_on_right done" << std::endl;}
 }

@@ -117,6 +117,8 @@ namespace fatrop
         std::vector<MatRealAllocated> FuFxt;
     private:
         std::vector<MatRealAllocated> RSQrqt_original;
+
+        bool print_debug = false;
     };
 } // namespace fatrop
 

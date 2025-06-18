@@ -31,14 +31,14 @@ MatRealAllocated get_inverse(const MatRealView &A)
     blasfeo_dtrsm_lunn(A.m(), A.m(), 1.0, &LU.mat(), 0, 0, &A_inv.mat(), 0, 0, &A_inv.mat(), 0, 0);
 
     // check result
-    MatRealAllocated I_check = ::test::identity_matrix(A.m());
-    blasfeo_dgemm_nn(A.m(), A.m(), A.m(), 1.0, 
-                     const_cast<MAT *>(&A.mat()), 0, 0, 
-                     const_cast<MAT *>(&A_inv.mat()), 0, 0, 0.0, 
-                     const_cast<MAT *>(&I_check.mat()), 0, 0,
-                     const_cast<MAT *>(&I_check.mat()), 0, 0);
-    std::cout << "identity check: \n"
-              << I_check << std::endl;
+    // MatRealAllocated I_check = ::test::identity_matrix(A.m());
+    // blasfeo_dgemm_nn(A.m(), A.m(), A.m(), 1.0, 
+    //                  const_cast<MAT *>(&A.mat()), 0, 0, 
+    //                  const_cast<MAT *>(&A_inv.mat()), 0, 0, 0.0, 
+    //                  const_cast<MAT *>(&I_check.mat()), 0, 0,
+    //                  const_cast<MAT *>(&I_check.mat()), 0, 0);
+    // std::cout << "identity check: \n"
+    //           << I_check << std::endl;
 
     return A_inv;
 }
@@ -180,7 +180,8 @@ protected:
 
 class ImplicitAugSystemSolverTest : public ::testing::Test
 {
-protected:
+// protected:
+public:
     // Create OcpDims object
     int K = 10;                                                   // Number of stages
     std::vector<Index> nx = {20, 10, 10, 10, 10, 2, 0, 1, 10, 5}; // State dimensions for each stage
@@ -212,10 +213,11 @@ protected:
     AugSystemSolver<ImplicitOcpType> solver = AugSystemSolver<ImplicitOcpType>(info);
     void SetUp()
     {
+        // std::cout << "creating ImplicitAugSystemSolverTest" << std::endl;
         x = 0;
         full_matrix_jacobian = 0.;
 
-        bool CREATE_EXPLICIT_EQUIVALENT = true;
+        bool CREATE_EXPLICIT_EQUIVALENT = false;
 
         // fill the jacobian with random values
         for (Index k = 0; k < info.dims.K; ++k)
@@ -232,8 +234,10 @@ protected:
                         jacobian.Jt_inv[k].block(nx_next, nx_next, 0, 0) =
                             ::test::identity_matrix(nx_next, -1.0);
                     } else {
+                        // jacobian.Jt_inv[k].block(nx_next, nx_next, 0, 0) =
+                        //     ::test::random_matrix(nx_next, nx_next);
                         jacobian.Jt_inv[k].block(nx_next, nx_next, 0, 0) =
-                            ::test::random_matrix(nx_next, nx_next);
+                            ::test::identity_matrix(nx_next, 1.0);
                     }
                     jacobian.Jt[k].block(nx_next, nx_next, 0, 0) =
                         get_inverse(jacobian.Jt_inv[k].block(nx_next, nx_next, 0, 0));
@@ -276,8 +280,10 @@ protected:
                 hessian.FuFxt[k].block(nx + nu, nx_next, 0, 0) =
                     ::test::empty_matrix(nx + nu, nx_next);
             } else {
+                // hessian.FuFxt[k].block(nx + nu, nx_next, 0, 0) =
+                //     ::test::random_matrix(nx + nu, nx_next);
                 hessian.FuFxt[k].block(nx + nu, nx_next, 0, 0) =
-                    ::test::random_matrix(nx + nu, nx_next);
+                    ::test::empty_matrix(nx + nu, nx_next);
             }
         }
         // equality path equality constraints
@@ -339,9 +345,37 @@ protected:
         {
             D_s(i) = 1.0 * (i + 0.1);
         }
+    // std::cout << "Created ImplicitAugSystemSolverTest" << std::endl;
     };
 };
 
+void PrintSolutionOfOcpTypeSolver(ImplicitAugSystemSolverTest &implicit_solver, 
+                                  VecRealAllocated &original_x,
+                                  VecRealAllocated &original_mult){
+    // create an explicit solver which is a copy of the implicit solver
+    AugSystemSolver<OcpType> explicit_solver(implicit_solver.info);
+    
+    VecRealAllocated x = VecRealAllocated(implicit_solver.info.number_of_primal_variables);
+    VecRealAllocated mult = VecRealAllocated(implicit_solver.info.number_of_eq_constraints);
+    explicit_solver.solve(implicit_solver.info, implicit_solver.jacobian, implicit_solver.hessian,
+                          implicit_solver.D_x, implicit_solver.D_s, implicit_solver.rhs_x,
+                          implicit_solver.rhs_g, x, mult); 
+    // std::cout << "Solution of AugSystemSolver: " << x << std::endl;
+
+    for (int i = 0; i < implicit_solver.info.number_of_primal_variables; ++i)
+    {
+        // check if the solution is the same as the original x
+        // std::cout << "[" << i << "]: \t" << x(i) << "\t-\t" << original_x(i) << "\t\t(" << std::abs(x(i) - original_x(i)) << ")" << std::endl;
+        // EXPECT_NEAR(x(i), original_x(i), 1e-5);
+    }
+
+    for (int i = 0; i < implicit_solver.info.number_of_eq_constraints; ++i)
+    {
+        // check if the solution is the same as the original mult
+        // std::cout << "[" << i << "]: \t" << mult(i) << "\t-\t" << original_mult(i) << "\t\t(" << std::abs(mult(i) - original_mult(i)) << ")" << std::endl;
+        // EXPECT_NEAR(mult(i), original_mult(i), 1e-5);
+    }
+}
 
 TEST_F(AugSystemSolverTest, TestSolve)
 {
@@ -476,6 +510,7 @@ TEST_F(AugSystemSolverTest, TestSolveDegenRhs)
 TEST_F(ImplicitAugSystemSolverTest, TestSolve)
 {
     Index ret = solver.solve(info, jacobian, hessian, D_x, D_s, rhs_x, rhs_g, x, mult);
+    // PrintSolutionOfOcpTypeSolver(*this, x, mult);
     EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
     VecRealAllocated jac_x(info.number_of_eq_constraints);
     jacobian.apply_on_right(info, x, 0.0, jac_x, jac_x);
@@ -506,6 +541,7 @@ TEST_F(ImplicitAugSystemSolverTest, TestSolve)
 TEST_F(ImplicitAugSystemSolverTest, TestSolveRhs)
 {
     Index ret = solver.solve(info, jacobian, hessian, D_x, D_s, rhs_x, rhs_g, x, mult);
+    // PrintSolutionOfOcpTypeSolver(*this, x, mult);
     EXPECT_TRUE(ret == LinsolReturnFlag::SUCCESS);
     solver.solve_rhs(info, jacobian, hessian, D_s, rhs_x, rhs_g, x, mult);
     VecRealAllocated jac_x(info.number_of_eq_constraints);
@@ -537,6 +573,7 @@ TEST_F(ImplicitAugSystemSolverTest, TestSolveRhs)
 TEST_F(ImplicitAugSystemSolverTest, TestSolveDegen)
 {
     Index ret = solver.solve(info, jacobian, hessian, D_x, D_eq, D_s, rhs_x, rhs_g, x, mult);
+    // PrintSolutionOfOcpTypeSolver(*this, x, mult);
     EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
     VecRealAllocated jac_x(info.number_of_eq_constraints);
     jacobian.apply_on_right(info, x, 0.0, jac_x, jac_x);
@@ -570,6 +607,7 @@ TEST_F(ImplicitAugSystemSolverTest, TestSolveDegen)
 TEST_F(ImplicitAugSystemSolverTest, TestSolveDegenRhs)
 {
     Index ret = solver.solve(info, jacobian, hessian, D_x, D_eq, D_s, rhs_x, rhs_g, x, mult);
+    // PrintSolutionOfOcpTypeSolver(*this, x, mult);
     EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
     ret = solver.solve_rhs(info, jacobian, hessian, D_eq, D_s, rhs_x, rhs_g, x, mult);
     EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);

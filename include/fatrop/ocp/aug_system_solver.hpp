@@ -293,6 +293,8 @@ namespace fatrop
                          Jacobian<ImplicitOcpType> &jacobian,
                          Hessian<ImplicitOcpType> &hessian,
                          VecRealView &x, VecRealView &eq_mult);
+
+        bool print_debug = false;
     };
 
 } // namespace fatrop

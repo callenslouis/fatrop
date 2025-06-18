@@ -92,11 +92,8 @@ namespace fatrop
 void Hessian<ImplicitOcpType>::PreProcess(const ProblemInfo &info, 
                                           const Jacobian<ImplicitOcpType> &jacobian)
 {
-    for (int k = 0; k < info.dims.K - 1; ++k){
-        // RSQrqt_original[k] = RSQrqt[k];
-        gecp(info.dims.number_of_controls[k] + info.dims.number_of_states[k] + 1,
-             info.dims.number_of_controls[k] + info.dims.number_of_states[k],
-             RSQrqt[k], 0, 0, RSQrqt_original[k], 0, 0);
+    for (int k = 0; k < info.dims.K; ++k){
+        RSQrqt_original[k] = RSQrqt[k];
     }   
 
     for (int k = 0; k < info.dims.K - 1; ++k)
@@ -115,7 +112,7 @@ void Hessian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
 void Hessian<ImplicitOcpType>::ResetPreProcess(const ProblemInfo &info, 
                                                const Jacobian<ImplicitOcpType> &jacobian)
 {
-    for (int k = 0; k < info.dims.K - 1; ++k){
+    for (int k = 0; k < info.dims.K; ++k){
         RSQrqt[k] = RSQrqt_original[k];
     }   
 }
@@ -125,6 +122,7 @@ void Hessian<ImplicitOcpType>::apply_on_right(const OcpInfo& info,
                                               Scalar alpha, 
                                               const VecRealView& y, 
                                               VecRealView& out) const {
+    if (print_debug){ std::cout << "Hessian<ImplicitOcpType>::apply_on_right" << std::endl;}
     for (Index k = 0; k < info.dims.K; ++k)
     {
         // get the dimensions of the Hessian matrix
@@ -144,4 +142,5 @@ void Hessian<ImplicitOcpType>::apply_on_right(const OcpInfo& info,
                    out, info.offsets_primal_x[k + 1]);
         }
     }
+    if (print_debug){ std::cout << "Hessian<ImplicitOcpType>::apply_on_right done" << std::endl;}
 }
