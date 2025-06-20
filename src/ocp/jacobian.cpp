@@ -222,10 +222,18 @@ namespace fatrop
 // ImplicitOcpType-specific //
 //////////////////////////////
 
-void Jacobian<ImplicitOcpType>::PreProcess(const ProblemInfo &info){
+void Jacobian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
+                                           VecRealView &f,
+                                           VecRealView &g){
     // Make sure to store the current BAbt into BAbt_original before modifying BAbt matrices
     for (int k = 0; k < info.dims.K - 1; ++k){
         BAbt_original[k] = BAbt[k];
+
+        // AugSystemSolver<OcpType> overwrites the entries corresponding to
+        // the vector b. We do the same here
+        rowin(info.dims.number_of_states[k + 1], 1.0, g, 
+              info.offsets_g_eq_dyn[k], BAbt_original[k], 
+              info.dims.number_of_states[k] + info.dims.number_of_controls[k], 0);
     }   
 
     // Compute BAbt = BAbt_original * Jt^-1
@@ -236,8 +244,18 @@ void Jacobian<ImplicitOcpType>::PreProcess(const ProblemInfo &info){
 
         if (ASSUME_INVERSE_GIVEN){
             blasfeo_dgemm_nn(nx + nu + 1, nx_next, nx_next, -1.0, 
-                             &BAbt_original[k].mat(), 0, 0, &Jt_inv[k].mat(), 0, 0, 0.0,
+                             &BAbt[k].mat(), 0, 0, &Jt_inv[k].mat(), 0, 0, 0.0,
                              &BAbt[k].mat(), 0, 0, &BAbt[k].mat(), 0, 0);
+
+            // apply transformation to rhs also, since AugSystemSolver<OcpType> 
+            // overwrites the entries corresponding to the vector b in BAbt
+            // by considering g
+            blasfeo_dgemv_n(nx + nu + 1, nx_next, -1.0,
+                            &Jt_inv[k].mat(), 0, 0, 
+                            &g.vec(), info.offsets_g_eq_dyn[k], 0.0,
+                            &g.vec(), info.offsets_g_eq_dyn[k],
+                            &g.vec(), info.offsets_g_eq_dyn[k]);
+
         } else {
             // (1) compute X1 = BAbt_original * Pr^T
             Pr[k].apply_on_cols(nx_next, &BAbt[k].mat());

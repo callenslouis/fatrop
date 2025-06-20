@@ -93,6 +93,7 @@ namespace fatrop
          */
         std::vector<MatRealAllocated> Gg_ineqt;
 
+        // out <- alpha*y + Jacobian * x
         void apply_on_right(const OcpInfo& info, const VecRealView &x, Scalar alpha, const VecRealView& y, VecRealView &out) const;
         void transpose_apply_on_right(const OcpInfo& info, const VecRealView &mult_eq, Scalar alpha, const VecRealView& y, VecRealView &out) const;
         void get_rhs(const OcpInfo& info, VecRealView &rhs) const;
@@ -139,7 +140,8 @@ namespace fatrop
          * It can be used to allocate memory, initialize matrices, or perform
          * any other necessary setup before the Jacobian is used in computations.
          */
-        void PreProcess(const ProblemInfo &info);
+        void PreProcess(const ProblemInfo &info, VecRealView &f, 
+                        VecRealView &g);
         void ResetPreProcess(const ProblemInfo &info);
 
         void PrepareInverseOfJ(const ProblemInfo &info);
@@ -158,6 +160,28 @@ namespace fatrop
         std::vector<MatRealAllocated> Jt;
         std::vector<MatRealAllocated> Jt_inv;
         bool ASSUME_INVERSE_GIVEN = true;
+
+        // printing
+        friend std::ostream &operator<<(std::ostream &os, const Jacobian<ImplicitOcpType> &jac)
+        {
+            os << "Jacobian<ImplicitOcpType>:" << std::endl;
+            os << "BAbt:" << std::endl;
+            for (const auto &mat : jac.BAbt)
+            {
+                os << mat << std::endl;
+            }
+            os << "Gg_eqt:" << std::endl;
+            for (const auto &mat : jac.Gg_eqt)
+            {
+                os << mat << std::endl;
+            }
+            os << "Gg_ineqt:" << std::endl;
+            for (const auto &mat : jac.Gg_ineqt)
+            {
+                os << mat << std::endl;
+            }
+            return os;
+        }
     private:
         std::vector<MatRealAllocated> Jt_LU;
         std::vector<PermutationMatrix> Pl;

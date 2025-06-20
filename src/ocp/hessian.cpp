@@ -90,10 +90,18 @@ namespace fatrop
 //////////////////////////////
 
 void Hessian<ImplicitOcpType>::PreProcess(const ProblemInfo &info, 
-                                          const Jacobian<ImplicitOcpType> &jacobian)
+                                          const Jacobian<ImplicitOcpType> &jacobian,
+                                          VecRealView &f,
+                                          VecRealView &g)
 {
     for (int k = 0; k < info.dims.K; ++k){
         RSQrqt_original[k] = RSQrqt[k];
+
+        // AugSystemSolver<OcpType> overwrites the entries corresponding to
+        // the vectors r and q. We do the same here
+        rowin(info.dims.number_of_states[k] + info.dims.number_of_controls[k],
+              1.0, f, info.offsets_primal_u[k], RSQrqt_original[k],
+              info.dims.number_of_states[k] + info.dims.number_of_controls[k], 0);        
     }   
 
     for (int k = 0; k < info.dims.K - 1; ++k)
@@ -103,7 +111,7 @@ void Hessian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
         Index nx_next = info.dims.number_of_states[k + 1];
 
         gemm_nt(nx+nu+1, nx+nu, nx_next, 1.0, jacobian.BAbt[k], 0, 0, 
-                FuFxt[k], 0, 0, 1.0, RSQrqt_original[k], 0, 0, RSQrqt[k], 0, 0);
+                FuFxt[k], 0, 0, 1.0, RSQrqt[k], 0, 0, RSQrqt[k], 0, 0);
         gemm_nt(nu+nx, nx+nu, nx_next, 1.0, FuFxt[k], 0, 0,
                 jacobian.BAbt[k], 0, 0, 1.0, RSQrqt[k], 0, 0, RSQrqt[k], 0, 0);
     }
@@ -114,7 +122,7 @@ void Hessian<ImplicitOcpType>::ResetPreProcess(const ProblemInfo &info,
 {
     for (int k = 0; k < info.dims.K; ++k){
         RSQrqt[k] = RSQrqt_original[k];
-    }   
+    }
 }
 
 void Hessian<ImplicitOcpType>::apply_on_right(const OcpInfo& info, 
@@ -133,14 +141,20 @@ void Hessian<ImplicitOcpType>::apply_on_right(const OcpInfo& info,
         // apply out[offs:offs+nu+nx] =  RSQ @ x[offs:offs+nu+nx]
         gemv_t(nu + nx, nu + nx, 1.0, RSQrqt[k], 0, 0, x, offset_ux, alpha, y, offset_ux, out,
                offset_ux);
+    }
 
-        if (k < info.dims.K - 1){
-            // add additional terms
-            Index nx_next = info.dims.number_of_states[k + 1];
-            gemv_t(nx_next, nu, 1.0, FuFxt[k], 0, 0, 
-                   x, info.offsets_primal_u[k], 1.0, out, info.offsets_primal_x[k + 1], 
-                   out, info.offsets_primal_x[k + 1]);
-        }
+    // add additional terms
+    for (Index k = 0; k < info.dims.K-1; ++k)
+    {
+        Index nu = info.dims.number_of_controls[k];
+        Index nx = info.dims.number_of_states[k];
+        Index offset_ux = info.offsets_primal_u[k];
+        Index nx_next = info.dims.number_of_states[k + 1];
+        gemv_t(nu + nx, nx_next, 1.0, FuFxt[k], 0, 0, 
+                x, info.offsets_primal_u[k], 1.0, out, info.offsets_primal_x[k + 1], 
+                out, info.offsets_primal_x[k + 1]);
+        gemv_n(nu + nx, nx_next, 1.0, FuFxt[k], 0, 0, x, info.offsets_primal_x[k + 1],
+                1.0, out, info.offsets_primal_u[k], out, info.offsets_primal_u[k]);
     }
     if (print_debug){ std::cout << "Hessian<ImplicitOcpType>::apply_on_right done" << std::endl;}
 }

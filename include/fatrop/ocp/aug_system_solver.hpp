@@ -287,7 +287,8 @@ namespace fatrop
     private:
         void PreProcess(const ProblemInfo &info, 
                         Jacobian<ImplicitOcpType> &jacobian,
-                        Hessian<ImplicitOcpType> &hessian);
+                        Hessian<ImplicitOcpType> &hessian,
+                        VecRealView &f, VecRealView &g);
 
         void PostProcess(const ProblemInfo &info, 
                          Jacobian<ImplicitOcpType> &jacobian,

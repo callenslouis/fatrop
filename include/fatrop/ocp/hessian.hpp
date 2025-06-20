@@ -107,7 +107,8 @@ namespace fatrop
             }
         }
 
-        void PreProcess(const ProblemInfo &info, const Jacobian<ImplicitOcpType> &jacobian);
+        void PreProcess(const ProblemInfo &info, const Jacobian<ImplicitOcpType> &jacobian,
+                        VecRealView &f, VecRealView &g);
         void ResetPreProcess(const ProblemInfo &info, const Jacobian<ImplicitOcpType> &jacobian);
 
         // Overloading (to account for changed structure)
@@ -115,8 +116,25 @@ namespace fatrop
 
         // dimensions nu[k] + nx[k] x nx[k+1]
         std::vector<MatRealAllocated> FuFxt;
-    private:
         std::vector<MatRealAllocated> RSQrqt_original;
+
+        // printing
+        friend std::ostream& operator<<(std::ostream& os, const Hessian<ImplicitOcpType>& hess)
+        {
+            os << "Hessian<ImplicitOcpType>:" << std::endl;
+            os << "RSQrqt:" << std::endl;
+            for (const auto &mat : hess.RSQrqt)
+            {
+                os << mat << std::endl;
+            }
+            os << "FuFxt:" << std::endl;
+            for (const auto &mat : hess.FuFxt)
+            {
+                os << mat << std::endl;
+            }
+            return os;
+        }
+    private:
 
         bool print_debug = false;
     };
