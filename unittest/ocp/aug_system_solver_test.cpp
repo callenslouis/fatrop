@@ -379,15 +379,20 @@ class BasicImplicitAugSystemSolverTest : public ::testing::Test
 public:
     // Create OcpDims object
     // int K = 2;                                                   // Number of stages
-    // std::vector<Index> nx = {1, 1}; // State dimensions for each stage
-    // std::vector<Index> nu = {2, 0};    // Input dimensions for each stage
+    // std::vector<Index> nx = {2, 2}; // State dimensions for each stage
+    // std::vector<Index> nu = {1, 0};    // Input dimensions for each stage
     // std::vector<Index> ng = {0, 0}; // Equality constraints for each stage
     // std::vector<Index> ng_ineq = {0, 0}; // Inequality constraints for each stage
-    int K = 4;                                                   // Number of stages
-    std::vector<Index> nx = {1, 2, 1, 1}; // State dimensions for each stage
-    std::vector<Index> nu = {1, 1, 1, 0};    // Input dimensions for each stage
-    std::vector<Index> ng = {0, 0, 0, 0}; // Equality constraints for each stage
-    std::vector<Index> ng_ineq = {0, 0, 0, 0}; // Inequality constraints for each stage
+    int K = 8;                                                   // Number of stages
+    std::vector<Index> nx = {1, 1, 1, 1, 1, 1, 1, 1}; // State dimensions for each stage
+    std::vector<Index> nu = {1, 1, 1, 1, 1, 1, 1, 0};    // Input dimensions for each stage
+    std::vector<Index> ng = {0, 0, 0, 0, 0, 0, 0, 0}; // Equality constraints for each stage
+    std::vector<Index> ng_ineq = {0, 1, 3, 0, 1, 1, 3, 2}; // Inequality constraints for each stage
+
+    // 10 works
+    // 01 doesn't work, so it's a jacobian problem
+    bool USE_IDENTITY_J = 0;
+    bool USE_ZERO_F = 0;
 
     ProblemDims dims{K, nu, nx, ng, ng_ineq};
     ProblemInfo info{dims};
@@ -431,10 +436,13 @@ public:
                 jacobian.BAbt[k].block(nu + nx, nx_next, 0, 0) =
                     ::test::random_matrix(nu + nx, nx_next);
 
-                // jacobian.Jt[k].block(nx_next, nx_next, 0, 0) =
-                //     ::test::random_matrix(nx_next, nx_next);
-                jacobian.Jt[k].block(nx_next, nx_next, 0, 0) =
-                    ::test::identity_matrix(nx_next, -1.0);
+                if (USE_IDENTITY_J){
+                    jacobian.Jt[k].block(nx_next, nx_next, 0, 0) =
+                        ::test::identity_matrix(nx_next, -1.0);
+                } else {
+                    jacobian.Jt[k].block(nx_next, nx_next, 0, 0) =
+                        ::test::random_matrix(nx_next, nx_next);
+                }
 
                 jacobian.Jt_inv[k].block(nx_next, nx_next, 0, 0) =
                     get_inverse(jacobian.Jt[k].block(nx_next, nx_next, 0, 0));
@@ -466,8 +474,13 @@ public:
             //     -1.0;
             full_matrix_jacobian.block(nx_next, nx_next, offs_eq_dyn, offs_x_next) = jacobian.Jt[k];
 
-            hessian.FuFxt[k].block(nx + nu, nx_next, 0, 0) =
-                ::test::random_matrix(nx + nu, nx_next);
+            if (USE_ZERO_F){
+                hessian.FuFxt[k].block(nx + nu, nx_next, 0, 0) =
+                    ::test::empty_matrix(nx + nu, nx_next);    
+            } else {
+                hessian.FuFxt[k].block(nx + nu, nx_next, 0, 0) =
+                    ::test::random_matrix(nx + nu, nx_next);
+            }
 
             full_matrix_hessian.block(nx_next, nu + nx, offs_x_next, offs_ux) = 
                 transpose(hessian.FuFxt[k]);
@@ -513,8 +526,8 @@ public:
         full_kkt_matrix.block(info.number_of_eq_constraints, info.number_of_primal_variables,
                               info.number_of_primal_variables, 0) = full_matrix_jacobian;
 
-        std::cout << "Full KKT matrix: \n"
-                  << full_kkt_matrix << std::endl;
+        // std::cout << "Full KKT matrix: \n"
+        //           << full_kkt_matrix << std::endl;
         // fill the x vector with random values
         for (Index i = 0; i < info.number_of_primal_variables; ++i)
         {
@@ -546,8 +559,8 @@ public:
         {
             full_kkt_rhs(info.number_of_primal_variables + i) = rhs_g(i);
         }
-        std::cout << "Full KKT rhs vector: \n"
-                  << full_kkt_rhs << std::endl;
+        // std::cout << "Full KKT rhs vector: \n"
+        //           << full_kkt_rhs << std::endl;
     // std::cout << "Created ImplicitAugSystemSolverTest" << std::endl;
     };
 };
@@ -555,8 +568,9 @@ public:
 void PrintSolutionOfOcpTypeSolver(ImplicitAugSystemSolverTest &implicit_solver, 
                                   VecRealAllocated &original_x,
                                   VecRealAllocated &original_mult){
-   std::cout << "mult: " << original_mult << std::endl;
+//    std::cout << "mult: " << original_mult << std::endl;
 }
+
 
 TEST_F(AugSystemSolverTest, TestSolve)
 {
@@ -842,6 +856,7 @@ TEST_F(BasicImplicitAugSystemSolverTest, TestSolve)
     grad = grad + tmp;
     grad = grad + rhs_x;
 
+    /*
     // compute KKT-matrix @ x
     VecRealAllocated expected_rhs(info.number_of_primal_variables + info.number_of_eq_constraints);
     VecRealAllocated solution_vector(info.number_of_primal_variables + info.number_of_eq_constraints);
@@ -916,6 +931,7 @@ TEST_F(BasicImplicitAugSystemSolverTest, TestSolve)
     {
         std::cout << "column " << i << " of jacobian transpose should be: " << h(i) << std::endl;
     }
+    */
 
     for (Index i = 0; i < info.number_of_eq_constraints; ++i)
     {

@@ -99,9 +99,11 @@ void Hessian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
 
         // AugSystemSolver<OcpType> overwrites the entries corresponding to
         // the vectors r and q. We do the same here
+        // this is necessary to make sure we have the correct RSQrqt matrix
+        // when calling apply_on_right
         rowin(info.dims.number_of_states[k] + info.dims.number_of_controls[k],
               1.0, f, info.offsets_primal_u[k], RSQrqt_original[k],
-              info.dims.number_of_states[k] + info.dims.number_of_controls[k], 0);        
+              info.dims.number_of_states[k] + info.dims.number_of_controls[k], 0); 
     }   
 
     for (int k = 0; k < info.dims.K - 1; ++k)
@@ -114,6 +116,15 @@ void Hessian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
                 FuFxt[k], 0, 0, 1.0, RSQrqt[k], 0, 0, RSQrqt[k], 0, 0);
         gemm_nt(nu+nx, nx+nu, nx_next, 1.0, FuFxt[k], 0, 0,
                 jacobian.BAbt[k], 0, 0, 1.0, RSQrqt[k], 0, 0, RSQrqt[k], 0, 0);
+
+        // apply transformation to rhs also, since AugSystemSolver<OcpType> 
+        // overwrites the entries corresponding to the vectors r and q in 
+        // RSQrqt by considering f
+        // [r^T q^T] <-- [r^T q^T] + b^T @ [Fu Fx]
+        // [r; q] <-- [r; q] + [Fu Fx]^T @ b (--> do this in the rhs column vector)
+        gemv_n(nu + nx, nx_next, 1.0, FuFxt[k], 0, 0,
+               g, info.offsets_g_eq_dyn[k], 1.0, 
+               f, info.offsets_primal_u[k], f, info.offsets_primal_u[k]);
     }
 }
 

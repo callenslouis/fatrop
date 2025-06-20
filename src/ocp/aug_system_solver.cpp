@@ -1061,8 +1061,14 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
                                            const VecRealView &f, const VecRealView &g,
                                            VecRealView &x, VecRealView &eq_mult)
 {
-    VecRealView f_copy = f;
-    VecRealView g_copy = g;
+    VecRealAllocated f_copy(info.number_of_primal_variables);
+    VecRealAllocated g_copy(info.number_of_eq_constraints);
+    for (int i = 0; i < info.number_of_primal_variables; i++){
+        f_copy(i) = f(i);
+    }
+    for (int i = 0; i < info.number_of_eq_constraints; i++){
+        g_copy(i) = g(i);
+    }
 
     PreProcess(info, jacobian, hessian, f_copy, g_copy);
     LinsolReturnFlag flag = AugSystemSolver<OcpType>::solve(info, jacobian, hessian, D_x, D_s, f_copy, g_copy, x, eq_mult);
@@ -1076,8 +1082,14 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
                                            const VecRealView &g, VecRealView &x,
                                            VecRealView &eq_mult)
 {
-    VecRealView f_copy = f;
-    VecRealView g_copy = g;
+    VecRealAllocated f_copy(info.number_of_primal_variables);
+    VecRealAllocated g_copy(info.number_of_eq_constraints);
+    for (int i = 0; i < info.number_of_primal_variables; i++){
+        f_copy(i) = f(i);
+    }
+    for (int i = 0; i < info.number_of_eq_constraints; i++){
+        g_copy(i) = g(i);
+    }
 
     // return LinsolReturnFlag::SUCCESS;
     PreProcess(info, jacobian, hessian, f_copy, g_copy);
@@ -1093,8 +1105,14 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve_rhs(const ProblemInfo &
                                                const VecRealView &g, VecRealView &x,
                                                VecRealView &eq_mult)
 {
-    VecRealView f_copy = f;
-    VecRealView g_copy = g;
+    VecRealAllocated f_copy(info.number_of_primal_variables);
+    VecRealAllocated g_copy(info.number_of_eq_constraints);
+    for (int i = 0; i < info.number_of_primal_variables; i++){
+        f_copy(i) = f(i);
+    }
+    for (int i = 0; i < info.number_of_eq_constraints; i++){
+        g_copy(i) = g(i);
+    }
 
     // return LinsolReturnFlag::SUCCESS;
     PreProcess(info, jacobian, hessian, f_copy, g_copy);
@@ -1109,8 +1127,14 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve_rhs(const ProblemInfo &
                                                const VecRealView &f, const VecRealView &g,
                                                VecRealView &x, VecRealView &eq_mult)
 {
-    VecRealView f_copy = f;
-    VecRealView g_copy = g;
+    VecRealAllocated f_copy(info.number_of_primal_variables);
+    VecRealAllocated g_copy(info.number_of_eq_constraints);
+    for (int i = 0; i < info.number_of_primal_variables; i++){
+        f_copy(i) = f(i);
+    }
+    for (int i = 0; i < info.number_of_eq_constraints; i++){
+        g_copy(i) = g(i);
+    }
 
     // return LinsolReturnFlag::SUCCESS;
     PreProcess(info, jacobian, hessian, f_copy, g_copy);

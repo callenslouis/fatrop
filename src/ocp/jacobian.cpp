@@ -231,9 +231,12 @@ void Jacobian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
 
         // AugSystemSolver<OcpType> overwrites the entries corresponding to
         // the vector b. We do the same here
-        rowin(info.dims.number_of_states[k + 1], 1.0, g, 
-              info.offsets_g_eq_dyn[k], BAbt_original[k], 
-              info.dims.number_of_states[k] + info.dims.number_of_controls[k], 0);
+        // this is necessary to make sure we have the correct BAbt matrix
+        // when calling apply_on_right
+        rowin(info.dims.number_of_states[k + 1], 1.0, 
+              g, info.offsets_g_eq_dyn[k], 
+              BAbt_original[k], info.dims.number_of_states[k] + 
+                info.dims.number_of_controls[k], 0);
     }   
 
     // Compute BAbt = BAbt_original * Jt^-1
@@ -249,8 +252,8 @@ void Jacobian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
 
             // apply transformation to rhs also, since AugSystemSolver<OcpType> 
             // overwrites the entries corresponding to the vector b in BAbt
-            // by considering g
-            blasfeo_dgemv_n(nx + nu + 1, nx_next, -1.0,
+            // by considering g (b <-- -J^-1 @ b)
+            blasfeo_dgemv_t(nx_next, nx_next, -1.0,
                             &Jt_inv[k].mat(), 0, 0, 
                             &g.vec(), info.offsets_g_eq_dyn[k], 0.0,
                             &g.vec(), info.offsets_g_eq_dyn[k],
