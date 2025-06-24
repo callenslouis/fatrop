@@ -260,11 +260,6 @@ void Jacobian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
             // apply transformation to rhs also, since AugSystemSolver<OcpType> 
             // overwrites the entries corresponding to the vector b in BAbt
             // by considering g (b <-- -J^-1 @ b)
-            // blasfeo_dgemv_t(nx_next, nx_next, -1.0,
-            //                 &Jt_inv[k].mat(), 0, 0, 
-            //                 &g.vec(), info.offsets_g_eq_dyn[k], 0.0,
-            //                 &g.vec(), info.offsets_g_eq_dyn[k],
-            //                 &g.vec(), info.offsets_g_eq_dyn[k]);
             blasfeo_dgemv_t(nx_next, nx_next, -1.0,
                             &Jt_inv[k].mat(), 0, 0, 
                             &g_copy.vec(), info.offsets_g_eq_dyn[k], 0.0,
@@ -272,16 +267,8 @@ void Jacobian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
                             &g.vec(), info.offsets_g_eq_dyn[k]);
 
         } else {
-            // (1) compute X1 = BAbt_original * Pr^T
-            Pr[k].apply_on_cols(nx_next, &BAbt[k].mat());
-            // (2) compute X2 * U^T = X1
-            trsm_rlnn(nx+nu+1, nx_next, 1.0, Jt_LU[k], 0, 0, 
-                    BAbt[k], 0, 0, BAbt[k], 0, 0);
-            // (3) compute X3 * L^T = X2
-            trsm_runu(nx+nu+1, nx_next, 1.0, Jt_LU[k], 0, 0, 
-                    BAbt[k], 0, 0, BAbt[k], 0, 0);
-            // (4) compute BAbt = X3 * Pl^T
-            Pl[k].apply_on_cols(nx_next, &BAbt[k].mat());            
+            throw std::runtime_error("Jacobian<ImplicitOcpType>::PreProcess: "
+                                 "ASSUME_INVERSE_GIVEN == false is not implemented yet.");
         }
     }    
 }
