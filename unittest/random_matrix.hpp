@@ -62,6 +62,10 @@ namespace fatrop
             }
             return matrix;
         }
+
+        int random_int(int lb, int ub){
+            return random(static_cast<Scalar>(lb), static_cast<Scalar>(ub));
+        }
     } // namespace test
 } // namespace fatrop
 #endif // __fatrop_unittest_random_matrix_hpp__

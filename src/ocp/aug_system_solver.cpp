@@ -8,6 +8,7 @@
 #include "fatrop/ocp/jacobian.hpp"
 #include "fatrop/ocp/problem_info.hpp"
 #include <algorithm>
+#include <chrono>
 using namespace fatrop;
 
 bool check_reg(const Index m, MAT *sA, const Index ai, const Index aj)
@@ -1175,6 +1176,7 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
                                            const VecRealView &f, const VecRealView &g,
                                            VecRealView &x, VecRealView &eq_mult)
 {
+    auto start = std::chrono::high_resolution_clock::now();
     VecRealAllocated f_copy(info.number_of_primal_variables);
     VecRealAllocated g_copy(info.number_of_eq_constraints);
     for (int i = 0; i < info.number_of_primal_variables; i++){
@@ -1183,9 +1185,14 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
     for (int i = 0; i < info.number_of_eq_constraints; i++){
         g_copy(i) = g(i);
     }
+    auto stop = std::chrono::high_resolution_clock::now();
+    duration_copying_rhs = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
 
     PreProcess(info, jacobian, hessian, f_copy, g_copy);
+    start = std::chrono::high_resolution_clock::now();
     LinsolReturnFlag flag = AugSystemSolver<OcpType>::solve(info, jacobian, hessian, D_x, D_s, f_copy, g_copy, x, eq_mult);
+    auto end = std::chrono::high_resolution_clock::now();
+    duration_solve = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     PostProcess(info, jacobian, hessian, x, eq_mult);
     return flag;
 }
@@ -1196,6 +1203,7 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
                                            const VecRealView &g, VecRealView &x,
                                            VecRealView &eq_mult)
 {
+    auto start = std::chrono::high_resolution_clock::now();
     VecRealAllocated f_copy(info.number_of_primal_variables);
     VecRealAllocated g_copy(info.number_of_eq_constraints);
     for (int i = 0; i < info.number_of_primal_variables; i++){
@@ -1204,10 +1212,15 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
     for (int i = 0; i < info.number_of_eq_constraints; i++){
         g_copy(i) = g(i);
     }
+    auto stop = std::chrono::high_resolution_clock::now();
+    duration_copying_rhs = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
 
     // return LinsolReturnFlag::SUCCESS;
     PreProcess(info, jacobian, hessian, f_copy, g_copy);
+    start = std::chrono::high_resolution_clock::now();
     LinsolReturnFlag flag = AugSystemSolver<OcpType>::solve(info, jacobian, hessian, D_x, D_eq, D_s, f_copy, g_copy, x, eq_mult);
+    auto end = std::chrono::high_resolution_clock::now();
+    duration_solve = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     PostProcess(info, jacobian, hessian, x, eq_mult);
     return flag;
 }
@@ -1219,6 +1232,7 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve_rhs(const ProblemInfo &
                                                const VecRealView &g, VecRealView &x,
                                                VecRealView &eq_mult)
 {
+    auto start = std::chrono::high_resolution_clock::now();
     VecRealAllocated f_copy(info.number_of_primal_variables);
     VecRealAllocated g_copy(info.number_of_eq_constraints);
     for (int i = 0; i < info.number_of_primal_variables; i++){
@@ -1227,10 +1241,15 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve_rhs(const ProblemInfo &
     for (int i = 0; i < info.number_of_eq_constraints; i++){
         g_copy(i) = g(i);
     }
+    auto stop = std::chrono::high_resolution_clock::now();
+    duration_copying_rhs = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
 
     // return LinsolReturnFlag::SUCCESS;
     PreProcess(info, jacobian, hessian, f_copy, g_copy);
+    start = std::chrono::high_resolution_clock::now();
     LinsolReturnFlag flag = AugSystemSolver<OcpType>::solve_rhs(info, jacobian, hessian, D_s, f_copy, g_copy, x, eq_mult);
+    auto end = std::chrono::high_resolution_clock::now();
+    duration_solve = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     PostProcess(info, jacobian, hessian, x, eq_mult);
     return flag;
 }
@@ -1241,6 +1260,7 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve_rhs(const ProblemInfo &
                                                const VecRealView &f, const VecRealView &g,
                                                VecRealView &x, VecRealView &eq_mult)
 {
+    auto start = std::chrono::high_resolution_clock::now();
     VecRealAllocated f_copy(info.number_of_primal_variables);
     VecRealAllocated g_copy(info.number_of_eq_constraints);
     for (int i = 0; i < info.number_of_primal_variables; i++){
@@ -1249,10 +1269,15 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve_rhs(const ProblemInfo &
     for (int i = 0; i < info.number_of_eq_constraints; i++){
         g_copy(i) = g(i);
     }
+    auto stop = std::chrono::high_resolution_clock::now();
+    duration_copying_rhs = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
 
     // return LinsolReturnFlag::SUCCESS;
     PreProcess(info, jacobian, hessian, f_copy, g_copy);
+    start = std::chrono::high_resolution_clock::now();
     LinsolReturnFlag flag = AugSystemSolver<OcpType>::solve_rhs(info, jacobian, hessian, D_eq, D_s, f_copy, g_copy, x, eq_mult);
+    auto end = std::chrono::high_resolution_clock::now();
+    duration_solve = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     PostProcess(info, jacobian, hessian, x, eq_mult);
     return flag;
 }
@@ -1264,8 +1289,16 @@ void AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
                                                   VecRealView &g)
 {
     // jacobian.PrepareInverseOfJ(info);
+    auto start = std::chrono::high_resolution_clock::now();
     jacobian.PreProcess(info, f, g);
+    auto end = std::chrono::high_resolution_clock::now();
+    duration_preprocess_jac = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+
+    start = std::chrono::high_resolution_clock::now();
     hessian.PreProcess(info, jacobian, f, g);
+    end = std::chrono::high_resolution_clock::now();
+    duration_preprocess_hess = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::PreProcess done" << std::endl;}
 }
 
@@ -1273,6 +1306,7 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
                                                    Jacobian<ImplicitOcpType> &jacobian,
                                                    Hessian<ImplicitOcpType> &hessian,
                                                    VecRealView &x, VecRealView &eq_mult){
+    auto start = std::chrono::high_resolution_clock::now();
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::Resetting preprocess steps" << std::endl;}
     jacobian.ResetPreProcess(info);
     hessian.ResetPreProcess(info, jacobian);
@@ -1306,4 +1340,6 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
             throw std::runtime_error("Not implemented yet for ASSUME_INVERSE_GIVEN == false");
         }
     }
+    auto stop = std::chrono::high_resolution_clock::now();
+    duration_postprocess = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
 }

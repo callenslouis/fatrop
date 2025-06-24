@@ -6,6 +6,9 @@
 #include "fatrop/linear_algebra/linear_algebra.hpp"
 #include "fatrop/ocp/dims.hpp"
 #include "fatrop/ocp/problem_info.hpp"
+
+#include <chrono>
+
 using namespace fatrop;
 
 Jacobian<OcpType>::Jacobian(const ProblemDims &dims)

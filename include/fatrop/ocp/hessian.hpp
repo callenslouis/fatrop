@@ -10,7 +10,9 @@
 #include "fatrop/ocp/fwd.hpp"
 #include "fatrop/linear_algebra/matrix.hpp"
 #include "fatrop/ocp/dims.hpp"
+
 #include <vector>
+#include <chrono>
 
 /**
  * @file hessian.hpp
@@ -134,6 +136,10 @@ namespace fatrop
             }
             return os;
         }
+
+        std::chrono::microseconds duration_copy_RSQrqt = std::chrono::microseconds(0);
+        std::chrono::microseconds duration_modifying_RSQrqt = std::chrono::microseconds(0);
+
     private:
 
         bool print_debug = false;

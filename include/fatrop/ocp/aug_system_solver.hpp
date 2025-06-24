@@ -11,6 +11,7 @@
 #include "fatrop/ocp/fwd.hpp"
 #include "fatrop/linear_algebra/linear_solver_return_flags.hpp"
 #include <vector>
+#include <chrono>
 
 namespace fatrop
 {
@@ -284,6 +285,11 @@ namespace fatrop
                                            const VecRealView &D_s, const VecRealView &f,
                                            const VecRealView &g, VecRealView &x, VecRealView &eq_mult);
 
+        std::chrono::microseconds duration_preprocess_jac;
+        std::chrono::microseconds duration_preprocess_hess;
+        std::chrono::microseconds duration_solve;
+        std::chrono::microseconds duration_postprocess;
+        std::chrono::microseconds duration_copying_rhs;
     private:
         void PreProcess(const ProblemInfo &info, 
                         Jacobian<ImplicitOcpType> &jacobian,
@@ -296,6 +302,7 @@ namespace fatrop
                          VecRealView &x, VecRealView &eq_mult);
 
         bool print_debug = false;
+
     };
 
 } // namespace fatrop

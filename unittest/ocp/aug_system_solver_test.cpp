@@ -564,6 +564,217 @@ public:
     };
 };
 
+class ImplicitVsReformulationTester
+{
+    public:
+        ImplicitVsReformulationTester(){};
+
+        void UpdateRandomly(bool random_dimensions=false){
+            std::vector<Index> nx;
+            std::vector<Index> nu;
+            std::vector<Index> ng;
+            std::vector<Index> ng_ineq;
+            if (random_dimensions){
+                K = ::test::random_int(5, 50);
+                nx = std::vector<Index>(K, 0);
+                nu = std::vector<Index>(K, 0);
+                ng = std::vector<Index>(K, 0);
+                ng_ineq = std::vector<Index>(K, 0);
+                for (int k = 0; k < K; k++){
+                    nx[k] = ::test::random_int(5, 20);
+                    nu[k] = ::test::random_int(0, 20);
+                    ng[k] = ::test::random_int(0, nx[k] + nu[k]-1);
+                    ng_ineq[k] = ::test::random_int(0, 10);
+                }
+                nu[K - 1] = 0; // last stage has no control
+                ng[K - 1] = std::min(ng[K - 1], nx[K - 1] - 1);
+
+            } else {
+                K = 10;
+                nx = {20, 10, 10, 10, 10, 20, 30, 1, 10, 5};
+                nu = {1, 4, 2, 1, 1, 3, 4, 1, 1, 0};
+                ng = {9, 3, 4, 3, 4, 0, 1, 0, 1, 5};
+                ng_ineq = {0, 5, 10, 0,   0, 0, 0, 0,  10, 0};
+            }
+
+            // implicit
+            try{
+            dims_i.emplace(ProblemDims{K, nu, nx, ng, ng_ineq});
+            info_i.emplace(ProblemInfo(dims_i.value()));
+            jacobian_i.emplace(Jacobian<ImplicitOcpType>(dims_i.value()));
+            hessian_i.emplace(Hessian<ImplicitOcpType>(dims_i.value()));
+            x_i.emplace(VecRealAllocated(info_i.value().number_of_primal_variables));
+            mult_i.emplace(VecRealAllocated(info_i.value().number_of_eq_constraints));
+            rhs_x_i.emplace(VecRealAllocated(info_i.value().number_of_primal_variables));
+            rhs_g_i.emplace(VecRealAllocated(info_i.value().number_of_eq_constraints));
+            D_x_i.emplace(VecRealAllocated(info_i.value().number_of_primal_variables));
+            D_s_i.emplace(VecRealAllocated(info_i.value().number_of_slack_variables));
+            D_eq_i.emplace(VecRealAllocated(info_i.value().number_of_g_eq_path));
+            solver_i.emplace(AugSystemSolver<ImplicitOcpType>(info_i.value()));
+
+            // reformulation
+            std::vector<Index> nu_r = std::vector<Index>(info_i.value().dims.K, 0);
+            std::vector<Index> ng_r = std::vector<Index>(info_i.value().dims.K, 0);
+            for (int i = 0; i < info_i.value().dims.K - 1; i++){
+                nu_r[i] = nu[i] + info_i.value().dims.number_of_states[i+1];
+                ng_r[i] = ng[i] + info_i.value().dims.number_of_states[i+1];
+                if (ng_r[i] >= nx[i] + nu_r[i]){
+                    throw std::runtime_error("Something is wrong");
+                }
+            }
+            dims_r.emplace(ProblemDims(K, nu_r, nx, ng_r, ng_ineq));
+            info_r.emplace(ProblemInfo(dims_r.value()));
+            jacobian_r.emplace(Jacobian<OcpType>(dims_r.value()));
+            hessian_r.emplace(Hessian<OcpType>(dims_r.value()));
+            x_r.emplace(VecRealAllocated(info_r.value().number_of_primal_variables));
+            mult_r.emplace(VecRealAllocated(info_r.value().number_of_eq_constraints));
+            rhs_x_r.emplace(VecRealAllocated(info_r.value().number_of_primal_variables));
+            rhs_g_r.emplace(VecRealAllocated(info_r.value().number_of_eq_constraints));
+            D_x_r.emplace(VecRealAllocated(info_r.value().number_of_primal_variables));
+            D_s_r.emplace(VecRealAllocated(info_r.value().number_of_slack_variables));
+            D_eq_r.emplace(VecRealAllocated(info_r.value().number_of_g_eq_path));
+            solver_r.emplace(AugSystemSolver<OcpType>(info_r.value()));
+            } catch (const std::exception& e){
+                std::cout << "Error in ImplicitVsReformulationTester::UpdateRandomly: " << e.what() << std::endl;
+                for (int i = 0; i < K; i++){
+                    std::cout << nx[i] << " " << nu[i] << " " << ng[i] << " " << ng_ineq[i] << std::endl;
+                    if (ng[i] >= nx[i] + nu[i]){
+                        std::cout << "Error in ImplicitVsReformulationTester::UpdateRandomly: ng[" << i << "] >= nx[" << i << "] + nu[" << i << "]" << std::endl;
+                        std::cout << "\tK = " << K << std::endl;
+                    }
+                }
+                return UpdateRandomly(random_dimensions);
+            }
+
+             // fill the jacobian with random values
+            for (Index k = 0; k < info_i.value().dims.K; ++k)
+            {
+                Index nu = info_i.value().dims.number_of_controls[k];
+                Index nu_r = info_r.value().dims.number_of_controls[k];
+                Index nx = info_i.value().dims.number_of_states[k];
+                if (k < info_i.value().dims.K - 1)
+                {
+                    Index nx_next = info_i.value().dims.number_of_states[k + 1];
+                    jacobian_i.value().BAbt[k].block(nu + nx, nx_next, 0, 0) =
+                        ::test::random_matrix(nu + nx, nx_next);
+                    jacobian_i.value().Jt_inv[k].block(nx_next, nx_next, 0, 0) =
+                        ::test::random_matrix(nx_next, nx_next);
+                    jacobian_i.value().Jt[k].block(nx_next, nx_next, 0, 0) =
+                        get_inverse(jacobian_i.value().Jt_inv[k].block(nx_next, nx_next, 0, 0));
+
+                    jacobian_r.value().BAbt[k].block(nu_r + nx, nx_next, 0, 0) =
+                        ::test::random_matrix(nu_r + nx, nx_next);
+                }
+                jacobian_i.value().Gg_eqt[k].block(nu + nx, info_i.value().dims.number_of_eq_constraints[k], 0, 0) =
+                    ::test::random_matrix(nu + nx, info_i.value().dims.number_of_eq_constraints[k]);
+                jacobian_i.value().Gg_ineqt[k].block(nu + nx, info_i.value().dims.number_of_ineq_constraints[k], 0, 0) =
+                    ::test::random_matrix(nu + nx, info_i.value().dims.number_of_ineq_constraints[k]);
+
+                jacobian_r.value().Gg_eqt[k].block(nu_r + nx, info_r.value().dims.number_of_eq_constraints[k], 0, 0) =
+                    ::test::random_matrix(nu_r + nx, info_r.value().dims.number_of_eq_constraints[k]);
+                jacobian_r.value().Gg_ineqt[k].block(nu_r + nx, info_r.value().dims.number_of_ineq_constraints[k], 0, 0) =
+                    ::test::random_matrix(nu_r + nx, info_r.value().dims.number_of_ineq_constraints[k]);
+            }
+            // fill the Hessian with random values
+            for (Index k = 0; k < dims_i.value().K; ++k)
+            {
+                Index nu = info_i.value().dims.number_of_controls[k];
+                Index nu_r = info_r.value().dims.number_of_controls[k];
+                Index nx = info_i.value().dims.number_of_states[k];
+                hessian_i.value().RSQrqt[k].block(nu + nx, nu + nx, 0, 0) = ::test::random_spd_matrix(nu + nx);
+
+                hessian_r.value().RSQrqt[k].block(nu_r + nx, nu_r + nx, 0, 0) =
+                    ::test::random_spd_matrix(nu_r + nx);
+            }
+            // add dynamics constraints
+            for (Index k = 0; k < info_i.value().dims.K - 1; ++k)
+            {
+                Index nu = info_i.value().dims.number_of_controls[k];
+                Index nu_r = info_r.value().dims.number_of_controls[k];
+                Index nx = info_i.value().dims.number_of_states[k];
+                Index offs_ux = info_i.value().offsets_primal_u[k];
+                Index offs_x_next = info_i.value().offsets_primal_x[k + 1];
+                Index nx_next = info_i.value().dims.number_of_states[k + 1];
+                Index offs_eq_dyn = info_i.value().offsets_g_eq_dyn[k];
+                
+                hessian_i.value().FuFxt[k].block(nx + nu, nx_next, 0, 0) =
+                    ::test::random_matrix(nx + nu, nx_next);
+            }
+
+            // Implicit OCP
+            for (Index i = 0; i < info_i.value().number_of_primal_variables; ++i){
+                rhs_x_i.value()(i) = 1.0 * i;
+                D_x_i.value() = 1.0 * (i + 0.1);
+            }
+            for (Index i = 0; i < info_i.value().number_of_eq_constraints; ++i){
+                rhs_g_i.value()(i) = 1.0 * i;
+            }
+
+            for (Index i = 0; i < info_i.value().number_of_g_eq_path; ++i){
+                D_eq_i.value()(i) = 1.0 * (i + 1);
+            }
+            for (Index i = 0; i < info_i.value().number_of_slack_variables; ++i){
+                D_s_i.value()(i) = 1.0 * (i + 0.1);
+            }
+
+            // Reformulation
+            for (Index i = 0; i < info_r.value().number_of_primal_variables; ++i){
+                rhs_x_r.value()(i) = 1.0 * i;
+                D_x_r.value() = 1.0 * (i + 0.1);
+            }
+            for (Index i = 0; i < info_r.value().number_of_eq_constraints; ++i){
+                rhs_g_r.value()(i) = 1.0 * i;
+            }
+
+            for (Index i = 0; i < info_r.value().number_of_g_eq_path; ++i){
+                D_eq_r.value()(i) = 1.0 * (i + 1);
+            }
+            for (Index i = 0; i < info_r.value().number_of_slack_variables; ++i){
+                D_s_r.value()(i) = 1.0 * (i + 0.1);
+            }
+        }
+
+        int K;
+        std::optional<ProblemDims> dims_i;
+        std::optional<ProblemInfo> info_i;
+        std::optional<Jacobian<ImplicitOcpType>> jacobian_i;
+        std::optional<Hessian<ImplicitOcpType>> hessian_i;
+        std::optional<VecRealAllocated> x_i;
+        std::optional<VecRealAllocated> mult_i;
+        std::optional<VecRealAllocated> rhs_x_i;
+        std::optional<VecRealAllocated> rhs_g_i;
+        std::optional<VecRealAllocated> D_x_i;
+        std::optional<VecRealAllocated> D_s_i;
+        std::optional<VecRealAllocated> D_eq_i;
+        std::optional<AugSystemSolver<ImplicitOcpType>> solver_i;
+
+        std::optional<ProblemDims> dims_r;
+        std::optional<ProblemInfo> info_r;
+        std::optional<Jacobian<OcpType>> jacobian_r;
+        std::optional<Hessian<OcpType>> hessian_r;
+        std::optional<VecRealAllocated> x_r;
+        std::optional<VecRealAllocated> mult_r;
+        std::optional<VecRealAllocated> rhs_x_r;
+        std::optional<VecRealAllocated> rhs_g_r;
+        std::optional<VecRealAllocated> D_x_r;
+        std::optional<VecRealAllocated> D_s_r;
+        std::optional<VecRealAllocated> D_eq_r;
+        std::optional<AugSystemSolver<OcpType>> solver_r;
+
+};
+
+class ImplicitAugSystemSolverVsReformulationTest : public ::testing::Test
+{
+// protected:
+public:
+   ImplicitVsReformulationTester tester;
+
+    void SetUp()
+    {
+        tester.UpdateRandomly();
+    };
+};
+
 void PrintSolutionOfOcpTypeSolver(ImplicitAugSystemSolverTest &implicit_solver, 
                                   VecRealAllocated &original_x,
                                   VecRealAllocated &original_mult){
@@ -856,32 +1067,6 @@ TEST_F(BasicImplicitAugSystemSolverTest, TestSolve)
     grad = grad + tmp;
     grad = grad + rhs_x;
 
-    // std::cout << "KKT matrix:\n" << full_kkt_matrix << std::endl;
-    // std::cout << "rhs_x:\n" << rhs_x << std::endl;
-    // std::cout << "rhs_g:\n" << rhs_g << std::endl;
-
-    // std::cout << "solution for primal variables:\n" << x << std::endl;
-    // std::cout << "solution for multipliers:\n" << mult << std::endl;
-
-    // std::cout << "Full jacobian:\n" << full_matrix_jacobian << std::endl;
-
-    /*
-    // test jacobian.apply_on_right
-    VecRealAllocated test_vector(info.number_of_primal_variables);
-    VecRealAllocated result_vector(info.number_of_eq_constraints);
-    for (int i = 0; i < info.number_of_primal_variables; i++){
-        test_vector = 0; test_vector(i) = 1;
-        jacobian.apply_on_right(info, test_vector, 0.0, result_vector, result_vector);
-        std::cout << "column " << i << " of jacobian should be:\n" << result_vector << std::endl;
-    }
-    for (int i = 0; i < info.number_of_eq_constraints; i++){
-        result_vector = 0; result_vector(i) = 1;
-        jacobian.transpose_apply_on_right(info, result_vector, 0.0, test_vector, test_vector);
-        std::cout << "row " << i << " of jacobian should be:\n" << test_vector << std::endl;
-    }
-    std::cout << "jacobian.Jt[0]:\n" << jacobian.Jt[0] << std::endl;
-    */
-
     for (Index i = 0; i < info.number_of_eq_constraints; ++i)
     {
         // std::cout << "i: " << i << std::endl;
@@ -892,4 +1077,233 @@ TEST_F(BasicImplicitAugSystemSolverTest, TestSolve)
         // std::cout << "i: " << i << std::endl;
         EXPECT_NEAR(grad(i), 0, 1e-5);
     }
+}
+
+TEST_F(ImplicitAugSystemSolverVsReformulationTest, TestSolve)
+{
+    // Implicit OCP // ;
+    auto start_i = std::chrono::high_resolution_clock::now();
+    Index ret = tester.solver_i.value().solve(tester.info_i.value(), tester.jacobian_i.value(), tester.hessian_i.value(), 
+        tester.D_x_i.value(), tester.D_eq_i.value(), tester.D_s_i.value(), tester.rhs_x_i.value(), tester.rhs_g_i.value(), tester.x_i.value(), tester.mult_i.value());
+    auto stop_i = std::chrono::high_resolution_clock::now();
+    auto duration_i = std::chrono::duration_cast<std::chrono::microseconds>(stop_i - start_i);
+    std::cout << "Implicit OCP solve duration: " << duration_i.count() << " microseconds" << std::endl;
+    std::cout << "\tpreprocessing (jac):  " << tester.solver_i.value().duration_preprocess_jac.count() << " microseconds" << std::endl;
+    std::cout << "\tpreprocessing (hess): " << tester.solver_i.value().duration_preprocess_hess.count() << " microseconds" << std::endl;
+    std::cout << "\t solve:               " << tester.solver_i.value().duration_solve.count() << " microseconds" << std::endl;
+    std::cout << "\tpostprocessing:       " << tester.solver_i.value().duration_postprocess.count() << " microseconds" << std::endl;
+
+    EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
+    ret = tester.solver_i.value().solve_rhs(tester.info_i.value(), tester.jacobian_i.value(), tester.hessian_i.value(), 
+        tester.D_eq_i.value(), tester.D_s_i.value(), tester.rhs_x_i.value(), tester.rhs_g_i.value(), tester.x_i.value(), tester.mult_i.value());
+    EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
+    VecRealAllocated jac_x(tester.info_i.value().number_of_eq_constraints);
+    tester.jacobian_i.value().apply_on_right(tester.info_i.value(), tester.x_i.value(), 0.0, jac_x, jac_x);
+    VecRealAllocated rhs_gg(tester.info_i.value().number_of_eq_constraints);
+    rhs_gg = 0.;
+    rhs_gg = rhs_gg + tester.rhs_g_i.value() + jac_x;
+    rhs_gg.block(tester.info_i.value().number_of_slack_variables, tester.info_i.value().offset_g_eq_slack) =
+        rhs_gg.block(tester.info_i.value().number_of_slack_variables, tester.info_i.value().offset_g_eq_slack) -
+        tester.D_s_i.value() * tester.mult_i.value().block(tester.info_i.value().number_of_slack_variables, tester.info_i.value().offset_g_eq_slack);
+    rhs_gg.block(tester.info_i.value().number_of_g_eq_path, tester.info_i.value().offset_g_eq_path) =
+        rhs_gg.block(tester.info_i.value().number_of_g_eq_path, tester.info_i.value().offset_g_eq_path) -
+        tester.D_eq_i.value() * tester.mult_i.value().block(tester.info_i.value().number_of_g_eq_path, tester.info_i.value().offset_g_eq_path);
+    VecRealAllocated grad(tester.info_i.value().number_of_primal_variables);
+    VecRealAllocated tmp(tester.info_i.value().number_of_primal_variables);
+    grad = 0;
+    tester.hessian_i.value().apply_on_right(tester.info_i.value(), tester.x_i.value(), 0.0, tmp, tmp);
+    grad = grad + tmp + tester.D_x_i.value() * tester.x_i.value();
+    tester.jacobian_i.value().transpose_apply_on_right(tester.info_i.value(), tester.mult_i.value(), 0.0, tmp, tmp);
+    grad = grad + tmp;
+    grad = grad + tester.rhs_x_i.value();
+    for (Index i = 0; i < tester.info_i.value().number_of_eq_constraints; ++i)
+    {
+        EXPECT_NEAR(rhs_gg(i), 0, 1e-5);
+    }
+    for (Index i = 0; i < tester.info_i.value().number_of_primal_variables; ++i)
+    {
+        EXPECT_NEAR(grad(i), 0, 1e-5);
+    }
+
+
+
+    // Reformulation //
+    auto start_r = std::chrono::high_resolution_clock::now();
+    Index ret_r = tester.solver_r.value().solve(tester.info_r.value(), tester.jacobian_r.value(), tester.hessian_r.value(), 
+        tester.D_x_r.value(), tester.D_eq_r.value(), tester.D_s_r.value(), tester.rhs_x_r.value(), tester.rhs_g_r.value(), tester.x_r.value(), tester.mult_r.value());
+    auto stop_r = std::chrono::high_resolution_clock::now();
+    auto duration_r = std::chrono::duration_cast<std::chrono::microseconds>(stop_r - start_r);
+    std::cout << "Reformulation OCP solve duration: " << duration_r.count() << " microseconds" << std::endl;
+
+    EXPECT_EQ(ret_r, LinsolReturnFlag::SUCCESS);
+    ret_r = tester.solver_r.value().solve_rhs(tester.info_r.value(), tester.jacobian_r.value(), tester.hessian_r.value(), 
+        tester.D_eq_r.value(), tester.D_s_r.value(), tester.rhs_x_r.value(), tester.rhs_g_r.value(), tester.x_r.value(), tester.mult_r.value());
+    EXPECT_EQ(ret_r, LinsolReturnFlag::SUCCESS);
+    VecRealAllocated jac_x_r(tester.info_r.value().number_of_eq_constraints);
+    tester.jacobian_r.value().apply_on_right(tester.info_r.value(), tester.x_r.value(), 0.0, jac_x_r, jac_x_r);
+    VecRealAllocated rhs_gg_r(tester.info_r.value().number_of_eq_constraints);
+    rhs_gg_r = 0.;
+    rhs_gg_r = rhs_gg_r + tester.rhs_g_r.value() + jac_x_r;
+    rhs_gg_r.block(tester.info_r.value().number_of_slack_variables, tester.info_r.value().offset_g_eq_slack) =
+        rhs_gg_r.block(tester.info_r.value().number_of_slack_variables, tester.info_r.value().offset_g_eq_slack) -
+        tester.D_s_r.value() * tester.mult_r.value().block(tester.info_r.value().number_of_slack_variables, tester.info_r.value().offset_g_eq_slack);
+    rhs_gg_r.block(tester.info_r.value().number_of_g_eq_path, tester.info_r.value().offset_g_eq_path) =
+        rhs_gg_r.block(tester.info_r.value().number_of_g_eq_path, tester.info_r.value().offset_g_eq_path) -
+        tester.D_eq_r.value() * tester.mult_r.value().block(tester.info_r.value().number_of_g_eq_path, tester.info_r.value().offset_g_eq_path);
+    VecRealAllocated grad_r(tester.info_r.value().number_of_primal_variables);
+    VecRealAllocated tmp_r(tester.info_r.value().number_of_primal_variables);
+    grad_r = 0;
+    tester.hessian_r.value().apply_on_right(tester.info_r.value(), tester.x_r.value(), 0.0, tmp_r, tmp_r);
+    grad_r = grad_r + tmp_r + tester.D_x_r.value() * tester.x_r.value();
+    tester.jacobian_r.value().transpose_apply_on_right(tester.info_r.value(), tester.mult_r.value(), 0.0, tmp_r, tmp_r);
+    grad_r = grad_r + tmp_r;
+    grad_r = grad_r + tester.rhs_x_r.value();
+    for (Index i = 0; i < tester.info_r.value().number_of_eq_constraints; ++i)
+    {
+        EXPECT_NEAR(rhs_gg_r(i), 0, 1e-5);
+    }
+    for (Index i = 0; i < tester.info_r.value().number_of_primal_variables; ++i)
+    {
+        EXPECT_NEAR(grad_r(i), 0, 1e-5);
+    }
+}
+
+TEST_F(ImplicitAugSystemSolverVsReformulationTest, TestTimings)
+{
+    int nb_runs = 5000;
+    double time_implicit_us = 0.0;
+    double time_implicit_copying_rhs = 0.0;
+    double time_implicit_preprocess_jac_us = 0.0;
+    double time_implicit_preprocess_hess_us = 0.0;
+    double time_implicit_preprocess_hess_copy_us = 0.0;
+    double time_implicit_preprocess_hess_scaling_us = 0.0;
+    double time_implicit_only_solve_us = 0.0;
+    double time_implicit_postprocess_us = 0.0;
+    double time_reformulation_us = 0.0;
+
+    for (int counter = 0; counter < nb_runs; counter++){
+        tester.UpdateRandomly(true);
+
+        // Reformulation //
+        auto start_r = std::chrono::high_resolution_clock::now();
+        Index ret_r = tester.solver_r.value().solve(tester.info_r.value(), tester.jacobian_r.value(), tester.hessian_r.value(), 
+            tester.D_x_r.value(), tester.D_eq_r.value(), tester.D_s_r.value(), tester.rhs_x_r.value(), tester.rhs_g_r.value(), tester.x_r.value(), tester.mult_r.value());
+        auto stop_r = std::chrono::high_resolution_clock::now();
+        auto duration_r = std::chrono::duration_cast<std::chrono::microseconds>(stop_r - start_r);
+        time_reformulation_us += duration_r.count();
+
+        EXPECT_EQ(ret_r, LinsolReturnFlag::SUCCESS);
+        ret_r = tester.solver_r.value().solve_rhs(tester.info_r.value(), tester.jacobian_r.value(), tester.hessian_r.value(), 
+            tester.D_eq_r.value(), tester.D_s_r.value(), tester.rhs_x_r.value(), tester.rhs_g_r.value(), tester.x_r.value(), tester.mult_r.value());
+        EXPECT_EQ(ret_r, LinsolReturnFlag::SUCCESS);
+        /*
+        VecRealAllocated jac_x_r(tester.info_r.value().number_of_eq_constraints);
+        tester.jacobian_r.value().apply_on_right(tester.info_r.value(), tester.x_r.value(), 0.0, jac_x_r, jac_x_r);
+        VecRealAllocated rhs_gg_r(tester.info_r.value().number_of_eq_constraints);
+        rhs_gg_r = 0.;
+        rhs_gg_r = rhs_gg_r + tester.rhs_g_r.value() + jac_x_r;
+        rhs_gg_r.block(tester.info_r.value().number_of_slack_variables, tester.info_r.value().offset_g_eq_slack) =
+            rhs_gg_r.block(tester.info_r.value().number_of_slack_variables, tester.info_r.value().offset_g_eq_slack) -
+            tester.D_s_r.value() * tester.mult_r.value().block(tester.info_r.value().number_of_slack_variables, tester.info_r.value().offset_g_eq_slack);
+        rhs_gg_r.block(tester.info_r.value().number_of_g_eq_path, tester.info_r.value().offset_g_eq_path) =
+            rhs_gg_r.block(tester.info_r.value().number_of_g_eq_path, tester.info_r.value().offset_g_eq_path) -
+            tester.D_eq_r.value() * tester.mult_r.value().block(tester.info_r.value().number_of_g_eq_path, tester.info_r.value().offset_g_eq_path);
+        VecRealAllocated grad_r(tester.info_r.value().number_of_primal_variables);
+        VecRealAllocated tmp_r(tester.info_r.value().number_of_primal_variables);
+        grad_r = 0;
+        tester.hessian_r.value().apply_on_right(tester.info_r.value(), tester.x_r.value(), 0.0, tmp_r, tmp_r);
+        grad_r = grad_r + tmp_r + tester.D_x_r.value() * tester.x_r.value();
+        tester.jacobian_r.value().transpose_apply_on_right(tester.info_r.value(), tester.mult_r.value(), 0.0, tmp_r, tmp_r);
+        grad_r = grad_r + tmp_r;
+        grad_r = grad_r + tester.rhs_x_r.value();
+        for (Index i = 0; i < tester.info_r.value().number_of_eq_constraints; ++i)
+        {
+            EXPECT_NEAR(rhs_gg_r(i), 0, 1e-5);
+        }
+        for (Index i = 0; i < tester.info_r.value().number_of_primal_variables; ++i)
+        {
+            EXPECT_NEAR(grad_r(i), 0, 1e-5);
+        }
+        */
+
+
+        // Implicit OCP //
+        auto start_i = std::chrono::high_resolution_clock::now();
+        Index ret = tester.solver_i.value().solve(tester.info_i.value(), tester.jacobian_i.value(), tester.hessian_i.value(), 
+            tester.D_x_i.value(), tester.D_eq_i.value(), tester.D_s_i.value(), tester.rhs_x_i.value(), tester.rhs_g_i.value(), tester.x_i.value(), tester.mult_i.value());
+        auto stop_i = std::chrono::high_resolution_clock::now();
+        auto duration_i = std::chrono::duration_cast<std::chrono::microseconds>(stop_i - start_i);
+        time_implicit_us += duration_i.count();
+        time_implicit_copying_rhs += tester.solver_i.value().duration_copying_rhs.count();
+        time_implicit_preprocess_jac_us += tester.solver_i.value().duration_preprocess_jac.count();
+        time_implicit_preprocess_hess_us += tester.solver_i.value().duration_preprocess_hess.count();
+        time_implicit_preprocess_hess_copy_us += tester.hessian_i.value().duration_copy_RSQrqt.count();
+        time_implicit_preprocess_hess_scaling_us += tester.hessian_i.value().duration_modifying_RSQrqt.count();
+        time_implicit_only_solve_us += tester.solver_i.value().duration_solve.count();
+        time_implicit_postprocess_us += tester.solver_i.value().duration_postprocess.count();
+        
+        EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
+        ret = tester.solver_i.value().solve_rhs(tester.info_i.value(), tester.jacobian_i.value(), tester.hessian_i.value(), 
+            tester.D_eq_i.value(), tester.D_s_i.value(), tester.rhs_x_i.value(), tester.rhs_g_i.value(), tester.x_i.value(), tester.mult_i.value());
+        EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
+        /*
+        VecRealAllocated jac_x(tester.info_i.value().number_of_eq_constraints);
+        tester.jacobian_i.value().apply_on_right(tester.info_i.value(), tester.x_i.value(), 0.0, jac_x, jac_x);
+        VecRealAllocated rhs_gg(tester.info_i.value().number_of_eq_constraints);
+        rhs_gg = 0.;
+        rhs_gg = rhs_gg + tester.rhs_g_i.value() + jac_x;
+        rhs_gg.block(tester.info_i.value().number_of_slack_variables, tester.info_i.value().offset_g_eq_slack) =
+            rhs_gg.block(tester.info_i.value().number_of_slack_variables, tester.info_i.value().offset_g_eq_slack) -
+            tester.D_s_i.value() * tester.mult_i.value().block(tester.info_i.value().number_of_slack_variables, tester.info_i.value().offset_g_eq_slack);
+        rhs_gg.block(tester.info_i.value().number_of_g_eq_path, tester.info_i.value().offset_g_eq_path) =
+            rhs_gg.block(tester.info_i.value().number_of_g_eq_path, tester.info_i.value().offset_g_eq_path) -
+            tester.D_eq_i.value() * tester.mult_i.value().block(tester.info_i.value().number_of_g_eq_path, tester.info_i.value().offset_g_eq_path);
+        VecRealAllocated grad(tester.info_i.value().number_of_primal_variables);
+        VecRealAllocated tmp(tester.info_i.value().number_of_primal_variables);
+        grad = 0;
+        tester.hessian_i.value().apply_on_right(tester.info_i.value(), tester.x_i.value(), 0.0, tmp, tmp);
+        grad = grad + tmp + tester.D_x_i.value() * tester.x_i.value();
+        tester.jacobian_i.value().transpose_apply_on_right(tester.info_i.value(), tester.mult_i.value(), 0.0, tmp, tmp);
+        grad = grad + tmp;
+        grad = grad + tester.rhs_x_i.value();
+        for (Index i = 0; i < tester.info_i.value().number_of_eq_constraints; ++i)
+        {
+            EXPECT_NEAR(rhs_gg(i), 0, 1e-5);
+        }
+        for (Index i = 0; i < tester.info_i.value().number_of_primal_variables; ++i)
+        {
+            EXPECT_NEAR(grad(i), 0, 1e-5);
+        }
+        */
+    }
+
+    std::cout << std::endl;
+    std::cout << "Average implicit OCP solve duration:              " << time_implicit_us / nb_runs << " microseconds" << std::endl;
+    std::cout << "Average implicit OCP solve duration (only solve): " << time_implicit_only_solve_us / nb_runs << " microseconds" << std::endl;
+    std::cout << "Average reformulation OCP solve duration:         " << time_reformulation_us / nb_runs << " microseconds" << std::endl;
+    std::cout << std::endl;
+
+    std::cout << "Implicit OCP timings breakdown:" << std::endl;
+    std::cout << "\tAverage copying rhs:                " << time_implicit_copying_rhs / nb_runs << " microseconds" << std::endl;
+    std::cout << "\tAverage preprocessing (jacobian):   " << time_implicit_preprocess_jac_us / nb_runs << " microseconds" << std::endl;
+    std::cout << "\tAverage preprocessing (hessian):    " << time_implicit_preprocess_hess_us / nb_runs << " microseconds" << std::endl;
+    std::cout << "\t\tcopying RSQrqt:               " << time_implicit_preprocess_hess_copy_us / nb_runs << " microseconds" << std::endl;
+    std::cout << "\t\tmodifying RSQrqt:             " << time_implicit_preprocess_hess_scaling_us / nb_runs << " microseconds" << std::endl;
+    std::cout << "\tAverage solve:                      " << time_implicit_only_solve_us / nb_runs << " microseconds" << std::endl;
+    std::cout << "\tAverage postprocessing:             " << time_implicit_postprocess_us / nb_runs << " microseconds" << std::endl;
+
+    // print out percentages of [preprocess jac, preprocess hess, solving, postprocess]
+    std::cout << "preprocess_jac_rel = " << 
+        (time_implicit_preprocess_jac_us / time_implicit_us) << std::endl;
+    std::cout << "preprocess_hess_rel = " <<
+        (time_implicit_preprocess_hess_us / time_implicit_us) << std::endl;
+    std::cout << "solve_rel = " <<
+        (time_implicit_only_solve_us / time_implicit_us) << std::endl;
+    std::cout << "postprocess_rel = " <<
+        (time_implicit_postprocess_us / time_implicit_us) << std::endl;
+    std::cout << "other_rel = " << 
+        (1.0 - (time_implicit_preprocess_jac_us + time_implicit_preprocess_hess_us + time_implicit_only_solve_us + time_implicit_postprocess_us) / time_implicit_us) << std::endl;
+
+    std::cout << "\ntotal_time_implicit = " << time_implicit_us  << std::endl;
+    std::cout << "total_time_reformulation = " << time_reformulation_us << std::endl;
 }

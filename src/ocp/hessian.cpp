@@ -7,6 +7,9 @@
 #include "fatrop/linear_algebra/linear_algebra.hpp"
 #include "fatrop/ocp/dims.hpp"
 #include "fatrop/ocp/problem_info.hpp"
+
+#include <chrono>
+
 using namespace fatrop;
 
 Hessian<OcpType>::Hessian(const ProblemDims &dims)
@@ -94,6 +97,7 @@ void Hessian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
                                           VecRealView &f,
                                           VecRealView &g)
 {
+    auto start = std::chrono::high_resolution_clock::now();
     for (int k = 0; k < info.dims.K; ++k){
         RSQrqt_original[k] = RSQrqt[k];
 
@@ -105,7 +109,10 @@ void Hessian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
               1.0, f, info.offsets_primal_u[k], RSQrqt_original[k],
               info.dims.number_of_states[k] + info.dims.number_of_controls[k], 0); 
     }   
+    auto end = std::chrono::high_resolution_clock::now();
+    duration_copy_RSQrqt = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 
+    start = std::chrono::high_resolution_clock::now();
     for (int k = 0; k < info.dims.K - 1; ++k)
     {
         Index nu = info.dims.number_of_controls[k];
@@ -126,6 +133,8 @@ void Hessian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
                g, info.offsets_g_eq_dyn[k], 1.0, 
                f, info.offsets_primal_u[k], f, info.offsets_primal_u[k]);
     }
+    end = std::chrono::high_resolution_clock::now();
+    duration_modifying_RSQrqt = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 }
 
 void Hessian<ImplicitOcpType>::ResetPreProcess(const ProblemInfo &info, 
