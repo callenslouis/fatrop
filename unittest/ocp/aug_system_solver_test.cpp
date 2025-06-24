@@ -13,6 +13,7 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <iostream>
+#include <chrono>
 
 using namespace fatrop;
 
@@ -47,12 +48,12 @@ MatRealAllocated get_inverse(const MatRealView &A)
     }
 
     // check result
-    // MatRealAllocated I_check = ::test::identity_matrix(A.m());
-    // blasfeo_dgemm_nn(A.m(), A.m(), A.m(), 1.0, 
-    //                  const_cast<MAT *>(&A.mat()), 0, 0, 
-    //                  const_cast<MAT *>(&A_inv.mat()), 0, 0, 0.0, 
-    //                  const_cast<MAT *>(&I_check.mat()), 0, 0,
-    //                  const_cast<MAT *>(&I_check.mat()), 0, 0);
+    MatRealAllocated I_check = ::test::identity_matrix(A.m());
+    blasfeo_dgemm_nn(A.m(), A.m(), A.m(), 1.0, 
+                     const_cast<MAT *>(&A.mat()), 0, 0, 
+                     const_cast<MAT *>(&A_inv.mat()), 0, 0, 0.0, 
+                     const_cast<MAT *>(&I_check.mat()), 0, 0,
+                     const_cast<MAT *>(&I_check.mat()), 0, 0);
     // std::cout << "identity check: \n"
     //           << I_check << std::endl;
 
@@ -155,7 +156,7 @@ protected:
                 transpose(jacobian.Gg_ineqt[k].block(nu + nx, ng_ineq, 0, 0));
         }
         full_matrix_hessian = 0.;
-        // populate the full matrix
+        // populate the full matrixTEST_F(ImplicitAugSystemSolverVsReformulatioTest, TestSolve)
         for (Index k = 0; k < dims.K; k++)
         {
             Index nu = dims.number_of_controls[k];
@@ -250,10 +251,8 @@ public:
                         jacobian.Jt_inv[k].block(nx_next, nx_next, 0, 0) =
                             ::test::identity_matrix(nx_next, -1.0);
                     } else {
-                        // jacobian.Jt_inv[k].block(nx_next, nx_next, 0, 0) =
-                        //     ::test::random_matrix(nx_next, nx_next);
                         jacobian.Jt_inv[k].block(nx_next, nx_next, 0, 0) =
-                            ::test::identity_matrix(nx_next, 1.0);
+                            ::test::random_matrix(nx_next, nx_next);
                     }
                     jacobian.Jt[k].block(nx_next, nx_next, 0, 0) =
                         get_inverse(jacobian.Jt_inv[k].block(nx_next, nx_next, 0, 0));
@@ -290,19 +289,16 @@ public:
             Index offs_eq_dyn = info.offsets_g_eq_dyn[k];
             full_matrix_jacobian.block(nx_next, nu + nx, offs_eq_dyn, offs_ux) =
                 transpose(jacobian.BAbt[k].block(nu + nx, nx_next, 0, 0));
-            // full_matrix_jacobian.block(nx_next, nx_next, offs_eq_dyn, offs_x_next).diagonal() =
-            //     -1.0;
-            full_matrix_jacobian.block(nx_next, nx_next, offs_eq_dyn, offs_x_next) = jacobian.Jt[k];
+            full_matrix_jacobian.block(nx_next, nx_next, offs_eq_dyn, offs_x_next) = 
+                transpose(jacobian.Jt[k]);
             hessian.FuFxt[k].block(nx + nu, nx_next, 0, 0) =
                 ::test::random_matrix(nx + nu, nx_next);
             if (CREATE_EXPLICIT_EQUIVALENT){
                 hessian.FuFxt[k].block(nx + nu, nx_next, 0, 0) =
                     ::test::empty_matrix(nx + nu, nx_next);
             } else {
-                // hessian.FuFxt[k].block(nx + nu, nx_next, 0, 0) =
-                //     ::test::random_matrix(nx + nu, nx_next);
                 hessian.FuFxt[k].block(nx + nu, nx_next, 0, 0) =
-                    ::test::empty_matrix(nx + nu, nx_next);
+                    ::test::random_matrix(nx + nu, nx_next);
             }
             full_matrix_hessian.block(nx_next, nu + nx, offs_x_next, offs_ux) = 
                 transpose(hessian.FuFxt[k]);
@@ -379,18 +375,20 @@ class BasicImplicitAugSystemSolverTest : public ::testing::Test
 public:
     // Create OcpDims object
     // int K = 2;                                                   // Number of stages
-    // std::vector<Index> nx = {2, 2}; // State dimensions for each stage
+    // std::vector<Index> nx = {2, 7}; // State dimensions for each stage
     // std::vector<Index> nu = {1, 0};    // Input dimensions for each stage
     // std::vector<Index> ng = {0, 0}; // Equality constraints for each stage
     // std::vector<Index> ng_ineq = {0, 0}; // Inequality constraints for each stage
     int K = 8;                                                   // Number of stages
-    std::vector<Index> nx = {1, 1, 1, 1, 1, 1, 1, 1}; // State dimensions for each stage
-    std::vector<Index> nu = {1, 1, 1, 1, 1, 1, 1, 0};    // Input dimensions for each stage
+    std::vector<Index> nx = {1, 4, 25, 3, 4, 2, 1, 1}; // State dimensions for each stage
+    std::vector<Index> nu = {1, 1, 1, 1, 10, 0, 1, 0};    // Input dimensions for each stage
     std::vector<Index> ng = {0, 0, 0, 0, 0, 0, 0, 0}; // Equality constraints for each stage
     std::vector<Index> ng_ineq = {0, 1, 3, 0, 1, 1, 3, 2}; // Inequality constraints for each stage
 
+    // 00 does not work
     // 10 works
-    // 01 doesn't work, so it's a jacobian problem
+    // 01 does not
+    // its a jacobian problem
     bool USE_IDENTITY_J = 0;
     bool USE_ZERO_F = 0;
 
@@ -472,7 +470,8 @@ public:
                 transpose(jacobian.BAbt[k].block(nu + nx, nx_next, 0, 0));
             // full_matrix_jacobian.block(nx_next, nx_next, offs_eq_dyn, offs_x_next).diagonal() =
             //     -1.0;
-            full_matrix_jacobian.block(nx_next, nx_next, offs_eq_dyn, offs_x_next) = jacobian.Jt[k];
+            full_matrix_jacobian.block(nx_next, nx_next, offs_eq_dyn, offs_x_next) = 
+                transpose(jacobian.Jt[k]);
 
             if (USE_ZERO_F){
                 hessian.FuFxt[k].block(nx + nu, nx_next, 0, 0) =
@@ -835,6 +834,7 @@ TEST_F(ImplicitAugSystemSolverTest, TestSolveDegenRhs)
     }
 }
 
+
 TEST_F(BasicImplicitAugSystemSolverTest, TestSolve)
 {
     Index ret = solver.solve(info, jacobian, hessian, D_x, D_s, rhs_x, rhs_g, x, mult);
@@ -856,89 +856,40 @@ TEST_F(BasicImplicitAugSystemSolverTest, TestSolve)
     grad = grad + tmp;
     grad = grad + rhs_x;
 
+    // std::cout << "KKT matrix:\n" << full_kkt_matrix << std::endl;
+    // std::cout << "rhs_x:\n" << rhs_x << std::endl;
+    // std::cout << "rhs_g:\n" << rhs_g << std::endl;
+
+    // std::cout << "solution for primal variables:\n" << x << std::endl;
+    // std::cout << "solution for multipliers:\n" << mult << std::endl;
+
+    // std::cout << "Full jacobian:\n" << full_matrix_jacobian << std::endl;
+
     /*
-    // compute KKT-matrix @ x
-    VecRealAllocated expected_rhs(info.number_of_primal_variables + info.number_of_eq_constraints);
-    VecRealAllocated solution_vector(info.number_of_primal_variables + info.number_of_eq_constraints);
-    for (Index i = 0; i < info.number_of_primal_variables; ++i)
-    {
-        solution_vector(i) = x(i);
-    }
-    for (Index i = 0; i < info.number_of_eq_constraints; ++i)
-    {
-        solution_vector(info.number_of_primal_variables + i) = mult(i);
-    }
-
-    std::cout << "Full solution vector: \n"
-              << solution_vector << std::endl;
-    // gemv_n(full_kkt_matrix.m(), full_kkt_matrix.n(), 1.0, full_kkt_matrix, 0, 0, 
-    //        solution_vector, 0, 0.0, expected_rhs, 0, expected_rhs, 0);
-
-    // check if the rhs is equal to the expected rhs
-    std::cout << "Comparing KKT @ sol with [rhs_x; rhs_g]" << std::endl;
-    for (Index i = 0; i < info.number_of_primal_variables; ++i)
-    {
-        std::cout << "[" << i << "]: \t" << -expected_rhs(i) << "\t-\t" << rhs_x(i) 
-                  << "\t\t(" << std::abs(-expected_rhs(i) - rhs_x(i)) << ")" << std::endl;
-    }
-    for (Index i = 0; i < info.number_of_eq_constraints; ++i)
-    {
-        std::cout << "[" << i << "]: \t" << -expected_rhs(info.number_of_primal_variables + i) 
-                  << "\t-\t" << rhs_g(i) 
-                  << "\t\t(" << std::abs(-expected_rhs(info.number_of_primal_variables + i) - rhs_g(i)) << ")" 
-                  << std::endl;
-    }
-    std::cout << "---------------------------" << std::endl;
-    std::cout << "Comparing KKT @ sol with [grad; rhs_gg]" << std::endl;
-    for (Index i = 0; i < info.number_of_primal_variables; ++i)
-    {
-        std::cout << "[" << i << "]: \t" << expected_rhs(i) << "\t-\t" << grad(i) 
-                  << "\t\t(" << std::abs(expected_rhs(i) - grad(i)) << ")" << std::endl;
-    }
-    for (Index i = 0; i < info.number_of_eq_constraints; ++i)
-    {
-        std::cout << "[" << i << "]: \t" << expected_rhs(info.number_of_primal_variables + i) 
-                  << "\t-\t" << rhs_gg(i) 
-                  << "\t\t(" << std::abs(expected_rhs(info.number_of_primal_variables + i) - rhs_gg(i)) << ")" 
-                  << std::endl;
-    }
-
-    // test hessian.apply_on_right
-    VecRealAllocated v(info.number_of_primal_variables);
-    VecRealAllocated h(info.number_of_primal_variables);
-    h = 0.0;
-
-    for (int i = 0; i < info.number_of_primal_variables; ++i)
-    {
-        v = 0; v(i) = 1.0;
-        hessian.apply_on_right(info, v, 0.0, h, h);
-        std::cout << "column " << i << " of hessian should be: " << h << std::endl;
-    }
-    
     // test jacobian.apply_on_right
-    VecRealAllocated j(info.number_of_eq_constraints);
-    for (int i = 0; i < info.number_of_primal_variables; ++i)
-    {
-        v = 0; v(i) = 1.0;
-        jacobian.apply_on_right(info, v, 0.0, j, j);
-        std::cout << "column " << i << " of jacobian should be: " << j << std::endl;
+    VecRealAllocated test_vector(info.number_of_primal_variables);
+    VecRealAllocated result_vector(info.number_of_eq_constraints);
+    for (int i = 0; i < info.number_of_primal_variables; i++){
+        test_vector = 0; test_vector(i) = 1;
+        jacobian.apply_on_right(info, test_vector, 0.0, result_vector, result_vector);
+        std::cout << "column " << i << " of jacobian should be:\n" << result_vector << std::endl;
     }
-    
-    // test jacobian.transpose_apply_on_right
-    v = 1;
-    jacobian.transpose_apply_on_right(info, v, 0.0, h, h);
-    for (int i = 0; i < info.number_of_eq_constraints; ++i)
-    {
-        std::cout << "column " << i << " of jacobian transpose should be: " << h(i) << std::endl;
+    for (int i = 0; i < info.number_of_eq_constraints; i++){
+        result_vector = 0; result_vector(i) = 1;
+        jacobian.transpose_apply_on_right(info, result_vector, 0.0, test_vector, test_vector);
+        std::cout << "row " << i << " of jacobian should be:\n" << test_vector << std::endl;
     }
+    std::cout << "jacobian.Jt[0]:\n" << jacobian.Jt[0] << std::endl;
     */
 
     for (Index i = 0; i < info.number_of_eq_constraints; ++i)
     {
+        // std::cout << "i: " << i << std::endl;
         EXPECT_NEAR(rhs_gg(i), 0, 1e-5);
     }
     for (Index i = 0; i < info.number_of_primal_variables; ++i)
     {
+        // std::cout << "i: " << i << std::endl;
         EXPECT_NEAR(grad(i), 0, 1e-5);
     }
 }

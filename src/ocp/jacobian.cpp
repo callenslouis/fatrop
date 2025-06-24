@@ -240,6 +240,10 @@ void Jacobian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
     }   
 
     // Compute BAbt = BAbt_original * Jt^-1
+    VecRealAllocated g_copy(info.number_of_eq_constraints);
+    for (int i = 0; i < info.number_of_eq_constraints; i++){
+        g_copy(i) = g(i);
+    }
     for (int k = 0; k < info.dims.K - 1; ++k){
         Index nx_next = info.dims.number_of_states[k + 1];
         Index nx = info.dims.number_of_states[k];
@@ -247,16 +251,21 @@ void Jacobian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
 
         if (ASSUME_INVERSE_GIVEN){
             blasfeo_dgemm_nn(nx + nu + 1, nx_next, nx_next, -1.0, 
-                             &BAbt[k].mat(), 0, 0, &Jt_inv[k].mat(), 0, 0, 0.0,
+                             &BAbt_original[k].mat(), 0, 0, &Jt_inv[k].mat(), 0, 0, 0.0,
                              &BAbt[k].mat(), 0, 0, &BAbt[k].mat(), 0, 0);
 
             // apply transformation to rhs also, since AugSystemSolver<OcpType> 
             // overwrites the entries corresponding to the vector b in BAbt
             // by considering g (b <-- -J^-1 @ b)
+            // blasfeo_dgemv_t(nx_next, nx_next, -1.0,
+            //                 &Jt_inv[k].mat(), 0, 0, 
+            //                 &g.vec(), info.offsets_g_eq_dyn[k], 0.0,
+            //                 &g.vec(), info.offsets_g_eq_dyn[k],
+            //                 &g.vec(), info.offsets_g_eq_dyn[k]);
             blasfeo_dgemv_t(nx_next, nx_next, -1.0,
                             &Jt_inv[k].mat(), 0, 0, 
-                            &g.vec(), info.offsets_g_eq_dyn[k], 0.0,
-                            &g.vec(), info.offsets_g_eq_dyn[k],
+                            &g_copy.vec(), info.offsets_g_eq_dyn[k], 0.0,
+                            &g_copy.vec(), info.offsets_g_eq_dyn[k],
                             &g.vec(), info.offsets_g_eq_dyn[k]);
 
         } else {

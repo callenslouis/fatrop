@@ -1049,8 +1049,122 @@ LinsolReturnFlag AugSystemSolver<OcpType>::solve_rhs(const ProblemInfo &info,
 
 
 
+void PrintNpArray(MatRealAllocated const &A, std::string name){
+    std::cout << name << " = np.array([\n\t";
+    for (int i = 0; i < A.m(); i++){
+        std::cout << "[";
+        for (int j = 0; j < A.n(); j++){
+            std::cout << A(i,j);
+            if (j < A.n() - 1){ std::cout << ",";}
+            std::cout << " ";
+        }
+        std::cout << "],\n\t";        
+    }
+    std::cout << "])" << std::endl;
+}
 
+void PrintNpArray(VecRealAllocated const &v, std::string name){
+    std::cout << name << " = np.transpose(np.array([[";
+    for (int i = 0; i < v.m(); i++){
+        std::cout << v(i);
+        if (i < v.m() - 1){ std::cout << ",";}
+        std::cout << " ";
+    }
+    std::cout << "]]))" << std::endl;
+}
 
+MatRealAllocated GetKKT(const ProblemInfo &info,
+                        Jacobian<ImplicitOcpType> &jacobian,
+                        Hessian<ImplicitOcpType> &hessian){
+    int nb_primal = info.number_of_primal_variables;
+    int nb_eq = info.number_of_eq_constraints;
+    MatRealAllocated full_kkt_matrix = MatRealAllocated(
+        nb_primal + nb_eq, nb_primal + nb_eq);
+    MatRealAllocated full_matrix_jacobian = MatRealAllocated(nb_eq, nb_primal);
+    MatRealAllocated full_matrix_hessian = MatRealAllocated(nb_primal, nb_primal);
+
+    for (int k = 0; k < info.dims.K-1; k++){
+        Index nu = info.dims.number_of_controls[k];
+        Index nx = info.dims.number_of_states[k];
+        Index offs_ux = info.offsets_primal_u[k];
+        Index offs_x_next = info.offsets_primal_x[k + 1];
+        Index nx_next = info.dims.number_of_states[k + 1];
+        Index offs_eq_dyn = info.offsets_g_eq_dyn[k];
+        full_matrix_jacobian.block(nx_next, nu + nx, offs_eq_dyn, offs_ux) =
+            transpose(jacobian.BAbt[k].block(nu + nx, nx_next, 0, 0));
+        full_matrix_jacobian.block(nx_next, nx_next, offs_eq_dyn, offs_x_next) = 
+            transpose(jacobian.Jt[k]);
+        full_matrix_hessian.block(nx_next, nu + nx, offs_x_next, offs_ux) = 
+            transpose(hessian.FuFxt[k]);
+        full_matrix_hessian.block(nu + nx, nx_next, offs_ux, offs_x_next) =
+            hessian.FuFxt[k];
+    }
+
+    // equality path equality constraints
+    for (Index k = 0; k < info.dims.K; ++k)
+    {
+        Index nu = info.dims.number_of_controls[k];
+        Index nx = info.dims.number_of_states[k];
+        Index ng = info.dims.number_of_eq_constraints[k];
+        Index offset_ux = info.offsets_primal_u[k];
+        Index offset_g_eq = info.offsets_g_eq_path[k];
+        full_matrix_jacobian.block(ng, nu + nx, offset_g_eq, offset_ux) =
+            transpose(jacobian.Gg_eqt[k].block(nu + nx, ng, 0, 0));
+    }
+    // inequality path constraints
+    for (Index k = 0; k < info.dims.K; ++k)
+    {
+        Index nu = info.dims.number_of_controls[k];
+        Index nx = info.dims.number_of_states[k];
+        Index ng_ineq = info.dims.number_of_ineq_constraints[k];
+        Index offset_ux = info.offsets_primal_u[k];
+        Index offset_g_ineq = info.offsets_g_eq_slack[k];
+        full_matrix_jacobian.block(ng_ineq, nu + nx, offset_g_ineq, offset_ux) =
+            transpose(jacobian.Gg_ineqt[k].block(nu + nx, ng_ineq, 0, 0));
+    }
+    // populate the full matrix
+    for (Index k = 0; k < info.dims.K; k++)
+    {
+        Index nu = info.dims.number_of_controls[k];
+        Index nx = info.dims.number_of_states[k];
+        Index offs_ux = info.offsets_primal_u[k];
+        full_matrix_hessian.block(nu + nx, nu + nx, offs_ux, offs_ux) =
+            hessian.RSQrqt[k].block(nu + nx, nu + nx, 0, 0);
+    }
+    // set up the full KKT matrix
+    full_kkt_matrix.block(info.number_of_primal_variables, info.number_of_primal_variables, 0,
+                            0) = full_matrix_hessian;
+    full_kkt_matrix.block(info.number_of_primal_variables, info.number_of_eq_constraints, 0,
+                            info.number_of_primal_variables) = transpose(full_matrix_jacobian);
+    full_kkt_matrix.block(info.number_of_eq_constraints, info.number_of_primal_variables,
+                            info.number_of_primal_variables, 0) = full_matrix_jacobian;
+    PrintNpArray(full_kkt_matrix, "KKT");
+
+    return full_kkt_matrix;
+}
+
+void VerifyIntermediateSolution(const ProblemInfo &info,
+                                Jacobian<ImplicitOcpType> &jacobian,
+                                Hessian<ImplicitOcpType> &hessian,
+                                VecRealView &x, VecRealView& mult,
+                                VecRealView &f, VecRealView g){
+    VecRealAllocated solution_grad = VecRealAllocated(info.number_of_primal_variables);
+    VecRealAllocated solution_g = VecRealAllocated(info.number_of_eq_constraints);
+
+    hessian.apply_on_right(info, x, 0.0, solution_grad, solution_grad);
+    jacobian.transpose_apply_on_right(info, mult, 1.0, solution_grad, solution_grad);
+
+    jacobian.apply_on_right(info, x, 0.0, solution_g, solution_g);
+
+    for (int i = 0; i < info.number_of_primal_variables; i++){
+        std::cout << solution_grad(i) << "\t-\t" << f(i) << std::endl;
+    }
+
+    std::cout << "------------" << std::endl;
+    for (int i = 0; i < info.number_of_eq_constraints; i++){
+        std::cout << solution_g(i) << "\t-\t" << g(i) << std::endl;
+    }
+}
 
 
 
@@ -1070,9 +1184,32 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
         g_copy(i) = g(i);
     }
 
+    // std::cout << "jacobian before preprocessing:" << std::endl;
+    // std::cout << jacobian << std::endl;
+    // std::cout << "g: " << g_copy << std::endl;
+    // std::cout << "f: " << f_copy << std::endl;
+
     PreProcess(info, jacobian, hessian, f_copy, g_copy);
+    
+    // GetKKT(info, jacobian, hessian);
+    // PrintNpArray(f_copy, "rhs_x");
+    // PrintNpArray(g_copy, "rhs_g");
+    
     LinsolReturnFlag flag = AugSystemSolver<OcpType>::solve(info, jacobian, hessian, D_x, D_s, f_copy, g_copy, x, eq_mult);
+    // std::cout << "jacobian after solving:" << std::endl;
+    // std::cout << jacobian << std::endl;
+    // std::cout << "g: " << g_copy << std::endl;
+    // std::cout << "f: " << f_copy << std::endl;
+    // std::cout << "solution before pre-processing: " << std::endl;
+    // std::cout << "x: " << x << std::endl;
+    // std::cout << "mult: " << eq_mult << std::endl;
+    // VerifyIntermediateSolution(info, jacobian, hessian, x, eq_mult, f_copy, g_copy);
+
     PostProcess(info, jacobian, hessian, x, eq_mult);
+    // std::cout << "jacobian after postprocessing:" << std::endl;
+    // std::cout << jacobian << std::endl;
+    // std::cout << "g: " << g_copy << std::endl;
+    // std::cout << "f: " << f_copy << std::endl;
     return flag;
 }
 LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info,
@@ -1160,6 +1297,51 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
                                                    Hessian<ImplicitOcpType> &hessian,
                                                    VecRealView &x, VecRealView &eq_mult){
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::Resetting preprocess steps" << std::endl;}
+
+    /*
+    // At this point: -x_k+1 + Bk@uk + Ak@xk + bk = 0 should hold
+    int k_test = 0;
+    int nx_next = info.dims.number_of_states[k_test+1];
+    int nx = info.dims.number_of_states[k_test];
+    int nu = info.dims.number_of_controls[k_test];
+    VecRealAllocated test_vector = VecRealAllocated(nx_next);
+    test_vector = 0;
+    for (int i = 0; i < nx_next; i++){
+        test_vector(i) = -x(info.offsets_primal_x[k_test+1]+i) + 
+                         jacobian.BAbt[k_test](nx+nu, i);
+    }
+    blasfeo_dgemv_t(nu+nx, nx_next, 1.0, &jacobian.BAbt[k_test].mat(), 0, 0, 
+                    &x.vec(), info.offsets_primal_u[k_test], 1.0, 
+                    &test_vector.vec(), 0, &test_vector.vec(), 0);
+    std::cout << "test_vector (should be all zeros): " << test_vector << std::endl;
+
+    // At this point: Qk+1 @ xk+1 + 0 (no eq constr) - pik + qk = 0 should hold
+    test_vector = 0;
+    std::cout << "RSQrqt[k_test+1]:\n" << hessian.RSQrqt[k_test+1] << std::endl;
+    for (int i = 0; i < nx_next; i++){std::cout << x(info.offsets_primal_x[k_test+1]+i) << " ";}
+    std::cout << std::endl;
+    for (int i = 0; i < nx_next; i++){ std::cout << hessian.RSQrqt[k_test+1](nx_next,i) << " ";}
+    std::cout << std::endl;
+    MatRealAllocated test_mtx = MatRealAllocated(nx_next, nx_next);
+    blasfeo_dgemm_nn(nx_next, nx_next, nx_next, 1.0, &jacobian.Jt[k_test].mat(), 0, 0,
+                     &jacobian.Jt_inv[k_test].mat(), 0, 0, 0.0, &test_mtx.mat(), 0, 0,
+                     &test_mtx.mat(), 0, 0);
+    std::cout << "expect identity:\n" << test_mtx << std::endl;
+    for (int i = 0; i < nx_next; i++){
+        test_vector(i) = -eq_mult(info.offsets_g_eq_dyn[k_test]+i) + 
+                         hessian.RSQrqt[k_test+1](nx_next, i);
+    }
+    blasfeo_dgemv_t(nx_next, nx_next, 1.0, &hessian.RSQrqt[k_test+1].mat(), 0, 0,
+                    &x.vec(), info.offsets_primal_x[k_test+1], 1.0, 
+                    &test_vector.vec(), 0, &test_vector.vec(), 0);
+    std::cout << "test_vector (2) (should be all zeros): " << test_vector << std::endl;
+    VecRealAllocated pi_test = VecRealAllocated(nx_next);
+    for (int i = 0; i < nx_next; i++){
+        pi_test(i) = eq_mult(info.offsets_g_eq_dyn[k_test]+i);
+    }
+    std::cout << "pi: " << pi_test << std::endl; 
+    */
+
     jacobian.ResetPreProcess(info);
     hessian.ResetPreProcess(info, jacobian);
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::PostProcess done" << std::endl;}
@@ -1179,13 +1361,72 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
         
         // pi_k+1 <-- - Jt_inv * pi_k+1
         if (jacobian.ASSUME_INVERSE_GIVEN){
+            VecRealAllocated original_pi = VecRealAllocated(nx_next);
+            for (int i = 0; i < nx_next; i++){
+                original_pi(i) = eq_mult(info.offsets_g_eq_dyn[k]+i);
+            }
             gemv_n(nx_next, nx_next, -1.0,
                 jacobian.Jt_inv[k], 0, 0, 
-                eq_mult, info.offsets_g_eq_dyn[k], 0.0, 
-                eq_mult, info.offsets_g_eq_dyn[k], 
+                original_pi, 0, 0.0, 
+                original_pi, 0, 
                 eq_mult, info.offsets_g_eq_dyn[k]);
+            // gemv_n(nx_next, nx_next, -1.0,
+            //     jacobian.Jt_inv[k], 0, 0, 
+            //     eq_mult, info.offsets_g_eq_dyn[k], 0.0, 
+            //     eq_mult, info.offsets_g_eq_dyn[k], 
+            //     eq_mult, info.offsets_g_eq_dyn[k]);
         } else {
             throw std::runtime_error("Not implemented yet for ASSUME_INVERSE_GIVEN == false");
         }
     }
+    /*
+    // At this point: Jk @ x_l+1 + Bk@uk + Ak@xk + bk = 0 should hold
+    test_vector = 0;
+    for (int i = 0; i < nx_next; i++){
+        test_vector(i) = jacobian.BAbt[k_test](nx+nu, i);
+    }
+    blasfeo_dgemv_t(nu+nx, nx_next, 1.0, &jacobian.BAbt[k_test].mat(), 0, 0, 
+                    &x.vec(), info.offsets_primal_u[k_test], 1.0, 
+                    &test_vector.vec(), 0, &test_vector.vec(), 0);
+    blasfeo_dgemv_t(nx_next, nx_next, 1.0, &jacobian.Jt[k_test].mat(), 0, 0,
+                    &x.vec(), info.offsets_primal_x[k_test+1], 1.0,
+                    &test_vector.vec(), 0, &test_vector.vec(), 0);
+    std::cout << "test_vector (should be all zeros): " << test_vector << std::endl;
+
+    // At this point: Qk+1 @ xk+1 + 0 (no eq constr) + Jk^T @ pik + Fu @ uk + Fx @ xk + qk = 0 should hold
+    test_vector = 0;
+    for (int i = 0; i < nx_next; i++){
+        test_vector(i) = hessian.RSQrqt[k_test+1](nx_next, i);
+    }
+    blasfeo_dgemv_t(nx_next, nx_next, 1.0, &hessian.RSQrqt[k_test+1].mat(), 0, 0,
+                    &x.vec(), info.offsets_primal_x[k_test+1], 1.0, 
+                    &test_vector.vec(), 0, &test_vector.vec(), 0);
+    blasfeo_dgemv_n(nx_next, nx_next, 1.0, &jacobian.Jt[k_test].mat(), 0, 0,
+                    &eq_mult.vec(), info.offsets_g_eq_dyn[k_test], 1.0,
+                    &test_vector.vec(), 0, &test_vector.vec(), 0);
+    // TODO: why is this not all zero?
+    // - check if Qk+1 @ xk+1 is changed (shouldn't be) (OK)
+    // - check if qk is changed (shouldn't be)          (OK)
+    // - check if Jk @ Jk_inv is still identity matrix  (OK)
+    std::cout << "RSQrqt[k_test+1]:\n" << hessian.RSQrqt[k_test+1] << std::endl;
+    for (int i = 0; i < nx_next; i++){std::cout << x(info.offsets_primal_x[k_test+1]+i) << " ";}
+    std::cout << std::endl;
+    for (int i = 0; i < nx_next; i++){ std::cout << hessian.RSQrqt[k_test+1](nx_next,i) << " ";}
+    std::cout << std::endl;
+    test_mtx = 0;
+    blasfeo_dgemm_nn(nx_next, nx_next, nx_next, 1.0, &jacobian.Jt[k_test].mat(), 0, 0,
+                     &jacobian.Jt_inv[k_test].mat(), 0, 0, 0.0, &test_mtx.mat(), 0, 0,
+                     &test_mtx.mat(), 0, 0);
+    std::cout << "expect identity:\n" << test_mtx << std::endl;
+    std::cout << "test_vector (2) (should be all zeros): " << test_vector << std::endl;
+
+    std::cout << "pi (1): " << pi_test << std::endl;
+    for (int i = 0; i < nx_next; i++){
+        pi_test(i) = eq_mult(info.offsets_g_eq_dyn[k_test]+i);
+    }
+    std::cout << "pi (2): " << pi_test << std::endl;
+    blasfeo_dgemv_n(nx_next, nx_next, 1.0, &jacobian.Jt[k_test].mat(), 0, 0,
+                    &pi_test.vec(), 0, 0.0, &pi_test.vec(), 0, &pi_test.vec(), 0);
+    std::cout << "pi: " << pi_test << std::endl; 
+    */
 }

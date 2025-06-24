@@ -170,16 +170,16 @@ namespace fatrop
             {
                 os << mat << std::endl;
             }
-            os << "Gg_eqt:" << std::endl;
-            for (const auto &mat : jac.Gg_eqt)
-            {
-                os << mat << std::endl;
-            }
-            os << "Gg_ineqt:" << std::endl;
-            for (const auto &mat : jac.Gg_ineqt)
-            {
-                os << mat << std::endl;
-            }
+            // os << "Gg_eqt:" << std::endl;
+            // for (const auto &mat : jac.Gg_eqt)
+            // {
+            //     os << mat << std::endl;
+            // }
+            // os << "Gg_ineqt:" << std::endl;
+            // for (const auto &mat : jac.Gg_ineqt)
+            // {
+            //     os << mat << std::endl;
+            // }
             return os;
         }
     private:
