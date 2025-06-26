@@ -63,6 +63,17 @@ namespace fatrop
             return matrix;
         }
 
+        VecRealAllocated random_vector(Index rows, Scalar lower_bound = 0.0,
+                                       Scalar upper_bound = 1.0)
+        {
+            VecRealAllocated v(rows);
+            for (Index i = 0; i < rows; ++i)
+            {
+                v(i) = random(lower_bound, upper_bound);
+            }
+            return v;
+        }
+
         int random_int(int lb, int ub){
             return random(static_cast<Scalar>(lb), static_cast<Scalar>(ub));
         }

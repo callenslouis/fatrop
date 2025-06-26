@@ -182,6 +182,7 @@ namespace fatrop
             // }
             return os;
         }
+        double dgemm_time = 0;
     private:
         std::vector<MatRealAllocated> Jt_LU;
         std::vector<PermutationMatrix> Pl;

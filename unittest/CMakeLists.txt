@@ -26,6 +26,10 @@ endif()
 # Add Google Test
 include(GoogleTest)
 
+# Add Casadi
+find_package(CasADi REQUIRED)
+include_directories(include ${CASADI_INCLUDE_DIRS}/casadi)
+
 # Add the test executables
 add_executable(vector_test linear_algebra/vector_test.cpp)
 add_executable(matrix_test linear_algebra/matrix_test.cpp)
@@ -50,7 +54,8 @@ target_link_libraries(options_test GTest::gtest GTest::gtest_main fatrop)
 target_link_libraries(matrix_test GTest::gtest GTest::gtest_main blasfeo fatrop)
 target_link_libraries(lu_factorization_test GTest::gtest GTest::gtest_main blasfeo fatrop)
 target_link_libraries(jacobian_hessian_test GTest::gtest GTest::gtest_main blasfeo fatrop)
-target_link_libraries(aug_system_solver_test GTest::gtest GTest::gtest_main blasfeo fatrop)
+# target_link_libraries(aug_system_solver_test GTest::gtest GTest::gtest_main blasfeo fatrop ${CASADI_LIBRARIES})
+target_link_libraries(aug_system_solver_test GTest::gtest GTest::gtest_main blasfeo fatrop casadi)
 target_link_libraries(problem_info_test GTest::gtest GTest::gtest_main blasfeo fatrop)
 target_link_libraries(pd_system_solver_test GTest::gtest GTest::gtest_main blasfeo fatrop)
 target_link_libraries(pd_resto_solver_test GTest::gtest GTest::gtest_main blasfeo fatrop)

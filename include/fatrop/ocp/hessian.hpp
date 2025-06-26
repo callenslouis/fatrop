@@ -13,6 +13,7 @@
 
 #include <vector>
 #include <chrono>
+#include <map>
 
 /**
  * @file hessian.hpp
@@ -109,8 +110,12 @@ namespace fatrop
             }
         }
 
-        void PreProcess(const ProblemInfo &info, const Jacobian<ImplicitOcpType> &jacobian,
+        void PreProcess(const ProblemInfo &info, Jacobian<ImplicitOcpType> &jacobian,
                         VecRealView &f, VecRealView &g);
+        std::map<std::string, double> TestPreProcessImplementation(
+                                                const ProblemInfo &info,
+                                                Jacobian<ImplicitOcpType> &jacobian,
+                                                VecRealView &f, VecRealView &g);
         void ResetPreProcess(const ProblemInfo &info, const Jacobian<ImplicitOcpType> &jacobian);
 
         // Overloading (to account for changed structure)

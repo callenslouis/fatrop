@@ -14,8 +14,10 @@
 #include <vector>
 #include <iostream>
 #include <chrono>
+#include <casadi/casadi.hpp>
 
 using namespace fatrop;
+using namespace casadi;
 
 MatRealAllocated get_inverse(const MatRealView &A)
 {
@@ -581,7 +583,7 @@ class ImplicitVsReformulationTester
                 ng = std::vector<Index>(K, 0);
                 ng_ineq = std::vector<Index>(K, 0);
                 for (int k = 0; k < K; k++){
-                    nx[k] = ::test::random_int(5, 20);
+                    nx[k] = ::test::random_int(5, 50);
                     nu[k] = ::test::random_int(0, 20);
                     ng[k] = ::test::random_int(0, nx[k] + nu[k]-1);
                     ng_ineq[k] = ::test::random_int(0, 10);
@@ -597,6 +599,36 @@ class ImplicitVsReformulationTester
                 ng_ineq = {0, 5, 10, 0,   0, 0, 0, 0,  10, 0};
             }
 
+            try{
+                Prepare(K, nx, nu, ng, ng_ineq);
+            } catch (const std::exception& e){
+                return UpdateRandomly(random_dimensions);
+            }
+        };
+
+        void UpdateRandomly(int nx_, int nu_, int K){
+            if (K < 0){K = ::test::random_int(5, 50);}
+            std::vector<Index> nx = std::vector<Index>(K, nx_);
+            std::vector<Index> nu = std::vector<Index>(K, nu_);
+            std::vector<Index> ng = std::vector<Index>(K, 0);
+            std::vector<Index> ng_ineq = std::vector<Index>(K, 0);
+            for (int k = 0; k < K; k++){
+                if (nx_ < 0) { nx[k] = ::test::random_int(5, 20); }
+                if (nu_ < 0) { nu[k] = ::test::random_int(0, 20); }
+                ng[k] = 0*::test::random_int(0, nx[k] + nu[k]-1);
+                ng_ineq[k] = 0*::test::random_int(0, 10);
+            }
+            nu[K - 1] = 0; // last stage has no control
+            ng[K - 1] = std::min(ng[K - 1], nx[K - 1] - 1);
+
+            try{
+                Prepare(K, nx, nu, ng, ng_ineq);
+            } catch (const std::exception& e){
+                UpdateRandomly(nx_, nu_, K);
+            }
+        };
+        
+        void Prepare(int K, std::vector<Index> nx, std::vector<Index> nu, std::vector<Index> ng, std::vector<Index> ng_ineq){
             // implicit
             try{
             dims_i.emplace(ProblemDims{K, nu, nx, ng, ng_ineq});
@@ -643,7 +675,8 @@ class ImplicitVsReformulationTester
                         std::cout << "\tK = " << K << std::endl;
                     }
                 }
-                return UpdateRandomly(random_dimensions);
+                // return UpdateRandomly(random_dimensions);
+                throw std::runtime_error("Error in ImplicitVsReformulationTester::UpdateRandomly");
             }
 
              // fill the jacobian with random values
@@ -1170,7 +1203,7 @@ TEST_F(ImplicitAugSystemSolverVsReformulationTest, TestSolve)
 
 TEST_F(ImplicitAugSystemSolverVsReformulationTest, TestTimings)
 {
-    int nb_runs = 5000;
+    int nb_runs = 1;
     double time_implicit_us = 0.0;
     double time_implicit_copying_rhs = 0.0;
     double time_implicit_preprocess_jac_us = 0.0;
@@ -1306,4 +1339,395 @@ TEST_F(ImplicitAugSystemSolverVsReformulationTest, TestTimings)
 
     std::cout << "\ntotal_time_implicit = " << time_implicit_us  << std::endl;
     std::cout << "total_time_reformulation = " << time_reformulation_us << std::endl;
+}
+
+void PrintAverages(std::vector<std::vector<double>>& times, const std::string& name)
+{
+    std::cout << "avg_" << name << " = [";
+    for (size_t i = 0; i < times.size(); ++i)
+    {
+        double avg = std::accumulate(times[i].begin(), times[i].end(), 0.0) / times[i].size();
+        std::cout << avg;
+        if (i < times.size() - 1)
+            std::cout << ", ";
+    }
+    std::cout << "]" << std::endl;
+}
+
+TEST_F(ImplicitAugSystemSolverVsReformulationTest, TestTimings7dof)
+{
+    int nb_runs = 500;
+    std::vector<int> nx_values = {7, 14, 21, 28, 35};
+    std::vector<int> nu_values = {7, 7, 7, 7, 7};
+    std::vector<std::vector<double>> times_total_implicit(nx_values.size(), std::vector<double>(nb_runs));
+    std::vector<std::vector<double>> times_total_reformulation(nx_values.size(), std::vector<double>(nb_runs));
+    std::vector<std::vector<double>> times_preprocessing_jac(nx_values.size(), std::vector<double>(nb_runs));
+    std::vector<std::vector<double>> times_preprocessing_hess(nx_values.size(), std::vector<double>(nb_runs));
+    std::vector<std::vector<double>> times_solve(nx_values.size(), std::vector<double>(nb_runs));
+    std::vector<std::vector<double>> times_postprocess(nx_values.size(), std::vector<double>(nb_runs));
+    std::vector<std::vector<int>> Ks(nx_values.size(), std::vector<int>(nb_runs));
+    std::vector<std::vector<int>> ng(nx_values.size(), std::vector<int>(nb_runs));
+
+    double temp_time_1 = 0.0;
+    double temp_time_2 = 0.0;
+
+    for (int i = 0; i < nx_values.size(); i++){
+        for (int counter = 0; counter < nb_runs; counter++){
+            tester.UpdateRandomly(nx_values[i], nu_values[i], -1);
+            // tester.UpdateRandomly(21, 7, 5+10*i);
+
+            // Reformulation //
+            auto start_r = std::chrono::high_resolution_clock::now();
+            Index ret_r = tester.solver_r.value().solve(tester.info_r.value(), tester.jacobian_r.value(), tester.hessian_r.value(), 
+                tester.D_x_r.value(), tester.D_eq_r.value(), tester.D_s_r.value(), tester.rhs_x_r.value(), tester.rhs_g_r.value(), tester.x_r.value(), tester.mult_r.value());
+            auto stop_r = std::chrono::high_resolution_clock::now();
+            auto duration_r = std::chrono::duration_cast<std::chrono::microseconds>(stop_r - start_r);
+            times_total_reformulation[i][counter] = duration_r.count();
+
+            // Implicit OCP //
+            auto start_i = std::chrono::high_resolution_clock::now();
+            Index ret = tester.solver_i.value().solve(tester.info_i.value(), tester.jacobian_i.value(), tester.hessian_i.value(), 
+                tester.D_x_i.value(), tester.D_eq_i.value(), tester.D_s_i.value(), tester.rhs_x_i.value(), tester.rhs_g_i.value(), tester.x_i.value(), tester.mult_i.value());
+            auto stop_i = std::chrono::high_resolution_clock::now();
+            auto duration_i = std::chrono::duration_cast<std::chrono::microseconds>(stop_i - start_i);
+            times_total_implicit[i][counter] = duration_i.count();
+            times_preprocessing_jac[i][counter] = tester.solver_i.value().duration_preprocess_jac.count();
+            // times_preprocessing_jac[i][counter] = tester.jacobian_i.value().dgemm_time;
+            temp_time_1 += tester.solver_i.value().duration_preprocess_jac.count();
+            temp_time_2 += tester.jacobian_i.value().dgemm_time;
+            times_preprocessing_hess[i][counter] = tester.solver_i.value().duration_preprocess_hess.count();
+            times_solve[i][counter] = tester.solver_i.value().duration_solve.count();
+            times_postprocess[i][counter] = tester.solver_i.value().duration_postprocess.count();
+            Ks[i][counter] = tester.info_i.value().dims.K;
+            ng[i][counter] = tester.info_i.value().dims.number_of_eq_constraints[0];
+        }
+    }
+
+    std::cout << "\n\nTime 1: " << temp_time_1 << " microseconds" << std::endl;
+    std::cout << "Time 2: " << temp_time_2 << " microseconds\n\n" << std::endl;
+
+    PrintAverages(times_total_implicit, "total_implicit");
+    PrintAverages(times_total_reformulation, "total_reformulation");
+    PrintAverages(times_preprocessing_jac, "preprocessing_jac");
+    PrintAverages(times_preprocessing_hess, "preprocessing_hess");
+    PrintAverages(times_solve, "solve");
+    PrintAverages(times_postprocess, "postprocess");
+}
+
+TEST_F(ImplicitAugSystemSolverVsReformulationTest, TestTimingsPreProcessHess)
+{
+    int nb_runs = 1;
+    std::map<std::string, std::vector<double>> results;
+    std::map<std::string, double> local_result;
+
+    for (int counter = 0; counter < nb_runs; counter++){
+        tester.UpdateRandomly(true);
+
+        // Implicit OCP //
+        local_result = tester.hessian_i.value().TestPreProcessImplementation(
+            tester.info_i.value(), tester.jacobian_i.value(), 
+            tester.rhs_x_i.value(), tester.rhs_g_i.value());
+        
+        for (const auto& [key, value] : local_result)
+        {
+            results[key].push_back(value);
+        }
+    }
+
+    // print out all averages
+    for (const auto& [key, values] : results)
+    {
+        std::cout << "avg_" << key << " = ";
+        double avg = std::accumulate(values.begin(), values.end(), 0.0) / values.size();
+        std::cout << avg << std::endl;;
+    }
+}
+
+
+class TestFunctionEvaluation {
+    public:
+        casadi::Function f;
+        casadi::Function eval_Jk;
+        casadi::Function eval_Jk_inv;
+        casadi::Function eval_Bk;
+        casadi::Function eval_Jk_inv_Bk;
+
+        std::vector<double> Jk_inv_nz;
+        std::vector<double> Bk_nz;
+        std::vector<double> Jk_inv_Bk_nz;
+
+        Sparsity sp_Jk_inv;
+        Sparsity sp_Bk;
+        Sparsity sp_Jk_inv_Bk;
+
+        TestFunctionEvaluation(){};
+
+        void SetUp(){};
+
+        void Randomize(int nx, int nu, int nx_next){
+            casadi::MX xk = casadi::MX::sym("xk", nx);
+            casadi::MX uk = casadi::MX::sym("uk", nu);
+            casadi::MX xk_next = casadi::MX::sym("xk_next", nx_next);
+
+            f = casadi::Function("f", {xk, uk, xk_next},
+                {xk_next*sumsqr(uk) + (xk_next * sumsqr(sin(xk)))});
+
+            eval_Jk = casadi::Function("eval_J", {xk, uk, xk_next},
+                        {jacobian(f({xk, uk, xk_next})[0], xk_next)});
+            eval_Jk_inv = casadi::Function("eval_Jk_inv", {xk, uk, xk_next},
+                        {inv(eval_Jk({xk, uk, xk_next})[0])});
+            eval_Bk = casadi::Function("eval_Bk", {xk, uk, xk_next},
+                        {jacobian(f({xk, uk, xk_next})[0], uk)});
+            eval_Jk_inv_Bk = casadi::Function("eval_Jk_inv_Bk", {xk, uk, xk_next},
+                        {mtimes(eval_Jk_inv({xk, uk, xk_next})[0], eval_Bk({xk, uk, xk_next})[0])});
+
+            sp_Jk_inv = eval_Jk_inv.sparsity_out(0);
+            sp_Bk = eval_Bk.sparsity_out(0);
+            sp_Jk_inv_Bk = eval_Jk_inv_Bk.sparsity_out(0);
+
+            Jk_inv_nz.resize(sp_Jk_inv.nnz());
+            Bk_nz.resize(sp_Bk.nnz());
+            Jk_inv_Bk_nz.resize(sp_Jk_inv_Bk.nnz());
+        }
+
+        void Test(int nb_runs){
+            double option_1_time_eval_Jk_inv = 0.0;
+            double option_1_time_eval_Bk = 0.0;
+            double option_1_time_store_Jk_inv_Bk = 0.0;
+            double option_1_time_dgemm = 0.0;
+
+            double option_2_time_eval_Jk_inv_Bk = 0.0;
+            double option_2_time_store_Jk_inv_Bk = 0.0;
+
+            for (int i = 0; i < nb_runs; ++i) {
+                // Randomize inputs
+                int nx = ::test::random_int(1, 20);
+                int nu = ::test::random_int(1, 20);
+                int nx_next = ::test::random_int(1, 20);
+                Randomize(nx, nu, nx_next);
+
+                VecRealAllocated xk = ::test::random_vector(nx);
+                VecRealAllocated uk = ::test::random_vector(nu);
+                VecRealAllocated xk_next = ::test::random_vector(nx_next);
+
+                MatRealAllocated Jk_inv_numeric = MatRealAllocated(nx_next, nx_next);
+                MatRealAllocated Bk_numeric = MatRealAllocated(nx_next, nu);
+                MatRealAllocated Jk_inv_Bk_numeric_1 = MatRealAllocated(nx_next, nu);
+                MatRealAllocated Jk_inv_Bk_numeric_2 = MatRealAllocated(nx_next, nu);
+
+                std::vector<const double*> arg_in(3);
+                arg_in[0] = &xk(0); arg_in[1] = &uk(0); arg_in[2] = &xk_next(0);
+                std::vector<double*> arg_out_1(1);
+                std::vector<double*> arg_out_2(1);
+                std::vector<double*> arg_out_3(1);
+
+                arg_out_1[0] = &Jk_inv_nz[0];
+                arg_out_2[0] = &Bk_nz[0];
+                arg_out_3[0] = &Jk_inv_Bk_nz[0];
+
+                // (1) evaluate Jk_inv and Bk and multiply numerically
+                auto start = std::chrono::high_resolution_clock::now();
+                eval_Jk_inv(arg_in, arg_out_1);
+                auto stop = std::chrono::high_resolution_clock::now();
+                option_1_time_eval_Jk_inv += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+                
+                start = std::chrono::high_resolution_clock::now();
+                eval_Bk(arg_in, arg_out_2);
+                stop = std::chrono::high_resolution_clock::now();
+                option_1_time_eval_Bk += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+
+                start = std::chrono::high_resolution_clock::now();
+                int nz_ptr = 0;
+                for (int i = 0; i < nx_next; ++i) {
+                    for (int j = 0; j < nx_next; ++j) {
+                        if (sp_Jk_inv.has_nz(i, j)) {
+                            Jk_inv_numeric(i, j) = Jk_inv_nz[nz_ptr];
+                            nz_ptr++;
+                        }
+                    }
+                }
+                nz_ptr = 0;
+                for (int i = 0; i < nx_next; ++i) {
+                    for (int j = 0; j < nu; ++j) {
+                        if (sp_Bk.has_nz(i, j)) {
+                            Bk_numeric(i, j) = Bk_nz[nz_ptr];
+                            nz_ptr++;
+                        }
+                    }
+                }
+                stop = std::chrono::high_resolution_clock::now();
+                option_1_time_store_Jk_inv_Bk += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+
+                start = std::chrono::high_resolution_clock::now();
+                blasfeo_dgemm_nn(nx_next, nu, nx_next, 1.0, &Jk_inv_numeric.mat(), 0, 0, 
+                    &Bk_numeric.mat(), 0, 0, 0.0, &Jk_inv_Bk_numeric_1.mat(), 0, 0, 
+                    &Jk_inv_Bk_numeric_1.mat(), 0, 0);
+                stop = std::chrono::high_resolution_clock::now();
+                option_1_time_dgemm += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+
+                // (2) evaluate Jk_inv_Bk
+                start = std::chrono::high_resolution_clock::now();
+                eval_Jk_inv_Bk(arg_in, arg_out_3);
+                stop = std::chrono::high_resolution_clock::now();
+                option_2_time_eval_Jk_inv_Bk += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+
+                start = std::chrono::high_resolution_clock::now();
+                nz_ptr = 0;
+                for (int i = 0; i < nx_next; ++i) {
+                    for (int j = 0; j < nu; ++j) {
+                        if (sp_Jk_inv_Bk.has_nz(i, j)) {
+                            Jk_inv_Bk_numeric_2(i, j) = Jk_inv_Bk_nz[nz_ptr];
+                            nz_ptr++;
+                        }
+                    }
+                }
+                stop = std::chrono::high_resolution_clock::now();
+                option_2_time_store_Jk_inv_Bk += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+
+                // (3) compare results
+                for (Index i = 0; i < nx_next; ++i) {
+                    for (Index j = 0; j < nu; ++j) {
+                        EXPECT_NEAR(Jk_inv_Bk_numeric_1(i, j), Jk_inv_Bk_numeric_2(i, j), 1e-5);
+                    }
+                }
+
+            }
+
+            std::cout << "=====================================================" << std::endl;
+            std::cout << "option 1 timings:" << std::endl;
+            std::cout << "\teval Jk inv:            " << option_1_time_eval_Jk_inv / nb_runs << " microseconds" << std::endl;
+            std::cout << "\teval Bk:                " << option_1_time_eval_Bk / nb_runs << " microseconds" << std::endl;
+            std::cout << "\tstore Jk inv and Bk:    " << option_1_time_store_Jk_inv_Bk / nb_runs << " microseconds" << std::endl;
+            std::cout << "\tdgemm:                  " << option_1_time_dgemm / nb_runs << " microseconds" << std::endl;
+            std::cout << "total (without storing):  " 
+                      << (option_1_time_eval_Jk_inv + option_1_time_eval_Bk + option_1_time_dgemm) / nb_runs 
+                      << " microseconds" << std::endl;
+            std::cout << "total:                    " 
+                      << (option_1_time_eval_Jk_inv + option_1_time_eval_Bk + option_1_time_store_Jk_inv_Bk + option_1_time_dgemm) / nb_runs 
+                      << " microseconds" << std::endl;
+            std::cout << "=====================================================" << std::endl;
+            std::cout << "option 2 timings:" << std::endl;
+            std::cout << "\teval Jk inv Bk:         " << option_2_time_eval_Jk_inv_Bk / nb_runs << " microseconds" << std::endl;
+            std::cout << "\tstore Jk inv Bk:        " << option_2_time_store_Jk_inv_Bk / nb_runs << " microseconds" << std::endl;
+            std::cout << "total (without storing):  " 
+                      << (option_2_time_eval_Jk_inv_Bk) / nb_runs 
+                      << " microseconds" << std::endl;
+            std::cout << "total:                    " 
+                      << (option_2_time_eval_Jk_inv_Bk + option_2_time_store_Jk_inv_Bk) / nb_runs 
+                      << " microseconds" << std::endl;
+            std::cout << "=====================================================" << std::endl;
+        }
+};
+
+
+/*
+class TestFunctionEvaluation {
+    public:
+
+    void Setup(){};
+
+    void Test(){
+        int nx = 20;
+        MX x = MX::sym("x", nx);
+        MX f = sumsqr(sumsqr(x)  + sumsqr(sin(x)) - cos(x) + x * sin(x));
+        MX g = sumsqr(-x);
+        // MX f = sumsqr(x);
+        // MX g = sumsqr(x);
+
+        Function A = Function("A", {x}, {hessian(f, x)});
+        Function B = Function("B", {x}, {hessian(g, x)});
+        Function C = Function("C", {x}, {mtimes(A(x)[0], B(x)[0])});
+        Sparsity sp_A = A.sparsity_out(0);
+        Sparsity sp_B = B.sparsity_out(0);
+        Sparsity sp_C = C.sparsity_out(0);
+
+        VecRealAllocated x_numeric = ::test::random_vector(nx);
+        MatRealAllocated A_numeric(nx, nx);
+        MatRealAllocated B_numeric(nx, nx);
+        MatRealAllocated C_numeric(nx, nx);
+        MatRealAllocated D_numeric(nx, nx);
+        std::vector<double> A_nz(nx*nx);
+        std::vector<double> B_nz(nx*nx);
+        std::vector<double> C_nz(nx*nx);
+
+        // define input and output vectors
+        std::vector<const double*> arg_in(1);
+        std::vector<double*> arg_out_1(1);
+        std::vector<double*> arg_out_2(1);
+        std::vector<double*> arg_out_3(1);
+        arg_in[0] = &x_numeric(0);
+        arg_out_1[0] = &A_nz[0];
+        arg_out_2[0] = &B_nz[0];
+        arg_out_3[0] = &C_nz[0];
+
+        // (1): evaluate A, B and compute A @ B numerically
+        auto start = std::chrono::high_resolution_clock::now();
+        A(arg_in, arg_out_1);
+        B(arg_in, arg_out_2);
+        int nz_ptr = 0;
+        for (int i = 0; i < nx; ++i){
+            for (int j = 0; j < nx; ++j){
+                // std::cout << "i: " << i << ", j: " << j << ", nz_ptr: " << nz_ptr << std::endl;
+                if (sp_A.has_nz(i, j)){ A_numeric(i, j) = A_nz[nz_ptr]; nz_ptr++;}
+            }
+        }
+        nz_ptr = 0;
+        for (int i = 0; i < nx; ++i){
+            for (int j = 0; j < nx; ++j){
+                // std::cout << "i: " << i << ", j: " << j << ", nz_ptr: " << nz_ptr << std::endl;
+                if (sp_B.has_nz(i, j)){ B_numeric(i, j) = B_nz[nz_ptr]; nz_ptr++;}
+            }
+        }
+
+        blasfeo_dgemm_nn(nx, nx, nx, 1.0, &A_numeric.mat(), 0, 0, 
+            &B_numeric.mat(), 0, 0, 0.0, &D_numeric.mat(), 0, 0, 
+            &D_numeric.mat(), 0, 0);
+        auto stop = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+        std::cout << "Time for A @ B: " << duration.count() << " microseconds" << std::endl;
+
+        // (2) evaluate C numerically
+        start = std::chrono::high_resolution_clock::now();
+        C(arg_in, arg_out_3);
+        nz_ptr = 0;
+        for (int i = 0; i < nx; ++i){
+            for (int j = 0; j < nx; ++j){
+                // std::cout << "i: " << i << ", j: " << j << ", nz_ptr: " << nz_ptr << std::endl;
+                if (sp_C.has_nz(i, j)){ C_numeric(j, i) = C_nz[nz_ptr]; nz_ptr++;}
+            }
+        }
+        stop = std::chrono::high_resolution_clock::now();
+        duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+        std::cout << "Time for C: " << duration.count() << " microseconds" << std::endl;
+
+        // compare results
+        for (Index i = 0; i < nx; ++i)
+        {
+            for (Index j = 0; j < nx; ++j)
+            {
+                EXPECT_NEAR(D_numeric(i, j), C_numeric(i, j), 1e-5);
+            }
+        }
+        // std::cout << "A_numeric:\n" << A_numeric << std::endl;
+        // std::cout << "B_numeric:\n" << B_numeric << std::endl;
+        // std::cout << "D_numeric:\n" << D_numeric << std::endl;
+        // std::cout << "C_numeric:\n" << C_numeric << std::endl;
+    }
+};
+*/
+
+TEST_F(ImplicitAugSystemSolverVsReformulationTest, TestFunctionEvaluation)
+{
+    // consider a general nonlinear function f(xk, uk, xk+1) and it's
+    // linearization Jk @ xk+1 + Ak @ xk + Bk @ uk + bk
+
+    // we want to compare two cases:
+    // (1) evaluate Jk, Jk_inv, Ak, Bk and bk and compute Jk_inv @ Ak,
+    //     Jk_inv @ Bk, Jk_inv @ bk
+    // (2) evaluate symbolically constructed Jk_inv @ Ak, Jk_inv @ Bk and
+    //     Jk_inv @ bk symbolically 
+
+    TestFunctionEvaluation tester;
+    tester.Test(5000);
+
 }

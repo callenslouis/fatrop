@@ -228,26 +228,27 @@ namespace fatrop
 void Jacobian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
                                            VecRealView &f,
                                            VecRealView &g){
+    dgemm_time = 0.0;
     // Make sure to store the current BAbt into BAbt_original before modifying BAbt matrices
     for (int k = 0; k < info.dims.K - 1; ++k){
-        BAbt_original[k] = BAbt[k];
+        BAbt_original[k] = BAbt[k];                                                                 // 25% of the jacobian preprocessing time
 
         // AugSystemSolver<OcpType> overwrites the entries corresponding to
         // the vector b. We do the same here
         // this is necessary to make sure we have the correct BAbt matrix
         // when calling apply_on_right
-        rowin(info.dims.number_of_states[k + 1], 1.0, 
+        rowin(info.dims.number_of_states[k + 1], 1.0,                                               //  3% of the jacobian preprocessing time
               g, info.offsets_g_eq_dyn[k], 
               BAbt_original[k], info.dims.number_of_states[k] + 
                 info.dims.number_of_controls[k], 0);
     }   
 
     // Compute BAbt = BAbt_original * Jt^-1
-    VecRealAllocated g_copy(info.number_of_eq_constraints);
+    VecRealAllocated g_copy(info.number_of_eq_constraints);                                         // 10% of the jacobian preprocessing time
     for (int i = 0; i < info.number_of_eq_constraints; i++){
         g_copy(i) = g(i);
-    }
-    for (int k = 0; k < info.dims.K - 1; ++k){
+    }    
+    for (int k = 0; k < info.dims.K - 1; ++k){                                                      // 75% of the jacobian preprocessing time
         Index nx_next = info.dims.number_of_states[k + 1];
         Index nx = info.dims.number_of_states[k];
         Index nu = info.dims.number_of_controls[k];
@@ -270,7 +271,7 @@ void Jacobian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
             throw std::runtime_error("Jacobian<ImplicitOcpType>::PreProcess: "
                                  "ASSUME_INVERSE_GIVEN == false is not implemented yet.");
         }
-    }    
+    } 
 }
 
 void Jacobian<ImplicitOcpType>::ResetPreProcess(const ProblemInfo &info){

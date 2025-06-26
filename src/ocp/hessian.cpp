@@ -9,6 +9,7 @@
 #include "fatrop/ocp/problem_info.hpp"
 
 #include <chrono>
+#include <map>
 
 using namespace fatrop;
 
@@ -93,7 +94,7 @@ namespace fatrop
 //////////////////////////////
 
 void Hessian<ImplicitOcpType>::PreProcess(const ProblemInfo &info, 
-                                          const Jacobian<ImplicitOcpType> &jacobian,
+                                          Jacobian<ImplicitOcpType> &jacobian,
                                           VecRealView &f,
                                           VecRealView &g)
 {
@@ -119,10 +120,16 @@ void Hessian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
         Index nx = info.dims.number_of_states[k];
         Index nx_next = info.dims.number_of_states[k + 1];
 
-        gemm_nt(nx+nu+1, nx+nu, nx_next, 1.0, jacobian.BAbt[k], 0, 0, 
-                FuFxt[k], 0, 0, 1.0, RSQrqt[k], 0, 0, RSQrqt[k], 0, 0);
-        gemm_nt(nu+nx, nx+nu, nx_next, 1.0, FuFxt[k], 0, 0,
-                jacobian.BAbt[k], 0, 0, 1.0, RSQrqt[k], 0, 0, RSQrqt[k], 0, 0);
+        // gemm_nt(nx+nu+1, nx+nu, nx_next, 1.0, jacobian.BAbt[k], 0, 0, 
+        //         FuFxt[k], 0, 0, 1.0, RSQrqt[k], 0, 0, RSQrqt[k], 0, 0);
+        // gemm_nt(nu+nx, nx+nu, nx_next, 1.0, FuFxt[k], 0, 0,
+        //         jacobian.BAbt[k], 0, 0, 1.0, RSQrqt[k], 0, 0, RSQrqt[k], 0, 0);
+        syrk_ln_mn(nx+nu+1, nx+nu, nx_next, 1.0, jacobian.BAbt[k], 0, 0, 
+                   FuFxt[k], 0, 0, 1.0, RSQrqt[k], 0, 0, RSQrqt[k], 0, 0);
+        syrk_ln_mn(nu+nx, nx+nu, nx_next, 1.0, FuFxt[k], 0, 0,
+                   jacobian.BAbt[k], 0, 0, 1.0, RSQrqt[k], 0, 0, RSQrqt[k], 0, 0);
+        // blasfeo_dsyr2k_ln(nx+nu+1, nx_next, 1.0, &jacobian.BAbt[k].mat(), 0, 0, 
+        //                   &FuFxt[k].mat(), 0, 0, 1.0, &RSQrqt[k].mat(), 0, 0, &RSQrqt[k].mat(), 0, 0);
 
         // apply transformation to rhs also, since AugSystemSolver<OcpType> 
         // overwrites the entries corresponding to the vectors r and q in 
@@ -135,6 +142,160 @@ void Hessian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
     }
     end = std::chrono::high_resolution_clock::now();
     duration_modifying_RSQrqt = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+}
+
+std::map<std::string, double> Hessian<ImplicitOcpType>::TestPreProcessImplementation(
+                                          const ProblemInfo &info, 
+                                          Jacobian<ImplicitOcpType> &jacobian,
+                                          VecRealView &f,
+                                          VecRealView &g){
+    auto start = std::chrono::high_resolution_clock::now();
+    auto end = std::chrono::high_resolution_clock::now();
+
+
+    ///////////////////
+    /// copy RSQrqt ///
+    ///////////////////
+    start = std::chrono::high_resolution_clock::now();
+    for (int k = 0; k < info.dims.K; ++k){
+        RSQrqt_original[k] = RSQrqt[k];
+        rowin(info.dims.number_of_states[k] + info.dims.number_of_controls[k],
+              1.0, f, info.offsets_primal_u[k], RSQrqt_original[k],
+              info.dims.number_of_states[k] + info.dims.number_of_controls[k], 0); 
+    }   
+    end = std::chrono::high_resolution_clock::now();
+    auto duration_copy_RSQrqt = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+
+
+
+
+    ///////////////
+    /// gemm_nt ///
+    ///////////////
+    start = std::chrono::high_resolution_clock::now();
+    for (int k = 0; k < info.dims.K - 1; ++k)
+    {
+        Index nu = info.dims.number_of_controls[k];
+        Index nx = info.dims.number_of_states[k];
+        Index nx_next = info.dims.number_of_states[k + 1];
+
+        gemm_nt(nx+nu+1, nx+nu, nx_next, 1.0, jacobian.BAbt[k], 0, 0, 
+                FuFxt[k], 0, 0, 1.0, RSQrqt[k], 0, 0, RSQrqt[k], 0, 0);
+        gemm_nt(nu+nx, nx+nu, nx_next, 1.0, FuFxt[k], 0, 0,
+                jacobian.BAbt[k], 0, 0, 1.0, RSQrqt[k], 0, 0, RSQrqt[k], 0, 0);
+    }
+    end = std::chrono::high_resolution_clock::now();
+    auto duration_gemm_nt = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+
+
+
+
+
+    ///////////////
+    /// gemm_nn ///
+    ///////////////
+    std::vector<MatRealAllocated> FuFx;
+    FuFx.reserve(info.dims.K - 1);
+    for (int k = 0; k < FuFxt.size(); ++k)
+    {   
+        FuFx.emplace_back(FuFxt[k].n(), FuFxt[k].m());
+        Index nu = info.dims.number_of_controls[k];
+        Index nx = info.dims.number_of_states[k];
+        Index nx_next = info.dims.number_of_states[k + 1];
+        blasfeo_dgetr(nu + nx, nx_next, &FuFxt[k].mat(), 0, 0,
+                      &FuFx[k].mat(), 0, 0);
+    }
+    std::vector<MatRealAllocated> BAb;
+    BAb.reserve(jacobian.BAbt.size());
+    for (int k = 0; k < jacobian.BAbt.size(); ++k)
+    {
+        BAb.emplace_back(jacobian.BAbt[k].n(), jacobian.BAbt[k].m());
+        Index nu = info.dims.number_of_controls[k];
+        Index nx = info.dims.number_of_states[k];
+        Index nx_next = info.dims.number_of_states[k + 1];
+        blasfeo_dgetr(nu + nx + 1, nx_next, &jacobian.BAbt[k].mat(), 0, 0,
+                      &BAb[k].mat(), 0, 0);
+    }
+    start = std::chrono::high_resolution_clock::now();
+    for (int k = 0; k < info.dims.K - 1; ++k)
+    {
+        Index nu = info.dims.number_of_controls[k];
+        Index nx = info.dims.number_of_states[k];
+        Index nx_next = info.dims.number_of_states[k + 1];
+
+        blasfeo_dgemm_nn(nx+nu+1, nx+nu, nx_next, 1.0, &jacobian.BAbt[k].mat(), 0, 0, 
+                &FuFxt[k].mat(), 0, 0, 1.0, &RSQrqt[k].mat(), 0, 0, &RSQrqt[k].mat(), 0, 0);
+        blasfeo_dgemm_nn(nu+nx, nx+nu, nx_next, 1.0, &FuFxt[k].mat(), 0, 0,
+                &BAb[k].mat(), 0, 0, 1.0, &RSQrqt[k].mat(), 0, 0, &RSQrqt[k].mat(), 0, 0);
+    }
+    end = std::chrono::high_resolution_clock::now();
+    auto duration_gemm_nn = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+
+
+
+
+    //////////////////
+    /// syrk_ln_mn ///      ---> seems to be fastest
+    //////////////////
+    start = std::chrono::high_resolution_clock::now();
+    for (int k = 0; k < info.dims.K - 1; ++k)
+    {
+        Index nu = info.dims.number_of_controls[k];
+        Index nx = info.dims.number_of_states[k];
+        Index nx_next = info.dims.number_of_states[k + 1];
+
+        syrk_ln_mn(nx+nu+1, nx+nu, nx_next, 1.0, jacobian.BAbt[k], 0, 0, 
+                   FuFxt[k], 0, 0, 1.0, RSQrqt[k], 0, 0, RSQrqt[k], 0, 0);
+        syrk_ln_mn(nu+nx, nx+nu, nx_next, 1.0, FuFxt[k], 0, 0,
+                   jacobian.BAbt[k], 0, 0, 1.0, RSQrqt[k], 0, 0, RSQrqt[k], 0, 0);
+    }
+    end = std::chrono::high_resolution_clock::now();
+    auto duration_syrk_ln_mn = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+
+
+
+
+    ////////////////
+    /// syr2k_ln ///
+    ////////////////
+    start = std::chrono::high_resolution_clock::now();
+    for (int k = 0; k < info.dims.K - 1; ++k){
+        Index nu = info.dims.number_of_controls[k];
+        Index nx = info.dims.number_of_states[k];
+        Index nx_next = info.dims.number_of_states[k + 1];
+
+        blasfeo_dsyr2k_ln(nx+nu+1, nx_next, 1.0, &jacobian.BAbt[k].mat(), 0, 0, 
+                          &FuFxt[k].mat(), 0, 0, 1.0, &RSQrqt[k].mat(), 0, 0, &RSQrqt[k].mat(), 0, 0);
+    }
+    end = std::chrono::high_resolution_clock::now();
+    auto duration_blasfeo_syr2k = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+
+
+
+
+    //////////////
+    /// gemv_n ///
+    //////////////
+    start = std::chrono::high_resolution_clock::now();
+    for (int k = 0; k < info.dims.K - 1; ++k) {
+        Index nu = info.dims.number_of_controls[k];
+        Index nx = info.dims.number_of_states[k];
+        Index nx_next = info.dims.number_of_states[k + 1];
+        gemv_n(nu + nx, nx_next, 1.0, FuFxt[k], 0, 0,
+               g, info.offsets_g_eq_dyn[k], 1.0, 
+               f, info.offsets_primal_u[k], f, info.offsets_primal_u[k]);
+    }
+    end = std::chrono::high_resolution_clock::now();
+    auto duration_gemv_n = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    
+    return {
+        {"duration_copy_RSQrqt", duration_copy_RSQrqt.count()},
+        {"duration_gemm_nt", duration_gemm_nt.count()},
+        {"duration_syrk_ln_mn", duration_syrk_ln_mn.count()},
+        {"duration_blasfeo_syr2k", duration_blasfeo_syr2k.count()},
+        {"duration_gemv_n", duration_gemv_n.count()},
+        {"duration_gemm_nn", duration_gemm_nn.count()},
+    };
 }
 
 void Hessian<ImplicitOcpType>::ResetPreProcess(const ProblemInfo &info, 
