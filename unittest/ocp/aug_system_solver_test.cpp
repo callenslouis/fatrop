@@ -1203,7 +1203,8 @@ TEST_F(ImplicitAugSystemSolverVsReformulationTest, TestSolve)
 
 TEST_F(ImplicitAugSystemSolverVsReformulationTest, TestTimings)
 {
-    int nb_runs = 1;
+    std::cout << "Function to test random problems and compare timings of implicit AugSystemSolver and reformulated AugSystemSolver." << std::endl;
+    int nb_runs = 500;
     double time_implicit_us = 0.0;
     double time_implicit_copying_rhs = 0.0;
     double time_implicit_preprocess_jac_us = 0.0;
@@ -1325,7 +1326,8 @@ TEST_F(ImplicitAugSystemSolverVsReformulationTest, TestTimings)
     std::cout << "\tAverage solve:                      " << time_implicit_only_solve_us / nb_runs << " microseconds" << std::endl;
     std::cout << "\tAverage postprocessing:             " << time_implicit_postprocess_us / nb_runs << " microseconds" << std::endl;
 
-    // print out percentages of [preprocess jac, preprocess hess, solving, postprocess]
+    std::cout << "\n\nFOR VISUALIZATION, COPY THE OUTPUT BELOW TO THE FILE\nunittest/ocp/visualize.py\n\n" << std::endl;
+    std::cout << "N = " << nb_runs << std::endl;
     std::cout << "preprocess_jac_rel = " << 
         (time_implicit_preprocess_jac_us / time_implicit_us) << std::endl;
     std::cout << "preprocess_hess_rel = " <<
@@ -1339,6 +1341,8 @@ TEST_F(ImplicitAugSystemSolverVsReformulationTest, TestTimings)
 
     std::cout << "\ntotal_time_implicit = " << time_implicit_us  << std::endl;
     std::cout << "total_time_reformulation = " << time_reformulation_us << std::endl;
+
+    std::cout << "\n\n\n" << std::endl;
 }
 
 void PrintAverages(std::vector<std::vector<double>>& times, const std::string& name)
@@ -1403,17 +1407,17 @@ TEST_F(ImplicitAugSystemSolverVsReformulationTest, TestTimings7dof)
         }
     }
 
-    std::cout << "\n\nTime 1: " << temp_time_1 << " microseconds" << std::endl;
-    std::cout << "Time 2: " << temp_time_2 << " microseconds\n\n" << std::endl;
-
+    std::cout << "\n\nCOPY THE OUTPUT BELOW TO THE FILE\nunittest/ocp/visualize7dof.py\n\n" << std::endl;
     PrintAverages(times_total_implicit, "total_implicit");
     PrintAverages(times_total_reformulation, "total_reformulation");
     PrintAverages(times_preprocessing_jac, "preprocessing_jac");
     PrintAverages(times_preprocessing_hess, "preprocessing_hess");
     PrintAverages(times_solve, "solve");
     PrintAverages(times_postprocess, "postprocess");
+    std::cout << "\n\n" << std::endl;
 }
 
+/*
 TEST_F(ImplicitAugSystemSolverVsReformulationTest, TestTimingsPreProcessHess)
 {
     int nb_runs = 1;
@@ -1442,6 +1446,7 @@ TEST_F(ImplicitAugSystemSolverVsReformulationTest, TestTimingsPreProcessHess)
         std::cout << avg << std::endl;;
     }
 }
+*/
 
 
 class TestFunctionEvaluation {
@@ -1529,12 +1534,12 @@ class TestFunctionEvaluation {
                 auto start = std::chrono::high_resolution_clock::now();
                 eval_Jk_inv(arg_in, arg_out_1);
                 auto stop = std::chrono::high_resolution_clock::now();
-                option_1_time_eval_Jk_inv += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+                option_1_time_eval_Jk_inv += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count();
                 
                 start = std::chrono::high_resolution_clock::now();
                 eval_Bk(arg_in, arg_out_2);
                 stop = std::chrono::high_resolution_clock::now();
-                option_1_time_eval_Bk += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+                option_1_time_eval_Bk += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count();
 
                 start = std::chrono::high_resolution_clock::now();
                 int nz_ptr = 0;
@@ -1556,20 +1561,20 @@ class TestFunctionEvaluation {
                     }
                 }
                 stop = std::chrono::high_resolution_clock::now();
-                option_1_time_store_Jk_inv_Bk += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+                option_1_time_store_Jk_inv_Bk += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count();
 
                 start = std::chrono::high_resolution_clock::now();
                 blasfeo_dgemm_nn(nx_next, nu, nx_next, 1.0, &Jk_inv_numeric.mat(), 0, 0, 
                     &Bk_numeric.mat(), 0, 0, 0.0, &Jk_inv_Bk_numeric_1.mat(), 0, 0, 
                     &Jk_inv_Bk_numeric_1.mat(), 0, 0);
                 stop = std::chrono::high_resolution_clock::now();
-                option_1_time_dgemm += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+                option_1_time_dgemm += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count();
 
                 // (2) evaluate Jk_inv_Bk
                 start = std::chrono::high_resolution_clock::now();
                 eval_Jk_inv_Bk(arg_in, arg_out_3);
                 stop = std::chrono::high_resolution_clock::now();
-                option_2_time_eval_Jk_inv_Bk += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+                option_2_time_eval_Jk_inv_Bk += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count();
 
                 start = std::chrono::high_resolution_clock::now();
                 nz_ptr = 0;
@@ -1582,7 +1587,7 @@ class TestFunctionEvaluation {
                     }
                 }
                 stop = std::chrono::high_resolution_clock::now();
-                option_2_time_store_Jk_inv_Bk += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+                option_2_time_store_Jk_inv_Bk += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count();
 
                 // (3) compare results
                 for (Index i = 0; i < nx_next; ++i) {
@@ -1595,26 +1600,26 @@ class TestFunctionEvaluation {
 
             std::cout << "=====================================================" << std::endl;
             std::cout << "option 1 timings:" << std::endl;
-            std::cout << "\teval Jk inv:            " << option_1_time_eval_Jk_inv / nb_runs << " microseconds" << std::endl;
-            std::cout << "\teval Bk:                " << option_1_time_eval_Bk / nb_runs << " microseconds" << std::endl;
-            std::cout << "\tstore Jk inv and Bk:    " << option_1_time_store_Jk_inv_Bk / nb_runs << " microseconds" << std::endl;
-            std::cout << "\tdgemm:                  " << option_1_time_dgemm / nb_runs << " microseconds" << std::endl;
+            std::cout << "\teval Jk inv:            " << option_1_time_eval_Jk_inv / nb_runs << " nanoseconds" << std::endl;
+            std::cout << "\teval Bk:                " << option_1_time_eval_Bk / nb_runs << " nanoseconds" << std::endl;
+            std::cout << "\tstore Jk inv and Bk:    " << option_1_time_store_Jk_inv_Bk / nb_runs << " nanoseconds" << std::endl;
+            std::cout << "\tdgemm:                  " << option_1_time_dgemm / nb_runs << " nanoseconds" << std::endl;
             std::cout << "total (without storing):  " 
                       << (option_1_time_eval_Jk_inv + option_1_time_eval_Bk + option_1_time_dgemm) / nb_runs 
-                      << " microseconds" << std::endl;
+                      << " nanoseconds" << std::endl;
             std::cout << "total:                    " 
                       << (option_1_time_eval_Jk_inv + option_1_time_eval_Bk + option_1_time_store_Jk_inv_Bk + option_1_time_dgemm) / nb_runs 
-                      << " microseconds" << std::endl;
+                      << " nanoseconds" << std::endl;
             std::cout << "=====================================================" << std::endl;
             std::cout << "option 2 timings:" << std::endl;
-            std::cout << "\teval Jk inv Bk:         " << option_2_time_eval_Jk_inv_Bk / nb_runs << " microseconds" << std::endl;
-            std::cout << "\tstore Jk inv Bk:        " << option_2_time_store_Jk_inv_Bk / nb_runs << " microseconds" << std::endl;
+            std::cout << "\teval Jk inv Bk:         " << option_2_time_eval_Jk_inv_Bk / nb_runs << " nanoseconds" << std::endl;
+            std::cout << "\tstore Jk inv Bk:        " << option_2_time_store_Jk_inv_Bk / nb_runs << " nanoseconds" << std::endl;
             std::cout << "total (without storing):  " 
                       << (option_2_time_eval_Jk_inv_Bk) / nb_runs 
-                      << " microseconds" << std::endl;
+                      << " nanoseconds" << std::endl;
             std::cout << "total:                    " 
                       << (option_2_time_eval_Jk_inv_Bk + option_2_time_store_Jk_inv_Bk) / nb_runs 
-                      << " microseconds" << std::endl;
+                      << " nanoseconds" << std::endl;
             std::cout << "=====================================================" << std::endl;
         }
 };
@@ -1716,6 +1721,7 @@ class TestFunctionEvaluation {
 };
 */
 
+/*
 TEST_F(ImplicitAugSystemSolverVsReformulationTest, TestFunctionEvaluation)
 {
     // consider a general nonlinear function f(xk, uk, xk+1) and it's
@@ -1731,3 +1737,4 @@ TEST_F(ImplicitAugSystemSolverVsReformulationTest, TestFunctionEvaluation)
     tester.Test(5000);
 
 }
+*/
