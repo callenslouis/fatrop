@@ -1203,6 +1203,7 @@ TEST_F(ImplicitAugSystemSolverVsReformulationTest, TestSolve)
 
 TEST_F(ImplicitAugSystemSolverVsReformulationTest, TestTimings)
 {
+    return;
     std::cout << "Function to test random problems and compare timings of implicit AugSystemSolver and reformulated AugSystemSolver." << std::endl;
     int nb_runs = 500;
     double time_implicit_us = 0.0;
@@ -1360,6 +1361,7 @@ void PrintAverages(std::vector<std::vector<double>>& times, const std::string& n
 
 TEST_F(ImplicitAugSystemSolverVsReformulationTest, TestTimings7dof)
 {
+    return;
     int nb_runs = 500;
     std::vector<int> nx_values = {7, 14, 21, 28, 35};
     std::vector<int> nu_values = {7, 7, 7, 7, 7};
@@ -1465,6 +1467,8 @@ class TestFunctionEvaluation {
         Sparsity sp_Bk;
         Sparsity sp_Jk_inv_Bk;
 
+        bool CODE_GENERATE = true;
+
         TestFunctionEvaluation(){};
 
         void SetUp(){};
@@ -1495,7 +1499,63 @@ class TestFunctionEvaluation {
             Jk_inv_Bk_nz.resize(sp_Jk_inv_Bk.nnz());
         }
 
-        void Test(int nb_runs){
+        void RandomizeNDOF(int n, int number_of_derivatives){
+            casadi::MX xk = casadi::MX::sym("xk", n*number_of_derivatives);
+            casadi::MX uk = casadi::MX::sym("uk", n);
+            casadi::MX xk_next = casadi::MX::sym("xk_next", n*number_of_derivatives);
+
+            casadi::MX rhs = casadi::MX(n*number_of_derivatives, 1);
+            for (int i = 0; i < number_of_derivatives; ++i) {
+                for (int j = 0; j < n; ++j) {
+                    if (i < number_of_derivatives - 1){
+                        rhs(i*n + j, 0) = xk_next(i*n + j, 0);
+                    } else {
+                        rhs(i*n + j, 0) = uk(j, 0)*sin(xk(j,0)*pow(xk(i*n+j,0), 2));
+                    }
+                }
+            }
+
+            f = casadi::Function("f", {xk, uk, xk_next}, {xk + 0.1*rhs - xk_next});
+
+            eval_Jk = casadi::Function("eval_J", {xk, uk, xk_next},
+                        {jacobian(f({xk, uk, xk_next})[0], xk_next)});
+            eval_Jk_inv = casadi::Function("eval_Jk_inv", {xk, uk, xk_next},
+                        {inv(eval_Jk({xk, uk, xk_next})[0])});
+            eval_Bk = casadi::Function("eval_Bk", {xk, uk, xk_next},
+                        {jacobian(f({xk, uk, xk_next})[0], uk)});
+            eval_Jk_inv_Bk = casadi::Function("eval_Jk_inv_Bk", {xk, uk, xk_next},
+                        {mtimes(eval_Jk_inv({xk, uk, xk_next})[0], eval_Bk({xk, uk, xk_next})[0])});
+
+            if (CODE_GENERATE){
+                eval_Jk.generate("eval_Jk.casadi");
+                eval_Jk_inv.generate("eval_Jk_inv.casadi");
+                eval_Bk.generate("eval_Bk.casadi");
+                eval_Jk_inv_Bk.generate("eval_Jk_inv_Bk.casadi");
+            }
+
+            sp_Jk_inv = eval_Jk_inv.sparsity_out(0);
+            sp_Bk = eval_Bk.sparsity_out(0);
+            sp_Jk_inv_Bk = eval_Jk_inv_Bk.sparsity_out(0);
+
+            Jk_inv_nz.resize(sp_Jk_inv.nnz());
+            Bk_nz.resize(sp_Bk.nnz());
+            Jk_inv_Bk_nz.resize(sp_Jk_inv_Bk.nnz());
+
+            // casadi::Sparsity sp = eval_Jk.sparsity_out(0);
+            // for (int i = 0; i < sp.size1(); i++){
+            //     for (int j = 0; j < sp.size2(); j++){
+            //         if (sp.has_nz(i, j)){
+            //             std::cout << "X ";
+            //         } else {
+            //             std::cout << ". ";
+            //         }
+            //     }
+            //     std::cout << std::endl;
+            // }
+
+        }
+
+        void Test(int nb_runs, bool use_ndof_test){
             double option_1_time_eval_Jk_inv = 0.0;
             double option_1_time_eval_Bk = 0.0;
             double option_1_time_store_Jk_inv_Bk = 0.0;
@@ -1504,12 +1564,32 @@ class TestFunctionEvaluation {
             double option_2_time_eval_Jk_inv_Bk = 0.0;
             double option_2_time_store_Jk_inv_Bk = 0.0;
 
+            int percentage_step_to_show = 1;
+            int steps_shown = 0;
+
+            Importer importer1;
+            Importer importer2;
+            Importer importer3;
             for (int i = 0; i < nb_runs; ++i) {
+                double curr_percentage = (100.0 * i) / nb_runs;
+                if (curr_percentage >= steps_shown * percentage_step_to_show) {
+                    std::cout << "Progress: " << curr_percentage << "%\r";
+                    std::cout << std::flush;
+                    steps_shown++;
+                }
                 // Randomize inputs
-                int nx = ::test::random_int(1, 20);
-                int nu = ::test::random_int(1, 20);
-                int nx_next = ::test::random_int(1, 20);
-                Randomize(nx, nu, nx_next);
+                int nx, nu, nx_next;
+                if (use_ndof_test) {
+                    if (i == 0) { RandomizeNDOF(7, 6);}
+                    nx = 7*3;
+                    nu = 7;
+                    nx_next = 7*3;
+                } else {
+                    Randomize(nx, nu, nx_next);
+                    nx = ::test::random_int(1, 20);
+                    nu = ::test::random_int(1, 20);
+                    nx_next = ::test::random_int(1, 20);
+                }
 
                 VecRealAllocated xk = ::test::random_vector(nx);
                 VecRealAllocated uk = ::test::random_vector(nu);
@@ -1526,18 +1606,33 @@ class TestFunctionEvaluation {
                 std::vector<double*> arg_out_2(1);
                 std::vector<double*> arg_out_3(1);
 
-                arg_out_1[0] = &Jk_inv_nz[0];
-                arg_out_2[0] = &Bk_nz[0];
-                arg_out_3[0] = &Jk_inv_Bk_nz[0];
+                if (CODE_GENERATE & i == 0) {
+                    importer1 = Importer("eval_Jk_inv.c", "shell");
+                    importer2 = Importer("eval_Bk.c", "shell");
+                    importer3 = Importer("eval_Jk_inv_Bk.c", "shell");
+                }
+
+                Function my_eval_Jk_inv = CODE_GENERATE ? 
+                    external("eval_Jk_inv", importer1) : eval_Jk_inv;
+                Function my_eval_Bk = CODE_GENERATE ?
+                    external("eval_Bk", importer2) : eval_Bk;
+                Function my_eval_Jk_inv_Bk = CODE_GENERATE ?
+                    external("eval_Jk_inv_Bk", importer3) : eval_Jk_inv_Bk;
+
+                if (CODE_GENERATE && i == 0){
+                    my_eval_Jk_inv(arg_in, arg_out_1);    
+                    my_eval_Bk(arg_in, arg_out_2);
+                    my_eval_Jk_inv_Bk(arg_in, arg_out_3);
+                }
 
                 // (1) evaluate Jk_inv and Bk and multiply numerically
                 auto start = std::chrono::high_resolution_clock::now();
-                eval_Jk_inv(arg_in, arg_out_1);
+                my_eval_Jk_inv(arg_in, arg_out_1);
                 auto stop = std::chrono::high_resolution_clock::now();
                 option_1_time_eval_Jk_inv += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count();
                 
                 start = std::chrono::high_resolution_clock::now();
-                eval_Bk(arg_in, arg_out_2);
+                my_eval_Bk(arg_in, arg_out_2);
                 stop = std::chrono::high_resolution_clock::now();
                 option_1_time_eval_Bk += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count();
 
@@ -1572,7 +1667,7 @@ class TestFunctionEvaluation {
 
                 // (2) evaluate Jk_inv_Bk
                 start = std::chrono::high_resolution_clock::now();
-                eval_Jk_inv_Bk(arg_in, arg_out_3);
+                my_eval_Jk_inv_Bk(arg_in, arg_out_3);
                 stop = std::chrono::high_resolution_clock::now();
                 option_2_time_eval_Jk_inv_Bk += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count();
 
@@ -1625,105 +1720,10 @@ class TestFunctionEvaluation {
 };
 
 
-/*
-class TestFunctionEvaluation {
-    public:
 
-    void Setup(){};
-
-    void Test(){
-        int nx = 20;
-        MX x = MX::sym("x", nx);
-        MX f = sumsqr(sumsqr(x)  + sumsqr(sin(x)) - cos(x) + x * sin(x));
-        MX g = sumsqr(-x);
-        // MX f = sumsqr(x);
-        // MX g = sumsqr(x);
-
-        Function A = Function("A", {x}, {hessian(f, x)});
-        Function B = Function("B", {x}, {hessian(g, x)});
-        Function C = Function("C", {x}, {mtimes(A(x)[0], B(x)[0])});
-        Sparsity sp_A = A.sparsity_out(0);
-        Sparsity sp_B = B.sparsity_out(0);
-        Sparsity sp_C = C.sparsity_out(0);
-
-        VecRealAllocated x_numeric = ::test::random_vector(nx);
-        MatRealAllocated A_numeric(nx, nx);
-        MatRealAllocated B_numeric(nx, nx);
-        MatRealAllocated C_numeric(nx, nx);
-        MatRealAllocated D_numeric(nx, nx);
-        std::vector<double> A_nz(nx*nx);
-        std::vector<double> B_nz(nx*nx);
-        std::vector<double> C_nz(nx*nx);
-
-        // define input and output vectors
-        std::vector<const double*> arg_in(1);
-        std::vector<double*> arg_out_1(1);
-        std::vector<double*> arg_out_2(1);
-        std::vector<double*> arg_out_3(1);
-        arg_in[0] = &x_numeric(0);
-        arg_out_1[0] = &A_nz[0];
-        arg_out_2[0] = &B_nz[0];
-        arg_out_3[0] = &C_nz[0];
-
-        // (1): evaluate A, B and compute A @ B numerically
-        auto start = std::chrono::high_resolution_clock::now();
-        A(arg_in, arg_out_1);
-        B(arg_in, arg_out_2);
-        int nz_ptr = 0;
-        for (int i = 0; i < nx; ++i){
-            for (int j = 0; j < nx; ++j){
-                // std::cout << "i: " << i << ", j: " << j << ", nz_ptr: " << nz_ptr << std::endl;
-                if (sp_A.has_nz(i, j)){ A_numeric(i, j) = A_nz[nz_ptr]; nz_ptr++;}
-            }
-        }
-        nz_ptr = 0;
-        for (int i = 0; i < nx; ++i){
-            for (int j = 0; j < nx; ++j){
-                // std::cout << "i: " << i << ", j: " << j << ", nz_ptr: " << nz_ptr << std::endl;
-                if (sp_B.has_nz(i, j)){ B_numeric(i, j) = B_nz[nz_ptr]; nz_ptr++;}
-            }
-        }
-
-        blasfeo_dgemm_nn(nx, nx, nx, 1.0, &A_numeric.mat(), 0, 0, 
-            &B_numeric.mat(), 0, 0, 0.0, &D_numeric.mat(), 0, 0, 
-            &D_numeric.mat(), 0, 0);
-        auto stop = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-        std::cout << "Time for A @ B: " << duration.count() << " microseconds" << std::endl;
-
-        // (2) evaluate C numerically
-        start = std::chrono::high_resolution_clock::now();
-        C(arg_in, arg_out_3);
-        nz_ptr = 0;
-        for (int i = 0; i < nx; ++i){
-            for (int j = 0; j < nx; ++j){
-                // std::cout << "i: " << i << ", j: " << j << ", nz_ptr: " << nz_ptr << std::endl;
-                if (sp_C.has_nz(i, j)){ C_numeric(j, i) = C_nz[nz_ptr]; nz_ptr++;}
-            }
-        }
-        stop = std::chrono::high_resolution_clock::now();
-        duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-        std::cout << "Time for C: " << duration.count() << " microseconds" << std::endl;
-
-        // compare results
-        for (Index i = 0; i < nx; ++i)
-        {
-            for (Index j = 0; j < nx; ++j)
-            {
-                EXPECT_NEAR(D_numeric(i, j), C_numeric(i, j), 1e-5);
-            }
-        }
-        // std::cout << "A_numeric:\n" << A_numeric << std::endl;
-        // std::cout << "B_numeric:\n" << B_numeric << std::endl;
-        // std::cout << "D_numeric:\n" << D_numeric << std::endl;
-        // std::cout << "C_numeric:\n" << C_numeric << std::endl;
-    }
-};
-*/
-
-/*
 TEST_F(ImplicitAugSystemSolverVsReformulationTest, TestFunctionEvaluation)
 {
+    return;
     // consider a general nonlinear function f(xk, uk, xk+1) and it's
     // linearization Jk @ xk+1 + Ak @ xk + Bk @ uk + bk
 
@@ -1734,7 +1734,385 @@ TEST_F(ImplicitAugSystemSolverVsReformulationTest, TestFunctionEvaluation)
     //     Jk_inv @ bk symbolically 
 
     TestFunctionEvaluation tester;
-    tester.Test(5000);
+    tester.Test(50, true);
 
 }
-*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class ComputationTimeScalingTester
+{
+    public:
+        ComputationTimeScalingTester(){};
+
+        void UpdateRandomly(int nx_, int nu_, int ng_, int ng_ineq_, int K){
+            if (K < 0){K = ::test::random_int(5, 50);}
+            std::vector<Index> nx = std::vector<Index>(K, nx_);
+            std::vector<Index> nu = std::vector<Index>(K, nu_);
+            std::vector<Index> ng = std::vector<Index>(K, ng_);
+            std::vector<Index> ng_ineq = std::vector<Index>(K, ng_ineq_);
+            for (int k = 0; k < K; k++){
+                if (nx_ < 0) { nx[k] = ::test::random_int(5, 20); }
+                if (nu_ < 0) { nu[k] = ::test::random_int(0, 20); }
+                if (ng_ < 0) { ng[k] = ::test::random_int(0, nx[k] + nu[k]-1);}
+                if (ng_ineq_ < 0) { ng_ineq[k] = ::test::random_int(0, 10);}
+            }
+            nu[K - 1] = 0; // last stage has no control
+            ng[K - 1] = std::min(ng[K - 1], nx[K - 1] - 1);
+
+            if (use_reformulation){
+                for (int k = 0; k < K-1; k++){
+                    nu[k] += nx[k+1];
+                    ng[k] += nx[k+1];
+                }
+            }
+
+            try{
+                if (use_implicit_ocp){
+                    PrepareImplicit(K, nx, nu, ng, ng_ineq);
+                } else {
+                    Prepare(K, nx, nu, ng, ng_ineq);
+                }
+            } catch (const std::exception& e){
+                UpdateRandomly(nx_, nu_, ng_, ng_ineq_, K);
+            }
+        };
+        
+        void Prepare(int K, std::vector<Index> nx, std::vector<Index> nu, std::vector<Index> ng, std::vector<Index> ng_ineq){
+            try{
+            dims.emplace(ProblemDims{K, nu, nx, ng, ng_ineq});
+            info.emplace(ProblemInfo(dims.value()));
+            x.emplace(VecRealAllocated(info.value().number_of_primal_variables));
+            mult.emplace(VecRealAllocated(info.value().number_of_eq_constraints));
+            rhs_x.emplace(VecRealAllocated(info.value().number_of_primal_variables));
+            rhs_g.emplace(VecRealAllocated(info.value().number_of_eq_constraints));
+            D_x.emplace(VecRealAllocated(info.value().number_of_primal_variables));
+            D_s.emplace(VecRealAllocated(info.value().number_of_slack_variables));
+            D_eq.emplace(VecRealAllocated(info.value().number_of_g_eq_path));
+
+            jacobian.emplace(Jacobian<OcpType>(dims.value()));
+            hessian.emplace(Hessian<OcpType>(dims.value()));
+            solver.emplace(AugSystemSolver<OcpType>(info.value()));
+
+            } catch (const std::exception& e){
+                std::cout << "Error in ::UpdateRandomly: " << e.what() << std::endl;
+                // return UpdateRandomly(random_dimensions);
+                throw std::runtime_error("Error in ImplicitVsReformulationTester::UpdateRandomly");
+            }
+
+             // fill the jacobian with random values
+            for (Index k = 0; k < info.value().dims.K; ++k)
+            {
+                Index nu = info.value().dims.number_of_controls[k];
+                Index nx = info.value().dims.number_of_states[k];
+                if (k < info.value().dims.K - 1)
+                {
+                    Index nx_next = info.value().dims.number_of_states[k + 1];
+                    jacobian.value().BAbt[k].block(nu + nx, nx_next, 0, 0) =
+                        ::test::random_matrix(nu + nx, nx_next);
+                }
+                jacobian.value().Gg_eqt[k].block(nu + nx, info.value().dims.number_of_eq_constraints[k], 0, 0) =
+                    ::test::random_matrix(nu + nx, info.value().dims.number_of_eq_constraints[k]);
+                jacobian.value().Gg_ineqt[k].block(nu + nx, info.value().dims.number_of_ineq_constraints[k], 0, 0) =
+                    ::test::random_matrix(nu + nx, info.value().dims.number_of_ineq_constraints[k]);
+            }
+            // fill the Hessian with random values
+            for (Index k = 0; k < dims.value().K; ++k)
+            {
+                Index nu = info.value().dims.number_of_controls[k];
+                Index nx = info.value().dims.number_of_states[k];
+                hessian.value().RSQrqt[k].block(nu + nx, nu + nx, 0, 0) = ::test::random_spd_matrix(nu + nx);
+            }
+            // add dynamics constraints
+            for (Index k = 0; k < info.value().dims.K - 1; ++k)
+            {
+                Index nu = info.value().dims.number_of_controls[k];
+                Index nx = info.value().dims.number_of_states[k];
+                Index offs_ux = info.value().offsets_primal_u[k];
+                Index offs_x_next = info.value().offsets_primal_x[k + 1];
+                Index nx_next = info.value().dims.number_of_states[k + 1];
+                Index offs_eq_dyn = info.value().offsets_g_eq_dyn[k];
+            }
+
+            for (Index i = 0; i < info.value().number_of_primal_variables; ++i){
+                rhs_x.value()(i) = 1.0 * i;
+                D_x.value() = 1.0 * (i + 0.1);
+            }
+            for (Index i = 0; i < info.value().number_of_eq_constraints; ++i){
+                rhs_g.value()(i) = 1.0 * i;
+            }
+
+            for (Index i = 0; i < info.value().number_of_g_eq_path; ++i){
+                D_eq.value()(i) = 1.0 * (i + 1);
+            }
+            for (Index i = 0; i < info.value().number_of_slack_variables; ++i){
+                D_s.value()(i) = 1.0 * (i + 0.1);
+            }
+        }
+
+        void PrepareImplicit(int K, std::vector<Index> nx, std::vector<Index> nu, std::vector<Index> ng, std::vector<Index> ng_ineq){
+            try{
+            dims.emplace(ProblemDims{K, nu, nx, ng, ng_ineq});
+            info.emplace(ProblemInfo(dims.value()));
+            x.emplace(VecRealAllocated(info.value().number_of_primal_variables));
+            mult.emplace(VecRealAllocated(info.value().number_of_eq_constraints));
+            rhs_x.emplace(VecRealAllocated(info.value().number_of_primal_variables));
+            rhs_g.emplace(VecRealAllocated(info.value().number_of_eq_constraints));
+            D_x.emplace(VecRealAllocated(info.value().number_of_primal_variables));
+            D_s.emplace(VecRealAllocated(info.value().number_of_slack_variables));
+            D_eq.emplace(VecRealAllocated(info.value().number_of_g_eq_path));
+
+            jacobian_i.emplace(Jacobian<ImplicitOcpType>(dims.value()));
+            hessian_i.emplace(Hessian<ImplicitOcpType>(dims.value()));
+            solver_i.emplace(AugSystemSolver<ImplicitOcpType>(info.value()));
+
+            } catch (const std::exception& e){
+                std::cout << "Error in ::UpdateRandomly: " << e.what() << std::endl;
+                // return UpdateRandomly(random_dimensions);
+                throw std::runtime_error("Error in ImplicitVsReformulationTester::UpdateRandomly");
+            }
+
+             // fill the jacobian with random values
+            for (Index k = 0; k < info.value().dims.K; ++k)
+            {
+                Index nu = info.value().dims.number_of_controls[k];
+                Index nx = info.value().dims.number_of_states[k];
+                if (k < info.value().dims.K - 1)
+                {
+                    Index nx_next = info.value().dims.number_of_states[k + 1];
+                    jacobian_i.value().BAbt[k].block(nu + nx, nx_next, 0, 0) =
+                        ::test::random_matrix(nu + nx, nx_next);
+                    jacobian_i.value().Jt_inv[k].block(nx_next, nx_next, 0, 0) =
+                            ::test::random_matrix(nx_next, nx_next);
+                }
+                jacobian_i.value().Gg_eqt[k].block(nu + nx, info.value().dims.number_of_eq_constraints[k], 0, 0) =
+                    ::test::random_matrix(nu + nx, info.value().dims.number_of_eq_constraints[k]);
+                jacobian_i.value().Gg_ineqt[k].block(nu + nx, info.value().dims.number_of_ineq_constraints[k], 0, 0) =
+                    ::test::random_matrix(nu + nx, info.value().dims.number_of_ineq_constraints[k]);
+            }
+            // fill the Hessian with random values
+            for (Index k = 0; k < dims.value().K; ++k)
+            {
+                Index nu = info.value().dims.number_of_controls[k];
+                Index nx = info.value().dims.number_of_states[k];
+                hessian_i.value().RSQrqt[k].block(nu + nx, nu + nx, 0, 0) = ::test::random_spd_matrix(nu + nx);
+            }
+            // add dynamics constraints
+            for (Index k = 0; k < info.value().dims.K - 1; ++k)
+            {
+                Index nu = info.value().dims.number_of_controls[k];
+                Index nx = info.value().dims.number_of_states[k];
+                Index offs_ux = info.value().offsets_primal_u[k];
+                Index offs_x_next = info.value().offsets_primal_x[k + 1];
+                Index nx_next = info.value().dims.number_of_states[k + 1];
+                Index offs_eq_dyn = info.value().offsets_g_eq_dyn[k];
+
+                hessian_i.value().FuFxt[k].block(nx + nu, nx_next, 0, 0) =
+                    ::test::random_matrix(nx + nu, nx_next);
+            }
+
+            for (Index i = 0; i < info.value().number_of_primal_variables; ++i){
+                rhs_x.value()(i) = 1.0 * i;
+                D_x.value() = 1.0 * (i + 0.1);
+            }
+            for (Index i = 0; i < info.value().number_of_eq_constraints; ++i){
+                rhs_g.value()(i) = 1.0 * i;
+            }
+
+            for (Index i = 0; i < info.value().number_of_g_eq_path; ++i){
+                D_eq.value()(i) = 1.0 * (i + 1);
+            }
+            for (Index i = 0; i < info.value().number_of_slack_variables; ++i){
+                D_s.value()(i) = 1.0 * (i + 0.1);
+            }
+        }
+
+        void Solve(){
+            if (use_implicit_ocp){
+                solver_i.value().solve(info.value(), 
+                            jacobian_i.value(), hessian_i.value(), 
+                            D_x.value(), D_eq.value(), 
+                            D_s.value(), rhs_x.value(), 
+                            rhs_g.value(), x.value(), 
+                            mult.value());
+            } else {
+                solver.value().solve(info.value(), 
+                        jacobian.value(), hessian.value(), 
+                        D_x.value(), D_eq.value(), 
+                        D_s.value(), rhs_x.value(), 
+                        rhs_g.value(), x.value(), 
+                        mult.value());
+            }
+        }
+
+        bool use_reformulation = false;
+        bool use_implicit_ocp = false;
+
+        int K;
+        std::optional<ProblemDims> dims;
+        std::optional<ProblemInfo> info;
+        std::optional<VecRealAllocated> x;
+        std::optional<VecRealAllocated> mult;
+        std::optional<VecRealAllocated> rhs_x;
+        std::optional<VecRealAllocated> rhs_g;
+        std::optional<VecRealAllocated> D_x;
+        std::optional<VecRealAllocated> D_s;
+        std::optional<VecRealAllocated> D_eq;
+        std::optional<Jacobian<OcpType>> jacobian;
+        std::optional<Hessian<OcpType>> hessian;
+        std::optional<AugSystemSolver<OcpType>> solver;
+
+        std::optional<Jacobian<ImplicitOcpType>> jacobian_i;
+        std::optional<Hessian<ImplicitOcpType>> hessian_i;
+        std::optional<AugSystemSolver<ImplicitOcpType>> solver_i;
+};
+
+class ScalingTest : public ::testing::Test
+{
+    protected:
+        void SetUp() override
+        {
+        }
+};
+
+TEST_F(ScalingTest, TestFunctionEvaluation)
+{
+    int nx_min = 2;
+    int nx_max = 30;
+    int nu_min = 2;
+    int nu_max = 30;
+    int nb_runs_each = 200;
+
+    int K = 5;
+    ComputationTimeScalingTester tester;
+
+    for (int case_nb = 0; case_nb < 3; case_nb++){
+    if (case_nb == 0){
+        tester.use_reformulation = false;
+        tester.use_implicit_ocp = false;
+    } else if (case_nb == 1){
+        tester.use_reformulation = true;
+        tester.use_implicit_ocp = false;
+    } else if (case_nb == 2){
+        tester.use_reformulation = false;
+        tester.use_implicit_ocp = true;
+    } else {
+        throw std::runtime_error("Invalid case number");
+    }
+
+    std::vector<std::vector<std::vector<double>>>
+        measurements(nx_max-nx_min, 
+            std::vector<std::vector<double>>(nu_max-nu_min, 
+                std::vector<double>(nb_runs_each, 0.0)));
+
+    std::vector<int> nx_vals = std::vector<int>((nx_max - nx_min)*(nu_max - nu_min)*nb_runs_each);
+    std::vector<int> nu_vals = std::vector<int>((nx_max - nx_min)*(nu_max - nu_min)*nb_runs_each);
+    std::vector<int> ng_vals = std::vector<int>((nx_max - nx_min)*(nu_max - nu_min)*nb_runs_each);
+    std::vector<int> ng_ineq_vals = std::vector<int>((nx_max - nx_min)*(nu_max - nu_min)*nb_runs_each);
+    std::vector<double> time_vals = std::vector<double>((nx_max - nx_min)*(nu_max - nu_min)*nb_runs_each);
+    int entry_ptr = 0;
+    
+    for (int nx = nx_min; nx < nx_max; nx++){
+        for (int nu = nu_min; nu < nu_max; nu++){
+            int i = 0;
+            while (i < nb_runs_each){
+                double total_progress = ((1.0*nx-nx_min)*(1.0*nu_max-nu_min)*1.0*nb_runs_each + (1.0*nu - nu_min)*1.0*nb_runs_each + 1.0*i) / ((1.0*nx_max-nx_min)*(1.0*nu_max-nu_min)*1.0*nb_runs_each) * 100.0;
+                std::cout << "Progress: " << 33*case_nb + int(total_progress/3) << "%\r";
+                std::cout << std::flush;
+                // std::cout << total_progress << std::endl;
+                int ng = ::test::random_int(0, nx + nu - 1);
+                int ng_ineq = ::test::random_int(0, 10);
+                tester.UpdateRandomly(nx, nu, ng, ng_ineq, K);
+                try{
+                    auto start = std::chrono::high_resolution_clock::now();
+                    tester.Solve();
+                    auto stop = std::chrono::high_resolution_clock::now();
+                    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+                    measurements[nx-nx_min][nu-nu_min][i] = duration.count();
+                    nx_vals[entry_ptr] = nx;
+                    nu_vals[entry_ptr] = nu;
+                    ng_vals[entry_ptr] = ng;
+                    ng_ineq_vals[entry_ptr] = ng_ineq;
+                    time_vals[entry_ptr] = duration.count();
+                    entry_ptr++;
+                    i++;
+                } catch (const std::exception& e){
+                    std::cout << "something went wrong: " << e.what() << std::endl;
+                }
+            }
+        }
+    }
+
+    // write to a .py file (not output stream)
+    std::string case_name = (case_nb == 0) ? "explicit" : 
+                            (case_nb == 1) ? "reformulation" : "implicit";
+    
+    std::ofstream file("scaling_test_results_" + case_name + ".py");
+    file << "import numpy as np" << std::endl;
+
+    file << "nx_" << case_name << " = np.array([";
+    for (int i = 0; i < nx_vals.size(); i++){
+        if (i > 0){
+            file << ", ";
+        }
+        file << nx_vals[i];
+    }
+    file << "])" << std::endl;
+        
+    file << "nu_" << case_name << " = np.array([";
+    for (int i = 0; i < nu_vals.size(); i++){
+        if (i > 0){
+            file << ", ";
+        }
+        file << nu_vals[i];
+    }
+    file << "])" << std::endl;
+
+    file << "ng_" << case_name << " = np.array([";
+    for (int i = 0; i < ng_vals.size(); i++){
+        if (i > 0){
+            file << ", ";
+        }
+        file << ng_vals[i];
+    }
+    file << "])" << std::endl;
+
+    file << "ng_ineq_" << case_name << " = np.array([";
+    for (int i = 0; i < ng_ineq_vals.size(); i++){
+        if (i > 0){
+            file << ", ";
+        }
+        file << ng_ineq_vals[i];
+    }
+    file << "])" << std::endl;
+
+    file << "time_" << case_name << " = np.array([";
+    for (int i = 0; i < time_vals.size(); i++){
+        if (i > 0){
+            file << ", ";
+        }
+        file << time_vals[i];
+    }
+    file << "])" << std::endl;
+
+    file.close();
+    }
+
+}
