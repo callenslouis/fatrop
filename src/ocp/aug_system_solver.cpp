@@ -1176,6 +1176,7 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
                                            const VecRealView &f, const VecRealView &g,
                                            VecRealView &x, VecRealView &eq_mult)
 {
+    // copy the rhs since they are altered during preprocessing and are needed for checking the solution
     auto start = std::chrono::high_resolution_clock::now();
     VecRealAllocated f_copy(info.number_of_primal_variables);
     VecRealAllocated g_copy(info.number_of_eq_constraints);
@@ -1203,6 +1204,7 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
                                            const VecRealView &g, VecRealView &x,
                                            VecRealView &eq_mult)
 {
+    // copy the rhs since they are altered during preprocessing and are needed for checking the solution
     auto start = std::chrono::high_resolution_clock::now();
     VecRealAllocated f_copy(info.number_of_primal_variables);
     VecRealAllocated g_copy(info.number_of_eq_constraints);

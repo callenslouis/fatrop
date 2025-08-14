@@ -1992,15 +1992,27 @@ class ScalingTest : public ::testing::Test
         }
 };
 
+template <typename T>
+void write_vector(std::ofstream& file, std::string name, const std::vector<T>& vec){
+    file << name << " = np.array([";
+    for (size_t i = 0; i < vec.size(); i++){
+        if (i > 0){
+            file << ", ";
+        }
+        file << vec[i];
+    }
+    file << "])" << std::endl;
+}
+
 TEST_F(ScalingTest, TestFunctionEvaluation)
 {
     int nx_min = 2;
-    int nx_max = 30;
+    int nx_max = 50;
     int nu_min = 2;
     int nu_max = 30;
-    int nb_runs_each = 200;
+    int nb_runs_each = 300;
 
-    int K = 5;
+    int K = 10;
     ComputationTimeScalingTester tester;
 
     for (int case_nb = 0; case_nb < 3; case_nb++){
@@ -2022,12 +2034,19 @@ TEST_F(ScalingTest, TestFunctionEvaluation)
             std::vector<std::vector<double>>(nu_max-nu_min, 
                 std::vector<double>(nb_runs_each, 0.0)));
 
-    std::vector<int> nx_vals = std::vector<int>((nx_max - nx_min)*(nu_max - nu_min)*nb_runs_each);
-    std::vector<int> nu_vals = std::vector<int>((nx_max - nx_min)*(nu_max - nu_min)*nb_runs_each);
-    std::vector<int> ng_vals = std::vector<int>((nx_max - nx_min)*(nu_max - nu_min)*nb_runs_each);
-    std::vector<int> ng_ineq_vals = std::vector<int>((nx_max - nx_min)*(nu_max - nu_min)*nb_runs_each);
-    std::vector<double> time_vals = std::vector<double>((nx_max - nx_min)*(nu_max - nu_min)*nb_runs_each);
+    int n = (nx_max - nx_min)*(nu_max - nu_min)*nb_runs_each;
+    std::vector<int> nx_vals = std::vector<int>(n);
+    std::vector<int> nu_vals = std::vector<int>(n);
+    std::vector<int> ng_vals = std::vector<int>(n);
+    std::vector<int> ng_ineq_vals = std::vector<int>(n);
+    std::vector<double> time_vals = std::vector<double>(n);
     int entry_ptr = 0;
+
+    std::vector<double> time_vals_preprocess_jac = std::vector<double>(n);
+    std::vector<double> time_vals_preprocess_hess = std::vector<double>(n);
+    std::vector<double> time_vals_solve = std::vector<double>(n);
+    std::vector<double> time_vals_pos_process = std::vector<double>(n);
+    std::vector<double> time_vals_copying_rhs = std::vector<double>(n);
     
     for (int nx = nx_min; nx < nx_max; nx++){
         for (int nu = nu_min; nu < nu_max; nu++){
@@ -2051,6 +2070,15 @@ TEST_F(ScalingTest, TestFunctionEvaluation)
                     ng_vals[entry_ptr] = ng;
                     ng_ineq_vals[entry_ptr] = ng_ineq;
                     time_vals[entry_ptr] = duration.count();
+
+                    if (case_nb == 2){
+                        time_vals_preprocess_jac[entry_ptr] = tester.solver_i.value().duration_preprocess_jac.count();
+                        time_vals_preprocess_hess[entry_ptr] = tester.solver_i.value().duration_preprocess_hess.count();
+                        time_vals_solve[entry_ptr] = tester.solver_i.value().duration_solve.count();
+                        time_vals_pos_process[entry_ptr] = tester.solver_i.value().duration_postprocess.count();
+                        time_vals_copying_rhs[entry_ptr] = tester.solver_i.value().duration_copying_rhs.count();
+                    }
+
                     entry_ptr++;
                     i++;
                 } catch (const std::exception& e){
@@ -2067,50 +2095,20 @@ TEST_F(ScalingTest, TestFunctionEvaluation)
     std::ofstream file("scaling_test_results_" + case_name + ".py");
     file << "import numpy as np" << std::endl;
 
-    file << "nx_" << case_name << " = np.array([";
-    for (int i = 0; i < nx_vals.size(); i++){
-        if (i > 0){
-            file << ", ";
-        }
-        file << nx_vals[i];
+    write_vector(file, "nx_" + case_name, nx_vals);
+    write_vector(file, "nu_" + case_name, nu_vals);
+    write_vector(file, "ng_" + case_name, ng_vals);
+    write_vector(file, "ng_ineq_" + case_name, ng_ineq_vals);
+    write_vector(file, "time_" + case_name, time_vals);
+
+    if (case_nb == 2){
+        write_vector(file, "time_preprocess_jac_" + case_name, time_vals_preprocess_jac);
+        write_vector(file, "time_preprocess_hess_" + case_name, time_vals_preprocess_hess);
+        write_vector(file, "time_solve_" + case_name, time_vals_solve);
+        write_vector(file, "time_postprocess_" + case_name, time_vals_pos_process);
+        write_vector(file, "time_copying_rhs_" + case_name, time_vals_copying_rhs);
     }
-    file << "])" << std::endl;
         
-    file << "nu_" << case_name << " = np.array([";
-    for (int i = 0; i < nu_vals.size(); i++){
-        if (i > 0){
-            file << ", ";
-        }
-        file << nu_vals[i];
-    }
-    file << "])" << std::endl;
-
-    file << "ng_" << case_name << " = np.array([";
-    for (int i = 0; i < ng_vals.size(); i++){
-        if (i > 0){
-            file << ", ";
-        }
-        file << ng_vals[i];
-    }
-    file << "])" << std::endl;
-
-    file << "ng_ineq_" << case_name << " = np.array([";
-    for (int i = 0; i < ng_ineq_vals.size(); i++){
-        if (i > 0){
-            file << ", ";
-        }
-        file << ng_ineq_vals[i];
-    }
-    file << "])" << std::endl;
-
-    file << "time_" << case_name << " = np.array([";
-    for (int i = 0; i < time_vals.size(); i++){
-        if (i > 0){
-            file << ", ";
-        }
-        file << time_vals[i];
-    }
-    file << "])" << std::endl;
 
     file.close();
     }
