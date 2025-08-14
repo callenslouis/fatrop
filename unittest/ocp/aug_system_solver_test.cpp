@@ -2010,9 +2010,8 @@ TEST_F(ScalingTest, TestFunctionEvaluation)
     int nx_max = 50;
     int nu_min = 2;
     int nu_max = 30;
-    int nb_runs_each = 300;
+    int nb_runs_each = 100;
 
-    int K = 10;
     ComputationTimeScalingTester tester;
 
     for (int case_nb = 0; case_nb < 3; case_nb++){
@@ -2035,6 +2034,7 @@ TEST_F(ScalingTest, TestFunctionEvaluation)
                 std::vector<double>(nb_runs_each, 0.0)));
 
     int n = (nx_max - nx_min)*(nu_max - nu_min)*nb_runs_each;
+    std::vector<int> K_vals = std::vector<int>(n);
     std::vector<int> nx_vals = std::vector<int>(n);
     std::vector<int> nu_vals = std::vector<int>(n);
     std::vector<int> ng_vals = std::vector<int>(n);
@@ -2058,6 +2058,7 @@ TEST_F(ScalingTest, TestFunctionEvaluation)
                 // std::cout << total_progress << std::endl;
                 int ng = ::test::random_int(0, nx + nu - 1);
                 int ng_ineq = ::test::random_int(0, 10);
+                int K = ::test::random_int(2, 30);
                 tester.UpdateRandomly(nx, nu, ng, ng_ineq, K);
                 try{
                     auto start = std::chrono::high_resolution_clock::now();
@@ -2065,6 +2066,7 @@ TEST_F(ScalingTest, TestFunctionEvaluation)
                     auto stop = std::chrono::high_resolution_clock::now();
                     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
                     measurements[nx-nx_min][nu-nu_min][i] = duration.count();
+                    K_vals[entry_ptr] = K;
                     nx_vals[entry_ptr] = nx;
                     nu_vals[entry_ptr] = nu;
                     ng_vals[entry_ptr] = ng;
@@ -2095,6 +2097,7 @@ TEST_F(ScalingTest, TestFunctionEvaluation)
     std::ofstream file("scaling_test_results_" + case_name + ".py");
     file << "import numpy as np" << std::endl;
 
+    write_vector(file, "K_" + case_name, K_vals);
     write_vector(file, "nx_" + case_name, nx_vals);
     write_vector(file, "nu_" + case_name, nu_vals);
     write_vector(file, "ng_" + case_name, ng_vals);

@@ -37,7 +37,7 @@ def forwardrecursion(nx, nu, nxp, ngi, rho, rhop, gammap):
         nxp*(2*nxp - 1) + \
         (gammap - rhop)*(2*nxp - 1)
 
-def get_rough_flop_count(nx, nu, ng, **kwargs):
+def get_rough_flop_count(K, nx, nu, ng, **kwargs):
     implicit = kwargs.get('implicit', False)
     reformulated = kwargs.get('reformulated', False)
     if implicit and reformulated:
@@ -60,7 +60,7 @@ def get_rough_flop_count(nx, nu, ng, **kwargs):
         flops  += preprocessing(nx, nu, nx) + \
                   postprocessing(nx, nu, nx)
 
-    return flops
+    return K*flops
 
 def visualize_3d():
     nx = np.arange(1, 15)
@@ -249,8 +249,9 @@ def plot_line_with_std(ax, x_vals, xx, time, color, alpha, x_vals_offsets=None, 
     if x_vals_offsets is None:
         x_vals_offsets = 0*x_vals
 
+    MAX = 5000
     for i in range(len(x_vals)):
-        mask = xx == x_vals[i]
+        mask = (xx == x_vals[i]) & (time < MAX)
         std = np.std(time[mask])
         t_vals[i] = np.median(time[mask])
         t_vals_min_std[i] = t_vals[i] - std
@@ -269,13 +270,13 @@ def plot_line_with_std(ax, x_vals, xx, time, color, alpha, x_vals_offsets=None, 
     return max(t_vals_plus_std)
 
 
-def show_2d_plot(nx, nu, ng, ng_ineq, time, **kwargs):
+def show_2d_plot(K, nx, nu, ng, ng_ineq, time, **kwargs):
     color = kwargs.get('color', 'b')
     show = kwargs.get('show', True)
     show_details = "timing_details" in kwargs and kwargs['timing_details'] is not None
-    independent_var = kwargs.get('independent_var', 'x')
-    if independent_var not in ['nx', 'nu', 'ng', 'ng_ineq']:
-        raise ValueError("independent_var must be in ['nx', 'nu', 'ng', 'ng_ineq']")
+    independent_var = kwargs.get('independent_var', 'nx')
+    if independent_var not in ['K', 'nx', 'nu', 'ng', 'ng_ineq']:
+        raise ValueError("independent_var must be in ['K', 'nx', 'nu', 'ng', 'ng_ineq']")
 
     if 'ax' in kwargs.keys():
         ax = kwargs['ax']
@@ -283,7 +284,10 @@ def show_2d_plot(nx, nu, ng, ng_ineq, time, **kwargs):
         plt.figure()
         ax = plt.gca()
 
-    if independent_var == 'nx':
+    if independent_var == 'K':
+        x_vals = np.unique(K)
+        xx = K
+    elif independent_var == 'nx':
         x_vals = np.unique(nx)
         xx = nx
     elif independent_var == 'nu':
@@ -317,6 +321,11 @@ def show_2d_plot(nx, nu, ng, ng_ineq, time, **kwargs):
     curr_y_lim = ax.get_ylim()
     ax.set_ylim([0, max(curr_y_lim[1], 1.1*max_y_val)])
 
+    ylog_vars = ['nx', 'nu', 'ng']
+    if independent_var in ylog_vars:
+        ax.set_yscale('log')
+        ax.set_ylim([10, max(curr_y_lim[1], 1.1*max_y_val)])
+
     if show:
         plt.tight_layout()
         plt.show()
@@ -332,16 +341,16 @@ def show_2d_plot_all_cases(**kwargs):
     iv = kwargs.get("independent_var", 'nx')
     implicit_details = kwargs.get("implicit_timings_details", None)
 
-    show_2d_plot(nx_reformulation, nu_reformulation, ng_reformulation, ng_ineq_reformulation, time_reformulation, ax=ax, color='g', show=False, independent_var=iv)
-    show_2d_plot(nx_implicit, nu_implicit, ng_implicit, ng_ineq_implicit, time_implicit, ax=ax, color='b', show=show, independent_var=iv, timing_details=implicit_details)
-    show_2d_plot(nx_explicit, nu_explicit, ng_explicit, ng_ineq_explicit, time_explicit, ax=ax, color='r', show=False, independent_var=iv)
+    show_2d_plot(K_reformulation, nx_reformulation, nu_reformulation, ng_reformulation, ng_ineq_reformulation, time_reformulation, ax=ax, color='g', show=False, independent_var=iv)
+    show_2d_plot(K_implicit, nx_implicit, nu_implicit, ng_implicit, ng_ineq_implicit, time_implicit, ax=ax, color='b', show=show, independent_var=iv, timing_details=implicit_details)
+    show_2d_plot(K_explicit, nx_explicit, nu_explicit, ng_explicit, ng_ineq_explicit, time_explicit, ax=ax, color='r', show=False, independent_var=iv)
 
-def show_flops_2d_plot(nx, nu, ng, ng_ineq, time, **kwargs):
+def show_flops_2d_plot(K, nx, nu, ng, ng_ineq, time, **kwargs):
     color = kwargs.get('color', 'b')
     show = kwargs.get('show', True)
     independent_var = kwargs.get('independent_var', 'nx')
-    if independent_var not in ['nx', 'nu', 'ng', 'ng_ineq']:
-        raise ValueError("independent_var must be in ['nx', 'nu', 'ng', 'ng_ineq']")
+    if independent_var not in ['K', 'nx', 'nu', 'ng', 'ng_ineq']:
+        raise ValueError("independent_var must be in ['K', 'nx', 'nu', 'ng', 'ng_ineq']")
 
     if 'ax' in kwargs.keys():
         ax = kwargs['ax']
@@ -349,7 +358,10 @@ def show_flops_2d_plot(nx, nu, ng, ng_ineq, time, **kwargs):
         plt.figure()
         ax = plt.gca()
 
-    if independent_var == 'nx':
+    if independent_var == 'K':
+        x_vals = np.unique(K)
+        xx = K
+    elif independent_var == 'nx':
         x_vals = np.unique(nx)
         xx = nx
     elif independent_var == 'nu':
@@ -368,7 +380,7 @@ def show_flops_2d_plot(nx, nu, ng, ng_ineq, time, **kwargs):
     t_vals_plus_std = 0*t_vals
 
     for i in range(len(nx)):
-        T[i] = get_rough_flop_count(nx[i], nu[i], ng[i], implicit=kwargs.get("implicit", False), reformulated=kwargs.get("reformulated", False))
+        T[i] = get_rough_flop_count(K[i], nx[i], nu[i], ng[i], implicit=kwargs.get("implicit", False), reformulated=kwargs.get("reformulated", False))
 
     for i in range(len(x_vals)):
         mask = (xx == x_vals[i])
@@ -386,6 +398,11 @@ def show_flops_2d_plot(nx, nu, ng, ng_ineq, time, **kwargs):
     curr_y_lim = ax.get_ylim()
     ax.set_ylim([0, max(curr_y_lim[1], 1.1*np.max(t_vals_plus_std))])
 
+    ylog_vars = ['nx', 'nu', 'ng']
+    if independent_var in ylog_vars:
+        ax.set_yscale('log')
+        ax.set_ylim([1e5, max(curr_y_lim[1], 1.1*np.max(t_vals_plus_std))])
+
     if show:
         plt.tight_layout()
         plt.show()
@@ -400,22 +417,41 @@ def show_flops_2d_plot_all_cases(**kwargs):
     show = kwargs.get("show", False)
     iv = kwargs.get("independent_var", 'nx')
 
-    show_flops_2d_plot(nx_explicit, nu_explicit, ng_explicit, ng_ineq_explicit, time_explicit, ax=ax, color='r', show=False, independent_var=iv)
-    show_flops_2d_plot(nx_reformulation, nu_reformulation, ng_reformulation, ng_ineq_reformulation, time_reformulation, ax=ax, color='g', show=False, reformulated=True, independent_var=iv)
-    show_flops_2d_plot(nx_implicit, nu_implicit, ng_implicit, ng_ineq_implicit, time_implicit, ax=ax, color='b', show=show, implicit=True, independent_var=iv)
+    show_flops_2d_plot(K_explicit, nx_explicit, nu_explicit, ng_explicit, ng_ineq_explicit, time_explicit, ax=ax, color='r', show=False, independent_var=iv)
+    show_flops_2d_plot(K_reformulation, nx_reformulation, nu_reformulation, ng_reformulation, ng_ineq_reformulation, time_reformulation, ax=ax, color='g', show=False, reformulated=True, independent_var=iv)
+    show_flops_2d_plot(K_implicit, nx_implicit, nu_implicit, ng_implicit, ng_ineq_implicit, time_implicit, ax=ax, color='b', show=show, implicit=True, independent_var=iv)
 
 def add_legend_below(fig, timing_details=None):
     # create some space below the axes
-    fig.subplots_adjust(bottom=0.2)
+    plt.tight_layout()
+    fig.subplots_adjust(bottom=0.25)
 
     # get basic labels
     labels = ['Explicit', 'Implicit', 'Reformulated']
     colors = ['r', 'b', 'g']
     handles = [plt.Line2D([0], [0], color=color, lw=2) for color in colors]
 
+
+    # add detailed handles if provided
+    if timing_details is not None:
+        # add empty entry
+        labels.append('')
+        handles.append(plt.Line2D([0], [0], color='none', lw=0))
+
+        # add new entries
+        for detail_name, detail in timing_details.items():
+            labels.append(detail_name)
+            handles.append(plt.Line2D([0], [0], color=detail['color'], lw=2, linestyle=detail.get('linestyle', '-'), marker=detail.get('marker', None)))
+
+    # permute labels such that it is row-major instead of column-major
+    nb_cols = 4
+    nb_rows = int(np.ceil(len(labels) / nb_cols))
+    perm = [(i % nb_rows)*nb_cols + i // nb_rows for i in range(len(labels))]
+    handles = [handles[i] for i in perm]
+    labels = [labels[i] for i in perm]    
+
     # add legend below the axes
-    fig.legend(handles, labels, loc='lower center', ncol=3, bbox_to_anchor=(0.5, 0), frameon=False)
-    # plt.tight_layout()
+    fig.legend(handles, labels, loc='lower center', ncol=4, bbox_to_anchor=(0.5, 0), frameon=False)
 
 if __name__ == "__main__":
     timing_details_implicit = {
@@ -442,24 +478,26 @@ if __name__ == "__main__":
     # visualize_3d()
     # --> reformulation is much worse! we should see a nice speedup
     
-    # fig, axs = plt.subplots(1, 4, figsize=(10, 4))
-    # fig.suptitle("# FLOPs")
-    # show_flops_2d_plot_all_cases(ax=axs[0], independent_var='nx')
-    # show_flops_2d_plot_all_cases(ax=axs[1], independent_var='nu')
-    # show_flops_2d_plot_all_cases(ax=axs[2], independent_var='ng')
-    # show_flops_2d_plot_all_cases(ax=axs[3], independent_var='ng_ineq')
-    # add_legend_below(fig)
-    # plt.savefig("unittest/ocp/figures/flop_count_scaling.png", dpi=300)
+    fig, axs = plt.subplots(1, 5, figsize=(13, 4))
+    fig.suptitle("# FLOPs")
+    show_flops_2d_plot_all_cases(ax=axs[0], independent_var='K')
+    show_flops_2d_plot_all_cases(ax=axs[1], independent_var='nx')
+    show_flops_2d_plot_all_cases(ax=axs[2], independent_var='nu')
+    show_flops_2d_plot_all_cases(ax=axs[3], independent_var='ng')
+    show_flops_2d_plot_all_cases(ax=axs[4], independent_var='ng_ineq')
+    add_legend_below(fig)
+    plt.savefig("unittest/ocp/figures/flop_count_scaling.png", dpi=300)
     
     ### simplified 2d figure of experimental results
-    fig, axs = plt.subplots(1, 4, figsize=(10, 4))
+    fig, axs = plt.subplots(1, 5, figsize=(13, 4))
     fig.suptitle("t_comp [us]")
-    show_2d_plot_all_cases(ax=axs[0], independent_var='nx', implicit_timings_details=timing_details_implicit)
-    show_2d_plot_all_cases(ax=axs[1], independent_var='nu', implicit_timings_details=timing_details_implicit)
-    show_2d_plot_all_cases(ax=axs[2], independent_var='ng', implicit_timings_details=timing_details_implicit)
-    show_2d_plot_all_cases(ax=axs[3], independent_var='ng_ineq', implicit_timings_details=timing_details_implicit)
-    add_legend_below(fig)
-    # plt.savefig("unittest/ocp/figures/t_comp_scaling.png", dpi=300)
+    show_2d_plot_all_cases(ax=axs[0], independent_var='K', implicit_timings_details=timing_details_implicit)
+    show_2d_plot_all_cases(ax=axs[1], independent_var='nx', implicit_timings_details=timing_details_implicit)
+    show_2d_plot_all_cases(ax=axs[2], independent_var='nu', implicit_timings_details=timing_details_implicit)
+    show_2d_plot_all_cases(ax=axs[3], independent_var='ng', implicit_timings_details=timing_details_implicit)
+    show_2d_plot_all_cases(ax=axs[4], independent_var='ng_ineq', implicit_timings_details=timing_details_implicit)
+    add_legend_below(fig, timing_details=timing_details_implicit)
+    plt.savefig("unittest/ocp/figures/t_comp_scaling.png", dpi=300)
 
     plt.show()
 
