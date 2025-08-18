@@ -1,6 +1,20 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+def latexify():
+    plt.rcParams.update({
+        "text.usetex": True,
+        "font.family": "serif",
+        "font.size": 12,
+        "axes.titlesize": 14,
+        "axes.labelsize": 12,
+        "xtick.labelsize": 10,
+        "ytick.labelsize": 10,
+        "legend.fontsize": 10,
+        "figure.titlesize": 16,
+    })
+latexify()
+
 def get_KKT(K, nx, nu, ng, **kwargs):
     # check input
     assert K > 0
@@ -52,10 +66,10 @@ def get_KKT(K, nx, nu, ng, **kwargs):
         p += nx[k] + nu[k] + ng[k] + nx[k]
 
     # count elements in KKT_dense
-    nnz = np.count_nonzero(KKT_dense) + np.count_nonzero(KKT_extra)
+    nnz = np.count_nonzero(KKT_dense) + np.count_nonzero(KKT_extra) + np.count_nonzero(KKT_ones)
     nones = np.count_nonzero(KKT_ones)
     title = "Reformulated" if reformulated else "Implicit" if implicit else "Explicit"
-    title += " (" + str(nnz) + ", " + str(nones) + ")"
+    title += " (nonzeros: " + str(nnz) + ", of which 'ones': " + str(nones) + ")"
 
     nu.pop(-1)  # remove the last zero added for convenience
     return KKT_dense, KKT_ones, KKT_extra, title
@@ -68,19 +82,22 @@ def show_structure(ax, KKT_dense, KKT_ones, KKT_extra, title):
     ax.set_title(title)
 
 # define original problem dimensions
-K = 2
-nx = [4, 2, 3]
-nu = [2, 1]
-ng = [2, 3, 1]
+K = 4
+nx = [4, 2, 3, 5, 2]
+nu = [2, 1, 4, 2]
+ng = [2, 3, 1, 0, 2]
 
 # visualize
 plt.figure()
 show_structure(plt.gca(), *get_KKT(K, nx, nu, ng))
+plt.savefig('unittest/ocp/figures/KKT_structure_explicit.png', dpi=300)
 
 plt.figure()
 show_structure(plt.gca(), *get_KKT(K, nx, nu, ng, implicit=True))
+plt.savefig('unittest/ocp/figures/KKT_structure_implicit.png', dpi=300)
 
 plt.figure()
 show_structure(plt.gca(), *get_KKT(K, nx, nu, ng, reformulated=True))
+plt.savefig('unittest/ocp/figures/KKT_structure_reformulated.png', dpi=300)
 
 plt.show()

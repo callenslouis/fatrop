@@ -2010,10 +2010,11 @@ TEST_F(ScalingTest, TestFunctionEvaluation)
     int nx_max = 50;
     int nu_min = 2;
     int nu_max = 30;
-    int nb_runs_each = 100;
+    int nb_runs_each = 300;
 
     ComputationTimeScalingTester tester;
 
+    auto start_time = std::chrono::high_resolution_clock::now();
     for (int case_nb = 0; case_nb < 3; case_nb++){
     if (case_nb == 0){
         tester.use_reformulation = false;
@@ -2052,12 +2053,18 @@ TEST_F(ScalingTest, TestFunctionEvaluation)
         for (int nu = nu_min; nu < nu_max; nu++){
             int i = 0;
             while (i < nb_runs_each){
+                auto curr_time = std::chrono::high_resolution_clock::now();
+                double elapsed_time_seconds = std::chrono::duration_cast<std::chrono::seconds>(curr_time - start_time).count();
                 double total_progress = ((1.0*nx-nx_min)*(1.0*nu_max-nu_min)*1.0*nb_runs_each + (1.0*nu - nu_min)*1.0*nb_runs_each + 1.0*i) / ((1.0*nx_max-nx_min)*(1.0*nu_max-nu_min)*1.0*nb_runs_each) * 100.0;
-                std::cout << "Progress: " << 33*case_nb + int(total_progress/3) << "%\r";
+                total_progress = 33*case_nb + int(total_progress/3);
+                double expected_remaining_seconds = (elapsed_time_seconds / total_progress) * (100.0 - total_progress);
+                int expected_remaining_minutes = int(expected_remaining_seconds / 60);
+                int expected_remaining_seconds_int = int(expected_remaining_seconds) % 60;
+                std::cout << "Progress: " << total_progress << "% (" << expected_remaining_minutes << " minutes and " << expected_remaining_seconds_int << " seconds left)\r";
                 std::cout << std::flush;
                 // std::cout << total_progress << std::endl;
                 int ng = ::test::random_int(0, nx + nu - 1);
-                int ng_ineq = ::test::random_int(0, 10);
+                int ng_ineq = ::test::random_int(0, 30);
                 int K = ::test::random_int(2, 30);
                 tester.UpdateRandomly(nx, nu, ng, ng_ineq, K);
                 try{
