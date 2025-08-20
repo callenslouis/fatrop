@@ -32,9 +32,9 @@ namespace fatrop
         const ProblemDims &problem_dims() const override { return ocp_dims_; }
         Index eval_lag_hess(const OcpInfo &info, const Scalar objective_scale,
                             const VecRealView &primal_x, const VecRealView &primal_s,
-                            const VecRealView &lam, Hessian<OcpType> &hess) override;
+                            const VecRealView &lam, Hessian<ProblemType> &hess) override;
         Index eval_constr_jac(const OcpInfo &info, const VecRealView &primal_x,
-                              const VecRealView &primal_s, Jacobian<OcpType> &jac) override;
+                              const VecRealView &primal_s, Jacobian<ProblemType> &jac) override;
         Index eval_constraint_violation(const OcpInfo &info, const VecRealView &primal_x,
                                         const VecRealView &primal_s, VecRealView &res) override;
         Index eval_objective_gradient(const OcpInfo &info, const Scalar objective_scale,

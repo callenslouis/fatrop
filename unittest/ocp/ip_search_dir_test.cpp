@@ -138,6 +138,63 @@ TEST_F(IpSearchDirTest, UpdateIterateAndCheckInfeasibility)
               1e-6);
 }
 
+TEST_F(ImplicitIpSearchDirTest, SolveImplicitLinearSystem) { EXPECT_NO_THROW(search_dir.compute_search_dir()); }
+
+TEST_F(ImplicitIpSearchDirTest, UpdateImplicitIterateAndCheckInfeasibility)
+{
+    LinsolReturnFlag ret = search_dir.compute_search_dir();
+    std::cout << "ret: " << ret << std::endl;
+    EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
+
+    Scalar alpha = 1.0;
+    Scalar alpha_z = 1.0;
+    Scalar mu = data->current_iterate().mu();
+    data->trial_iterate().set_primal_x(data->current_iterate().primal_x() +
+                                       alpha * data->current_iterate().delta_primal_x());
+    data->trial_iterate().set_primal_s(data->current_iterate().primal_s() +
+                                       alpha * data->current_iterate().delta_primal_s());
+    data->trial_iterate().set_dual_eq(data->current_iterate().dual_eq() +
+                                      alpha * data->current_iterate().delta_dual_eq());
+    data->trial_iterate().set_dual_bounds_l(data->current_iterate().dual_bounds_l() +
+                                            alpha_z *
+                                                data->current_iterate().delta_dual_bounds_l());
+    data->trial_iterate().set_dual_bounds_u(data->current_iterate().dual_bounds_u() +
+                                            alpha_z *
+                                                data->current_iterate().delta_dual_bounds_u());
+    data->store_current_iterate();
+    data->accept_trial_iterate();
+
+    EXPECT_LT(norm_inf(data->current_iterate().dual_infeasibility_x()), 1e-6);
+    EXPECT_LT(norm_inf(data->current_iterate().dual_infeasibility_s()), 1e-6);
+    EXPECT_LT(norm_inf(data->current_iterate().constr_viol()), 1e-6);
+
+    data->restore_current_iterate();
+
+    const Index m = data->current_iterate().primal_s().m();
+    // the complementarity constraints are nonlinear so we test the linearized version
+    EXPECT_LT(
+        norm_inf(
+            if_else(data->current_iterate().lower_bounded(),
+                    data->current_iterate().delta_lower() *
+                            data->current_iterate().dual_bounds_l() -
+                        mu,
+                    VecRealScalar(m, 0.)) +
+            data->current_iterate().delta_lower() * data->current_iterate().delta_dual_bounds_l() +
+            data->current_iterate().dual_bounds_l() * data->current_iterate().delta_primal_s()),
+        1e-6);
+    EXPECT_LT(norm_inf(if_else(data->current_iterate().upper_bounded(),
+                               data->current_iterate().delta_upper() *
+                                       data->current_iterate().dual_bounds_u() -
+                                   mu,
+                               VecRealScalar(m, 0.)) +
+                       data->current_iterate().delta_upper() *
+                           data->current_iterate().delta_dual_bounds_u() +
+                       -1. * data->current_iterate().dual_bounds_u() *
+                           data->current_iterate().delta_primal_s()),
+              1e-6);
+}
+
+
 int main(int argc, char **argv)
 {
     ::testing::InitGoogleTest(&argc, argv);

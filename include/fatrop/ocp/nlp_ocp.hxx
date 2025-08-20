@@ -65,7 +65,7 @@ namespace fatrop
                                                    const Scalar objective_scale,
                                                    const VecRealView &primal_x,
                                                    const VecRealView &primal_s,
-                                                   const VecRealView &lam, Hessian<OcpType> &hess)
+                                                   const VecRealView &lam, Hessian<ProblemType> &hess)
     {
         const Scalar *primal_x_p = primal_x.data();
         const Scalar *primal_s_p = primal_s.data();
@@ -80,6 +80,18 @@ namespace fatrop
             const Scalar *lam_eq_ineq_k = lam_p + info.offsets_g_eq_slack[k];
             ocp_->eval_RSQrqt(&objective_scale, inputs_k, states_k, lam_dyn_k, lam_eq_k,
                               lam_eq_ineq_k, &hess.RSQrqt[k].mat(), k);
+
+            if constexpr (std::is_same_v<ProblemType, ImplicitOcpType>)
+            {
+                if (k < info.dims.K - 1)
+                {
+                    const Scalar *states_kp1 = primal_x_p + info.offsets_primal_x[k+1];
+
+                    // For Implicit OCP, we need to evaluate the FuFxt part
+                    ocp_->eval_FuFxt(inputs_k, states_k, states_kp1,
+                                    &hess.FuFxt[k].mat(), k);
+                }
+            }
         }
         return 0;
     }
@@ -87,7 +99,7 @@ namespace fatrop
     template <typename OcpAbstractTag, typename ProblemType>
     Index
     NlpOcpTpl<OcpAbstractTag, ProblemType>::eval_constr_jac(const OcpInfo &info, const VecRealView &primal_x,
-                                               const VecRealView &primal_s, Jacobian<OcpType> &jac)
+                                               const VecRealView &primal_s, Jacobian<ProblemType> &jac)
     {
         const Scalar *primal_x_p = primal_x.data();
         for (Index k = 0; k < info.dims.K; k++)
@@ -100,6 +112,12 @@ namespace fatrop
             {
                 const Scalar *states_kp1 = primal_x_p + info.offsets_primal_x[k + 1];
                 ocp_->eval_BAbt(states_kp1, inputs_k, states_k, &jac.BAbt[k].mat(), k);
+
+                if constexpr (std::is_same_v<ProblemType, ImplicitOcpType>)
+                {
+                    // For Implicit OCP, we need to evaluate the Jt part
+                    ocp_->eval_Jt_inv(states_kp1, inputs_k, states_k, &jac.Jt_inv[k].mat(), k);
+                }
             }
         }
         return 0;

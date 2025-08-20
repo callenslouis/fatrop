@@ -5,18 +5,18 @@
 #include "fatrop/ocp/ocp_abstract.hpp"
 #include <limits>
 
-// example problem 2D point mass
-// states: [x, y, vx, vy]
-// inputs: [fx, fy]
-// dynamics: [xk+1 = xk + dt*vxk, yk+1 = yk + dt*vyk, vxk+1 = vxk + dt*fx/m, vyk+1 = vyk + dt*fy/m]
-// cost: fx^2 + fy^2
-// constraints:
-//  at k = 0: x = 0, y = 0, vx = 0, vy = 0
-//  at k = K: x = 1, y = 1, vx = 0, vy = 0
 namespace fatrop
 {
     namespace test
     {
+        // example problem 2D point mass
+        // states: [x, y, vx, vy]
+        // inputs: [fx, fy]
+        // dynamics: [xk+1 = xk + dt*vxk, yk+1 = yk + dt*vyk, vxk+1 = vxk + dt*fx/m, vyk+1 = vyk + dt*fy/m]
+        // cost: fx^2 + fy^2
+        // constraints:
+        //  at k = 0: x = 0, y = 0, vx = 0, vy = 0
+        //  at k = K: x = 1, y = 1, vx = 0, vy = 0
         class OcpTestProblem : public OcpAbstract
         {
         public:
@@ -235,7 +235,15 @@ namespace fatrop
         /////////////////////////
         /// IMPLICIT OCP CODE ///
         /////////////////////////
-         class ImplicitOcpTestProblem : public ImplicitOcpAbstract
+        // example problem 2D point mass
+        // states: [x, y, vx, vy]
+        // inputs: [fx, fy]
+        // dynamics: [xk+1 = xk + dt*vxk+1, yk+1 = yk + dt*vyk+1, vxk+1 = vxk + dt*fx+1/m, vyk+1 = vyk + dt*fy/m]
+        // cost: fx^2 + fy^2
+        // constraints:
+        //  at k = 0: x = 0, y = 0, vx = 0, vy = 0
+        //  at k = K: x = 1, y = 1, vx = 0, vy = 0
+        class ImplicitOcpTestProblem : public ImplicitOcpAbstract
         {
         public:
             virtual Index get_nx(const Index k) const { return 4; }
@@ -285,8 +293,8 @@ namespace fatrop
                 // [  0,   dt/m ]
 
                 // Matrix A
-                // [ 1,  0,  dt,  0  ]
-                // [ 0,  1,   0,  dt ]
+                // [ 1,  0,   0,  0  ]
+                // [ 0,  1,   0,  0  ]
                 // [ 0,  0,   1,  0  ]
                 // [ 0,  0,   0,  1  ]
 
@@ -294,8 +302,8 @@ namespace fatrop
                 blasfeo_matel_wrap(res, 1, 3) = dt_ / m_;
 
                 blasfeo_diare_wrap(4, 1.0, res, 2, 0);
-                blasfeo_matel_wrap(res, 4, 0) = dt_;
-                blasfeo_matel_wrap(res, 5, 1) = dt_;
+                // blasfeo_matel_wrap(res, 4, 0) = dt_;
+                // blasfeo_matel_wrap(res, 5, 1) = dt_;
                 return 0;
             }
             virtual Index eval_RSQrqt(const Scalar *objective_scale, const Scalar *inputs_k,
@@ -439,12 +447,13 @@ namespace fatrop
             };
             virtual ~ImplicitOcpTestProblem() = default;
 
-            virtual Index eval_Jinv(const Scalar *states_kp1, const Scalar *inputs_k,
-                                const Scalar *states_k, MAT *res, const Index k){
+            virtual Index eval_Jt_inv(const Scalar *states_kp1, const Scalar *inputs_k,
+                                      const Scalar *states_k, MAT *res, const Index k){
                 return 0;
             };
-            virtual Index eval_FuFx(const Scalar *states_kp1, const Scalar *inputs_k,
-                                    const Scalar *states_k, MAT *res, const Index k){
+
+            virtual Index eval_FuFxt(const Scalar *inputs_k, const Scalar *states_k, 
+                                     const Scalar *states_kp1, MAT *res, const Index k){
                 return 0;
             };
             
