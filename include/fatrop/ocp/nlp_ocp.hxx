@@ -52,16 +52,16 @@ namespace fatrop
         };
     }
 
-    template <typename OcpAbstractTag>
-    NlpOcpTpl<OcpAbstractTag>::NlpOcpTpl(const OcpAbstractSp &ocp)
+    template <typename OcpAbstractTag, typename ProblemType>
+    NlpOcpTpl<OcpAbstractTag, ProblemType>::NlpOcpTpl(const OcpAbstractSp &ocp)
         : ocp_(ocp),
           ocp_dims_(fatrop::internal::NlpOcpAuxiliary<OcpAbstractTag>::get_ocp_dims(*ocp)),
           nlp_dims_(fatrop::internal::NlpOcpAuxiliary<OcpAbstractTag>::get_nlp_dims(ocp_dims_))
     {
     }
 
-    template <typename OcpAbstractTag>
-    Index NlpOcpTpl<OcpAbstractTag>::eval_lag_hess(const OcpInfo &info,
+    template <typename OcpAbstractTag, typename ProblemType>
+    Index NlpOcpTpl<OcpAbstractTag, ProblemType>::eval_lag_hess(const OcpInfo &info,
                                                    const Scalar objective_scale,
                                                    const VecRealView &primal_x,
                                                    const VecRealView &primal_s,
@@ -84,9 +84,9 @@ namespace fatrop
         return 0;
     }
 
-    template <typename OcpAbstractTag>
+    template <typename OcpAbstractTag, typename ProblemType>
     Index
-    NlpOcpTpl<OcpAbstractTag>::eval_constr_jac(const OcpInfo &info, const VecRealView &primal_x,
+    NlpOcpTpl<OcpAbstractTag, ProblemType>::eval_constr_jac(const OcpInfo &info, const VecRealView &primal_x,
                                                const VecRealView &primal_s, Jacobian<OcpType> &jac)
     {
         const Scalar *primal_x_p = primal_x.data();
@@ -105,8 +105,8 @@ namespace fatrop
         return 0;
     }
 
-    template <typename OcpAbstractTag>
-    Index NlpOcpTpl<OcpAbstractTag>::eval_constraint_violation(const OcpInfo &info,
+    template <typename OcpAbstractTag, typename ProblemType>
+    Index NlpOcpTpl<OcpAbstractTag, ProblemType>::eval_constraint_violation(const OcpInfo &info,
                                                                const VecRealView &primal_x,
                                                                const VecRealView &primal_s,
                                                                VecRealView &res)
@@ -132,8 +132,8 @@ namespace fatrop
         return 0;
     }
 
-    template <typename OcpAbstractTag>
-    Index NlpOcpTpl<OcpAbstractTag>::eval_objective_gradient(
+    template <typename OcpAbstractTag, typename ProblemType>
+    Index NlpOcpTpl<OcpAbstractTag, ProblemType>::eval_objective_gradient(
         const OcpInfo &info, const Scalar objective_scale, const VecRealView &primal_x,
         const VecRealView &primal_s, VecRealView &grad_x, VecRealView &grad_s)
     {
@@ -150,8 +150,8 @@ namespace fatrop
         return 0;
     }
 
-    template <typename OcpAbstractTag>
-    Index NlpOcpTpl<OcpAbstractTag>::eval_objective(const OcpInfo &info,
+    template <typename OcpAbstractTag, typename ProblemType>
+    Index NlpOcpTpl<OcpAbstractTag, ProblemType>::eval_objective(const OcpInfo &info,
                                                     const Scalar objective_scale,
                                                     const VecRealView &primal_x,
                                                     const VecRealView &primal_s, Scalar &res)
@@ -168,8 +168,8 @@ namespace fatrop
         }
         return 0;
     }
-    template <typename OcpAbstractTag>
-    Index NlpOcpTpl<OcpAbstractTag>::get_bounds(const OcpInfo &info, VecRealView &lower_bounds,
+    template <typename OcpAbstractTag, typename ProblemType>
+    Index NlpOcpTpl<OcpAbstractTag, ProblemType>::get_bounds(const OcpInfo &info, VecRealView &lower_bounds,
                                                 VecRealView &upper_bounds)
     {
         if (info.number_of_slack_variables == 0)
@@ -185,8 +185,8 @@ namespace fatrop
         return 0;
     }
 
-    template <typename OcpAbstractTag>
-    Index NlpOcpTpl<OcpAbstractTag>::get_initial_primal(const ProblemInfo &info,
+    template <typename OcpAbstractTag, typename ProblemType>
+    Index NlpOcpTpl<OcpAbstractTag, ProblemType>::get_initial_primal(const ProblemInfo &info,
                                                         VecRealView &primal_x)
     {
         Scalar *primal_x_ptr = primal_x.data();
@@ -197,14 +197,14 @@ namespace fatrop
         }
         return 0;
     }
-    template <typename OcpAbstractTag>
-    void NlpOcpTpl<OcpAbstractTag>::get_primal_damping(const ProblemInfo &info,
+    template <typename OcpAbstractTag, typename ProblemType>
+    void NlpOcpTpl<OcpAbstractTag, ProblemType>::get_primal_damping(const ProblemInfo &info,
                                                        VecRealView &damping)
     {
         damping = 0;
     }
-    template <typename OcpAbstractTag>
-    void NlpOcpTpl<OcpAbstractTag>::apply_jacobian_s_transpose(const ProblemInfo &info,
+    template <typename OcpAbstractTag, typename ProblemType>
+    void NlpOcpTpl<OcpAbstractTag, ProblemType>::apply_jacobian_s_transpose(const ProblemInfo &info,
                                                                const VecRealView &multipliers,
                                                                const Scalar alpha,
                                                                const VecRealView &y,

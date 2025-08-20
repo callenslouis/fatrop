@@ -21,7 +21,7 @@ namespace fatrop
     // OcpEvalType can be Eval abstract (dynamic polymorphism) or
     // a static implementation, a template specialization on the NlpOcpTpl level can be made as
     // well, using a newly created tag class. 
-    template <typename OcpAbstractTag> class NlpOcpTpl : public Nlp<OcpType>
+    template <typename OcpAbstractTag, typename ProblemType> class NlpOcpTpl : public Nlp<ProblemType>
     {
         typedef std::shared_ptr<OcpAbstractTpl<OcpAbstractTag>> OcpAbstractSp;
         typedef ProblemInfo OcpInfo;
@@ -57,7 +57,8 @@ namespace fatrop
         NlpDims nlp_dims_;
     };
 
-    typedef NlpOcpTpl<OcpAbstractDynamic> NlpOcp;
+    typedef NlpOcpTpl<OcpAbstractDynamic, OcpType> NlpOcp;
+    typedef NlpOcpTpl<ImplicitOcpAbstractDynamic, ImplicitOcpType> ImplicitNlpOcp;
 
 } // namespace fatrop
 

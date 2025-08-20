@@ -10,24 +10,28 @@
 #include "fatrop/ocp/problem_info.hpp"
 
 using namespace fatrop;
-LinearSystem<PdSystemResto<OcpType>>::LinearSystem(
-    const ProblemInfo &info, Jacobian<OcpType> &jac, Hessian<OcpType> &hess,
+
+template <typename ProblemType>
+LinearSystem<PdSystemResto<ProblemType>>::LinearSystem(
+    const ProblemInfo &info, Jacobian<ProblemType> &jac, Hessian<ProblemType> &hess,
     const VecRealView &D_x, bool De_is_zero, const VecRealView &D_e, const VecRealView &Sl_i,
     const VecRealView &Su_i, const VecRealView &Zl_i, const VecRealView &Zu_i, VecRealView &rhs_f_x,
     VecRealView &rhs_f_s, VecRealView &rhs_g, VecRealView &rhs_cl, VecRealView &rhs_cu)
-    : info_(info), m_(LinearSystem<PdSystemResto<OcpType>>::m(info)), jac_(jac), hess_(hess),
+    : info_(info), m_(LinearSystem<PdSystemResto<ProblemType>>::m(info)), jac_(jac), hess_(hess),
       D_x_(D_x), De_is_zero_(De_is_zero), D_e_(D_e), Sl_i_(Sl_i), Su_i_(Su_i), Zl_i_(Zl_i),
       Zu_i_(Zu_i), rhs_f_x_(rhs_f_x), rhs_f_s_(rhs_f_s), rhs_g_(rhs_g), rhs_cl_(rhs_cl),
       rhs_cu_(rhs_cu)
 {
 }
-Index LinearSystem<PdSystemResto<OcpType>>::m(const ProblemInfo &info)
+template <typename ProblemType>
+Index LinearSystem<PdSystemResto<ProblemType>>::m(const ProblemInfo &info)
 {
     return info.number_of_primal_variables + info.number_of_eq_constraints +
            3 * info.number_of_slack_variables_resto /* grad_s rhs_zl rhs_zu*/;
 }
 
-void LinearSystem<PdSystemResto<OcpType>>::get_rhs(VecRealView &out)
+template <typename ProblemType>
+void LinearSystem<PdSystemResto<ProblemType>>::get_rhs(VecRealView &out)
 {
     out.block(info_.number_of_primal_variables, info_.pd_resto_offset_primal) = rhs_f_x_;
     out.block(info_.number_of_slack_variables_resto, info_.pd_resto_offset_slack) = rhs_f_s_;
@@ -35,7 +39,8 @@ void LinearSystem<PdSystemResto<OcpType>>::get_rhs(VecRealView &out)
     out.block(info_.number_of_slack_variables_resto, info_.pd_resto_offset_zl) = rhs_cl_;
     out.block(info_.number_of_slack_variables_resto, info_.pd_resto_offset_zu) = rhs_cu_;
 }
-void LinearSystem<PdSystemResto<OcpType>>::set_rhs(const VecRealView &in)
+template <typename ProblemType>
+void LinearSystem<PdSystemResto<ProblemType>>::set_rhs(const VecRealView &in)
 {
     rhs_f_x_ = in.block(info_.number_of_primal_variables, info_.pd_resto_offset_primal);
     rhs_f_s_ = in.block(info_.number_of_slack_variables_resto, info_.pd_resto_offset_slack);
@@ -51,7 +56,8 @@ void LinearSystem<PdSystemResto<OcpType>>::set_rhs(const VecRealView &in)
 //    [ A_i   [-I +I -I]     0       0     -D_e    0     0  ] [ λ_i ] = [ -g_i ]
 //    [   0     Zl_i         0       0     0     Sl_i    0  ] [ zl  ] = [ -cl  ]
 //    [   0    -Zu_i         0       0     0      0    Su_i ] [ zu  ] = [ -cu  ]
-void LinearSystem<PdSystemResto<OcpType>>::apply_on_right(const VecRealView &x, Scalar alpha,
+template <typename ProblemType>
+void LinearSystem<PdSystemResto<ProblemType>>::apply_on_right(const VecRealView &x, Scalar alpha,
                                                           const VecRealView &y, VecRealView &out)
 {
     VecRealView x_primal = x.block(info_.number_of_primal_variables, info_.pd_resto_offset_primal);
@@ -135,3 +141,6 @@ void LinearSystem<PdSystemResto<OcpType>>::apply_on_right(const VecRealView &x, 
     // out_zu += S_i @ zu
     out_zu = out_zu + Su_i_ * zu;
 }
+
+template class fatrop::LinearSystem<fatrop::PdSystemResto<fatrop::OcpType>>;
+template class fatrop::LinearSystem<fatrop::PdSystemResto<fatrop::ImplicitOcpType>>;

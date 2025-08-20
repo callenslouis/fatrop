@@ -21,16 +21,21 @@
 using namespace fatrop;
 
 // instantiate the template class
-template class fatrop::LinearSolver<PdSolverResto<OcpType>, PdSystemResto<OcpType>>;
+template class fatrop::PdSystemResto<OcpType>;
+template class fatrop::PdSystemResto<ImplicitOcpType>;
 
-PdSolverResto<OcpType>::PdSolverResto(const ProblemInfo &info,
-                                      const std::shared_ptr<PdSolverOrig<OcpType>> &pd_solver_orig)
-    : LinearSolver<PdSolverResto<OcpType>, PdSystemResto<OcpType>>(
-          LinearSystem<PdSystemResto<OcpType>>::m(info)),
+template class fatrop::LinearSolver<PdSolverResto<OcpType>, PdSystemResto<OcpType>>;
+template class fatrop::LinearSolver<PdSolverResto<ImplicitOcpType>, PdSystemResto<ImplicitOcpType>>;
+
+template <typename ProblemType>
+PdSolverResto<ProblemType>::PdSolverResto(const ProblemInfo &info,
+                                      const std::shared_ptr<PdSolverOrig<ProblemType>> &pd_solver_orig)
+    : LinearSolver<PdSolverResto<ProblemType>, PdSystemResto<ProblemType>>(
+          LinearSystem<PdSystemResto<ProblemType>>::m(info)),
       orig_solver_(pd_solver_orig), D_e_orig_(info.number_of_eq_constraints),
       rhs_g_orig_(info.number_of_eq_constraints), f_pp_(info.number_of_eq_constraints),
       f_nn_(info.number_of_eq_constraints), Xpm1_(info.number_of_eq_constraints),
-      Xnm1_(info.number_of_eq_constraints), x_orig_(LinearSystem<PdSystemType<OcpType>>::m(info))
+      Xnm1_(info.number_of_eq_constraints), x_orig_(LinearSystem<PdSystemType<ProblemType>>::m(info))
 {
 }
 //
@@ -81,8 +86,8 @@ PdSolverResto<OcpType>::PdSolverResto(const ProblemInfo &info,
 // Because of how fatrop threats these kinds of bounds the related dual variables will be one and
 // the slack variables will always be zero. This ensures that it doesnt affect the solution of the
 // system.
-
-void PdSolverResto<OcpType>::reduce(LinearSystem<PdSystemResto<OcpType>> &ls)
+template <typename ProblemType>
+void PdSolverResto<ProblemType>::reduce(LinearSystem<PdSystemResto<ProblemType>> &ls)
 {
     const ProblemInfo &info = ls.info_;
     VecRealView f_p = ls.rhs_f_s_.block(info.number_of_eq_constraints, info.offset_p);
@@ -109,7 +114,8 @@ void PdSolverResto<OcpType>::reduce(LinearSystem<PdSystemResto<OcpType>> &ls)
     D_e_orig_ = ls.D_e_ + Xpm1_ + Xnm1_;
     rhs_g_orig_ = ls.rhs_g_ + Xpm1_ * f_pp_ + Xnm1_ * f_nn_;
 }
-void PdSolverResto<OcpType>::dereduce(LinearSystem<PdSystemResto<OcpType>> &ls, VecRealView &x)
+template <typename ProblemType>
+void PdSolverResto<ProblemType>::dereduce(LinearSystem<PdSystemResto<ProblemType>> &ls, VecRealView &x)
 {
     const ProblemInfo &info = ls.info_;
 
@@ -151,7 +157,8 @@ void PdSolverResto<OcpType>::dereduce(LinearSystem<PdSystemResto<OcpType>> &ls, 
     x_zn = if_else(info.constraint_allows_dual_damping, 1.0 / N * (-rhs_cn - Zn * x_n),
                    VecRealScalar(x_zn.m(), 0.));
 }
-LinsolReturnFlag PdSolverResto<OcpType>::solve_once_impl(LinearSystem<PdSystemResto<OcpType>> &ls,
+template <typename ProblemType>
+LinsolReturnFlag PdSolverResto<ProblemType>::solve_once_impl(LinearSystem<PdSystemResto<ProblemType>> &ls,
                                                          VecRealView &x)
 {
     const ProblemInfo &info = ls.info_;
@@ -162,7 +169,7 @@ LinsolReturnFlag PdSolverResto<OcpType>::solve_once_impl(LinearSystem<PdSystemRe
     VecRealView rhs_cl = ls.rhs_cl_.block(info.number_of_slack_variables, 0);
     VecRealView rhs_cu = ls.rhs_cu_.block(info.number_of_slack_variables, 0);
 
-    LinearSystem<PdSystemType<OcpType>> ls_orig(
+    LinearSystem<PdSystemType<ProblemType>> ls_orig(
         ls.info_, ls.jac_, ls.hess_,
         ls.D_x_.block(info.number_of_primal_variables + info.number_of_slack_variables, 0), false,
         D_e_orig_, ls.Sl_i_.block(info.number_of_slack_variables, 0),
@@ -175,7 +182,8 @@ LinsolReturnFlag PdSolverResto<OcpType>::solve_once_impl(LinearSystem<PdSystemRe
     dereduce(ls, x);
     return ret;
 }
-void PdSolverResto<OcpType>::solve_rhs_impl(LinearSystem<PdSystemResto<OcpType>> &ls,
+template <typename ProblemType>
+void PdSolverResto<ProblemType>::solve_rhs_impl(LinearSystem<PdSystemResto<ProblemType>> &ls,
                                             VecRealView &x)
 {
     const ProblemInfo &info = ls.info_;
@@ -184,7 +192,7 @@ void PdSolverResto<OcpType>::solve_rhs_impl(LinearSystem<PdSystemResto<OcpType>>
     VecRealView rhs_cl = ls.rhs_cl_.block(info.number_of_slack_variables, 0);
     VecRealView rhs_cu = ls.rhs_cu_.block(info.number_of_slack_variables, 0);
 
-    LinearSystem<PdSystemType<OcpType>> ls_orig(
+    LinearSystem<PdSystemType<ProblemType>> ls_orig(
         ls.info_, ls.jac_, ls.hess_,
         ls.D_x_.block(info.number_of_primal_variables + info.number_of_slack_variables, 0), false,
         D_e_orig_, ls.Sl_i_.block(info.number_of_slack_variables, 0),
@@ -196,3 +204,6 @@ void PdSolverResto<OcpType>::solve_rhs_impl(LinearSystem<PdSystemResto<OcpType>>
     orig_solver_->solve_rhs(ls_orig, x_orig_);
     dereduce(ls, x);
 }
+
+template class fatrop::PdSolverResto<OcpType>;
+template class fatrop::PdSolverResto<ImplicitOcpType>;

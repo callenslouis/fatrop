@@ -9,8 +9,10 @@
 #include "fatrop/ocp/problem_info.hpp"
 
 using namespace fatrop;
-LinearSystem<PdSystemType<OcpType>>::LinearSystem(
-    const ProblemInfo &info, Jacobian<OcpType> &jac, Hessian<OcpType> &hess,
+
+template <typename OcpTag>
+LinearSystem<PdSystemType<OcpTag>>::LinearSystem(
+    const ProblemInfo &info, Jacobian<OcpTag> &jac, Hessian<OcpTag> &hess,
     const VecRealView &D_x, bool De_is_zero, const VecRealView &D_e, const VecRealView &Sl_i,
     const VecRealView &Su_i, const VecRealView &Zl_i, const VecRealView &Zu_i, VecRealView &rhs_f_x,
     VecRealView &rhs_f_s, VecRealView &rhs_g, VecRealView &rhs_cl, VecRealView &rhs_cu)
@@ -21,13 +23,15 @@ LinearSystem<PdSystemType<OcpType>>::LinearSystem(
       rhs_cl_(rhs_cl), rhs_cu_(rhs_cu)
 {
 }
-Index LinearSystem<PdSystemType<OcpType>>::m(const ProblemInfo &info)
+template <typename OcpTag>
+Index LinearSystem<PdSystemType<OcpTag>>::m(const ProblemInfo &info)
 {
     return info.number_of_primal_variables + 3 * info.number_of_slack_variables +
            info.number_of_eq_constraints;
 }
 
-void LinearSystem<PdSystemType<OcpType>>::get_rhs(VecRealView &out)
+template <typename OcpTag>
+void LinearSystem<PdSystemType<OcpTag>>::get_rhs(VecRealView &out)
 {
     out.block(info_.number_of_primal_variables, info_.pd_orig_offset_primal) = rhs_f_x_;
     out.block(info_.number_of_slack_variables, info_.pd_orig_offset_slack) = rhs_f_s_;
@@ -35,7 +39,8 @@ void LinearSystem<PdSystemType<OcpType>>::get_rhs(VecRealView &out)
     out.block(info_.number_of_slack_variables, info_.pd_orig_offset_zl) = rhs_cl_;
     out.block(info_.number_of_slack_variables, info_.pd_orig_offset_zu) = rhs_cu_;
 }
-void LinearSystem<PdSystemType<OcpType>>::set_rhs(const VecRealView &in)
+template <typename OcpTag>
+void LinearSystem<PdSystemType<OcpTag>>::set_rhs(const VecRealView &in)
 {
     rhs_f_x_ = in.block(info_.number_of_primal_variables, info_.pd_orig_offset_primal);
     rhs_f_s_ = in.block(info_.number_of_slack_variables, info_.pd_orig_offset_slack);
@@ -50,7 +55,8 @@ void LinearSystem<PdSystemType<OcpType>>::set_rhs(const VecRealView &in)
 //    [ A_i      -I          0       0     -D_i    0     0  ] [ λ_i ] = [ -g_i ]
 //    [   0     Zl_i         0       0     0     Sl_i    0  ] [ zl  ] = [ -cl  ]
 //    [   0    -Zu_i         0       0     0      0    Su_i ] [ zu  ] = [ -cu  ]
-void LinearSystem<PdSystemType<OcpType>>::apply_on_right(const VecRealView &x, Scalar alpha,
+template <typename OcpTag>
+void LinearSystem<PdSystemType<OcpTag>>::apply_on_right(const VecRealView &x, Scalar alpha,
                                                          const VecRealView &y, VecRealView &out)
 {
     VecRealView x_primal = x.block(info_.number_of_primal_variables, info_.pd_orig_offset_primal);
@@ -105,3 +111,6 @@ void LinearSystem<PdSystemType<OcpType>>::apply_on_right(const VecRealView &x, S
     // out_zu += S_i @ zu
     out_zu = out_zu + Su_i_ * zu;
 }
+
+template class fatrop::LinearSystem<fatrop::PdSystemType<fatrop::OcpType>>;
+template class fatrop::LinearSystem<fatrop::PdSystemType<fatrop::ImplicitOcpType>>;

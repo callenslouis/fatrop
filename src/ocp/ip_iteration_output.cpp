@@ -6,3 +6,4 @@
 #include "fatrop/ocp/problem_info.hpp"
 
 template class fatrop::IpIterationOutput<fatrop::OcpType>;
+template class fatrop::IpIterationOutput<fatrop::ImplicitOcpType>;

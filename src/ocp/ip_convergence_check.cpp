@@ -7,3 +7,4 @@ using namespace fatrop;
 
 // explicit template instantiation
 template class fatrop::IpConvergenceCheck<OcpType>;
+template class fatrop::IpConvergenceCheck<ImplicitOcpType>;

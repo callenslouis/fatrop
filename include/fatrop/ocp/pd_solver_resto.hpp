@@ -17,17 +17,17 @@
 namespace fatrop
 {
 
-    template <>
-    class PdSolverResto<OcpType> : public LinearSolver<PdSolverResto<OcpType>, PdSystemResto<OcpType>>
+    template <typename ProblemType>
+    class PdSolverResto : public LinearSolver<PdSolverResto<ProblemType>, PdSystemResto<ProblemType>>
     {
     public:
-        PdSolverResto(const ProblemInfo& info, const std::shared_ptr<PdSolverOrig<OcpType>>& aug_system_solver);
-        LinsolReturnFlag solve_once_impl(LinearSystem<PdSystemResto<OcpType>> &ls, VecRealView &x);
-        void reduce(LinearSystem<PdSystemResto<OcpType>> &ls);
-        void dereduce(LinearSystem<PdSystemResto<OcpType>> &ls, VecRealView &x);
-        void solve_rhs_impl(LinearSystem<PdSystemResto<OcpType>> &ls, VecRealView &x);
+        PdSolverResto(const ProblemInfo& info, const std::shared_ptr<PdSolverOrig<ProblemType>>& aug_system_solver);
+        LinsolReturnFlag solve_once_impl(LinearSystem<PdSystemResto<ProblemType>> &ls, VecRealView &x);
+        void reduce(LinearSystem<PdSystemResto<ProblemType>> &ls);
+        void dereduce(LinearSystem<PdSystemResto<ProblemType>> &ls, VecRealView &x);
+        void solve_rhs_impl(LinearSystem<PdSystemResto<ProblemType>> &ls, VecRealView &x);
 
-        const std::shared_ptr<PdSolverOrig<OcpType>> orig_solver_;
+        const std::shared_ptr<PdSolverOrig<ProblemType>> orig_solver_;
         VecRealAllocated D_e_orig_;
         VecRealAllocated rhs_g_orig_;
         VecRealAllocated f_pp_;

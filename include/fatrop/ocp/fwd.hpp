@@ -18,20 +18,12 @@ namespace fatrop
     template <> struct Hessian<OcpType>;
     template <> struct Hessian<ImplicitOcpType>;
     template <typename T> struct PdSolverOrig;
-    // template <> class PdSolverOrig<OcpType>;
-    // template <> class PdSolverOrig<ImplicitOcpType>;
     template <typename ProblemType> class AugSystemSolver;
     template <> class AugSystemSolver<OcpType>;
     template <> class AugSystemSolver<ImplicitOcpType>;
     template <typename ProblemType> class PdSystemOrig;
-    // template <> class PdSystemOrig<OcpType>;
-    // template <> class PdSystemOrig<ImplicitOcpType>;
     template <typename ProblemType> class PdSystemResto;
-    // template <> class PdSystemResto<OcpType>;
-    // template <> class PdSystemResto<ImplicitOcpType>;
     template <typename T> struct PdSolverResto;
-    // template <> class PdSolverResto<OcpType>;
-    // template <> class PdSolverResto<ImplicitOcpType>;
 } // namespace fatrop
 
 #endif // __fatrop_ocp_fwd_hpp__

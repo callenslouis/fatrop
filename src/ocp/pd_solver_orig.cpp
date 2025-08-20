@@ -10,19 +10,25 @@
 using namespace fatrop;
 
 // instantiate the template class
-template class fatrop::LinearSolver<PdSolverOrig<OcpType>, PdSystemType<OcpType>>;
+template class fatrop::PdSystemType<OcpType>;
+template class fatrop::PdSystemType<ImplicitOcpType>;
 
-PdSolverOrig<OcpType>::PdSolverOrig(const ProblemInfo &info,
-                                    const std::shared_ptr<AugSystemSolver<OcpType>> &aug_system_solver)
-    : LinearSolver<PdSolverOrig<OcpType>, PdSystemType<OcpType>>(
-          LinearSystem<PdSystemType<OcpType>>::m(info)),
+template class fatrop::LinearSolver<PdSolverOrig<OcpType>, PdSystemType<OcpType>>;
+template class fatrop::LinearSolver<PdSolverOrig<ImplicitOcpType>, PdSystemType<ImplicitOcpType>>;
+
+template <typename ProblemType>
+PdSolverOrig<ProblemType>::PdSolverOrig(const ProblemInfo &info,
+                                    const std::shared_ptr<AugSystemSolver<ProblemType>> &aug_system_solver)
+    : LinearSolver<PdSolverOrig<ProblemType>, PdSystemType<ProblemType>>(
+          LinearSystem<PdSystemType<ProblemType>>::m(info)),
       sigma_inverse_(info.number_of_slack_variables), ss_(info.number_of_slack_variables),
       g_ii_(info.number_of_slack_variables), D_ii_(info.number_of_slack_variables),
       gg_(info.number_of_eq_constraints), x_aug_(info.number_of_primal_variables),
       mult_aug_(info.number_of_eq_constraints), aug_system_solver_(aug_system_solver)
 {
 }
-void PdSolverOrig<OcpType>::reduce(LinearSystem<PdSystemType<OcpType>> &ls)
+template <typename ProblemType>
+void PdSolverOrig<ProblemType>::reduce(LinearSystem<PdSystemType<ProblemType>> &ls)
 {
     VecRealView gi =
         ls.rhs_g_.block(ls.info_.number_of_slack_variables, ls.info_.offset_g_eq_slack);
@@ -39,7 +45,8 @@ void PdSolverOrig<OcpType>::reduce(LinearSystem<PdSystemType<OcpType>> &ls)
         ls.rhs_g_.block(ls.info_.number_of_g_eq_dyn, ls.info_.offset_g_eq_dyn);
     gg_.block(ls.info_.number_of_g_eq_slack, ls.info_.offset_g_eq_slack) = g_ii_;
 }
-void PdSolverOrig<OcpType>::dereduce(LinearSystem<PdSystemType<OcpType>> &ls, VecRealView &x)
+template <typename ProblemType>
+void PdSolverOrig<ProblemType>::dereduce(LinearSystem<PdSystemType<ProblemType>> &ls, VecRealView &x)
 {
     // set x
     x.block(ls.info_.number_of_primal_variables, ls.info_.pd_orig_offset_primal) = x_aug_;
@@ -60,7 +67,8 @@ void PdSolverOrig<OcpType>::dereduce(LinearSystem<PdSystemType<OcpType>> &ls, Ve
         (-ls.rhs_cu_ +
          ls.Zu_i_ * x.block(ls.info_.number_of_slack_variables, ls.info_.pd_orig_offset_slack));
 }
-LinsolReturnFlag PdSolverOrig<OcpType>::solve_once_impl(LinearSystem<PdSystemType<OcpType>> &ls,
+template <typename ProblemType>
+LinsolReturnFlag PdSolverOrig<ProblemType>::solve_once_impl(LinearSystem<PdSystemType<ProblemType>> &ls,
                                                         VecRealView &x)
 {
     //    [ H + D_x    0        A_e^T  A_d^T  A_i^T    0     0  ] [ x   ] = [ -f_x ]
@@ -106,7 +114,8 @@ LinsolReturnFlag PdSolverOrig<OcpType>::solve_once_impl(LinearSystem<PdSystemTyp
     dereduce(ls, x);
     return ret;
 }
-void PdSolverOrig<OcpType>::solve_rhs_impl(LinearSystem<PdSystemType<OcpType>> &ls, VecRealView &x)
+template <typename ProblemType>
+void PdSolverOrig<ProblemType>::solve_rhs_impl(LinearSystem<PdSystemType<ProblemType>> &ls, VecRealView &x)
 {
     reduce(ls);
     if (ls.De_is_zero_)
@@ -117,3 +126,6 @@ void PdSolverOrig<OcpType>::solve_rhs_impl(LinearSystem<PdSystemType<OcpType>> &
                                       x_aug_, mult_aug_);
     dereduce(ls, x);
 }
+
+template class fatrop::PdSolverOrig<OcpType>;
+template class fatrop::PdSolverOrig<ImplicitOcpType>;

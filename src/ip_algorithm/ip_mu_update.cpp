@@ -6,3 +6,4 @@
 
 
 template class fatrop::IpMonotoneMuUpdate<fatrop::OcpType>;
+template class fatrop::IpMonotoneMuUpdate<fatrop::ImplicitOcpType>;

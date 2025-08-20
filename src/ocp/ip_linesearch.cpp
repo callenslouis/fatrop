@@ -13,6 +13,8 @@ using namespace fatrop;
 
 // Template instantiation for the original problem type
 template class fatrop::IpLinesearch<PdSolverOrig<OcpType>, OcpType>;
+template class fatrop::IpLinesearch<PdSolverOrig<ImplicitOcpType>, ImplicitOcpType>;
 
 // Template instantiation for the restoration problem type
 template class fatrop::IpLinesearch<PdSolverResto<OcpType>, OcpType>;
+template class fatrop::IpLinesearch<PdSolverResto<ImplicitOcpType>, ImplicitOcpType>;

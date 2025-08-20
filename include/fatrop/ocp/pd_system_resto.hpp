@@ -12,14 +12,14 @@
 
 namespace fatrop
 {
-    template <> class LinearSystem<PdSystemResto<OcpType>>
+    template <typename ProblemType> class LinearSystem<PdSystemResto<ProblemType>>
     {
-        friend class PdSolverResto<OcpType>;
+        friend class PdSolverResto<ProblemType>;
 
     public:
         // constructor
-        LinearSystem(const ProblemInfo &info, Jacobian<OcpType> &jac,
-                     Hessian<OcpType> &hess, const VecRealView &D_x, bool D_e_is_zero,
+        LinearSystem(const ProblemInfo &info, Jacobian<ProblemType> &jac,
+                     Hessian<ProblemType> &hess, const VecRealView &D_x, bool D_e_is_zero,
                      const VecRealView &D_e, const VecRealView &Sl_i, const VecRealView &Su_i,
                      const VecRealView &Zl_i, const VecRealView &Zu_i, VecRealView &rhs_f_x,
                      VecRealView &rhs_f_s, VecRealView &rhs_g, VecRealView &rhs_cl,
@@ -59,8 +59,8 @@ namespace fatrop
     private:
         const ProblemInfo &info_;
         const Index m_;
-        Jacobian<OcpType> &jac_;
-        Hessian<OcpType> &hess_;
+        Jacobian<ProblemType> &jac_;
+        Hessian<ProblemType> &hess_;
         const VecRealView &D_x_;
         bool De_is_zero_;
         const VecRealView &D_e_;

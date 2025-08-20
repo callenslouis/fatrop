@@ -16,15 +16,15 @@
 namespace fatrop
 {
 
-    template <>
-    class PdSolverOrig<OcpType> : public LinearSolver<PdSolverOrig<OcpType>, PdSystemType<OcpType>>
+    template <typename ProblemType>
+    class PdSolverOrig : public LinearSolver<PdSolverOrig<ProblemType>, PdSystemType<ProblemType>>
     {
     public:
-        PdSolverOrig(const ProblemInfo& info, const std::shared_ptr<AugSystemSolver<OcpType>>& aug_system_solver);
-        LinsolReturnFlag solve_once_impl(LinearSystem<PdSystemType<OcpType>> &ls, VecRealView &x);
-        void reduce(LinearSystem<PdSystemType<OcpType>> &ls);
-        void dereduce(LinearSystem<PdSystemType<OcpType>> &ls, VecRealView &x);
-        void solve_rhs_impl(LinearSystem<PdSystemType<OcpType>> &ls, VecRealView &x);
+        PdSolverOrig(const ProblemInfo& info, const std::shared_ptr<AugSystemSolver<ProblemType>>& aug_system_solver);
+        LinsolReturnFlag solve_once_impl(LinearSystem<PdSystemType<ProblemType>> &ls, VecRealView &x);
+        void reduce(LinearSystem<PdSystemType<ProblemType>> &ls);
+        void dereduce(LinearSystem<PdSystemType<ProblemType>> &ls, VecRealView &x);
+        void solve_rhs_impl(LinearSystem<PdSystemType<ProblemType>> &ls, VecRealView &x);
 
     private:
         VecRealAllocated sigma_inverse_;
@@ -34,7 +34,7 @@ namespace fatrop
         VecRealAllocated gg_;
         VecRealAllocated x_aug_;
         VecRealAllocated mult_aug_;
-        std::shared_ptr<AugSystemSolver<OcpType>> aug_system_solver_;
+        std::shared_ptr<AugSystemSolver<ProblemType>> aug_system_solver_;
     };
 
 } // namespace fatrop

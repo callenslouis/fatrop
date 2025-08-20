@@ -77,6 +77,51 @@ namespace fatrop
         int random_int(int lb, int ub){
             return random(static_cast<Scalar>(lb), static_cast<Scalar>(ub));
         }
+
+    MatRealAllocated get_inverse(const MatRealView &A)
+    {
+        fatrop_dbg_assert(A.m() == A.n() && "Matrix must be square for inversion");
+        MatRealAllocated A_inv(A.m(), A.m());
+        MatRealAllocated LU(A.m(), A.m());
+        blasfeo_dgetrf_np(A.m(), A.m(), const_cast<MAT *>(&A.mat()), 0, 0, &LU.mat(), 0, 0);
+
+        // Solve the system LU * X = I, where I is the identity matrix
+        MatRealAllocated I = identity_matrix(A.m());
+
+        // (1) solve L Y = I
+        blasfeo_dtrsm_llnu(A.m(), A.m(), 1.0, &LU.mat(), 0, 0, &I.mat(), 0, 0, &A_inv.mat(), 0, 0);
+        // (2) solve U X = Y
+        blasfeo_dtrsm_lunn(A.m(), A.m(), 1.0, &LU.mat(), 0, 0, &A_inv.mat(), 0, 0, &A_inv.mat(), 0, 0);
+
+        // std::cout << "Inverse of A: \n" << A << "\nis given by \n"
+        //           << A_inv << std::endl;
+
+        // check if A_inv contains any NaN or Inf values
+        for (Index i = 0; i < A_inv.m(); ++i)
+        {
+            for (Index j = 0; j < A_inv.n(); ++j)
+            {
+                if (std::isnan(A_inv(i, j)) || std::isinf(A_inv(i, j)))
+                {
+                    throw std::runtime_error("Inverse contains NaN or Inf values");
+                }
+            }
+        }
+
+        // check result
+        MatRealAllocated I_check = identity_matrix(A.m());
+        blasfeo_dgemm_nn(A.m(), A.m(), A.m(), 1.0, 
+                        const_cast<MAT *>(&A.mat()), 0, 0, 
+                        const_cast<MAT *>(&A_inv.mat()), 0, 0, 0.0, 
+                        const_cast<MAT *>(&I_check.mat()), 0, 0,
+                        const_cast<MAT *>(&I_check.mat()), 0, 0);
+        // std::cout << "identity check: \n"
+        //           << I_check << std::endl;
+
+        return A_inv;
+    }
+
     } // namespace test
 } // namespace fatrop
+
 #endif // __fatrop_unittest_random_matrix_hpp__

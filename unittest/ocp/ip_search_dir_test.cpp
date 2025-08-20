@@ -54,6 +54,35 @@ protected:
     IpSearchDirImpl<PdSolverOrig<OcpType>, OcpType> search_dir;
 };
 
+class ImplicitIpSearchDirTest : public ::testing::Test
+{
+protected:
+    ImplicitIpSearchDirTest()
+        : ocp(std::make_shared<ImplicitOcpTestProblem>()), nlp(std::make_shared<ImplicitNlpOcp>(ocp)),
+          info(nlp->problem_dims()), data(std::make_shared<IpData<ImplicitOcpType>>(nlp)),
+          D_x(info.number_of_primal_variables), D_eq(info.number_of_g_eq_path),
+          D_i(info.number_of_slack_variables),
+          aug_solver(std::make_shared<AugSystemSolver<ImplicitOcpType>>(info)),
+          solver(std::make_shared<PdSolverOrig<ImplicitOcpType>>(info, aug_solver)),
+          search_dir(data, solver)
+    {
+        data->current_iterate().set_mu(1.0);
+        data->current_iterate().set_dual_bounds_l(
+            VecRealScalar(data->current_iterate().dual_bounds_l().m(), 1));
+        data->current_iterate().set_dual_bounds_u(
+            VecRealScalar(data->current_iterate().dual_bounds_l().m(), 1));
+    }
+
+    std::shared_ptr<ImplicitOcpTestProblem> ocp;
+    std::shared_ptr<ImplicitNlpOcp> nlp;
+    ProblemInfo info;
+    std::shared_ptr<IpData<ImplicitOcpType>> data;
+    VecRealAllocated D_x, D_eq, D_i;
+    std::shared_ptr<AugSystemSolver<ImplicitOcpType>> aug_solver;
+    std::shared_ptr<PdSolverOrig<ImplicitOcpType>> solver;
+    IpSearchDirImpl<PdSolverOrig<ImplicitOcpType>, ImplicitOcpType> search_dir;
+};
+
 TEST_F(IpSearchDirTest, SolveLinearSystem) { EXPECT_NO_THROW(search_dir.compute_search_dir()); }
 
 TEST_F(IpSearchDirTest, UpdateIterateAndCheckInfeasibility)

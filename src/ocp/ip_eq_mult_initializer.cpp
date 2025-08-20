@@ -9,3 +9,4 @@
 using namespace fatrop;
 
 template class fatrop::IpEqMultInitializer<OcpType>; 
+template class fatrop::IpEqMultInitializer<ImplicitOcpType>; 

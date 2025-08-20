@@ -266,6 +266,71 @@ namespace fatrop
 
     typedef OcpAbstractTpl<OcpAbstractDynamic> OcpAbstract;
 
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    /////////////////////////
+    /// IMPLICIT OCP CODE ///
+    /////////////////////////
+
+    struct ImplicitOcpAbstractDynamic
+    {  
+    };
+
+    template <> class OcpAbstractTpl<ImplicitOcpAbstractDynamic>
+    {
+    public:
+        virtual Index get_nx(const Index k) const = 0;
+        virtual Index get_nu(const Index k) const = 0;
+        virtual Index get_ng(const Index k) const = 0;
+        virtual Index get_ng_ineq(const Index k) const = 0;
+        virtual Index get_horizon_length() const = 0;
+        virtual Index eval_BAbt(const Scalar *states_kp1, const Scalar *inputs_k,
+                                const Scalar *states_k, MAT *res, const Index k) = 0;
+        virtual Index eval_RSQrqt(const Scalar *objective_scale, const Scalar *inputs_k,
+                                  const Scalar *states_k, const Scalar *lam_dyn_k,
+                                  const Scalar *lam_eq_k, const Scalar *lam_eq_ineq_k, MAT *res,
+                                  const Index k) = 0;
+        virtual Index eval_Ggt(const Scalar *inputs_k, const Scalar *states_k, MAT *res,
+                               const Index k) = 0;
+        virtual Index eval_Ggt_ineq(const Scalar *inputs_k, const Scalar *states_k, MAT *res,
+                                    const Index k) = 0;
+        virtual Index eval_b(const Scalar *states_kp1, const Scalar *inputs_k,
+                             const Scalar *states_k, Scalar *res, const Index k) = 0;
+        virtual Index eval_g(const Scalar *inputs_k, const Scalar *states_k, Scalar *res,
+                             const Index k) = 0;
+        virtual Index eval_gineq(const Scalar *inputs_k, const Scalar *states_k, Scalar *res,
+                                 const Index k) = 0;
+        virtual Index eval_rq(const Scalar *objective_scale, const Scalar *inputs_k,
+                              const Scalar *states_k, Scalar *res, const Index k) = 0;
+        virtual Index eval_L(const Scalar *objective_scale, const Scalar *inputs_k,
+                             const Scalar *states_k, Scalar *res, const Index k) = 0;
+        virtual Index get_bounds(Scalar *lower, Scalar *upper, const Index k) const = 0;
+        virtual Index get_initial_xk(Scalar *xk, const Index k) const = 0;
+        virtual Index get_initial_uk(Scalar *uk, const Index k) const = 0;
+        virtual ~OcpAbstractTpl() = default;
+
+        // Implicit OCP methods
+        virtual Index eval_Jinv(const Scalar *states_kp1, const Scalar *inputs_k,
+                                const Scalar *states_k, MAT *res, const Index k) = 0;
+        virtual Index eval_FuFx(const Scalar *states_kp1, const Scalar *inputs_k,
+                                const Scalar *states_k, MAT *res, const Index k) = 0;
+    };
+
+    typedef OcpAbstractTpl<ImplicitOcpAbstractDynamic> ImplicitOcpAbstract;
+
+
 } // namespace fatrop
 
 #endif //__fatrop_ocp_abstract_hpp__
