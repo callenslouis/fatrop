@@ -116,6 +116,7 @@ namespace fatrop
                 if constexpr (std::is_same_v<ProblemType, ImplicitOcpType>)
                 {
                     // For Implicit OCP, we need to evaluate the Jt part
+                    ocp_->eval_Jt(states_kp1, inputs_k, states_k, &jac.Jt[k].mat(), k);
                     ocp_->eval_Jt_inv(states_kp1, inputs_k, states_k, &jac.Jt_inv[k].mat(), k);
                 }
             }

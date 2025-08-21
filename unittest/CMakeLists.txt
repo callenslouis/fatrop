@@ -47,6 +47,7 @@ add_executable(ip_search_dir_resto_test ocp/ip_search_dir_resto_test.cpp)
 add_executable(ip_initializer_test ip_algorithm/ip_initializer_test.cpp)
 add_executable(ip_filter_test ip_algorithm/ip_filter_test.cpp)
 add_executable(options_test common/options_test.cpp)
+add_executable(implicit_ocp_test implicit/implicit_ocp_test.cpp)
 
 # Link the test executables with Google Test and other required libraries
 target_link_libraries(vector_test GTest::gtest GTest::gtest_main blasfeo fatrop)
@@ -66,6 +67,8 @@ target_link_libraries(ip_search_dir_test GTest::gtest GTest::gtest_main blasfeo 
 target_link_libraries(ip_search_dir_resto_test GTest::gtest GTest::gtest_main blasfeo fatrop)
 target_link_libraries(ip_initializer_test GTest::gtest GTest::gtest_main blasfeo fatrop)
 target_link_libraries(ip_filter_test GTest::gtest GTest::gtest_main blasfeo fatrop)
+
+target_link_libraries(implicit_ocp_test blasfeo fatrop casadi)
 
 # Discover and add the tests
 gtest_discover_tests(vector_test)

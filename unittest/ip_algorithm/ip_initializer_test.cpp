@@ -118,6 +118,110 @@ namespace fatrop
                 << "Norm of inequality constraint violation should decrease";
         }
 
+
+        class ImplicitIpInitializerTest : public ::testing::Test
+        {
+        protected:
+            ImplicitIpInitializerTest()
+                : problem(std::make_shared<ImplicitOcpTestProblem>()),
+                  nlp(std::make_shared<ImplicitNlpOcp>(problem)), info(nlp->problem_dims()),
+                  ipdata(std::make_shared<IpData<ImplicitOcpType>>(nlp)),
+                  D_x(info.number_of_primal_variables + info.number_of_slack_variables),
+                  D_eq(info.number_of_eq_constraints),
+                  aug_solver(std::make_shared<AugSystemSolver<ImplicitOcpType>>(info)),
+                  linear_solver(std::make_shared<PdSolverOrig<ImplicitOcpType>>(info, aug_solver)),
+                  eq_mult_initializer(
+                      std::make_shared<IpEqMultInitializer<ImplicitOcpType>>(ipdata, linear_solver)),
+                  initializer(std::make_shared<IpInitializer<ImplicitOcpType>>(ipdata, eq_mult_initializer))
+            {
+                ipdata->current_iterate().set_dual_bounds_l(
+                    VecRealScalar(ipdata->current_iterate().dual_bounds_l().m(), 1));
+                ipdata->current_iterate().set_dual_bounds_u(
+                    VecRealScalar(ipdata->current_iterate().dual_bounds_u().m(), 1));
+            }
+
+            std::shared_ptr<ImplicitOcpTestProblem> problem;
+            std::shared_ptr<ImplicitNlpOcp> nlp;
+            ProblemInfo info;
+            std::shared_ptr<IpData<ImplicitOcpType>> ipdata;
+            VecRealAllocated D_x, D_eq;
+            std::shared_ptr<AugSystemSolver<ImplicitOcpType>> aug_solver;
+            std::shared_ptr<PdSolverOrig<ImplicitOcpType>> linear_solver;
+            std::shared_ptr<IpEqMultInitializer<ImplicitOcpType>> eq_mult_initializer;
+            std::shared_ptr<IpInitializer<ImplicitOcpType>> initializer;
+        };
+
+        TEST_F(ImplicitIpInitializerTest, ImplicitEqMultInitializerTest)
+        {
+            // Check that the equality multiplier initialization doesn't throw an exception
+            EXPECT_NO_THROW({ initializer->initialize(); })
+                << "Equality multiplier initialization should not throw an exception";
+        }
+
+        TEST_F(ImplicitIpInitializerTest, ImplicitBoundPushTestLow)
+        {
+
+            auto &current_iterate = ipdata->current_iterate();
+            auto &primal_s = current_iterate.primal_s();
+            auto &primal_x = current_iterate.primal_x();
+            current_iterate.set_primal_x(VecRealScalar(primal_x.m(), -100.));
+            Scalar norm_l1_cv = norm_l1(current_iterate.constr_viol_ineq());
+
+            // Initialize the problem
+            initializer->initialize();
+
+            const auto &lower_bounds = current_iterate.lower_bounds();
+            const auto &upper_bounds = current_iterate.upper_bounds();
+
+            for (int i = 0; i < primal_s.m(); ++i)
+            {
+                if (current_iterate.lower_bounded()[i])
+                {
+                    EXPECT_GT(primal_s(i), lower_bounds(i))
+                        << "Slack should be pushed away from lower bound at index " << i;
+                }
+                if (current_iterate.upper_bounded()[i])
+                {
+                    EXPECT_LT(primal_s(i), upper_bounds(i))
+                        << "Slack should be pushed away from upper bound at index " << i;
+                }
+            }
+            EXPECT_LT(norm_l1(current_iterate.constr_viol_ineq()), norm_l1_cv)
+                << "Norm of inequality constraint violation should decrease";
+        }
+
+        TEST_F(ImplicitIpInitializerTest, ImplicitBoundPushTestHigh)
+        {
+
+            auto &current_iterate = ipdata->current_iterate();
+            auto &primal_s = current_iterate.primal_s();
+            auto &primal_x = current_iterate.primal_x();
+            current_iterate.set_primal_x(VecRealScalar(primal_x.m(), 100.));
+            Scalar norm_l1_cv = norm_l1(current_iterate.constr_viol_ineq());
+
+            // Initialize the problem
+            initializer->initialize();
+
+            const auto &lower_bounds = current_iterate.lower_bounds();
+            const auto &upper_bounds = current_iterate.upper_bounds();
+
+            for (int i = 0; i < primal_s.m(); ++i)
+            {
+                if (current_iterate.lower_bounded()[i])
+                {
+                    EXPECT_GT(primal_s(i), lower_bounds(i))
+                        << "Slack should be pushed away from lower bound at index " << i;
+                }
+                if (current_iterate.upper_bounded()[i])
+                {
+                    EXPECT_LT(primal_s(i), upper_bounds(i))
+                        << "Slack should be pushed away from upper bound at index " << i;
+                }
+            }
+            EXPECT_LT(norm_l1(current_iterate.constr_viol_ineq()), norm_l1_cv)
+                << "Norm of inequality constraint violation should decrease";
+        }
+
     } // namespace fatrop::test
 } // namespace fatrop::test
 

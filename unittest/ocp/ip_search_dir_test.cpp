@@ -143,7 +143,6 @@ TEST_F(ImplicitIpSearchDirTest, SolveImplicitLinearSystem) { EXPECT_NO_THROW(sea
 TEST_F(ImplicitIpSearchDirTest, UpdateImplicitIterateAndCheckInfeasibility)
 {
     LinsolReturnFlag ret = search_dir.compute_search_dir();
-    std::cout << "ret: " << ret << std::endl;
     EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
 
     Scalar alpha = 1.0;

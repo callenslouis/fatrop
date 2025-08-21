@@ -324,6 +324,8 @@ namespace fatrop
         // Implicit OCP methods
         virtual Index eval_Jt_inv(const Scalar *states_kp1, const Scalar *inputs_k,
                                 const Scalar *states_k, MAT *res, const Index k) = 0;
+        virtual Index eval_Jt(const Scalar *states_kp1, const Scalar *inputs_k,
+                                const Scalar *states_k, MAT *res, const Index k) = 0;
         virtual Index eval_FuFxt(const Scalar *inputs_k, const Scalar *states_k, 
                                  const Scalar *states_kp1, MAT *res, const Index k) = 0;
     };

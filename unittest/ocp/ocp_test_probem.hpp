@@ -238,7 +238,7 @@ namespace fatrop
         // example problem 2D point mass
         // states: [x, y, vx, vy]
         // inputs: [fx, fy]
-        // dynamics: [xk+1 = xk + dt*vxk+1, yk+1 = yk + dt*vyk+1, vxk+1 = vxk + dt*fx+1/m, vyk+1 = vyk + dt*fy/m]
+        // dynamics: [xk+1 = xk + dt*vxk+1, yk+1 = yk + dt*vyk+1, vxk+1 = vxk + dt*fx/m, vyk+1 = vyk + dt*fy/m]
         // cost: fx^2 + fy^2
         // constraints:
         //  at k = 0: x = 0, y = 0, vx = 0, vy = 0
@@ -302,8 +302,10 @@ namespace fatrop
                 blasfeo_matel_wrap(res, 1, 3) = dt_ / m_;
 
                 blasfeo_diare_wrap(4, 1.0, res, 2, 0);
-                // blasfeo_matel_wrap(res, 4, 0) = dt_;
-                // blasfeo_matel_wrap(res, 5, 1) = dt_;
+                if (MAKE_EXPLICIT){
+                    blasfeo_matel_wrap(res, 4, 0) = dt_;
+                    blasfeo_matel_wrap(res, 5, 1) = dt_;
+                }
                 return 0;
             }
             virtual Index eval_RSQrqt(const Scalar *objective_scale, const Scalar *inputs_k,
@@ -447,13 +449,38 @@ namespace fatrop
             };
             virtual ~ImplicitOcpTestProblem() = default;
 
+            virtual Index eval_Jt(const Scalar *states_kp1, const Scalar *inputs_k,
+                                  const Scalar *states_k, MAT *res, const Index k){
+                blasfeo_gese_wrap(res->m, res->n, 0.0, res, 0, 0);
+                for (Index i = 0; i < res->m; i++){
+                    blasfeo_matel_wrap(res, i, i) = -1.0;
+                }
+                if (!MAKE_EXPLICIT){
+                    blasfeo_matel_wrap(res, 2, 0) = dt_;
+                    blasfeo_matel_wrap(res, 3, 1) = dt_;
+                }
+                return 0;
+            };
+
             virtual Index eval_Jt_inv(const Scalar *states_kp1, const Scalar *inputs_k,
                                       const Scalar *states_k, MAT *res, const Index k){
+                blasfeo_gese_wrap(res->m, res->n, 0.0, res, 0, 0);
+                for (Index i = 0; i < res->m; i++){
+                    blasfeo_matel_wrap(res, i, i) = -1.0;
+                }
+                if (!MAKE_EXPLICIT){
+                    blasfeo_matel_wrap(res, 2, 0) = -dt_;
+                    blasfeo_matel_wrap(res, 3, 1) = -dt_;
+                }
                 return 0;
             };
 
             virtual Index eval_FuFxt(const Scalar *inputs_k, const Scalar *states_k, 
                                      const Scalar *states_kp1, MAT *res, const Index k){
+                blasfeo_gese_wrap(res->m, res->n, 0.0, res, 0, 0);
+                if (!MAKE_EXPLICIT){
+                    // nothing in this case
+                }
                 return 0;
             };
             
@@ -462,6 +489,8 @@ namespace fatrop
             const Index K_ = 100;
             const Scalar m_ = 1.0;
             const Scalar dt_ = 0.05;
+
+            bool MAKE_EXPLICIT = true;
         };
 
     } // namespace fatrop::test
