@@ -254,7 +254,7 @@ class TestProblem : public ImplicitOcpAbstract{
             int scratch_ptr = 0;
             for (int j = 0; j < Ggt_ineq_sp_.size2(); j++){
                 for (int i = 0; i < Ggt_ineq_sp_.size1(); i++){
-                    if (Ggt_ineq_.sparsity_out(0).has_nz(i, j)) {
+                    if (Ggt_ineq_sp_.has_nz(i, j)) {
                         blasfeo_matel_wrap(res, i, j) = scratch_[scratch_ptr];
                         scratch_ptr++;
                     } else {
@@ -295,11 +295,20 @@ class TestProblem : public ImplicitOcpAbstract{
         virtual Index eval_gineq(const Scalar *inputs_k, const Scalar *states_k, Scalar *res,
                                     const Index k)
         {
-            if (k == 0 || k == K_ - 1) {
+            if (k == K_ - 1) {
                 return 0; // No inequality constraints for the first and last step
             }
             std::vector<const double*> arg_in = {inputs_k, states_k};
             std::vector<double*> arg_out = {res};
+            eval_gk_ineq_(arg_in, arg_out);
+            if (DEBUG_PRINT){
+                std::cout << __func__ << " [" << k << "]" << std::endl;
+                std::cout << "g_ineq: ";
+                for (Index i = 0; i < g_ineq_lb_.size(); ++i) {
+                    std::cout << res[i] << " ";
+                }
+                std::cout<<std::endl;
+            }
             return 0;
         };
         virtual Index eval_rq(const Scalar *objective_scale, const Scalar *inputs_k,
@@ -439,7 +448,7 @@ class TestProblem : public ImplicitOcpAbstract{
     
 
     private:
-        bool DEBUG_PRINT = false;
+        bool DEBUG_PRINT = true;
 
         // user-provided info
         Index K_;
@@ -505,37 +514,44 @@ class OcpInterfaceGenerator{
             int nu = n;
             double dt = 0.05;
 
-            std::vector<double> start = std::vector<double>(nx, 1.0);
-            std::vector<double> end = std::vector<double>(nx, 2.0);
+            std::vector<double> start = std::vector<double>(nx, 0.0);
+            std::vector<double> end = std::vector<double>(nx, 0.0);
+            for (int i = 0; i < n; i++){
+                end[i] = 1.0;
+            }
+
 
             MX xk = MX::sym("xk", nx);
             MX uk = MX::sym("uk", nu);
             MX xkp = MX::sym("xkp", nx);
 
-            Function eval_objk = Function("eval_objk", {uk, xk}, {sumsqr(uk)});
+            Function eval_objk = Function("eval_objk", {uk, xk}, {0.0*sumsqr(uk)+sumsqr(xk(0))});
             Function eval_gk = Function("eval_gk", {uk, xk}, {MX::zeros(0,1)});
             Function eval_g0 = Function("eval_g0", {uk, xk}, {xk - start});
-            // Function eval_gK = Function("eval_gK", {uk, xk}, {});
-            // Function eval_gK = Function("eval_gK", {uk, xk}, {xk - end});
-            Function eval_gK = Function("eval_gK", {uk, xk}, {xk - start});
+            Function eval_gK = Function("eval_gK", {uk, xk}, {xk - end});
             Function eval_gk_ineq = Function("eval_gk_ineq", {uk, xk}, {uk});
+
+            // no constraints
+            // Function eval_g0 = Function("eval_g0", {uk, xk}, {MX::zeros(0,1)});
+            // Function eval_gK = Function("eval_gK", {uk, xk}, {MX::zeros(0,1)});
+            // Function eval_gk_ineq = Function("eval_gk_ineq", {uk, xk}, {MX::zeros(0,1)});
             
-            // MX temp = MX(nx, 1);
-            // for (int i = 0; i < control_level; ++i) {
-            //     for (int j = 0; j < n; ++j) {
-            //         MX der = (i < control_level - 1) ? xkp((i+1)*n + j) : uk(j);
-            //         temp(i*n + j) = xk(i*n + j) + dt*der - xkp(i*n + j);
-            //     }
-            // }
-            // Function eval_dynamics_equation = Function("eval_dynamics_equation", {uk, xk, xkp}, {temp});
-            Function eval_dynamics_equation = Function("eval_dynamics_equation", {uk, xk, xkp}, {uk - xkp});
+            MX temp = MX(nx, 1);
+            for (int i = 0; i < control_level; ++i) {
+                for (int j = 0; j < n; ++j) {
+                    MX der = (i < control_level - 1) ? xkp((i+1)*n + j) : uk(j) - 5;
+                    temp(i*n + j) = xk(i*n + j) + dt*der - xkp(i*n + j);
+                }
+            }
+            Function eval_dynamics_equation = Function("eval_dynamics_equation", {uk, xk, xkp}, {temp});
+            // Function eval_dynamics_equation = Function("eval_dynamics_equation", {uk, xk, xkp}, {uk + 1 - xkp});
 
             return TestProblem(
-                3, nx, nu, 
-                std::vector<std::vector<double>>(100, start), 
+                30, nx, nu, 
+                std::vector<std::vector<double>>(100, std::vector<double>(nx, 0.0)), 
                 std::vector<std::vector<double>>(100, std::vector<double>(nu, 0.0)), 
-                std::vector<double>(nu, -10.0), 
-                std::vector<double>(nu, 10.0), 
+                std::vector<double>(nu, 0), 
+                std::vector<double>(nu, 7), 
                 eval_objk, eval_gk, eval_g0, eval_gK, eval_gk_ineq, eval_dynamics_equation
             );
         }

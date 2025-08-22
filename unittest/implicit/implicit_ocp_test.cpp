@@ -285,14 +285,14 @@ private:
 int main(int argc, char **argv)
 {
     OcpInterfaceGenerator generator;
-    auto tp = std::make_shared<TestProblem>(generator.PrepareHolonomic(1, 1));
+    auto tp = std::make_shared<TestProblem>(generator.PrepareHolonomic(1, 2));
 
     OptionRegistry options;
     // IpAlgBuilder<ImplicitOcpType> builder(std::make_shared<ImplicitNlpOcp>(std::make_shared<ImplicitOcpTestProblem>()));
     IpAlgBuilder<ImplicitOcpType> builder(std::make_shared<ImplicitNlpOcp>(tp));
 
     std::shared_ptr<IpAlgorithm<ImplicitOcpType>> ipalg = builder.with_options_registry(&options).build();
-    std::cout << options << std::endl;
+    // std::cout << options << std::endl;
     for(int i =0; i < 1; i++)
     {
         Timer timer;
