@@ -298,10 +298,18 @@ namespace fatrop
         virtual Index get_horizon_length() const = 0;
         virtual Index eval_BAbt(const Scalar *states_kp1, const Scalar *inputs_k,
                                 const Scalar *states_k, MAT *res, const Index k) = 0;
+        // does not fit implicit form -----------------------------------------
         virtual Index eval_RSQrqt(const Scalar *objective_scale, const Scalar *inputs_k,
                                   const Scalar *states_k, const Scalar *lam_dyn_k,
                                   const Scalar *lam_eq_k, const Scalar *lam_eq_ineq_k, MAT *res,
+                                  const Index k){std::runtime_error("use of incorrect eval_RSQrqt method for Implicit OCPs"); return 0;};
+        // new version:
+        virtual Index eval_RSQrqt(const Scalar *objective_scale, const Scalar *inputs_k,
+                                  const Scalar *states_k, const Scalar *states_kp1, 
+                                  const Scalar *lam_dyn_k,
+                                  const Scalar *lam_eq_k, const Scalar *lam_eq_ineq_k, MAT *res, MAT *res_next,
                                   const Index k) = 0;
+        // --------------------------------------------------------------------
         virtual Index eval_Ggt(const Scalar *inputs_k, const Scalar *states_k, MAT *res,
                                const Index k) = 0;
         virtual Index eval_Ggt_ineq(const Scalar *inputs_k, const Scalar *states_k, MAT *res,

@@ -285,7 +285,7 @@ private:
 int main(int argc, char **argv)
 {
     OcpInterfaceGenerator generator;
-    auto tp = std::make_shared<TestProblem>(generator.PrepareHolonomic(1, 2));
+    auto tp = std::make_shared<TestProblem>(generator.PrepareHolonomic(1, 1));
 
     OptionRegistry options;
     // IpAlgBuilder<ImplicitOcpType> builder(std::make_shared<ImplicitNlpOcp>(std::make_shared<ImplicitOcpTestProblem>()));

@@ -34,28 +34,29 @@ class TestProblem : public ImplicitOcpAbstract{
             MX xkp = MX::sym("xkp", nx_);
             MXVector ukxk = {uk, xk};
             MXVector ukxkxkp = {uk, xk, xkp};
+            MX lam_dyn_k = MX::sym("lam_dyn_k", nx_);
+            MX lam_eq_k = MX::sym("lam_eq_k", eval_gk_.n_out() > 0 ? eval_gk_.sparsity_out(0).size1() : 0);
+            MX lam_eq_0 = MX::sym("lam_eq_0", eval_g0_.n_out() > 0 ? eval_g0_.sparsity_out(0).size1() : 0);
+            MX lam_eq_K = MX::sym("lam_eq_K", eval_gK_.n_out() > 0 ? eval_gK_.sparsity_out(0).size1() : 0);
+            MX lam_ineq_k = MX::sym("lam_eq_k", eval_gk_ineq_.n_out() > 0 ? eval_gk_ineq_.sparsity_out(0).size1() : 0);
+            MX obj_scale = MX::sym("obj_scale", 1);
 
             grad_ = Function("grad", {uk, xk}, 
-                {vertcat(transpose(jacobian(eval_objk_(ukxk)[0], uk)),
-                        transpose(jacobian(eval_objk_(ukxk)[0], xk)))});
+                {transpose(jacobian(eval_objk_(ukxk)[0], vertcat(uk, xk)))});
             BAbt_ = Function("BAbt", {uk, xk, xkp}, 
                 {transpose(horzcat(
                     jacobian(eval_dynamics_equation_(ukxkxkp)[0], uk),      // B
-                    horzcat(
-                        jacobian(eval_dynamics_equation_(ukxkxkp)[0], xk),  // A
-                        eval_dynamics_equation_(ukxkxkp)[0]                 // b
-                    )
+                    jacobian(eval_dynamics_equation_(ukxkxkp)[0], xk)       // A
                 ))});
-            RSQrqt_ = Function("RSQrqt", {xk, uk}, 
-                {transpose(
-                    horzcat(
-                        hessian(eval_objk_(ukxk)[0], vertcat(uk, xk)),
-                        grad_(ukxk)[0]
-                    )
-                )});
             Ggt_ = eval_gk_.n_out() > 0 ? 
-                Function("Ggt", {uk, xk}, {jacobian(eval_gk_(ukxk)[0], vertcat(uk, xk))})
-                : Function("Ggt", {uk, xk}, {MX::zeros(0, nu_ + nx_)});
+                Function("Ggt", {uk, xk}, {transpose(jacobian(eval_gk_(ukxk)[0], vertcat(uk, xk)))})
+                : Function("Ggt", {uk, xk}, {MX::zeros(nu_ + nx_, 0)});
+            GgKt_ = eval_gK_.n_out() > 0 ? 
+                Function("GgKt", {uk, xk}, {transpose(jacobian(eval_gK_(ukxk)[0], vertcat(uk, xk)))})
+                : Function("GgKt", {uk, xk}, {MX::zeros(nu_ + nx_, 0)});
+            Gg0t_ = eval_g0_.n_out() > 0 ? 
+                Function("Gg0t", {uk, xk}, {transpose(jacobian(eval_g0_(ukxk)[0], vertcat(uk, xk)))})
+                : Function("Gg0t", {uk, xk}, {MX::zeros(nu_ + nx_, 0)});
             Ggt_ineq_ = Function("Ggt_ineq", {uk, xk}, 
                 {jacobian(eval_gk_ineq_(ukxk)[0], vertcat(uk, xk))});
             b_ = Function("b", {uk, xk, xkp}, {eval_dynamics_equation_(ukxkxkp)[0]});
@@ -73,10 +74,37 @@ class TestProblem : public ImplicitOcpAbstract{
                     )
                 )});
 
+
+            // construct lagrangian (containing uk, xk and potentially xkp)
+            MX lagrangian_k = obj_scale*eval_objk_(ukxk)[0] + \
+                mtimes(transpose(lam_dyn_k), b_(ukxkxkp)[0]) + \
+                mtimes(transpose(lam_eq_k), eval_gk_(ukxk)[0]) + \
+                mtimes(transpose(lam_ineq_k), eval_gk_ineq_(ukxk)[0]);
+            MX lagrangian_0 = obj_scale*eval_objk_(ukxk)[0] + \
+                mtimes(transpose(lam_dyn_k), b_(ukxkxkp)[0]) + \
+                mtimes(transpose(lam_eq_0), eval_g0_(ukxk)[0]) + \
+                mtimes(transpose(lam_ineq_k), eval_gk_ineq_(ukxk)[0]);
+            MX lagrangian_K = obj_scale*eval_objk_(ukxk)[0] + \
+                mtimes(transpose(lam_eq_K), eval_gK_(ukxk)[0]) + \
+                mtimes(transpose(lam_ineq_k), eval_gk_ineq_(ukxk)[0]);
+            lag_hess_k_ = Function("lag_hess_k", {xk, uk, xkp, lam_dyn_k, lam_eq_k, lam_ineq_k, obj_scale}, 
+                {transpose(hessian(lagrangian_k, vertcat(uk, xk))),     // RSQ 
+                 transpose(hessian(lagrangian_k, xkp))});               // RSQ[k+1]
+            lag_hess_0_ = Function("lag_hess_0", {xk, uk, xkp, lam_dyn_k, lam_eq_0, lam_ineq_k, obj_scale}, 
+                {transpose(hessian(lagrangian_0, vertcat(uk, xk))),     // RSQ
+                 transpose(hessian(lagrangian_0, xkp))});               // RSQ[k+1]
+            lag_hess_K_ = Function("lag_hess_K", {xk, uk, xkp, lam_dyn_k, lam_eq_K, lam_ineq_k, obj_scale}, 
+                {transpose(hessian(lagrangian_K, vertcat(uk, xk))),
+                 MX::zeros(0,0)});
+
             // update sparsities
             BAbt_sp_ = BAbt_.sparsity_out(0);
-            RSQrqt_sp_ = RSQrqt_.sparsity_out(0);
+            lag_hess_k_sp_ = lag_hess_k_.sparsity_out(0);
+            lag_hess_0_sp_ = lag_hess_0_.sparsity_out(0);
+            lag_hess_K_sp_ = lag_hess_K_.sparsity_out(0);
             Ggt_sp_ = Ggt_.sparsity_out(0);
+            GgKt_sp_ = GgKt_.sparsity_out(0);
+            Gg0t_sp_ = Gg0t_.sparsity_out(0);
             Ggt_ineq_sp_ = Ggt_ineq_.sparsity_out(0);
             Jt_sp_ = Jt_.sparsity_out(0);
             Jt_inv_sp_ = Jt_inv_.sparsity_out(0);
@@ -87,17 +115,22 @@ class TestProblem : public ImplicitOcpAbstract{
         virtual Index get_nu(const Index k) const { return nu_;}
         virtual Index get_ng(const Index k) const
         {
-            return eval_gk_.n_out() > 0 ? eval_gk_.sparsity_out(0).size1() : 0;
+            if (k == 0) {
+                return eval_g0_.n_out() > 0 ? eval_g0_.sparsity_out(0).size1() : 0;
+            } else if (k == K_ - 1) {
+                return eval_gK_.n_out() > 0 ? eval_gK_.sparsity_out(0).size1() : 0;
+            } else {
+                return eval_gk_.n_out() > 0 ? eval_gk_.sparsity_out(0).size1() : 0;
+            }
         };
         virtual Index get_ng_ineq(const Index k) const {
-            std::cout << "ng_ineq: " << eval_gk_ineq_.sparsity_out(0).size1() << std::endl;
+            if (k == K_ - 1) { return 0;}
             return eval_gk_ineq_.sparsity_out(0).size1();
         };
         virtual Index get_horizon_length() const { return K_; };
         virtual Index eval_BAbt(const Scalar *states_kp1, const Scalar *inputs_k,
                                 const Scalar *states_k, MAT *res, const Index k)
         {
-            std::cout << __func__ << std::endl;
             std::vector<const double*> arg_in = {inputs_k, states_k, states_kp1};
             std::vector<double*> arg_out = {&scratch_[0]};
             BAbt_(arg_in, arg_out);
@@ -116,35 +149,56 @@ class TestProblem : public ImplicitOcpAbstract{
             }
 
             if (DEBUG_PRINT){
-                std::cout << __func__ << std::endl;
+                std::cout << __func__ << " [" << k << "]" << std::endl;
                 blasfeo_print_dmat(res->m, res->n, res, 0, 0);
             }
             return 0;
         }
         virtual Index eval_RSQrqt(const Scalar *objective_scale, const Scalar *inputs_k,
-                                    const Scalar *states_k, const Scalar *lam_dyn_k,
-                                    const Scalar *lam_eq_k, const Scalar *lam_eq_ineq_k, MAT *res,
-                                    const Index k)
+                                    const Scalar *states_k, const Scalar *states_kp1,
+                                    const Scalar *lam_dyn_k,
+                                    const Scalar *lam_eq_k, 
+                                    const Scalar *lam_eq_ineq_k, MAT *res,
+                                    MAT *res_next, const Index k)
         {
-            std::vector<const double*> arg_in = {states_k, inputs_k};
-            std::vector<double*> arg_out = {&scratch_[0]};
-            RSQrqt_(arg_in, arg_out);
+            Function lag_hess = (k == 0) ? lag_hess_0_ : (k == K_ - 1) ? lag_hess_K_ : lag_hess_k_;
+            Sparsity lag_hess_sp = (k == 0) ? lag_hess_0_sp_ : (k == K_ - 1) ? lag_hess_K_sp_ : lag_hess_k_sp_;
+            
+            std::vector<const double*> arg_in = {states_k, inputs_k, states_kp1, lam_dyn_k, lam_eq_k, lam_eq_ineq_k, objective_scale};
+            std::vector<double*> arg_out = {&scratch_[0], &scratch2_[0]};
+            lag_hess(arg_in, arg_out);
 
             // store nonzeros in the matrix
             int scratch_ptr = 0;
-            for (int j = 0; j < RSQrqt_sp_.size2(); j++){
-                for (int i = 0; i < RSQrqt_sp_.size1(); i++){
-                    if (RSQrqt_.sparsity_out(0).has_nz(i, j)) {
-                        blasfeo_matel_wrap(res, i, j) = scratch_[scratch_ptr];
+            for (int j = 0; j < lag_hess_sp.size2(); j++){
+                for (int i = 0; i < lag_hess_sp.size1(); i++){
+                    if (lag_hess_sp.has_nz(i, j)) {
+                        blasfeo_matel_wrap(res, i, j) += scratch_[scratch_ptr];
                         scratch_ptr++;
                     } else {
-                        blasfeo_matel_wrap(res, i, j) = 0.0;
+                        blasfeo_matel_wrap(res, i, j) += 0.0;
+                    }
+                }
+            }
+
+            // store RSQ[k+1] in res_next
+            if (k < K_ - 1){
+                Sparsity lag_hess_sp_next = lag_hess.sparsity_out(1);
+                scratch_ptr = 0;
+                for (int j = 0; j < lag_hess_sp_next.size2(); j++){
+                    for (int i = 0; i < lag_hess_sp_next.size1(); i++){
+                        if (lag_hess_sp_next.has_nz(i, j)) {
+                            blasfeo_matel_wrap(res_next, get_nu(k+1) + i, get_nu(k+1) + j) += scratch2_[scratch_ptr];
+                            scratch_ptr++;
+                        } else {
+                            blasfeo_matel_wrap(res_next, i, j) += 0.0;
+                        }
                     }
                 }
             }
 
             if (DEBUG_PRINT){
-                std::cout << __func__ << std::endl;
+                std::cout << __func__ << " [" << k << "]" << std::endl;
                 blasfeo_print_dmat(res->m, res->n, res, 0, 0);
             }
             return 0;
@@ -152,20 +206,26 @@ class TestProblem : public ImplicitOcpAbstract{
         virtual Index eval_Ggt(const Scalar *inputs_k, const Scalar *states_k, MAT *res,
                                 const Index k)
         {
-            std::cout << __func__ << std::endl;
-            if (k == 0 || k == K_ - 1 || Ggt_.n_out() == 0){
-                return 0;
+            if (k == 0 && eval_g0_.n_out() == 0){
+                return 0; // No Gg0t for the first step
+            } else if (k == K_ - 1 && eval_gK_.n_out() == 0){
+                return 0; // No GgKt for the last step
+            } else if (k > 0 && k < K_ - 1 && eval_gk_.n_out() == 0){
+                return 0; // No Ggt for intermediate steps
             }
+            
+            Function G = (k == 0) ? Gg0t_ : (k == K_ - 1) ? GgKt_ : Ggt_;
+            Sparsity G_sp = (k == 0) ? Gg0t_sp_ : (k == K_ - 1) ? GgKt_sp_ : Ggt_sp_;
 
             std::vector<const double*> arg_in = {inputs_k, states_k};
             std::vector<double*> arg_out = {&scratch_[0]};
-            Ggt_(arg_in, arg_out);
+            G(arg_in, arg_out);
            
             // store nonzeros in the matrix
             int scratch_ptr = 0;
-            for (int j = 0; j < Ggt_sp_.size2(); j++){
-                for (int i = 0; i < Ggt_sp_.size1(); i++){
-                    if (Ggt_.sparsity_out(0).has_nz(i, j)) {
+            for (int j = 0; j < G_sp.size2(); j++){
+                for (int i = 0; i < G_sp.size1(); i++){
+                    if (G_sp.has_nz(i, j)) {
                         blasfeo_matel_wrap(res, i, j) = scratch_[scratch_ptr];
                         scratch_ptr++;
                     } else {
@@ -175,7 +235,7 @@ class TestProblem : public ImplicitOcpAbstract{
             }
             
             if (DEBUG_PRINT){
-                std::cout << __func__ << std::endl;
+                std::cout << __func__ << " [" << k << "]" << std::endl;
                 blasfeo_print_dmat(res->m, res->n, res, 0, 0);
             }
             return 0;
@@ -204,7 +264,7 @@ class TestProblem : public ImplicitOcpAbstract{
             }
 
             if (DEBUG_PRINT){
-                std::cout << __func__ << std::endl;
+                std::cout << __func__ << " [" << k << "]" << std::endl;
                 blasfeo_print_dmat(res->m, res->n, res, 0, 0);
             }
             return 0;
@@ -249,6 +309,14 @@ class TestProblem : public ImplicitOcpAbstract{
             std::vector<double*> arg_out = {res};
             grad_(arg_in, arg_out);
             for (auto s : scratch_) { s *= (*objective_scale);}
+            if (DEBUG_PRINT){
+                std::cout << __func__ << " [" << k << "]" << std::endl;
+                std::cout << "grad: ";
+                for (Index i = 0; i < nu_ + nx_; ++i) {
+                    std::cout << res[i] << " ";
+                }
+                std::cout<<std::endl;
+            }
             return 0;
         }
         virtual Index eval_L(const Scalar *objective_scale, const Scalar *inputs_k,
@@ -311,7 +379,7 @@ class TestProblem : public ImplicitOcpAbstract{
             }
 
             if (DEBUG_PRINT){
-                std::cout << __func__ << std::endl;
+                std::cout << __func__ << " [" << k << "]" << std::endl;
                 blasfeo_print_dmat(res->m, res->n, res, 0, 0);
             }
             return 0;
@@ -337,7 +405,7 @@ class TestProblem : public ImplicitOcpAbstract{
             }
 
             if (DEBUG_PRINT){
-                std::cout << __func__ << std::endl;
+                std::cout << __func__ << " [" << k << "]" << std::endl;
                 blasfeo_print_dmat(res->m, res->n, res, 0, 0);
             }
             return 0;
@@ -363,7 +431,7 @@ class TestProblem : public ImplicitOcpAbstract{
             }
 
             if (DEBUG_PRINT){
-                std::cout << __func__ << std::endl;
+                std::cout << __func__ << " [" << k << "]" << std::endl;
                 blasfeo_print_dmat(res->m, res->n, res, 0, 0);
             }
             return 0;
@@ -371,7 +439,7 @@ class TestProblem : public ImplicitOcpAbstract{
     
 
     private:
-        bool DEBUG_PRINT = true;
+        bool DEBUG_PRINT = false;
 
         // user-provided info
         Index K_;
@@ -393,8 +461,12 @@ class TestProblem : public ImplicitOcpAbstract{
         // deduced info
         Function grad_;
         Function BAbt_;
-        Function RSQrqt_;
+        Function lag_hess_k_;
+        Function lag_hess_0_;
+        Function lag_hess_K_;
         Function Ggt_;
+        Function GgKt_;
+        Function Gg0t_;
         Function Ggt_ineq_;
         Function b_;
         Function Jt_;
@@ -402,8 +474,12 @@ class TestProblem : public ImplicitOcpAbstract{
         Function FuFxt_;
 
         Sparsity BAbt_sp_;
-        Sparsity RSQrqt_sp_;
+        Sparsity lag_hess_k_sp_;
+        Sparsity lag_hess_0_sp_;
+        Sparsity lag_hess_K_sp_;
         Sparsity Ggt_sp_;
+        Sparsity GgKt_sp_;
+        Sparsity Gg0t_sp_;
         Sparsity Ggt_ineq_sp_;
         Sparsity Jt_sp_;
         Sparsity Jt_inv_sp_;
@@ -429,75 +505,37 @@ class OcpInterfaceGenerator{
             int nu = n;
             double dt = 0.05;
 
-            std::vector<double> start = std::vector<double>(nx, 0.0);
-            std::vector<double> end = std::vector<double>(nx, 1.0);
+            std::vector<double> start = std::vector<double>(nx, 1.0);
+            std::vector<double> end = std::vector<double>(nx, 2.0);
 
             MX xk = MX::sym("xk", nx);
             MX uk = MX::sym("uk", nu);
             MX xkp = MX::sym("xkp", nx);
 
             Function eval_objk = Function("eval_objk", {uk, xk}, {sumsqr(uk)});
-            Function eval_gk = Function("eval_gk", {uk, xk}, {});
+            Function eval_gk = Function("eval_gk", {uk, xk}, {MX::zeros(0,1)});
             Function eval_g0 = Function("eval_g0", {uk, xk}, {xk - start});
-            Function eval_gK = Function("eval_gK", {uk, xk}, {xk - end});
+            // Function eval_gK = Function("eval_gK", {uk, xk}, {});
+            // Function eval_gK = Function("eval_gK", {uk, xk}, {xk - end});
+            Function eval_gK = Function("eval_gK", {uk, xk}, {xk - start});
             Function eval_gk_ineq = Function("eval_gk_ineq", {uk, xk}, {uk});
             
-            MX temp = MX(nx, 1);
-            for (int i = 0; i < control_level; ++i) {
-                for (int j = 0; j < n; ++j) {
-                    MX der = (i < control_level - 1) ? xkp((i+1)*n + j) : uk(j);
-                    temp(i*n + j) = xk(i*n + j) + dt*der - xkp(i*n + j);
-                }
-            }
-            std::cout << "temp: " << temp << std::endl;
-            MX B = jacobian(temp, uk);
-            MX A = jacobian(temp, xk);
-            MX Jt = jacobian(temp, xkp);
-            Sparsity sp_B = B.sparsity();
-            Sparsity sp_A = A.sparsity();
-            Sparsity sp_Jt = Jt.sparsity();
-            std::cout << "B sparsity: " << std::endl;
-            for (int i = 0; i < sp_B.size1(); ++i) {
-                for (int j = 0; j < sp_B.size2(); ++j) {
-                    if (sp_B.has_nz(i, j)) {
-                        std::cout << "X ";
-                    } else {
-                        std::cout << ". ";
-                    }
-                }
-                std::cout << std::endl;
-            }
-            std::cout << "A sparsity: " << std::endl;
-            for (int i = 0; i < sp_A.size1(); ++i) {
-                for (int j = 0; j < sp_A.size2(); ++j) {
-                    if (sp_A.has_nz(i, j)) {
-                        std::cout << "X ";
-                    } else {
-                        std::cout << ". ";
-                    }
-                }
-                std::cout << std::endl;
-            }
-            std::cout << "Jt sparsity: " << std::endl;
-            for (int i = 0; i < sp_Jt.size1(); ++i) {
-                for (int j = 0; j < sp_Jt.size2(); ++j) {
-                    if (sp_Jt.has_nz(i, j)) {
-                        std::cout << "X ";
-                    } else {
-                        std::cout << ". ";
-                    }
-                }
-                std::cout << std::endl;
-            }
-
-            Function eval_dynamics_equation = Function("eval_dynamics_equation", {uk, xk, xkp}, {temp});
+            // MX temp = MX(nx, 1);
+            // for (int i = 0; i < control_level; ++i) {
+            //     for (int j = 0; j < n; ++j) {
+            //         MX der = (i < control_level - 1) ? xkp((i+1)*n + j) : uk(j);
+            //         temp(i*n + j) = xk(i*n + j) + dt*der - xkp(i*n + j);
+            //     }
+            // }
+            // Function eval_dynamics_equation = Function("eval_dynamics_equation", {uk, xk, xkp}, {temp});
+            Function eval_dynamics_equation = Function("eval_dynamics_equation", {uk, xk, xkp}, {uk - xkp});
 
             return TestProblem(
-                100, nx, nu, 
+                3, nx, nu, 
                 std::vector<std::vector<double>>(100, start), 
                 std::vector<std::vector<double>>(100, std::vector<double>(nu, 0.0)), 
-                std::vector<double>(nu, -1.0), 
-                std::vector<double>(nu, 1.0), 
+                std::vector<double>(nu, -10.0), 
+                std::vector<double>(nu, 10.0), 
                 eval_objk, eval_gk, eval_g0, eval_gK, eval_gk_ineq, eval_dynamics_equation
             );
         }

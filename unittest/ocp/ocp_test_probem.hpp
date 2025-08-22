@@ -309,9 +309,11 @@ namespace fatrop
                 return 0;
             }
             virtual Index eval_RSQrqt(const Scalar *objective_scale, const Scalar *inputs_k,
-                                      const Scalar *states_k, const Scalar *lam_dyn_k,
-                                      const Scalar *lam_eq_k, const Scalar *lam_eq_ineq_k, MAT *res,
-                                      const Index k)
+                                      const Scalar *states_k, const Scalar *states_kp1,
+                                      const Scalar *lam_dyn_k,
+                                      const Scalar *lam_eq_k, 
+                                      const Scalar *lam_eq_ineq_k, MAT *res,
+                                      MAT *res_next, const Index k)
             {
                 // set zero
                 blasfeo_gese_wrap(res->m, res->n, 0.0, res, 0, 0);
