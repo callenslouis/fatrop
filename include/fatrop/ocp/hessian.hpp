@@ -90,6 +90,7 @@ namespace fatrop
     template <>
     struct Hessian<ImplicitOcpType> : public Hessian<OcpType>
     {
+        Hessian() = delete;
         Hessian(const ProblemDims &dims)
             : Hessian<OcpType>(dims)
         {
@@ -108,6 +109,33 @@ namespace fatrop
                 FuFxt.emplace_back(1*(dims.number_of_controls[k] + dims.number_of_states[k]),
                                    1*(dims.number_of_states[k + 1]));
             }
+        }
+
+        Hessian(const Hessian &other) = default;
+        Hessian &operator=(const Hessian &other) = default;
+
+        Hessian(Hessian<ImplicitOcpType> &&other)
+            : Hessian<OcpType>(std::move(other)),
+              FuFxt(std::move(other.FuFxt)),
+              RSQrqt_original(std::move(other.RSQrqt_original)),
+              duration_copy_RSQrqt(other.duration_copy_RSQrqt),
+              duration_modifying_RSQrqt(other.duration_modifying_RSQrqt) {
+            if (RSQrqt[0].mat().m == 0 && RSQrqt[0].mat().n == 0){
+                throw std::runtime_error("Hessian<ImplicitOcpType>)other): RSQrqt matrix has zero size.");
+            }
+        };
+        Hessian &operator=(Hessian &&other){
+            if (this != &other){
+                Hessian<OcpType>::operator=(std::move(other));
+                FuFxt = std::move(other.FuFxt);
+                RSQrqt_original = std::move(other.RSQrqt_original);
+                duration_copy_RSQrqt = other.duration_copy_RSQrqt;
+                duration_modifying_RSQrqt = other.duration_modifying_RSQrqt;
+            }
+            if (RSQrqt[0].mat().m == 0 && RSQrqt[0].mat().n == 0){
+                throw std::runtime_error("Hessian<ImplicitOcpType>::operator=: RSQrqt matrix has zero size.");
+            }
+            return *this;
         }
 
         void PreProcess(const ProblemInfo &info, Jacobian<ImplicitOcpType> &jacobian,

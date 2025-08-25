@@ -17,8 +17,19 @@
 #include "fatrop/ip_algorithm/ip_timings.hpp"
 #include "fatrop/nlp/nlp.hpp"
 #include "fatrop/ocp/type.hpp"
+
 namespace fatrop
 {
+
+template <typename ProblemType>
+void print_dimensions(std::shared_ptr<IpData<ProblemType>> &ip_data_, std::string line_name = ""){
+    std::cout << "[new line in ip_algorithm.hxx] " << line_name << std::endl;
+    std::cout << "\tcurr:   (" << ip_data_->hessian_curr_ << ") " << ip_data_->hessian_curr_->RSQrqt[0].mat().m << " x " << ip_data_->hessian_trial_->RSQrqt[0].mat().n << std::endl;
+    std::cout << "\ttrial:  (" << ip_data_->hessian_trial_ << ") " << ip_data_->hessian_trial_->RSQrqt[0].mat().m << " x " << ip_data_->hessian_trial_->RSQrqt[0].mat().n << std::endl;
+    std::cout << "\tstored: (" << ip_data_->hessian_stored_ << ") " << ip_data_->hessian_stored_->RSQrqt[0].mat().m << " x " << ip_data_->hessian_trial_->RSQrqt[0].mat().n << std::endl;
+}
+
+
     template <typename ProblemType>
     IpAlgorithm<ProblemType>::IpAlgorithm(const IpSearchDirSp &search_dir,
                                           const IpLineSearchSp &linesearch,
