@@ -478,7 +478,8 @@ namespace fatrop
             };
 
             virtual Index eval_FuFxt(const Scalar *inputs_k, const Scalar *states_k, 
-                                     const Scalar *states_kp1, MAT *res, const Index k){
+                                     const Scalar *states_kp1, const Scalar *lam_dyn_k, 
+                                     MAT *res, const Index k){
                 blasfeo_gese_wrap(res->m, res->n, 0.0, res, 0, 0);
                 if (!MAKE_EXPLICIT){
                     // nothing in this case

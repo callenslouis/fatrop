@@ -281,77 +281,129 @@ private:
     bool MAKE_EXPLICIT = false;
 };
 
+template <typename ProblemType>
+json add_json_data(std::shared_ptr<IpData<ProblemType>> data, std::string problem_type, int n, int control_level)
+{
+    json my_json;
+    my_json["metadata"] = json::object();
+    my_json["metadata"]["timing_statistics"] = json::object();
+    my_json["metadata"]["timing_statistics"]["initialization"] = data->timing_statistics().initialization.elapsed();
+    my_json["metadata"]["timing_statistics"]["compute search dir"] = data->timing_statistics().compute_search_dir.elapsed();
+    my_json["metadata"]["timing_statistics"]["eval objective"] = data->timing_statistics().eval_objective.elapsed();
+    my_json["metadata"]["timing_statistics"]["eval gradient"] = data->timing_statistics().eval_gradient.elapsed();
+    my_json["metadata"]["timing_statistics"]["eval constraint violation"] = data->timing_statistics().eval_constraint_violation.elapsed();
+    my_json["metadata"]["timing_statistics"]["eval hessian"] = data->timing_statistics().eval_hessian.elapsed();
+    my_json["metadata"]["timing_statistics"]["eval jacobian"] = data->timing_statistics().eval_jacobian.elapsed();
+    my_json["metadata"]["timing_statistics"]["rest time"] = data->timing_statistics().compute_rest_time();
+    my_json["metadata"]["timing_statistics"]["function evaluation"] = data->timing_statistics().compute_function_evaluation();
+    my_json["metadata"]["timing_statistics"]["fatrop"] = data->timing_statistics().compute_fatrop();
+    my_json["metadata"]["timing_statistics"]["total"] = data->timing_statistics().full_algorithm.elapsed();
+    my_json["metadata"]["iterations"] = data->iteration_number();
+
+    my_json["problem type"] = problem_type;
+    my_json["solver"] = "FATROP";
+    my_json["dt"] = 0.05;
+    my_json["K"] = data->info().dims.K;
+    my_json["number of dimensions"] = n;
+    my_json["control level"] = control_level;
+
+    my_json["states"] = json::array();
+    for (int k = 0; k < data->info().dims.K; k++)
+    {
+        json state = json::array();
+        for (int i = 0; i < data->info().dims.number_of_states[k]; i++)
+        {
+            state.push_back(data->current_iterate().primal_x()(data->info().offsets_primal_x[k] + i));
+        }
+        my_json["states"].push_back(state);
+    }
+    my_json["inputs"] = json::array();
+    for (int k = 0; k < data->info().dims.K-1; k++)
+    {
+        json input = json::array();
+        for (int i = 0; i < data->info().dims.number_of_controls[k]; i++)
+        {
+            input.push_back(data->current_iterate().primal_x()(data->info().offsets_primal_u[k] + i));
+        }
+        my_json["inputs"].push_back(input);
+    }
+
+    return my_json;
+};
 
 int main(int argc, char **argv)
 {
-    OcpInterfaceGenerator generator;
-    auto tp = std::make_shared<TestProblem>(generator.PrepareHolonomic(1, 2));
+    int n = 7;
+    int control_level = 3;
+    OcpInterfaceGenerator generator(n, control_level);
+    std::cout << "creating implicit test problem" << std::endl;
+    auto tp_impl = std::make_shared<ImplicitTestProblem>(generator.PrepareHolonomicImplicit());
+    std::cout << "creating explicit test problem" << std::endl;
+    auto tp_expl = std::make_shared<ExplicitTestProblem>(generator.PrepareHolonomicExplicit());
+    std::cout << "creating reformulated test problem" << std::endl;
+    auto tp_reform = std::make_shared<ExplicitTestProblem>(generator.PrepareHolonomicReformulated());
 
     OptionRegistry options;
-    // IpAlgBuilder<ImplicitOcpType> builder(std::make_shared<ImplicitNlpOcp>(std::make_shared<ImplicitOcpTestProblem>()));
-    IpAlgBuilder<ImplicitOcpType> builder(std::make_shared<ImplicitNlpOcp>(tp));
+    IpAlgBuilder<ImplicitOcpType> builder_impl(std::make_shared<ImplicitNlpOcp>(tp_impl));
+    IpAlgBuilder<OcpType> builder_expl(std::make_shared<NlpOcp>(tp_expl));
+    IpAlgBuilder<OcpType> builder_reform(std::make_shared<NlpOcp>(tp_reform));    
 
-    std::shared_ptr<IpAlgorithm<ImplicitOcpType>> ipalg = builder.with_options_registry(&options).build();
-    // std::cout << options << std::endl;
-    for(int i =0; i < 1; i++)
-    {
-        Timer timer;
-        timer.start();
-        IpSolverReturnFlag ret = ipalg->optimize();
-        std::cout << "Elapsed time: " << timer.stop() << std::endl;
-        auto data = builder.get_ipdata();
-        std::cout << "Return flag: " << int(ret) << std::endl;
-        std::cout << "Return flag == success: " << (ret == IpSolverReturnFlag::Success)
-                  << std::endl;
-        std::cout << data->timing_statistics() << std::endl;
-
-        json result;
-        result["metadata"] = json::object();
-        result["metadata"]["return_flag"] = int(ret);
-        json timing_stats;
-        timing_stats["initialization"] = data->timing_statistics().initialization.elapsed();
-        timing_stats["compute search dir"] = data->timing_statistics().compute_search_dir.elapsed();
-        timing_stats["eval objective"] = data->timing_statistics().eval_objective.elapsed();
-        timing_stats["eval gradient"] = data->timing_statistics().eval_gradient.elapsed();
-        timing_stats["eval constraint violation"] = data->timing_statistics().eval_constraint_violation.elapsed();
-        timing_stats["eval hessian"] = data->timing_statistics().eval_hessian.elapsed();
-        timing_stats["eval jacobian"] = data->timing_statistics().eval_jacobian.elapsed();
-        timing_stats["rest time"] = data->timing_statistics().compute_rest_time();
-        timing_stats["function evaluation"] = data->timing_statistics().compute_function_evaluation();
-        timing_stats["fatrop"] = data->timing_statistics().compute_fatrop();
-        timing_stats["total"] = data->timing_statistics().full_algorithm.elapsed();
-        result["metadata"]["timing_statistics"] = timing_stats;
-
-        result["dt"] = 0.05;
-        result["K"] = data->info().dims.K;
-        result["states"] = json::array();
-        for (int k = 0; k < data->info().dims.K; k++)
-        {
-            json state = json::array();
-            for (int i = 0; i < data->info().dims.number_of_states[k]; i++)
-            {
-                state.push_back(data->current_iterate().primal_x()(data->info().offsets_primal_x[k] + i));
-            }
-            result["states"].push_back(state);
-        }
-        result["inputs"] = json::array();
-        for (int k = 0; k < data->info().dims.K-1; k++)
-        {
-            json input = json::array();
-            for (int i = 0; i < data->info().dims.number_of_controls[k]; i++)
-            {
-                input.push_back(data->current_iterate().primal_x()(data->info().offsets_primal_u[k] + i));
-            }
-            result["inputs"].push_back(input);
-        }
-
-        // dump
-        std::ofstream file("implicit_ocp_result.json");
+    std::shared_ptr<IpAlgorithm<ImplicitOcpType>> ipalg_impl = builder_impl.with_options_registry(&options).build();
+    std::shared_ptr<IpAlgorithm<OcpType>> ipalg_expl = builder_expl.with_options_registry(&options).build();
+    std::shared_ptr<IpAlgorithm<OcpType>> ipalg_reform = builder_reform.with_options_registry(&options).build();
+    
+    int file_counter = 0;
+    // create a directory ocp_results
+    int temp = system("mkdir -p ocp_results");
+    
+    for(int i = 0; i < 1; i++)
+    {       
+        // IMPLICIT
+        std::cout << "solving implicit test problem" << std::endl;
+        Timer timer_impl;
+        timer_impl.start();
+        IpSolverReturnFlag ret_impl = ipalg_impl->optimize();
+        std::cout << "Elapsed time: " << timer_impl.stop() << std::endl;
+        auto data_impl = builder_impl.get_ipdata();
+        json result_impl = add_json_data(data_impl, "implicit", n, control_level);
+        std::ofstream file("ocp_results/ocp_result_" + std::to_string(file_counter) + ".json");
         if (file.is_open())
         {
-            file << result.dump(4); // pretty print with 4 spaces
+            file << result_impl.dump(4);
             file.close();
-            std::cout << "Results saved to implicit_ocp_result.json" << std::endl;
+            file_counter++;
+        }
+
+        // EXPLICIT
+        std::cout << "solving explicit test problem" << std::endl;
+        Timer timer_expl;
+        timer_expl.start();
+        IpSolverReturnFlag ret_expl = ipalg_expl->optimize();
+        std::cout << "Elapsed time: " << timer_expl.stop() << std::endl;
+        auto data_expl = builder_expl.get_ipdata();
+        json result_expl = add_json_data(data_expl, "explicit", n, control_level);
+        std::ofstream file2("ocp_results/ocp_result_" + std::to_string(file_counter) + ".json");
+        if (file2.is_open())
+        {
+            file2 << result_expl.dump(4);
+            file2.close();
+            file_counter++;
+        }
+
+        // REFORMULATED
+        std::cout << "solving reformulated test problem" << std::endl;
+        Timer timer_reform;
+        timer_reform.start();
+        IpSolverReturnFlag ret_reform = ipalg_reform->optimize();
+        std::cout << "Elapsed time: " << timer_reform.stop() << std::endl;
+        auto data_reform = builder_reform.get_ipdata();
+        json result_reform = add_json_data(data_reform, "reformulated", n, control_level);
+        std::ofstream file3("ocp_results/ocp_result_" + std::to_string(file_counter) + ".json");
+        if (file3.is_open())
+        {
+            file3 << result_reform.dump(4);
+            file3.close();
+            file_counter++;
         }
     }
     return 0;

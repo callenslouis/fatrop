@@ -92,7 +92,7 @@ namespace fatrop
                                   hess_next, k);
                 // Evaluate FuFxt terms
                 if (k < info.dims.K - 1) {
-                    ocp_->eval_FuFxt(inputs_k, states_k, states_kp1,
+                    ocp_->eval_FuFxt(inputs_k, states_k, states_kp1, lam_dyn_k,
                                      &hess.FuFxt[k].mat(), k);
                 }
 
