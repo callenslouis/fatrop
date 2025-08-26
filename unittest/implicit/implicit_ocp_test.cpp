@@ -281,6 +281,13 @@ private:
     bool MAKE_EXPLICIT = false;
 };
 
+template <typename T>
+double get_average(const std::vector<T>& v){
+    double sum = 0.0;
+    for (const auto& val : v) {sum += val;}
+    return sum / v.size();
+}
+
 template <typename ProblemType>
 json add_json_data(std::shared_ptr<IpData<ProblemType>> data, std::string problem_type, int n, int control_level)
 {
@@ -302,10 +309,16 @@ json add_json_data(std::shared_ptr<IpData<ProblemType>> data, std::string proble
 
     my_json["problem type"] = problem_type;
     my_json["solver"] = "FATROP";
-    my_json["dt"] = 0.05;
     my_json["K"] = data->info().dims.K;
-    my_json["number of dimensions"] = n;
-    my_json["control level"] = control_level;
+    my_json["nx"] = get_average(data->info().dims.number_of_states);
+    my_json["nu"] = get_average(data->info().dims.number_of_controls);
+    my_json["ng"] = get_average(data->info().dims.number_of_eq_constraints);
+    my_json["ng_ineq"] = get_average(data->info().dims.number_of_ineq_constraints);
+    my_json["ocp problem"] = json::object();
+    my_json["ocp problem"]["name"] = "holonomic";
+    my_json["ocp problem"]["number of dimensions"] = n;
+    my_json["ocp problem"]["control level"] = control_level;
+    my_json["ocp problem"]["dt"] = 0.05;
 
     my_json["states"] = json::array();
     for (int k = 0; k < data->info().dims.K; k++)
@@ -333,15 +346,27 @@ json add_json_data(std::shared_ptr<IpData<ProblemType>> data, std::string proble
 
 int main(int argc, char **argv)
 {
-    int n = 7;
-    int control_level = 3;
-    OcpInterfaceGenerator generator(n, control_level);
+    int file_counter = 0;
+    // create a directory ocp_results
+    int temp = system("mkdir -p ocp_results");
+
+    /*
+    // int n = 7;
+    // int control_level = 3;
+    for (int n = 1; n < 8; n++){
+    for (int control_level = 1; control_level < 3; control_level++){
+    HolonomicInterfaceGenerator generator(n, control_level);
+    */
+   int n = 1;
+   int control_level = 0;
+   TruckTrailerInterfaceGenerator generator(n);
+
     std::cout << "creating implicit test problem" << std::endl;
-    auto tp_impl = std::make_shared<ImplicitTestProblem>(generator.PrepareHolonomicImplicit());
+    auto tp_impl = std::make_shared<ImplicitTestProblem>(generator.PrepareImplicit());
     std::cout << "creating explicit test problem" << std::endl;
-    auto tp_expl = std::make_shared<ExplicitTestProblem>(generator.PrepareHolonomicExplicit());
+    auto tp_expl = std::make_shared<ExplicitTestProblem>(generator.PrepareExplicit());
     std::cout << "creating reformulated test problem" << std::endl;
-    auto tp_reform = std::make_shared<ExplicitTestProblem>(generator.PrepareHolonomicReformulated());
+    auto tp_reform = std::make_shared<ExplicitTestProblem>(generator.PrepareReformulated());
 
     OptionRegistry options;
     IpAlgBuilder<ImplicitOcpType> builder_impl(std::make_shared<ImplicitNlpOcp>(tp_impl));
@@ -352,9 +377,6 @@ int main(int argc, char **argv)
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_expl = builder_expl.with_options_registry(&options).build();
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_reform = builder_reform.with_options_registry(&options).build();
     
-    int file_counter = 0;
-    // create a directory ocp_results
-    int temp = system("mkdir -p ocp_results");
     
     for(int i = 0; i < 1; i++)
     {       
@@ -406,5 +428,8 @@ int main(int argc, char **argv)
             file_counter++;
         }
     }
+    // }
+    // }
+    
     return 0;
 }

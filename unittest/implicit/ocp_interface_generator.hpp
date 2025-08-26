@@ -68,15 +68,9 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                     jacobian(eval_dynamics_equation_(ukxkxkp)[0], uk),      // B
                     jacobian(eval_dynamics_equation_(ukxkxkp)[0], xk)       // A
                 ))});
-            Ggt_ = eval_gk_.n_out() > 0 ? 
-                Function("Ggt", {uk, xk}, {transpose(jacobian(eval_gk_(ukxk)[0], vertcat(uk, xk)))})
-                : Function("Ggt", {uk, xk}, {MX::zeros(nu_ + nx_, 0)});
-            GgKt_ = eval_gK_.n_out() > 0 ? 
-                Function("GgKt", {uk, xk}, {transpose(jacobian(eval_gK_(ukxk)[0], vertcat(uk, xk)))})
-                : Function("GgKt", {uk, xk}, {MX::zeros(nu_ + nx_, 0)});
-            Gg0t_ = eval_g0_.n_out() > 0 ? 
-                Function("Gg0t", {uk, xk}, {transpose(jacobian(eval_g0_(ukxk)[0], vertcat(uk, xk)))})
-                : Function("Gg0t", {uk, xk}, {MX::zeros(nu_ + nx_, 0)});
+            Ggt_ = Function("Ggt", {uk, xk}, {transpose(jacobian(eval_gk_(ukxk)[0], vertcat(uk, xk)))});
+            GgKt_ = Function("GgKt", {uk, xk}, {transpose(jacobian(eval_gK_(ukxk)[0], vertcat(uk, xk)))});
+            Gg0t_ = Function("Gg0t", {uk, xk}, {transpose(jacobian(eval_g0_(ukxk)[0], vertcat(uk, xk)))});
             Ggt_ineq_ = Function("Ggt_ineq", {uk, xk}, 
                 {jacobian(eval_gk_ineq_(ukxk)[0], vertcat(uk, xk))});
             b_ = Function("b", {uk, xk, xkp}, {eval_dynamics_equation_(ukxkxkp)[0]});
@@ -1003,17 +997,22 @@ class ExplicitTestProblem : public OcpAbstract{
 
 
 
+// define abstract template for interface generator
+class InterfaceGenerator{
+    public:
+        virtual ImplicitTestProblem PrepareImplicit() = 0;
+        virtual ExplicitTestProblem PrepareExplicit() = 0;
+        virtual ExplicitTestProblem PrepareReformulated() = 0;
+        virtual ~InterfaceGenerator() = default;
+};
 
-
-
-
-class OcpInterfaceGenerator{
+class HolonomicInterfaceGenerator : public InterfaceGenerator {
     public:
         // Constructor
         // velocity control: level 1
         // acceleration control: level 2
         // ...
-        OcpInterfaceGenerator(int n, int control_level){
+        HolonomicInterfaceGenerator(int n, int control_level){
             K_ = 50;
             dt_ = 0.05;
             uk_min_ = -10;
@@ -1036,7 +1035,7 @@ class OcpInterfaceGenerator{
             xkp_ = MX::sym("xkp", nx_);
         };
 
-        ImplicitTestProblem PrepareHolonomicImplicit(){
+        virtual ImplicitTestProblem PrepareImplicit(){
             Function eval_objk = Function("eval_objk", {uk_, xk_}, {sumsqr(uk_)+0*sumsqr(xk_(0))});
             Function eval_gk = Function("eval_gk", {uk_, xk_}, {MX::zeros(0,1)});
             Function eval_g0 = Function("eval_g0", {uk_, xk_}, {xk_ - start_});
@@ -1060,7 +1059,7 @@ class OcpInterfaceGenerator{
                     eval_dynamics_equation_implicit);
         }
 
-        ExplicitTestProblem PrepareHolonomicExplicit(){
+        virtual ExplicitTestProblem PrepareExplicit(){
             Function eval_objk = Function("eval_objk", {uk_, xk_}, {sumsqr(uk_)+0*sumsqr(xk_(0))});
             Function eval_gk = Function("eval_gk", {uk_, xk_}, {MX::zeros(0,1)});
             Function eval_g0 = Function("eval_g0", {uk_, xk_}, {xk_ - start_});
@@ -1087,7 +1086,7 @@ class OcpInterfaceGenerator{
                     eval_dynamics_equation_explicit);
         }
 
-        ExplicitTestProblem PrepareHolonomicReformulated(){
+        virtual ExplicitTestProblem PrepareReformulated(){
             MX zk = MX::sym("zk", nx_);
             MX uk_aug = vertcat(uk_, zk);
 
@@ -1132,4 +1131,155 @@ class OcpInterfaceGenerator{
 
         std::vector<double> start_;
         std::vector<double> end_;
+};
+
+class TruckTrailerInterfaceGenerator : public InterfaceGenerator {
+    public:
+        // Constructor
+        // n: number of trailers (n=1 means one truck and one trailer)
+        TruckTrailerInterfaceGenerator(int n){
+            // define parameters
+            K_ = 60;
+            dt_ = 0.05;
+
+            n_ = n;
+
+            nx_ = 2 + n_ + 1;
+            nu_ = 2;
+
+            L_ = 1;//0.5;
+            M_ = 0;//0.05;
+
+            uk_min_ = -10;
+            uk_max_ = 10;
+
+            // define start and endpoints
+            start_ = std::vector<double>(nx_, 0.0);
+            end_ = std::vector<double>(3, 0.0);
+            end_[0] = 0.5; end_[1] = 5.0; end_[2] = 5.0;
+
+            // define variables
+            th_ = MX::sym("theta", n_+1);           // th0, th1, ..., thn
+            xk_ = vertcat(th_, MX::sym("x", 2));    
+            uk_ = MX::sym("uk", nu_);               // vk, wk
+            thp_ = MX::sym("th_plus", n_+1);
+            xkp_ = vertcat(thp_, MX::sym("x_plus", 2));
+
+            std::vector<double> lb_(nu_+n_+1, 100*uk_min_);
+            std::vector<double> ub_(nu_+n_+1, 100*uk_max_);
+            // for (int i = 0; i < n_ + 1; i++){
+            //     lb_[i] = -1.4;
+            //     ub_[i] = 1.4;
+            // }
+
+            std::cout << "lb: " << lb_ << std::endl;
+            std::cout << "ub: " << ub_ << std::endl;
+        };
+
+        virtual ImplicitTestProblem PrepareImplicit(){
+            Function eval_objk = Function("eval_objk", {uk_, xk_}, {sumsqr(uk_)+0*sumsqr(xk_(0))});
+            Function eval_gk = Function("eval_gk", {uk_, xk_}, {MX::zeros(0,1)});
+            Function eval_g0 = Function("eval_g0", {uk_, xk_}, {xk_ - start_});
+            // Function eval_gK = Function("eval_gK", {uk_, xk_}, {xk_(Slice(nx_-3, nx_, 1)) - end_});
+            Function eval_gk_ineq = Function("eval_gk_ineq", {uk_, xk_}, {vertcat(th_, uk_)});
+            // Function eval_objk = Function("eval_objk", {uk_, xk_}, {0});
+            // Function eval_gk = Function("eval_gk", {uk_, xk_}, {MX::zeros(0,1)});
+            // Function eval_g0 = Function("eval_g0", {uk_, xk_}, {MX::zeros(0,1)});
+            Function eval_gK = Function("eval_gK", {uk_, xk_}, {MX::zeros(0,1)});
+            // Function eval_gk_ineq = Function("eval_gk_ineq", {uk_, xk_}, {MX::zeros(0,1)});
+            
+            MX v = MX(n_+1, 1); v(0) = uk_(0);
+            MX th_der = MX(n_+1, 1); th_der(0) = uk_(1);
+            for (int i = 0; i < n_; i++){
+                v(i+1) = v(i)*cos(thp_(i) - thp_(i+1)) + M_*th_der(i)*sin(thp_(i) - thp_(i+1));
+                th_der(i+1) = v(i)*sin(thp_(i) - thp_(i+1))/L_ - M_*cos(thp_(i) - thp_(i+1))*th_der(i)/L_;
+            }
+            MX rhs = vertcat(th_der, v(n_)*cos(thp_(n_)), v(n_)*sin(thp_(n_)));
+            // MX rhs = MX::zeros(nx_, 1);
+            Function eval_dynamics_equation_implicit = Function("eval_dynamics_equation", {uk_, xk_, xkp_}, {xk_ + dt_*rhs - xkp_});
+            // Function eval_dynamics_equation_implicit = Function("eval_dynamics_equation", {uk_, xk_, xkp_}, {xkp_});
+
+            return ImplicitTestProblem(K_, nx_, nu_, 
+                    std::vector<std::vector<double>>(K_, std::vector<double>(nx_, 0.1)), 
+                    std::vector<std::vector<double>>(K_, std::vector<double>(nu_, 0.5)), 
+                    lb_, ub_,
+                    eval_objk, eval_gk, eval_g0, eval_gK, eval_gk_ineq, 
+                    eval_dynamics_equation_implicit);
+        }
+
+        virtual ExplicitTestProblem PrepareExplicit(){
+            Function eval_objk = Function("eval_objk", {uk_, xk_}, {sumsqr(uk_)+0*sumsqr(xk_(0))});
+            Function eval_gk = Function("eval_gk", {uk_, xk_}, {MX::zeros(0,1)});
+            Function eval_g0 = Function("eval_g0", {uk_, xk_}, {xk_ - start_});
+            Function eval_gK = Function("eval_gK", {uk_, xk_}, {xk_(Slice(nx_-3, nx_, 1)) - end_});
+            Function eval_gk_ineq = Function("eval_gk_ineq", {uk_, xk_}, {vertcat(th_, uk_)});
+            
+            MX v = MX(n_+1, 1); v(0) = uk_(0);
+            MX th_der = MX(n_+1, 1); th_der(0) = uk_(1);
+            for (int i = 0; i < n_; i++){
+                v(i+1) = v(i)*cos(th_(i) - th_(i+1)) + M_*th_der(i)*sin(th_(i) - th_(i+1));
+                th_der(i+1) = v(i)*sin(th_(i) - th_(i+1))/L_ - M_*cos(th_(i) - th_(i+1))*th_der(i)/L_;
+            }
+            MX rhs = vertcat(th_der, v(n_)*cos(th_(n_)), v(n_)*sin(th_(n_)));
+            Function eval_dynamics_equation_explicit = Function("eval_dynamics_equation", {uk_, xk_}, {xk_ + dt_*rhs});
+
+            return ExplicitTestProblem(
+                    K_, nx_, nu_, 
+                    std::vector<std::vector<double>>(K_, std::vector<double>(nx_, 0.0)), 
+                    std::vector<std::vector<double>>(K_, std::vector<double>(nu_, 0.0)), 
+                    lb_, ub_, 
+                    eval_objk, eval_gk, eval_g0, eval_gK, 
+                    eval_gk_ineq, eval_dynamics_equation_explicit);
+        }
+
+        virtual ExplicitTestProblem PrepareReformulated(){
+            MX zk = MX::sym("zk", nx_);
+            MX uk_aug = vertcat(uk_, zk);
+
+            Function eval_objk = Function("eval_objk", {uk_aug, xk_}, {sumsqr(uk_)+0*sumsqr(xk_(0))});
+            Function eval_gK = Function("eval_gK", {uk_aug, xk_}, {xk_(Slice(nx_-3, nx_, 1)) - end_});
+            Function eval_gk_ineq = Function("eval_gk_ineq", {uk_aug, xk_}, {vertcat(th_, uk_)});
+            
+            MX v = MX(n_+1, 1); v(0) = uk_(0);
+            MX th_der = MX(n_+1, 1); th_der(0) = uk_(1);
+            for (int i = 0; i < n_; i++){
+                v(i+1) = v(i)*cos(zk(i) - zk(i+1)) + M_*th_der(i)*sin(zk(i) - zk(i+1));
+                th_der(i+1) = v(i)*sin(zk(i) - zk(i+1))/L_ - M_*cos(zk(i) - zk(i+1))*th_der(i)/L_;
+            }
+            MX rhs = vertcat(th_der, v(n_)*cos(zk(n_)), v(n_)*sin(zk(n_)));
+
+            Function eval_g0 = Function("eval_g0", {uk_aug, xk_}, {vertcat(xk_ - start_, xk_ + dt_*rhs - zk)});
+            Function eval_gk = Function("eval_gk", {uk_aug, xk_}, {xk_ + dt_*rhs - zk});
+            Function eval_dynamics_equation_reformulated = Function("eval_dynamics_equation", {uk_aug, xk_}, {zk});
+
+            return ExplicitTestProblem(
+                    K_, nx_, nu_+nx_, 
+                    std::vector<std::vector<double>>(K_, std::vector<double>(nx_, 0.0)), 
+                    std::vector<std::vector<double>>(K_, std::vector<double>(nu_ + nx_, 0.0)), 
+                    lb_, ub_, eval_objk, eval_gk, eval_g0, eval_gK, 
+                    eval_gk_ineq, eval_dynamics_equation_reformulated);
+        }
+
+    private:
+        int K_;
+        int n_;
+        double L_;
+        double M_;
+        int nx_;
+        int nu_;
+        double dt_;
+        double uk_min_;
+        double uk_max_;
+
+        MX th_;
+        MX xk_;
+        MX uk_;
+        MX thp_;
+        MX xkp_;
+
+        std::vector<double> start_;
+        std::vector<double> end_;
+
+        std::vector<double> lb_;
+        std::vector<double> ub_;
 };
