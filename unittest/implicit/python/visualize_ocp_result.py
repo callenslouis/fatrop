@@ -4,11 +4,12 @@ import numpy as np
 import os
 import pandas as pd
 
-def visualize_ocp_result(data, **kwargs):
+def visualize_holonomic_result(data, **kwargs):
     dimension = data["ocp problem"]["number of dimensions"]
     control_level = data["ocp problem"]["control level"]
     problem_type = data["problem type"]
     solver = data["solver"]
+    problem_name = data["ocp problem"]["name"]
 
     axs = kwargs.get('axs', None)
     if axs is None:
@@ -36,13 +37,67 @@ def visualize_ocp_result(data, **kwargs):
 
     plt.tight_layout()
     # plt.show()
-    plt.savefig(f"unittest/implicit/figures/ocp_result_dim{dimension}_ctl{control_level}_{problem_type}_{solver}.png", dpi=300)
+    plt.savefig(f"unittest/implicit/figures/ocp_result_{problem_name}_dim{dimension}_ctl{control_level}_{problem_type}_{solver}.png", dpi=300)
+    plt.close()
+
+def visualize_trucktrailer_result(data, **kwargs):
+    n = data["generator_data"]["n"]
+    problem_type = data["problem type"]
+    solver = data["solver"]
+    problem_name = data["generator_data"]["problem_name"]
+    L = 1.0
+    M = 0.0
+
+    axs = kwargs.get('axs', None)
+    if axs is None:
+        fig, axs = plt.subplots(2, 1, height_ratios=[3, 1])
+
+    tt = np.linspace(0, data["generator_data"]['K'] * data["generator_data"]['dt'], data["generator_data"]['K'])
+
+    th = np.array([data['states'][k][:-2] for k in range(data["generator_data"]['K'])]).transpose()
+    xy = np.array([data['states'][k][-2:] for k in range(data["generator_data"]['K'])]).transpose()
+
+    xx = [[] for _ in range(n+1)]   # xx[veh_idx][time_idx]
+    yy = [[] for _ in range(n+1)]
+    th = [[th[i,k] for k in range(data["generator_data"]['K'])] for i in range(n+1)]  # th[veh_idx][time_idx]
+
+    for k in range(data["generator_data"]['K']):
+        # position of last trailer
+        x = xy[0, k]
+        y = xy[1, k]
+
+        xx[n].append(x)
+        yy[n].append(y)
+
+        for i in range(n-1, -1, -1):
+            xx[i].append(xx[i+1][k] + L*np.cos(th[i+1][k]) + M*np.cos(th[i][k]))
+            yy[i].append(yy[i+1][k] + L*np.sin(th[i+1][k]) + M*np.sin(th[i][k]))
+
+    # plot trajectory of each trailer
+    for i in range(n+1):
+        axs[0].plot(xx[i], yy[i], label=f'vehicle {i}')
+        step = 5
+        axs[0].quiver(xx[i][::step], yy[i][::step], np.cos(th[i][::step]), np.sin(th[i][::step]), scale=20, width=0.003, zorder=5)
+    axs[0].set_aspect('equal', 'box')
+    axs[0].legend()
+    
+    # plot control
+    axs[1].plot(tt[:-1], [u[0] for u in data['inputs']], label='v')
+    axs[1].plot(tt[:-1], [u[1] for u in data['inputs']], label='w')
+    axs[1].legend()
+
+    plt.suptitle(f"{problem_type} - {solver}")
+
+    plt.tight_layout()
+    # plt.show()
+    plt.savefig(f"unittest/implicit/figures/ocp_result_{problem_name}_n_{n}_{problem_type}_{solver}.png", dpi=300)
     plt.close()
 
 def visualize_performance(df):
     plt.figure()
     nx_vals = df['nx'].unique()
     nx_vals = np.sort(nx_vals)
+    problem_name = data["generator_data"]["problem_name"]
 
     # problem_types = df['problem type'].unique()
     problem_types = ['explicit', 'implicit', 'reformulated']
@@ -76,7 +131,7 @@ def visualize_performance(df):
     plt.xticks(index + bar_width / 2, nx_vals)
     plt.legend()
     plt.tight_layout()
-    plt.savefig(f"unittest/implicit/figures/ocp_performance_comparison_times.png", dpi=300)
+    plt.savefig(f"unittest/implicit/figures/ocp_{problem_name}_performance_comparison_times.png", dpi=300)
 
 
     # SHOW ITERATION BRAKWDOWN
@@ -121,7 +176,7 @@ def visualize_performance(df):
     # ax1.legend(h1+h2, l1+l2)
     
     fig.tight_layout()
-    plt.savefig(f"unittest/implicit/figures/ocp_performance_comparison_iterations.png", dpi=300)
+    plt.savefig(f"unittest/implicit/figures/ocp_{problem_name}_performance_comparison_iterations.png", dpi=300)
 
 def print_performance_table(df):
     # rows: nb iterations, t_func_avg, t_func_total, t_fatrop_avg, t_fatrop_total, t_total
@@ -195,17 +250,6 @@ def print_result_differences(df):
             states_diff = np.abs(states_bl - states_pt)
             inputs_diff = np.abs(inputs_bl - inputs_pt)
 
-            if np.linalg.norm(inputs_diff) > 1:
-                print(f"Significant input difference for {problem_type} with dim {dim} and ctl {ctl}")
-                # for i in range(len(inputs_diff)):
-                #     print(f"[{i}] err: {inputs_diff[i]:.3f}, reformulated: {inputs_pt[i]:.6f}, implicit: {inputs_bl[i]:.6f}")
-                for i in range(K-1):
-                    b = np.array(df_bl_dc['inputs'].to_list())
-                    p = np.array(df_pt_dc['inputs'].to_list())
-                    e = np.linalg.norm(b[:,i,:] - p[:,i,:nu])
-                    print(f"e: {e}\t-\tb: {b[:,i,:]}, p: {p[:,i,:nu]}")
-
-
             avg_err_states += np.linalg.norm(states_diff)
             avg_err_inputs += np.linalg.norm(inputs_diff)
             nb_entries += 1
@@ -218,7 +262,7 @@ def print_result_differences(df):
 
 if __name__ == "__main__":
     # find all files in build/unittest/ocp_results/
-    dir_path = os.path.join(os.path.dirname(__file__), '../../build/unittest/ocp_results')
+    dir_path = os.path.join(os.path.dirname(__file__), '../../../build/unittest/ocp_results')
 
     # store timing info in dataframe
     df_holonomic = pd.DataFrame(columns=['problem type', 'solver', 'dimension', 
@@ -229,6 +273,14 @@ if __name__ == "__main__":
                                          'compute_search_dir',
                                          'nb_iterations',
                                          'states', 'inputs'])
+    df_trucktrailer = pd.DataFrame(columns=['problem type', 'solver', 'n',
+                                            'K', 'nx', 'nu',
+                                            'time_total', 
+                                            'time_solver', 
+                                            'time_function_evaluation', 
+                                            'compute_search_dir',
+                                            'nb_iterations',
+                                            'states', 'inputs'])
 
     for file_name in os.listdir(dir_path):
         if file_name.endswith('.json'):
@@ -236,13 +288,15 @@ if __name__ == "__main__":
             with open(file_path, 'r') as f:
                 data = json.load(f)
 
-            if data["ocp problem"]["name"] == "holonomic":
+            if data["generator_data"]["problem_name"] == "holonomic":
                 df_holonomic.loc[len(df_holonomic)] = {
                     'problem type': data['problem type'],
                     'solver': data['solver'],
-                    'dimension': data["ocp problem"]["number of dimensions"],
-                    'control level': data["ocp problem"]["control level"],
-                    'K': data['K'], 'nx': data['nx'], 'nu': data['nu'],
+                    'dimension': data["generator_data"]["n"],
+                    'control level': data["generator_data"]["control_level"],
+                    'K': data["generator_data"]['K'],
+                    'nx': data["generator_data"]['nx'], 
+                    'nu': data["generator_data"]['nu'],
                     'time_total': data["metadata"]["timing_statistics"]['total'],
                     'time_solver': data["metadata"]["timing_statistics"]['fatrop'],
                     'time_function_evaluation': data["metadata"]["timing_statistics"]['function evaluation'],
@@ -252,8 +306,34 @@ if __name__ == "__main__":
                     'inputs': data['inputs']
                 }
             
-            # visualize_ocp_result(data)
+            elif data["generator_data"]["problem_name"] == "truck_trailer":
+                df_trucktrailer.loc[len(df_trucktrailer)] = {
+                    'problem type': data['problem type'],
+                    'solver': data['solver'],
+                    'n': data["generator_data"]["n"],
+                    'K': data["generator_data"]['K'], 
+                    'nx': data["generator_data"]['nx'], 
+                    'nu': data["generator_data"]['nu'],
+                    'time_total': data["metadata"]["timing_statistics"]['total'],
+                    'time_solver': data["metadata"]["timing_statistics"]['fatrop'],
+                    'time_function_evaluation': data["metadata"]["timing_statistics"]['function evaluation'],
+                    'compute_search_dir': data["metadata"]["timing_statistics"]['compute search dir'],
+                    'nb_iterations': data["metadata"]['iterations'],
+                    'states': data['states'],
+                    'inputs': data['inputs']
+                }
+            
+                visualize_trucktrailer_result(data)
+            
+            else:
+                print(f"Unknown problem name: {data["generator_data"]['problem_name']}")
 
-    visualize_performance(df_holonomic)
-    print_performance_table(df_holonomic)
-    print_result_differences(df_holonomic)
+    if (not df_holonomic.empty):
+        visualize_performance(df_holonomic)
+        print_performance_table(df_holonomic)
+        print_result_differences(df_holonomic)
+
+    if (not df_trucktrailer.empty):
+        visualize_performance(df_trucktrailer)
+        print_performance_table(df_trucktrailer)
+        # print_result_differences(df_trucktrailer)
