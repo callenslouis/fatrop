@@ -19,8 +19,8 @@ class TruckTrailerInterfaceGenerator : public InterfaceGenerator {
         // n: number of trailers (n=1 means one truck and one trailer)
         TruckTrailerInterfaceGenerator(int n){
             // define parameters
-            K_ = 60;
-            dt_ = 0.05;
+            K_ = 200;
+            dt_ = 0.1;
 
             n_ = n;
 
@@ -30,13 +30,12 @@ class TruckTrailerInterfaceGenerator : public InterfaceGenerator {
             L_ = 1;//0.5;
             M_ = 0;//0.05;
 
-            uk_min_ = -100;
-            uk_max_ = 100;
+            uk_min_ = -10;
+            uk_max_ = 10;
 
             // define start and endpoints
             start_ = std::vector<double>(nx_, 0.0);
             end_ = std::vector<double>(2, 0.0);
-            // end_[0] = 0.; end_[1] = 5.0; end_[2] = 1.0;
             end_[0] = 5.0; end_[1] = 1.0;
 
             // define variables
@@ -50,11 +49,11 @@ class TruckTrailerInterfaceGenerator : public InterfaceGenerator {
             lb_ = std::vector<double>(nu_+n_+1, uk_min_);
             ub_ = std::vector<double>(nu_+n_+1, uk_max_);
             for (int i = 0; i < n_ + 1; i++){
-                lb_[i] = -1.4;
-                ub_[i] = 1.4;
+                lb_[i] = -3.14;
+                ub_[i] = 3.14;
             }
-            lb_K_ = {-1, -1};
-            ub_K_ = {1, 1};
+            lb_K_ = {};
+            ub_K_ = {};
 
             // set initialization
             x_init_ = std::vector<std::vector<double>>(K_+1, std::vector<double>(nx_, 0.0));
@@ -66,15 +65,13 @@ class TruckTrailerInterfaceGenerator : public InterfaceGenerator {
         };
 
         virtual ImplicitTestProblem PrepareImplicit(){
-            Function eval_objk = Function("eval_objk", {uk_, xk_}, {sumsqr(uk_)+0*sumsqr(xk_(0))});
+            Function eval_objk = Function("eval_objk", {uk_, xk_}, {sumsqr(uk_)});
             Function eval_objK = Function("eval_objK", {xk_}, {0});
             Function eval_gk = Function("eval_gk", {uk_, xk_}, {MX::zeros(0,1)});
             Function eval_g0 = Function("eval_g0", {uk_, xk_}, {xk_ - start_});
             Function eval_gk_ineq = Function("eval_gk_ineq", {uk_, xk_}, {vertcat(th_, uk_)});
             Function eval_gK = Function("eval_gK", {xk_}, {xk_(Slice(nx_-2, nx_, 1)) - end_});
             Function eval_gK_ineq = Function("eval_gK_ineq", {xk_}, {MX::zeros(0,1)});
-            // Function eval_gK = Function("eval_gK", {xk_}, {MX::zeros(0,1)});
-            // Function eval_gK_ineq = Function("eval_gK_ineq", {xk_}, {xk_(Slice(nx_-2, nx_, 1)) - end_});
             
             MX v = MX(n_+1, 1); v(0) = uk_(0);
             MX th_der = MX(n_+1, 1); th_der(0) = uk_(1);
@@ -93,15 +90,13 @@ class TruckTrailerInterfaceGenerator : public InterfaceGenerator {
         }
 
         virtual ExplicitTestProblem PrepareExplicit(){
-            Function eval_objk = Function("eval_objk", {uk_, xk_}, {sumsqr(uk_)+0*sumsqr(xk_(0))});
+            Function eval_objk = Function("eval_objk", {uk_, xk_}, {sumsqr(uk_)});
             Function eval_objK = Function("eval_objK", {xk_}, {0});
             Function eval_gk = Function("eval_gk", {uk_, xk_}, {MX::zeros(0,1)});
             Function eval_g0 = Function("eval_g0", {uk_, xk_}, {xk_ - start_});
             Function eval_gk_ineq = Function("eval_gk_ineq", {uk_, xk_}, {vertcat(th_, uk_)});
             Function eval_gK = Function("eval_gK", {xk_}, {xk_(Slice(nx_-2, nx_, 1)) - end_});
             Function eval_gK_ineq = Function("eval_gK_ineq", {xk_}, {MX::zeros(0,1)});
-            // Function eval_gK = Function("eval_gK", {xk_}, {MX::zeros(0,1)});
-            // Function eval_gK_ineq = Function("eval_gK_ineq", {xk_}, {sumsqr(xk_(Slice(nx_-2, nx_, 1)) - end_)});
             
             MX v = MX(n_+1, 1); v(0) = uk_(0);
             MX th_der = MX(n_+1, 1); th_der(0) = uk_(1);
@@ -110,7 +105,6 @@ class TruckTrailerInterfaceGenerator : public InterfaceGenerator {
                 th_der(i+1) = v(i)*sin(th_(i) - th_(i+1))/L_ - M_*cos(th_(i) - th_(i+1))*th_der(i)/L_;
             }
             MX rhs = vertcat(th_der, v(n_)*cos(th_(n_)), v(n_)*sin(th_(n_)));
-            // MX rhs = vertcat(vertcat(xk_(2), xk_(3)), uk_);
             Function eval_dynamics_equation_explicit = Function("eval_dynamics_equation", {uk_, xk_}, {xk_ + dt_*rhs});
 
             return ExplicitTestProblem(
@@ -125,13 +119,11 @@ class TruckTrailerInterfaceGenerator : public InterfaceGenerator {
             MX zk = MX::sym("zk", nx_);
             MX uk_aug = vertcat(uk_, zk);
 
-            Function eval_objk = Function("eval_objk", {uk_aug, xk_}, {sumsqr(uk_)+0*sumsqr(xk_(0))});
+            Function eval_objk = Function("eval_objk", {uk_aug, xk_}, {sumsqr(uk_)});
             Function eval_objK = Function("eval_objK", {xk_}, {0});
             Function eval_gk_ineq = Function("eval_gk_ineq", {uk_aug, xk_}, {vertcat(th_, uk_)});
             Function eval_gK = Function("eval_gK", {xk_}, {xk_(Slice(nx_-2, nx_, 1)) - end_});
             Function eval_gK_ineq = Function("eval_gK_ineq", {xk_}, {MX::zeros(0,1)});
-            // Function eval_gK = Function("eval_gK", {xk_}, {MX::zeros(0,1)});
-            // Function eval_gK_ineq = Function("eval_gK_ineq", {xk_}, {xk_(Slice(nx_-2, nx_, 1)) - end_});
             
             MX v = MX(n_+1, 1); v(0) = uk_(0);
             MX th_der = MX(n_+1, 1); th_der(0) = uk_(1);

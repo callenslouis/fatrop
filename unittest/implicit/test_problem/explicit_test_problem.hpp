@@ -71,10 +71,8 @@ class ExplicitTestProblem : public OcpAbstract{
             Ggt_ = Function("Ggt", {uk, xk}, {transpose(jacobian(eval_gk_(ukxk)[0], vertcat(uk, xk)))});
             GgKt_ = Function("GgKt", {xk}, {transpose(jacobian(eval_gK_(xk)[0], xk))});
             Gg0t_ = Function("Gg0t", {uk, xk}, {transpose(jacobian(eval_g0_(ukxk)[0], vertcat(uk, xk)))});
-            Ggt_ineq_ = Function("Ggt_ineq", {uk, xk}, 
-                {jacobian(eval_gk_ineq_(ukxk)[0], vertcat(uk, xk))});
-            GgKt_ineq_ = Function("GgKt_ineq", {xk},
-                {jacobian(eval_gK_ineq_(xk)[0], xk)});
+            Ggt_ineq_ = Function("Ggt_ineq", {uk, xk}, {transpose(jacobian(eval_gk_ineq_(ukxk)[0], vertcat(uk, xk)))});
+            GgKt_ineq_ = Function("GgKt_ineq", {xk}, {transpose(jacobian(eval_gK_ineq_(xk)[0], xk))});
             b_ = Function("b", {uk, xk}, {eval_dynamics_equation_(ukxk)[0]});
 
             // construct lagrangian (containing uk, xk and potentially xkp)
@@ -89,9 +87,9 @@ class ExplicitTestProblem : public OcpAbstract{
             MX lagrangian_K = obj_scale*eval_objK_(xk)[0] + \
                 mtimes(transpose(lam_eq_K), eval_gK_(xk)[0]) + \
                 mtimes(transpose(lam_ineq_K), eval_gK_ineq_(xk)[0]);
-            lag_hess_k_ = Function("lag_hess_k", {xk, uk, lam_dyn_k, lam_eq_k, lam_ineq_k, obj_scale}, 
+            lag_hess_k_ = Function("lag_hess_k", {uk, xk, lam_dyn_k, lam_eq_k, lam_ineq_k, obj_scale}, 
                 {transpose(hessian(lagrangian_k, vertcat(uk, xk)))});               // RSQ[k+1]
-            lag_hess_0_ = Function("lag_hess_0", {xk, uk, lam_dyn_k, lam_eq_0, lam_ineq_k, obj_scale}, 
+            lag_hess_0_ = Function("lag_hess_0", {uk, xk, lam_dyn_k, lam_eq_0, lam_ineq_k, obj_scale}, 
                 {transpose(hessian(lagrangian_0, vertcat(uk, xk)))});               // RSQ[k+1]
             lag_hess_K_ = Function("lag_hess_K", {xk, lam_dyn_k, lam_eq_K, lam_ineq_K, obj_scale}, 
                 {transpose(hessian(lagrangian_K, xk))});
@@ -131,6 +129,9 @@ class ExplicitTestProblem : public OcpAbstract{
             if (DEBUG_PRINT){
                 std::cout << "entering " << __func__ << " [" << k << "]" << std::endl;
             }
+            if (k == K_ - 1){
+                throw std::runtime_error("Error in eval_BAbt: cannot evaluate BAbt at final stage");
+            }
             std::vector<const double*> arg_in = {inputs_k, states_k, states_kp1};
             std::vector<double*> arg_out = {&scratch_[0]};
             BAbt_(arg_in, arg_out);
@@ -139,6 +140,9 @@ class ExplicitTestProblem : public OcpAbstract{
             int scratch_ptr = 0;
             for (int j = 0; j < BAbt_sp_.size2(); j++){
                 for (int i = 0; i < BAbt_sp_.size1(); i++){
+                    if (i > res->m || j > res->n){
+                        throw std::runtime_error("Error in eval_BAbt: trying to write outside of matrix bounds");
+                    }
                     if (BAbt_.sparsity_out(0).has_nz(i, j)) {
                         blasfeo_matel_wrap(res, i, j) = scratch_[scratch_ptr];
                         scratch_ptr++;
@@ -177,6 +181,9 @@ class ExplicitTestProblem : public OcpAbstract{
             int scratch_ptr = 0;
             for (int j = 0; j < lag_hess_sp.size2(); j++){
                 for (int i = 0; i < lag_hess_sp.size1(); i++){
+                    if (i > res->m || j > res->n){
+                        throw std::runtime_error("Error in eval_RSQrqt: trying to write outside of matrix bounds");
+                    }
                     if (lag_hess_sp.has_nz(i, j)) {
                         blasfeo_matel_wrap(res, i, j) += scratch_[scratch_ptr];
                         scratch_ptr++;
@@ -198,9 +205,6 @@ class ExplicitTestProblem : public OcpAbstract{
             if (DEBUG_PRINT){
                 std::cout << "entering " << __func__ << " [" << k << "]" << std::endl;
             }
-            if (k == K_ - 1){
-                return 0; // No GgKt for the last step
-            }
             
             Function G = (k == 0) ? Gg0t_ : (k == K_ - 1) ? GgKt_ : Ggt_;
             Sparsity G_sp = (k == 0) ? Gg0t_sp_ : (k == K_ - 1) ? GgKt_sp_ : Ggt_sp_;
@@ -215,6 +219,9 @@ class ExplicitTestProblem : public OcpAbstract{
             int scratch_ptr = 0;
             for (int j = 0; j < G_sp.size2(); j++){
                 for (int i = 0; i < G_sp.size1(); i++){
+                    if (i > res->m || j > res->n){
+                        throw std::runtime_error("Error in eval_Ggt: trying to write outside of matrix bounds");
+                    }
                     if (G_sp.has_nz(i, j)) {
                         blasfeo_matel_wrap(res, i, j) = scratch_[scratch_ptr];
                         scratch_ptr++;
@@ -249,6 +256,9 @@ class ExplicitTestProblem : public OcpAbstract{
             int scratch_ptr = 0;
             for (int j = 0; j < Ggt_ineq_sp.size2(); j++){
                 for (int i = 0; i < Ggt_ineq_sp.size1(); i++){
+                    if (i > res->m || j > res->n){
+                        throw std::runtime_error("Error in eval_Ggt_ineq: trying to write outside of matrix bounds");
+                    }
                     if (Ggt_ineq_sp.has_nz(i, j)) {
                         blasfeo_matel_wrap(res, i, j) = scratch_[scratch_ptr];
                         scratch_ptr++;
@@ -273,8 +283,17 @@ class ExplicitTestProblem : public OcpAbstract{
             std::vector<const double*> arg_in = {inputs_k, states_k};
             std::vector<double*> arg_out = {res};
             eval_dynamics_equation_(arg_in, arg_out);
-            for (int i = 0; i < nx_; i++){
+            for (int i = 0; i < get_nx(k); i++){
                 res[i] -= states_kp1[i];
+            }
+            
+            if (DEBUG_PRINT){
+                std::cout << __func__ << " [" << k << "]" << std::endl;
+                std::cout << "b: ";
+                for (Index i = 0; i < get_nx(k); ++i) {
+                    std::cout << res[i] << " ";
+                }
+                std::cout<<std::endl;
             }
             return 0;
         }
@@ -296,6 +315,15 @@ class ExplicitTestProblem : public OcpAbstract{
                 eval_gK_(arg_in, arg_out);
             } else {
                 eval_gk_(arg_in, arg_out);
+            }
+
+            if (DEBUG_PRINT){
+                std::cout << __func__ << " [" << k << "]" << std::endl;
+                std::cout << "g: ";
+                for (Index i = 0; i < get_ng(k); ++i) {
+                    std::cout << res[i] << " ";
+                }
+                std::cout<<std::endl;
             }
             return 0;
         };
@@ -335,7 +363,11 @@ class ExplicitTestProblem : public OcpAbstract{
 
             std::vector<double*> arg_out = {res};
             grad(arg_in, arg_out);
-            for (auto s : scratch_) { s *= (*objective_scale);}
+
+            for (Index i = 0; i < get_nu(k) + get_nx(k); ++i) {
+                res[i] *= (*objective_scale);
+            }
+
             if (DEBUG_PRINT){
                 std::cout << __func__ << " [" << k << "]" << std::endl;
                 std::cout << "grad: ";
@@ -370,24 +402,26 @@ class ExplicitTestProblem : public OcpAbstract{
                     upper[i] = g_ineq_K_ub_[i];
                 }    
                 return 0;
-            }
-            for (Index i = 0; i < eval_gk_ineq_.sparsity_out(0).size1(); ++i) {
-                lower[i] = g_ineq_lb_[i];
-                upper[i] = g_ineq_ub_[i];
+            } else {
+                for (Index i = 0; i < eval_gk_ineq_.sparsity_out(0).size1(); ++i) {
+                    lower[i] = g_ineq_lb_[i];
+                    upper[i] = g_ineq_ub_[i];
+                }
+                return 0;
             }
             return 0;
         }
 
         virtual Index get_initial_xk(Scalar *xk, const Index k) const
         {
-            for (Index i = 0; i < nx_; ++i) {
+            for (Index i = 0; i < get_nx(k); ++i) {
                 xk[i] = x_init_[k][i];
             }
             return 0;
         };
         virtual Index get_initial_uk(Scalar *uk, const Index k) const
         {
-            for (Index i = 0; i < nu_; ++i) {
+            for (Index i = 0; i < get_nu(k); ++i) {
                 uk[i] = u_init_[k][i];
             }
             return 0;

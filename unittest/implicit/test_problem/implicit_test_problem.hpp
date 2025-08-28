@@ -71,10 +71,8 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             Ggt_ = Function("Ggt", {uk, xk}, {transpose(jacobian(eval_gk_(ukxk)[0], vertcat(uk, xk)))});
             GgKt_ = Function("GgKt", {xk}, {transpose(jacobian(eval_gK_(xk)[0], xk))});
             Gg0t_ = Function("Gg0t", {uk, xk}, {transpose(jacobian(eval_g0_(ukxk)[0], vertcat(uk, xk)))});
-            Ggt_ineq_ = Function("Ggt_ineq", {uk, xk}, 
-                {jacobian(eval_gk_ineq_(ukxk)[0], vertcat(uk, xk))});
-            GgKt_ineq_ = Function("GgKt_ineq", {xk},
-                {jacobian(eval_gK_ineq_(xk)[0], xk)});
+            Ggt_ineq_ = Function("Ggt_ineq", {uk, xk}, {transpose(jacobian(eval_gk_ineq_(ukxk)[0], vertcat(uk, xk)))});
+            GgKt_ineq_ = Function("GgKt_ineq", {xk}, {transpose(jacobian(eval_gK_ineq_(xk)[0], xk))});
             b_ = Function("b", {uk, xk, xkp}, {eval_dynamics_equation_(ukxkxkp)[0]});
             Jt_ = Function("Jt", {uk, xk, xkp}, 
                 {transpose(
@@ -102,10 +100,10 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             MX lagrangian_K = obj_scale*eval_objK_(xk)[0] + \
                 mtimes(transpose(lam_eq_K), eval_gK_(xk)[0]) + \
                 mtimes(transpose(lam_ineq_K), eval_gK_ineq_(xk)[0]);
-            lag_hess_k_ = Function("lag_hess_k", {xk, uk, xkp, lam_dyn_k, lam_eq_k, lam_ineq_k, obj_scale}, 
+            lag_hess_k_ = Function("lag_hess_k", {uk, xk, xkp, lam_dyn_k, lam_eq_k, lam_ineq_k, obj_scale}, 
                 {transpose(hessian(lagrangian_k, vertcat(uk, xk))),     // RSQ 
                  transpose(hessian(lagrangian_k, xkp))});               // RSQ[k+1]
-            lag_hess_0_ = Function("lag_hess_0", {xk, uk, xkp, lam_dyn_k, lam_eq_0, lam_ineq_k, obj_scale}, 
+            lag_hess_0_ = Function("lag_hess_0", {uk, xk, xkp, lam_dyn_k, lam_eq_0, lam_ineq_k, obj_scale}, 
                 {transpose(hessian(lagrangian_0, vertcat(uk, xk))),     // RSQ
                  transpose(hessian(lagrangian_0, xkp))});               // RSQ[k+1]
             lag_hess_K_ = Function("lag_hess_K", {xk, xkp, lam_dyn_k, lam_eq_K, lam_ineq_K, obj_scale}, 
@@ -150,6 +148,9 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             if (DEBUG_PRINT){
                 std::cout << "entering " << __func__ << " [" << k << "]" << std::endl;
             }
+            if (k == K_ - 1){
+                throw std::runtime_error("Error in eval_BAbt: cannot evaluate BAbt at final stage");
+            }
             std::vector<const double*> arg_in = {inputs_k, states_k, states_kp1};
             std::vector<double*> arg_out = {&scratch_[0]};
             BAbt_(arg_in, arg_out);
@@ -158,6 +159,9 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             int scratch_ptr = 0;
             for (int j = 0; j < BAbt_sp_.size2(); j++){
                 for (int i = 0; i < BAbt_sp_.size1(); i++){
+                    if (i > res->m || j > res->n){
+                        throw std::runtime_error("Error in eval_BAbt: trying to write outside of matrix bounds");
+                    }
                     if (BAbt_.sparsity_out(0).has_nz(i, j)) {
                         blasfeo_matel_wrap(res, i, j) = scratch_[scratch_ptr];
                         scratch_ptr++;
@@ -187,7 +191,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             Sparsity lag_hess_sp = (k == 0) ? lag_hess_0_sp_ : (k == K_ - 1) ? lag_hess_K_sp_ : lag_hess_k_sp_;
             std::vector<const double*> arg_in = (k == K_ - 1) ? 
                 std::vector<const double*>{states_k, states_kp1, lam_dyn_k, lam_eq_k, lam_eq_ineq_k, objective_scale}:
-                std::vector<const double*>{states_k, inputs_k, states_kp1, lam_dyn_k, lam_eq_k, lam_eq_ineq_k, objective_scale};
+                std::vector<const double*>{inputs_k, states_k, states_kp1, lam_dyn_k, lam_eq_k, lam_eq_ineq_k, objective_scale};
             
             std::vector<double*> arg_out = {&scratch_[0], &scratch2_[0]};
             lag_hess(arg_in, arg_out);
@@ -196,6 +200,9 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             int scratch_ptr = 0;
             for (int j = 0; j < lag_hess_sp.size2(); j++){
                 for (int i = 0; i < lag_hess_sp.size1(); i++){
+                    if (i > res->m || j > res->n){
+                        throw std::runtime_error("Error in eval_RSQrqt: trying to write outside of matrix bounds");
+                    }
                     if (lag_hess_sp.has_nz(i, j)) {
                         blasfeo_matel_wrap(res, i, j) += scratch_[scratch_ptr];
                         scratch_ptr++;
@@ -211,6 +218,9 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                 scratch_ptr = 0;
                 for (int j = 0; j < lag_hess_sp_next.size2(); j++){
                     for (int i = 0; i < lag_hess_sp_next.size1(); i++){
+                        if (i > res_next->m || j > res_next->n){
+                           throw std::runtime_error("Error in eval_RSQrqt: trying to write outside of matrix bounds");
+                        }
                         if (lag_hess_sp_next.has_nz(i, j)) {
                             blasfeo_matel_wrap(res_next, get_nu(k+1) + i, get_nu(k+1) + j) += scratch2_[scratch_ptr];
                             scratch_ptr++;
@@ -241,13 +251,6 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             if (DEBUG_PRINT){
                 std::cout << "entering " << __func__ << " [" << k << "]" << std::endl;
             }
-            if (k == 0 && eval_g0_.n_out() == 0){
-                return 0; // No Gg0t for the first step
-            } else if (k == K_ - 1 && eval_gK_.n_out() == 0){
-                return 0; // No GgKt for the last step
-            } else if (k > 0 && k < K_ - 1 && eval_gk_.n_out() == 0){
-                return 0; // No Ggt for intermediate steps
-            }
             
             Function G = (k == 0) ? Gg0t_ : (k == K_ - 1) ? GgKt_ : Ggt_;
             Sparsity G_sp = (k == 0) ? Gg0t_sp_ : (k == K_ - 1) ? GgKt_sp_ : Ggt_sp_;
@@ -262,6 +265,9 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             int scratch_ptr = 0;
             for (int j = 0; j < G_sp.size2(); j++){
                 for (int i = 0; i < G_sp.size1(); i++){
+                    if (i > res->m || j > res->n){
+                        throw std::runtime_error("Error in eval_Ggt: trying to write outside of matrix bounds");
+                    }
                     if (G_sp.has_nz(i, j)) {
                         blasfeo_matel_wrap(res, i, j) = scratch_[scratch_ptr];
                         scratch_ptr++;
@@ -296,6 +302,9 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             int scratch_ptr = 0;
             for (int j = 0; j < Ggt_ineq_sp.size2(); j++){
                 for (int i = 0; i < Ggt_ineq_sp.size1(); i++){
+                    if (i > res->m || j > res->n){
+                        throw std::runtime_error("Error in eval_Ggt_ineq: trying to write outside of matrix bounds");
+                    }
                     if (Ggt_ineq_sp.has_nz(i, j)) {
                         blasfeo_matel_wrap(res, i, j) = scratch_[scratch_ptr];
                         scratch_ptr++;
@@ -320,6 +329,15 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             std::vector<const double*> arg_in = {inputs_k, states_k, states_kp1};
             std::vector<double*> arg_out = {res};
             eval_dynamics_equation_(arg_in, arg_out);
+            
+            if (DEBUG_PRINT){
+                std::cout << __func__ << " [" << k << "]" << std::endl;
+                std::cout << "b: ";
+                for (Index i = 0; i < get_nx(k); ++i) {
+                    std::cout << res[i] << " ";
+                }
+                std::cout<<std::endl;
+            }
             return 0;
         }
 
@@ -340,6 +358,15 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                 eval_gK_(arg_in, arg_out);
             } else {
                 eval_gk_(arg_in, arg_out);
+            }
+
+            if (DEBUG_PRINT){
+                std::cout << __func__ << " [" << k << "]" << std::endl;
+                std::cout << "g: ";
+                for (Index i = 0; i < get_ng(k); ++i) {
+                    std::cout << res[i] << " ";
+                }
+                std::cout<<std::endl;
             }
             return 0;
         };
@@ -379,7 +406,11 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
 
             std::vector<double*> arg_out = {res};
             grad(arg_in, arg_out);
-            for (auto s : scratch_) { s *= (*objective_scale);}
+            
+            for (Index i = 0; i < get_nu(k) + get_nx(k); ++i) {
+                res[i] *= (*objective_scale);
+            }
+
             if (DEBUG_PRINT){
                 std::cout << __func__ << " [" << k << "]" << std::endl;
                 std::cout << "grad: ";
@@ -413,10 +444,12 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                     upper[i] = g_ineq_K_ub_[i];
                 }    
                 return 0;
-            }
-            for (Index i = 0; i < g_ineq_lb_.size(); ++i) {
-                lower[i] = g_ineq_lb_[i];
-                upper[i] = g_ineq_ub_[i];
+            } else {
+                for (Index i = 0; i < g_ineq_lb_.size(); ++i) {
+                    lower[i] = g_ineq_lb_[i];
+                    upper[i] = g_ineq_ub_[i];
+                }
+                return 0;
             }
             return 0;
         }
@@ -453,6 +486,9 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             int scratch_ptr = 0;
             for (int j = 0; j < Jt_sp_.size2(); j++){
                 for (int i = 0; i < Jt_sp_.size1(); i++){
+                    if (i > res->m || j > res->n){
+                        throw std::runtime_error("Error in eval_Jt: trying to write outside of matrix bounds");
+                    }
                     if (Jt_.sparsity_out(0).has_nz(i, j)) {
                         blasfeo_matel_wrap(res, i, j) = scratch_[scratch_ptr];
                         scratch_ptr++;
@@ -485,6 +521,9 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             int scratch_ptr = 0;
             for (int j = 0; j < Jt_inv_sp_.size2(); j++){
                 for (int i = 0; i < Jt_inv_sp_.size1(); i++){
+                    if (i > res->m || j > res->n){
+                        throw std::runtime_error("Error in eval_Jt_inv: trying to write outside of matrix bounds");
+                    }
                     if (Jt_inv_.sparsity_out(0).has_nz(i, j)) {
                         blasfeo_matel_wrap(res, i, j) = scratch_[scratch_ptr];
                         scratch_ptr++;
@@ -519,6 +558,9 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             int scratch_ptr = 0;
             for (int j = 0; j < FuFxt_sp_.size2(); j++){
                 for (int i = 0; i < FuFxt_sp_.size1(); i++){
+                    if (i > res->m || j > res->n){
+                        throw std::runtime_error("Error in eval_FuFxt: trying to write outside of matrix bounds");
+                    }
                     if (FuFxt_sp_.has_nz(i, j)) {
                         blasfeo_matel_wrap(res, i, j) = scratch_[scratch_ptr];
                         scratch_ptr++;

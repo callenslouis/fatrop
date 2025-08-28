@@ -5,17 +5,17 @@ import os
 import pandas as pd
 
 def visualize_holonomic_result(data, **kwargs):
-    dimension = data["ocp problem"]["number of dimensions"]
-    control_level = data["ocp problem"]["control level"]
+    dimension = data["generator_data"]["n"]
+    control_level = data["generator_data"]["control_level"]
     problem_type = data["problem type"]
     solver = data["solver"]
-    problem_name = data["ocp problem"]["name"]
+    problem_name = data["generator_data"]["problem_name"]
 
     axs = kwargs.get('axs', None)
     if axs is None:
         fig, axs = plt.subplots(control_level+1, 1)
 
-    tt = np.linspace(0, data['K'] * data["ocp problem"]['dt'], data['K'])
+    tt = np.linspace(0, data["generator_data"]['K'] * data["generator_data"]['dt'], data["generator_data"]['K'])
 
     state_names = ['pos', 'vel', 'acc', 'jerk', 'snap']
     for i in range(control_level):
@@ -305,6 +305,8 @@ if __name__ == "__main__":
                     'states': data['states'],
                     'inputs': data['inputs']
                 }
+                
+                visualize_holonomic_result(data)
             
             elif data["generator_data"]["problem_name"] == "truck_trailer":
                 df_trucktrailer.loc[len(df_trucktrailer)] = {

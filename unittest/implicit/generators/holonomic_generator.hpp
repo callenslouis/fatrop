@@ -20,7 +20,7 @@ class HolonomicInterfaceGenerator : public InterfaceGenerator {
         // acceleration control: level 2
         // ...
         HolonomicInterfaceGenerator(int n, int control_level){
-            K_ = 50;
+            K_ = 60;
             dt_ = 0.05;
             uk_min_ = -10;
             uk_max_ = 10;
@@ -43,7 +43,7 @@ class HolonomicInterfaceGenerator : public InterfaceGenerator {
         };
 
         virtual ImplicitTestProblem PrepareImplicit(){
-            Function eval_objk = Function("eval_objk", {uk_, xk_}, {sumsqr(uk_)+0*sumsqr(xk_(0))});
+            Function eval_objk = Function("eval_objk", {uk_, xk_}, {sumsqr(uk_)});
             Function eval_objK = Function("eval_objK", {xk_}, {0});
             Function eval_gk = Function("eval_gk", {uk_, xk_}, {MX::zeros(0,1)});
             Function eval_g0 = Function("eval_g0", {uk_, xk_}, {xk_ - start_});
@@ -63,14 +63,16 @@ class HolonomicInterfaceGenerator : public InterfaceGenerator {
             return ImplicitTestProblem(K_, nx_, nu_, 
                     std::vector<std::vector<double>>(100, std::vector<double>(nx_, 0.0)), 
                     std::vector<std::vector<double>>(100, std::vector<double>(nu_, 0.0)), 
-                    std::vector<double>(nu_, uk_min_), std::vector<double>(nu_, uk_max_), 
-                     std::vector<double>(0,0), std::vector<double>(0,0),
+                    std::vector<double>(nu_, uk_min_), 
+                    std::vector<double>(nu_, uk_max_), 
+                    std::vector<double>(0,0), 
+                    std::vector<double>(0,0),
                     eval_objk, eval_objK, eval_gk, eval_g0, eval_gK, eval_gk_ineq, eval_gK_ineq,
                     eval_dynamics_equation_implicit);
         }
 
         virtual ExplicitTestProblem PrepareExplicit(){
-            Function eval_objk = Function("eval_objk", {uk_, xk_}, {sumsqr(uk_)+0*sumsqr(xk_(0))});
+            Function eval_objk = Function("eval_objk", {uk_, xk_}, {sumsqr(uk_)});
             Function eval_objK = Function("eval_objK", {xk_}, {0});
             Function eval_gk = Function("eval_gk", {uk_, xk_}, {MX::zeros(0,1)});
             Function eval_g0 = Function("eval_g0", {uk_, xk_}, {xk_ - start_});
@@ -82,7 +84,6 @@ class HolonomicInterfaceGenerator : public InterfaceGenerator {
             for (int i = 0; i < control_level_; ++i) {
                 for (int j = 0; j < n_; ++j) {
                     MX der_explicit = (i < control_level_ - 1) ? xk_((i+1)*n_ + j) : uk_(j);
-                    // temp_explicit(i*n + j) = xk(i*n + j) + dt*der_explicit - xkp(i*n + j);
                     temp_explicit(i*n_ + j) = xk_(i*n_ + j) + dt_*der_explicit;
                 }
             }
@@ -94,8 +95,8 @@ class HolonomicInterfaceGenerator : public InterfaceGenerator {
                     std::vector<std::vector<double>>(100, std::vector<double>(nu_, 0.0)), 
                     std::vector<double>(nu_, uk_min_),
                     std::vector<double>(nu_, uk_max_), 
-                    std::vector<double>(0,0),
-                    std::vector<double>(0,0),
+                    std::vector<double>(0, 0),
+                    std::vector<double>(0, 0),
                     eval_objk, eval_objK, eval_gk, eval_g0, eval_gK, eval_gk_ineq, eval_gK_ineq,
                     eval_dynamics_equation_explicit);
         }
@@ -104,7 +105,7 @@ class HolonomicInterfaceGenerator : public InterfaceGenerator {
             MX zk = MX::sym("zk", nx_);
             MX uk_aug = vertcat(uk_, zk);
 
-            Function eval_objk = Function("eval_objk", {uk_aug, xk_}, {sumsqr(uk_)+0*sumsqr(xk_(0))});
+            Function eval_objk = Function("eval_objk", {uk_aug, xk_}, {sumsqr(uk_)});
             Function eval_objK = Function("eval_objK", {xk_}, {0});
             Function eval_gK = Function("eval_gK", {xk_}, {xk_ - end_});
             Function eval_gk_ineq = Function("eval_gk_ineq", {uk_aug, xk_}, {uk_});

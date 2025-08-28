@@ -116,10 +116,10 @@ int main(int argc, char **argv)
         file_name_appendix = "n_" + std::to_string(n) + "cl_" + std::to_string(control_level);
     }
 
-    std::cout << "prepare implicit" << std::endl;
     auto tp_impl = std::make_shared<ImplicitTestProblem>(generator->PrepareImplicit());
     auto tp_expl = std::make_shared<ExplicitTestProblem>(generator->PrepareExplicit());
     auto tp_reform = std::make_shared<ExplicitTestProblem>(generator->PrepareReformulated());
+    std::cout << "Generated test problems" << std::endl;
 
     OptionRegistry options;
     IpAlgBuilder<ImplicitOcpType> builder_impl(std::make_shared<ImplicitNlpOcp>(tp_impl));
@@ -129,6 +129,10 @@ int main(int argc, char **argv)
     std::shared_ptr<IpAlgorithm<ImplicitOcpType>> ipalg_impl = builder_impl.with_options_registry(&options).build();
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_expl = builder_expl.with_options_registry(&options).build();
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_reform = builder_reform.with_options_registry(&options).build();
+    std::cout << "built ip algorithms" << std::endl;
+
+    options.set_option("max_iter", 1000);
+    options.set_option("tolerance", 1e-5);
     
     for(int i = 0; i < 1; i++)
     {       
