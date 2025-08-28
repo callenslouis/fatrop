@@ -19,7 +19,7 @@ class TruckTrailerInterfaceGenerator : public InterfaceGenerator {
         // n: number of trailers (n=1 means one truck and one trailer)
         TruckTrailerInterfaceGenerator(int n){
             // define parameters
-            K_ = 200;
+            K_ = 20;
             dt_ = 0.1;
 
             n_ = n;
