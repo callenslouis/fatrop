@@ -240,7 +240,7 @@ private:
 
 int main()
 {
-    IpAlgBuilder<OcpType> builder(std::make_shared<NlpOcpTpl<MyOcpTag>>(std::make_shared<MyOcp>()));
+    IpAlgBuilder<OcpType> builder(std::make_shared<NlpOcpTpl<MyOcpTag, OcpType>>(std::make_shared<MyOcp>()));
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg = builder.build();
     IpSolverReturnFlag ret = ipalg->optimize();
     std::cout << "Return flag: " << int(ret) << std::endl;

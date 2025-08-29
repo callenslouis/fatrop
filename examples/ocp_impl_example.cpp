@@ -6,6 +6,7 @@
 #include "fatrop/ocp/ocp_abstract.hpp"
 #include <limits>
 #include <memory>
+#include "../unittest/implicit/generators/show_interface_output.hpp"
 using namespace fatrop;
 
 // example problem 2D point mass with a small nonlinearity in the dynamics
@@ -236,6 +237,9 @@ private:
 
 int main()
 {
+    OcpTestProblem tp = OcpTestProblem();
+    show_interface_output(tp, "output_interface.txt");
+
     OptionRegistry options;
     IpAlgBuilder<OcpType> builder(std::make_shared<NlpOcp>(std::make_shared<OcpTestProblem>()));
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg = builder.with_options_registry(&options).build();

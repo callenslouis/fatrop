@@ -129,6 +129,7 @@ class ExplicitTestProblem : public OcpAbstract{
             if (DEBUG_PRINT){
                 std::cout << "entering " << __func__ << " [" << k << "]" << std::endl;
             }
+            blasfeo_gese_wrap(res->m, res->n, 0.0, res, 0, 0);
             if (k == K_ - 1){
                 throw std::runtime_error("Error in eval_BAbt: cannot evaluate BAbt at final stage");
             }
@@ -168,6 +169,7 @@ class ExplicitTestProblem : public OcpAbstract{
             if (DEBUG_PRINT){
                 std::cout << "entering " << __func__ << " [" << k << "]" << std::endl;
             }
+            blasfeo_gese_wrap(res->m, res->n, 0.0, res, 0, 0);
             Function lag_hess = (k == 0) ? lag_hess_0_ : (k == K_ - 1) ? lag_hess_K_ : lag_hess_k_;
             Sparsity lag_hess_sp = (k == 0) ? lag_hess_0_sp_ : (k == K_ - 1) ? lag_hess_K_sp_ : lag_hess_k_sp_;
             std::vector<const double*> arg_in = (k == K_ - 1) ?
@@ -205,6 +207,7 @@ class ExplicitTestProblem : public OcpAbstract{
             if (DEBUG_PRINT){
                 std::cout << "entering " << __func__ << " [" << k << "]" << std::endl;
             }
+            blasfeo_gese_wrap(res->m, res->n, 0.0, res, 0, 0);
             
             Function G = (k == 0) ? Gg0t_ : (k == K_ - 1) ? GgKt_ : Ggt_;
             Sparsity G_sp = (k == 0) ? Gg0t_sp_ : (k == K_ - 1) ? GgKt_sp_ : Ggt_sp_;
@@ -243,6 +246,7 @@ class ExplicitTestProblem : public OcpAbstract{
             if (DEBUG_PRINT){
                 std::cout << "entering " << __func__ << " [" << k << "]" << std::endl;
             }
+            blasfeo_gese_wrap(res->m, res->n, 0.0, res, 0, 0);
             Function Ggt_ineq = (k == K_ - 1) ? GgKt_ineq_ : Ggt_ineq_;
             Sparsity Ggt_ineq_sp = (k == K_ - 1) ? GgKt_ineq_sp_ : Ggt_ineq_sp_;
             std::vector<const double*> arg_in = (k == K_ - 1) ? 

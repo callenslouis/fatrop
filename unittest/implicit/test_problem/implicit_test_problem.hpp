@@ -456,14 +456,14 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
 
         virtual Index get_initial_xk(Scalar *xk, const Index k) const
         {
-            for (Index i = 0; i < nx_; ++i) {
+            for (Index i = 0; i < get_nx(k); ++i) {
                 xk[i] = x_init_[k][i];
             }
             return 0;
         };
         virtual Index get_initial_uk(Scalar *uk, const Index k) const
         {
-            for (Index i = 0; i < nu_; ++i) {
+            for (Index i = 0; i < get_nu(k); ++i) {
                 uk[i] = u_init_[k][i];
             }
             return 0;
