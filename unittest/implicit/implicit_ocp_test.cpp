@@ -19,6 +19,7 @@
 #include "generators/bycicle_generator.hpp"
 #include "generators/example_static_generator.hpp"
 #include "generators/show_interface_output.hpp"
+#include "generators/n_link_planar_robot.hpp"
 
 #include "json/single_include/nlohmann/json.hpp"
 
@@ -210,6 +211,17 @@ void SolveAllHolonomic(){
     }
 }
 
+void SolveSingleProblemPlanarRobot(int n_links){
+    std::unique_ptr<InterfaceGenerator> generator = 
+        std::make_unique<PlanarRobot>(n_links);
+    SolveProblem(generator);
+}
+void SolveAllPlanarRobot(){
+    for (int n_links = 1; n_links <= 7; n_links++){
+        SolveSingleProblemPlanarRobot(n_links);
+    }
+}
+
 
 int main(int argc, char **argv)
 {
@@ -236,7 +248,7 @@ int main(int argc, char **argv)
             generator = std::make_unique<BycicleGenerator>();
         } else if (std::string(argv[2]) == "example_static"){
             generator = std::make_unique<ExampleStaticGenerator>();
-        } else {
+        } else if (std::string(argv[2]) == "holonomic"){
             int n = 3;
             int control_level = 2;
 
@@ -244,6 +256,13 @@ int main(int argc, char **argv)
             if (argc > 4){ control_level = std::stoi(argv[4]);}
 
             generator = std::make_unique<HolonomicInterfaceGenerator>(n, control_level);
+        } else if (std::string(argv[2]) == "planar_robot"){
+            int n_links = 3;
+            if (argc > 3){ n_links = std::stoi(argv[3]);}
+            generator = std::make_unique<PlanarRobot>(n_links);
+        } else {
+            std::cout << "Second argument should be either \"truck_trailer\", \"bycicle\", \"example_static\" or \"holonomic\" when first argument is \"single\"" << std::endl;
+            return 0;
         }
 
         SolveProblem(generator);
@@ -253,8 +272,10 @@ int main(int argc, char **argv)
             SolveAllTruckTrailer();
         } else if (std::string(argv[2]) == "holonomic"){
             SolveAllHolonomic();
+        } else if (std::string(argv[2]) == "planar_robot"){
+            SolveAllPlanarRobot();
         } else {
-            std::cout << "Second argument should be either \"truck_trailer\" or \"holonomic\" when first argument is \"all\"" << std::endl;
+            std::cout << "Second argument should be either \"truck_trailer\", \"holonomic\" or \"planar_robot\" when first argument is \"all\"" << std::endl;
             return 0;
         }
 

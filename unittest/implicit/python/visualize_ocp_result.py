@@ -93,6 +93,57 @@ def visualize_trucktrailer_result(data, **kwargs):
     plt.savefig(f"unittest/implicit/figures/ocp_result_{problem_name}_n_{n}_{problem_type}_{solver}.png", dpi=300)
     plt.close()
 
+def visualize_planar_robot_result(data, **kwargs):
+    n = data["generator_data"]["n"]
+    problem_type = data["problem type"]
+    solver = data["solver"]
+    problem_name = data["generator_data"]["problem_name"]
+
+    axs = kwargs.get('axs', None)
+    if axs is None:
+        fig, axs = plt.subplots(2, 1, height_ratios=[3, 1])
+
+    tt = np.linspace(0, data["generator_data"]['K'] * data["generator_data"]['dt'], data["generator_data"]['K'])
+
+    # get positions of joints
+    angles = np.array([data['states'][k][:n] for k in range(data["generator_data"]['K'])]).transpose()
+    print(data["generator_data"])
+    link_length = data["generator_data"]["l"]
+    xx = [[] for _ in range(n+1)]   # xx[joint_idx][time_idx]
+    yy = [[] for _ in range(n+1)]
+    for k in range(data["generator_data"]['K']):
+        x, y = 0, 0
+        xx[0].append(x)
+        yy[0].append(y)
+        current_angle = 0
+        for i in range(n):
+            current_angle += angles[i,k]
+            x += link_length * np.cos(current_angle)
+            y += link_length * np.sin(current_angle)
+            xx[i+1].append(x)
+            yy[i+1].append(y)
+
+    # plot chain of links at each time step (with fading color)
+    for i in range(n+1):
+        axs[0].plot(xx[i], yy[i], label=f'joint {i}')
+        step = 5
+        axs[0].quiver(xx[i][::step], yy[i][::step], np.cos(angles[i-1][::step] if i>0 else 0), np.sin(angles[i-1][::step] if i>0 else 0), scale=20, width=0.003, zorder=5)
+
+    axs[0].set_aspect('equal', 'box')
+    axs[0].legend()
+    
+    # plot control
+    for j in range(n):
+        axs[1].plot(tt[:-1], [u[j] for u in data['inputs']], label='u'+str(j))
+    axs[1].legend()
+
+    plt.suptitle(f"{problem_type} - {solver}")
+
+    plt.tight_layout()
+    # plt.show()
+    plt.savefig(f"unittest/implicit/figures/ocp_result_{problem_name}_n_{n}_{problem_type}_{solver}.png", dpi=300)
+    plt.close()
+
 def visualize_performance(df):
     plt.figure()
     nx_vals = df['nx'].unique()
@@ -346,6 +397,16 @@ if __name__ == "__main__":
                                             'compute_search_dir',
                                             'nb_iterations',
                                             'states', 'inputs'])
+    
+    df_planarrobot = pd.DataFrame(columns=['problem_name', 'problem type',
+                                            'solver', 'n',
+                                            'K', 'nx', 'nu', 'l', 
+                                            'time_total', 
+                                            'time_solver', 
+                                            'time_function_evaluation', 
+                                            'compute_search_dir',
+                                            'nb_iterations',
+                                            'states', 'inputs'])
 
     for file_name in os.listdir(dir_path):
         if file_name.endswith('.json'):
@@ -393,6 +454,27 @@ if __name__ == "__main__":
                 }
             
                 # visualize_trucktrailer_result(data)
+
+            elif data["generator_data"]["problem_name"] == "planar_robot":
+                df_planarrobot.loc[len(df_planarrobot)] = {
+                    'problem_name': data["generator_data"]["problem_name"],
+                    'problem type': data['problem type'],
+                    'solver': data['solver'],
+                    'n': data["generator_data"]["n"],
+                    'K': data["generator_data"]['K'], 
+                    'nx': data["generator_data"]['nx'], 
+                    'nu': data["generator_data"]['nu'],
+                    'l': data["generator_data"]['l'],
+                    'time_total': data["metadata"]["timing_statistics"]['total'],
+                    'time_solver': data["metadata"]["timing_statistics"]['fatrop'],
+                    'time_function_evaluation': data["metadata"]["timing_statistics"]['function evaluation'],
+                    'compute_search_dir': data["metadata"]["timing_statistics"]['compute search dir'],
+                    'nb_iterations': data["metadata"]['iterations'],
+                    'states': data['states'],
+                    'inputs': data['inputs']
+                }
+
+                visualize_planar_robot_result(data)
             
             else:
                 print(f"Unknown problem name: {data["generator_data"]['problem_name']}")
