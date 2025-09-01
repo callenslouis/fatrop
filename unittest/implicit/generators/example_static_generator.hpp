@@ -55,7 +55,7 @@ class ExampleStaticGenerator : public InterfaceGenerator {
         virtual ImplicitTestProblem PrepareImplicit(){
             Function eval_objk = Function("eval_objk", {uk_, xk_}, {sumsqr(uk_)});
             Function eval_objK = Function("eval_objK", {xk_}, {0});
-            Function eval_gk = Function("eval_gk", {uk_, xk_}, {uk_});
+            Function eval_gk = Function("eval_gk", {uk_, xk_}, {zero_});
             Function eval_g0 = Function("eval_g0", {uk_, xk_}, {xk_ - start_});
             Function eval_gk_ineq = Function("eval_gk_ineq", {uk_, xk_}, {uk_});
             Function eval_gK = Function("eval_gK", {xk_}, {xk_ - end_});
@@ -63,6 +63,7 @@ class ExampleStaticGenerator : public InterfaceGenerator {
             
             MX rhs = vertcat(
                 vertcat(xkp_(2), xkp_(3)), vertcat(uk_(0)/m_ + 0.5*uk_(1)*uk_(1)/m_, uk_(1)/m_)
+                // vertcat(xk_(2), xk_(3)), vertcat(uk_(0)/m_ + 0.5*uk_(1)*uk_(1)/m_, uk_(1)/m_)
             );
             Function eval_dynamics_equation_implicit = Function("eval_dynamics_equation", {uk_, xk_, xkp_}, {xk_ + dt_*rhs - xkp_});
 
@@ -76,7 +77,7 @@ class ExampleStaticGenerator : public InterfaceGenerator {
         virtual ExplicitTestProblem PrepareExplicit(){
             Function eval_objk = Function("eval_objk", {uk_, xk_}, {sumsqr(uk_)});
             Function eval_objK = Function("eval_objK", {xk_}, {0});
-            Function eval_gk = Function("eval_gk", {uk_, xk_}, {MX::zeros(0,1)});
+            Function eval_gk = Function("eval_gk", {uk_, xk_}, {zero_});
             Function eval_g0 = Function("eval_g0", {uk_, xk_}, {xk_ - start_});
             Function eval_gk_ineq = Function("eval_gk_ineq", {uk_, xk_}, {uk_});
             Function eval_gK = Function("eval_gK", {xk_}, {xk_ - end_});
@@ -133,6 +134,9 @@ class ExampleStaticGenerator : public InterfaceGenerator {
             j["end"] = end_;
             return j;
         }
+
+        virtual std::string GetInterfaceName(){ return "example_static";};
+        virtual std::string GetFileNameAppendix(){return "";};
 
     private:
         int K_;

@@ -61,7 +61,7 @@ class ExplicitTestProblem : public OcpAbstract{
 
             grad_ = Function("grad", {uk, xk}, 
                 {transpose(jacobian(eval_objk_(ukxk)[0], vertcat(uk, xk)))});
-            grad_K_ = Function("grad", {xk}, 
+            grad_K_ = Function("gradK", {xk}, 
                 {transpose(jacobian(eval_objK_(xk)[0], xk))});
             BAbt_ = Function("BAbt", {uk, xk, xkp}, 
                 {transpose(horzcat(
@@ -390,7 +390,7 @@ class ExplicitTestProblem : public OcpAbstract{
             }
             Function obj = (k == K_ - 1) ? eval_objK_ : eval_objk_;
             std::vector<const double*> arg_in = (k == K_ - 1) ? 
-                std::vector<const double*>{states_k}:
+                std::vector<const double*>{states_k} :
                 std::vector<const double*>{inputs_k, states_k};
             
             std::vector<double*> arg_out = {res};

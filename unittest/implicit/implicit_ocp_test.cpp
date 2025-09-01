@@ -23,232 +23,10 @@
 #include "json/single_include/nlohmann/json.hpp"
 
 #include <fstream>
+#include <tuple>
 
 using namespace fatrop;
 using json = nlohmann::json;
-
-// example problem 2D point mass with a small nonlinearity in the dynamics
-// states: [x, y, vx, vy]
-// inputs: [fx, fy]
-// dynamics: [xk+1 = xk + dt*vxk, yk+1 = yk + dt*vyk, vxk+1 = vxk + dt*fx/m +0.5*dt*fy**2/m, vyk+1
-// = vyk + dt*fy/m] cost: fx^2 + fy^2 constraints:
-//  at k = 0: x = 0, y = 0, vx = 0, vy = 0
-//  at k = K: x = 1, y = 1, vx = 0, vy = 0
-class OcpTestProblem : public OcpAbstract
-{
-public:
-    virtual Index get_nx(const Index k) const { return 4; }
-
-    virtual Index get_nu(const Index k) const
-    {
-        if (k == 0)
-        {
-            return 2;
-        }
-        else if (k == K_ - 1)
-        {
-            return 0;
-        }
-        else
-        {
-            return 2;
-        }
-    }
-    virtual Index get_ng(const Index k) const
-    {
-        if (k == 0)
-        {
-            return 4;
-        }
-        else if (k == K_ - 1)
-        {
-            return 4;
-        }
-        else
-        {
-            return 0;
-        }
-    };
-
-    virtual Index get_ng_ineq(const Index k) const { return k == K_ - 1 ? 0 : 2; };
-    virtual Index get_horizon_length() const { return K_; };
-    virtual Index eval_BAbt(const Scalar *states_kp1, const Scalar *inputs_k,
-                            const Scalar *states_k, MAT *res, const Index k)
-    {
-        // set zero
-        blasfeo_gese_wrap(res->m, res->n, 0.0, res, 0, 0);
-        // Matrix B
-        // [  0,    0        ]
-        // [  0,    0        ]
-        // [ dt/m,  dt/m*fy  ]
-        // [  0,    dt/m     ]
-
-        // Matrix A
-        // [ 1,  0,  dt,  0  ]
-        // [ 0,  1,   0,  dt ]
-        // [ 0,  0,   1,  0  ]
-        // [ 0,  0,   0,  1  ]
-
-        blasfeo_matel_wrap(res, 0, 2) = dt_ / m_;
-        blasfeo_matel_wrap(res, 1, 3) = dt_ / m_;
-        blasfeo_matel_wrap(res, 1, 2) = dt_ / m_ * inputs_k[1];
-
-        blasfeo_diare_wrap(4, 1.0, res, 2, 0);
-        blasfeo_matel_wrap(res, 4, 0) = dt_;
-        blasfeo_matel_wrap(res, 5, 1) = dt_;
-        return 0;
-    }
-    virtual Index eval_RSQrqt(const Scalar *objective_scale, const Scalar *inputs_k,
-                              const Scalar *states_k, const Scalar *lam_dyn_k,
-                              const Scalar *lam_eq_k, const Scalar *lam_eq_ineq_k, MAT *res,
-                              const Index k)
-    {
-        // set zero
-        blasfeo_gese_wrap(res->m, res->n, 0.0, res, 0, 0);
-        // Matrix R
-        // [ 2,  0 ]
-        // [ 0,  2 ]
-        if (k < K_ - 1)
-        {
-            blasfeo_diare_wrap(2, objective_scale[0] * 2.0, res, 0, 0);
-            // add the contribution from the nonlinearity in the dynamics
-            Scalar lam = lam_dyn_k[2];
-            blasfeo_matel_wrap(res, 1, 1) += dt_ * lam;
-        }
-        return 0;
-    };
-    virtual Index eval_Ggt(const Scalar *inputs_k, const Scalar *states_k, MAT *res, const Index k)
-    {
-        // set zero
-        blasfeo_gese_wrap(res->m, res->n, 0.0, res, 0, 0);
-        if (k == 0)
-            blasfeo_diare_wrap(4, 1.0, res, 2, 0);
-        if (k == K_ - 1)
-            blasfeo_diare_wrap(4, 1.0, res, 0, 0);
-        return 0;
-    }
-    virtual Index eval_Ggt_ineq(const Scalar *inputs_k, const Scalar *states_k, MAT *res,
-                                const Index k)
-    {
-        if (k == K_ - 1)
-            return 0;
-        // set zero
-        blasfeo_gese_wrap(res->m, res->n, 0.0, res, 0, 0);
-        blasfeo_matel_wrap(res, 0, 0) = 1.0;
-        blasfeo_matel_wrap(res, 1, 1) = 1.0;
-        return 0;
-    };
-    virtual Index eval_b(const Scalar *states_kp1, const Scalar *inputs_k, const Scalar *states_k,
-                         Scalar *res, const Index k)
-    {
-        /**
-         * note here it is important to write down the dynamics in the form
-         *                -x_{k+1}+f(u_k, x_k) = 0
-         */
-        res[0] = -states_kp1[0] + states_k[0] + dt_ * states_k[2]; // == 0
-        res[1] = -states_kp1[1] + states_k[1] + dt_ * states_k[3]; // == 0
-        res[2] = -states_kp1[2] + states_k[2] + dt_ * inputs_k[0] / m_ +
-                 dt_ * 0.5 * inputs_k[1] * inputs_k[1];            // == 0
-        res[3] = -states_kp1[3] + states_k[3] + dt_ * inputs_k[1] / m_; // == 0
-        return 0;
-    }
-
-    virtual Index eval_g(const Scalar *inputs_k, const Scalar *states_k, Scalar *res, const Index k)
-    {
-        if (k == 0)
-        {
-            res[0] = states_k[0]; // == 0
-            res[1] = states_k[1]; // == 0
-            res[2] = states_k[2]; // == 0
-            res[3] = states_k[3]; // == 0
-        }
-        else if (k == K_ - 1)
-        {
-            res[0] = states_k[0] - 1.; // == 0
-            res[1] = states_k[1] - 2.; // == 0
-            res[2] = states_k[2] - 3.; // == 0
-            res[3] = states_k[3] - 4.; // == 0
-        }
-        return 0;
-    };
-    virtual Index eval_gineq(const Scalar *inputs_k, const Scalar *states_k, Scalar *res,
-                             const Index k)
-    {
-        if (k == K_ - 1)
-            return 0;
-        res[0] = inputs_k[0];
-        res[1] = inputs_k[1];
-        return 0;
-    };
-    virtual Index eval_rq(const Scalar *objective_scale, const Scalar *inputs_k,
-                          const Scalar *states_k, Scalar *res, const Index k)
-    {
-        if (k == K_ - 1)
-        {
-            res[0] = 0.;
-            res[1] = 0.;
-            res[2] = 0.;
-            res[3] = 0.;
-        }
-        else
-        {
-            res[0] = 2 * objective_scale[0] * inputs_k[0];
-            res[1] = 2 * objective_scale[0] * inputs_k[1];
-            res[2] = 0.;
-            res[3] = 0.;
-            res[4] = 0.;
-            res[5] = 0.;
-            res[6] = 0.;
-        }
-        return 0;
-    }
-    virtual Index eval_L(const Scalar *objective_scale, const Scalar *inputs_k,
-                         const Scalar *states_k, Scalar *res, const Index k)
-    {
-        if (k == K_ - 1)
-        {
-            *res = 0.;
-        }
-        else
-        {
-            *res = objective_scale[0] * (inputs_k[0] * inputs_k[0] + inputs_k[1] * inputs_k[1]);
-        }
-        return 0;
-    }
-    virtual Index get_bounds(Scalar *lower, Scalar *upper, const Index k) const
-    {
-        if (k == K_ - 1)
-            return 0;
-        lower[0] = -50.;
-        upper[0] = 50.;
-        lower[1] = -100.;
-        upper[1] = 100.;
-        return 0;
-    }
-
-    virtual Index get_initial_xk(Scalar *xk, const Index k) const
-    {
-        xk[0] = 0.;
-        xk[1] = 0.;
-        xk[2] = 0.;
-        xk[3] = 0.;
-        return 0;
-    };
-    virtual Index get_initial_uk(Scalar *uk, const Index k) const
-    {
-        if (k == K_ - 1)
-            return 0;
-        uk[0] = 0.;
-        uk[1] = 0.;
-        return 0;
-    };
-    virtual ~OcpTestProblem() = default;
-
-private:
-    const Index K_ = 100;
-    const Scalar m_ = 1.0;
-    const Scalar dt_ = 0.05;
-};
 
 template <typename T>
 double get_average(const std::vector<T>& v){
@@ -303,141 +81,187 @@ json add_json_data(std::shared_ptr<IpData<ProblemType>> data, std::string proble
     return my_json;
 };
 
-int main(int argc, char **argv)
-{
-    ExampleStaticGenerator gen;
-    ExplicitTestProblem tp = gen.PrepareExplicit();
-    show_interface_output(tp, "output_interface.txt");
-
-    int file_counter = 0;
-    // create a directory ocp_results
-    int temp = system("mkdir -p ocp_results");
-
-    std::unique_ptr<InterfaceGenerator> generator;
-    std::string gen_type = "holonomic";
-    std::string file_name_appendix;
-
-    if (argc > 1 && std::string(argv[1]) == "truck_trailer"){
-        std::cout << "Solving truck_trailer problem" << std::endl;
-
-        gen_type = "truck_trailer";
-
-        int n_trailers = 3;
-        if (argc > 2){
-            n_trailers = std::stoi(argv[2]);
-        }
-
-        generator = std::make_unique<TruckTrailerInterfaceGenerator>(n_trailers);
-        file_name_appendix = "n_" + std::to_string(n_trailers);
-
-    } else if (argc > 1 && std::string(argv[1]) == "bycicle"){
-        std::cout << "Solving bycicle problem" << std::endl;
-
-        gen_type = "bycicle";
-
-        generator = std::make_unique<BycicleGenerator>();
-        file_name_appendix = "";
-    } else if (argc > 1 && std::string(argv[1]) == "example_static"){
-        std::cout << "Solving example static problem" << std::endl;
-
-        gen_type = "example_static";
-
-        generator = std::make_unique<ExampleStaticGenerator>();
-        file_name_appendix = "";
-    } else {
-        std::cout << "Solving holonomic problem" << std::endl;
-        int n = 3;
-        int control_level = 2;
-
-        if (argc > 2){
-            n = std::stoi(argv[2]);
-        }
-        if (argc > 3){
-            control_level = std::stoi(argv[3]);
-        }
-
-        generator = std::make_unique<HolonomicInterfaceGenerator>(n, control_level);
-        file_name_appendix = "n_" + std::to_string(n) + "cl_" + std::to_string(control_level);
-    }
-
+void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     auto tp_impl = std::make_shared<ImplicitTestProblem>(generator->PrepareImplicit());
     auto tp_expl = std::make_shared<ExplicitTestProblem>(generator->PrepareExplicit());
     auto tp_reform = std::make_shared<ExplicitTestProblem>(generator->PrepareReformulated());
     ImplicitTestProblem tp_interface_impl = *tp_impl;
     ExplicitTestProblem tp_interface_expl = *tp_expl;
     ExplicitTestProblem tp_interface_reform = *tp_reform;
-    // show_interface_output(tp_interface_impl, "output_interface_implicit.txt");
-    show_interface_output(tp_interface_expl, "output_interface_explicit.txt");
-    show_interface_output(tp_interface_reform, "output_interface_reformulated.txt");
+    // show_implicit_interface_output(tp_interface_impl, "output_interface_implicit.txt");
+    // show_interface_output(tp_interface_expl, "output_interface_explicit.txt");
+    // show_interface_output(tp_interface_reform, "output_interface_reformulated.txt");
 
     std::cout << "Generated test problems" << std::endl;
+    std::string gen_type = generator->GetInterfaceName();
+    std::string file_name_appendix = generator->GetFileNameAppendix();
 
     OptionRegistry options;
     IpAlgBuilder<ImplicitOcpType> builder_impl(std::make_shared<ImplicitNlpOcp>(tp_impl));
-    // IpAlgBuilder<OcpType> builder_expl(std::make_shared<NlpOcp>(tp_expl));
-    IpAlgBuilder<OcpType> builder_expl(std::make_shared<NlpOcp>(std::make_shared<OcpTestProblem>()));
+    IpAlgBuilder<OcpType> builder_expl(std::make_shared<NlpOcp>(tp_expl));
     IpAlgBuilder<OcpType> builder_reform(std::make_shared<NlpOcp>(tp_reform));    
 
     std::shared_ptr<IpAlgorithm<ImplicitOcpType>> ipalg_impl = builder_impl.with_options_registry(&options).build();
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_expl = builder_expl.with_options_registry(&options).build();
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_reform = builder_reform.with_options_registry(&options).build();
     std::cout << "built ip algorithms" << std::endl;
-
-    // options.set_option("max_iter", 1000);
-    // options.set_option("tolerance", 1e-5);
     
-    for(int i = 0; i < 1; i++)
-    {       
-        // EXPLICIT
-        std::cout << "solving explicit test problem" << std::endl;
-        Timer timer_expl; timer_expl.start();
-        IpSolverReturnFlag ret_expl = ipalg_expl->optimize();
-        std::cout << "Elapsed time: " << timer_expl.stop() << std::endl;
-        auto data_expl = builder_expl.get_ipdata();
-        json result_expl = add_json_data(data_expl, "explicit");
-        result_expl["generator_data"] = generator->GetJsonData();
-        std::ofstream file2("ocp_results/ocp_result_" + gen_type + "_" + file_name_appendix + "_" + std::to_string(file_counter) + ".json");
-        if (file2.is_open())
-        {
-            file2 << result_expl.dump(4);
-            file2.close();
-            file_counter++;
-        }
+    // EXPLICIT
+    std::cout << "solving explicit test problem" << std::endl;
+    Timer timer_expl; timer_expl.start();
+    IpSolverReturnFlag ret_expl = ipalg_expl->optimize();
+    std::cout << "Elapsed time: " << timer_expl.stop() << std::endl;
+    auto data_expl = builder_expl.get_ipdata();
+    json result_expl = add_json_data(data_expl, "explicit");
+    result_expl["generator_data"] = generator->GetJsonData();
+    std::ofstream file2("ocp_results/ocp_result_explicit_" + gen_type + "_" + file_name_appendix + ".json");
+    if (file2.is_open())
+    {
+        file2 << result_expl.dump(4);
+        file2.close();
+    }
 
-        // IMPLICIT
-        std::cout << "solving implicit test problem" << std::endl;
-        Timer timer_impl; timer_impl.start();
-        IpSolverReturnFlag ret_impl = ipalg_impl->optimize();
-        std::cout << "Elapsed time: " << timer_impl.stop() << std::endl;
-        auto data_impl = builder_impl.get_ipdata();
-        json result_impl = add_json_data(data_impl, "implicit");
-        result_impl["generator_data"] = generator->GetJsonData();
-        std::ofstream file("ocp_results/ocp_result_" + gen_type + "_" + file_name_appendix + "_" + std::to_string(file_counter) + ".json");
-        if (file.is_open())
-        {
-            file << result_impl.dump(4);
-            file.close();
-            file_counter++;
-        }
+    // REFORMULATED
+    std::cout << "solving reformulated test problem" << std::endl;
+    Timer timer_reform; timer_reform.start();
+    IpSolverReturnFlag ret_reform = ipalg_reform->optimize();
+    std::cout << "Elapsed time: " << timer_reform.stop() << std::endl;
+    auto data_reform = builder_reform.get_ipdata();
+    json result_reform = add_json_data(data_reform, "reformulated");
+    result_reform["generator_data"] = generator->GetJsonData();
+    std::ofstream file3("ocp_results/ocp_result_reformulated_" + gen_type + "_" + file_name_appendix + ".json");
+    if (file3.is_open())
+    {
+        file3 << result_reform.dump(4);
+        file3.close();
+    }
 
-        // REFORMULATED
-        std::cout << "solving reformulated test problem" << std::endl;
-        Timer timer_reform; timer_reform.start();
-        IpSolverReturnFlag ret_reform = ipalg_reform->optimize();
-        std::cout << "Elapsed time: " << timer_reform.stop() << std::endl;
-        auto data_reform = builder_reform.get_ipdata();
-        json result_reform = add_json_data(data_reform, "reformulated");
-        result_reform["generator_data"] = generator->GetJsonData();
-        std::ofstream file3("ocp_results/ocp_result_" + gen_type + "_" + file_name_appendix + "_" + std::to_string(file_counter) + ".json");
-        if (file3.is_open())
-        {
-            file3 << result_reform.dump(4);
-            file3.close();
-            file_counter++;
+    // IMPLICIT
+    std::cout << "solving implicit test problem" << std::endl;
+    Timer timer_impl; timer_impl.start();
+    IpSolverReturnFlag ret_impl = ipalg_impl->optimize();
+    std::cout << "Elapsed time: " << timer_impl.stop() << std::endl;
+    auto data_impl = builder_impl.get_ipdata();
+    json result_impl = add_json_data(data_impl, "implicit");
+    result_impl["generator_data"] = generator->GetJsonData();
+    std::ofstream file("ocp_results/ocp_result__implicit_" + gen_type + "_" + file_name_appendix + ".json");
+    if (file.is_open())
+    {
+        file << result_impl.dump(4);
+        file.close();
+    }
+
+    std::cout << "Finished solving problem" << std::endl;
+    std::cout << "nb iterations: " << std::endl;
+    std::cout << "\texplicit:     " << result_expl["metadata"]["iterations"] << std::endl;
+    std::cout << "\treformulated: " << result_reform["metadata"]["iterations"] << std::endl;
+    std::cout << "\timplicit:     " << result_impl["metadata"]["iterations"] << std::endl;
+
+    std::cout << "t_total: " << std::endl;
+    std::cout << "\texplicit:     " << result_expl["metadata"]["timing_statistics"]["total"] << std::endl;
+    std::cout << "\treformulated: " << result_reform["metadata"]["timing_statistics"]["total"] << std::endl;
+    std::cout << "\timplicit:     " << result_impl["metadata"]["timing_statistics"]["total"] << std::endl;
+
+    std::cout << "t_func: " << std::endl;
+    std::cout << "\texplicit:     " << result_expl["metadata"]["timing_statistics"]["function evaluation"] << std::endl;
+    std::cout << "\treformulated: " << result_reform["metadata"]["timing_statistics"]["function evaluation"] << std::endl;
+    std::cout << "\timplicit:     " << result_impl["metadata"]["timing_statistics"]["function evaluation"] << std::endl;
+
+    std::cout << "t_fatrop: " << std::endl;
+    std::cout << "\texplicit:     " << result_expl["metadata"]["timing_statistics"]["fatrop"] << std::endl;
+    std::cout << "\treformulated: " << result_reform["metadata"]["timing_statistics"]["fatrop"] << std::endl;
+    std::cout << "\timplicit:     " << result_impl["metadata"]["timing_statistics"]["fatrop"] << std::endl;
+
+}
+
+void SolveSingleProblemTruckTrailer(int n_trailers){
+    std::unique_ptr<InterfaceGenerator> generator = 
+        std::make_unique<TruckTrailerInterfaceGenerator>(n_trailers);
+    SolveProblem(generator);
+}
+void SolveAllTruckTrailer(){
+    for (int n_trailers = 0; n_trailers <= 8; n_trailers++){
+        SolveSingleProblemTruckTrailer(n_trailers);
+    }
+}
+
+void SolveSingleProblemBycicle(){
+    std::unique_ptr<InterfaceGenerator> generator = 
+        std::make_unique<BycicleGenerator>();
+    SolveProblem(generator);
+}
+
+void SolveSingleProblemExampleStatic(){
+    std::unique_ptr<InterfaceGenerator> generator = 
+        std::make_unique<ExampleStaticGenerator>();
+    SolveProblem(generator);
+}
+
+void SolveSingleProblemHolonomic(int n, int control_level){
+    std::unique_ptr<InterfaceGenerator> generator = 
+        std::make_unique<HolonomicInterfaceGenerator>(n, control_level);
+    SolveProblem(generator);
+}
+void SolveAllHolonomic(){
+    for (int n = 1; n <= 7; n++){
+        for (int control_level = n == 1 ? 2 : 1; control_level <= 4; control_level++){
+            SolveSingleProblemHolonomic(n, control_level);
         }
     }
-    // }
-    // }
-    
+}
+
+
+int main(int argc, char **argv)
+{
+    // // create a directory ocp_results
+    // int temp = system("mkdir -p ocp_results");
+
+    if (argc < 3){
+        std::cout << "Please provide the following arguments to this executable:" << std::endl;
+        std::cout << "\t\"single\" or \"all\"" << std::endl;
+        std::cout << "\tproblem name (truck_trailer, bycicle, example_static, holonomic)" << std::endl;
+        std::cout << "in case of a single problem, also provide the parameters desired (optionally)" << std::endl;
+        return 0;
+    }
+
+    if (std::string(argv[1]) == "single"){
+        std::unique_ptr<InterfaceGenerator> generator;
+
+        if (std::string(argv[2]) == "truck_trailer"){
+            int n_trailers = 1;
+            if (argc > 3){ n_trailers = std::stoi(argv[3]);}
+            generator = std::make_unique<TruckTrailerInterfaceGenerator>(n_trailers);
+
+        } else if (std::string(argv[2]) == "bycicle"){
+            generator = std::make_unique<BycicleGenerator>();
+        } else if (std::string(argv[2]) == "example_static"){
+            generator = std::make_unique<ExampleStaticGenerator>();
+        } else {
+            int n = 3;
+            int control_level = 2;
+
+            if (argc > 3){ n = std::stoi(argv[3]);}
+            if (argc > 4){ control_level = std::stoi(argv[4]);}
+
+            generator = std::make_unique<HolonomicInterfaceGenerator>(n, control_level);
+        }
+
+        SolveProblem(generator);
+
+    } else if (std::string(argv[1]) == "all"){
+        if (std::string(argv[2]) == "truck_trailer"){
+            SolveAllTruckTrailer();
+        } else if (std::string(argv[2]) == "holonomic"){
+            SolveAllHolonomic();
+        } else {
+            std::cout << "Second argument should be either \"truck_trailer\" or \"holonomic\" when first argument is \"all\"" << std::endl;
+            return 0;
+        }
+
+    } else {
+        std::cout << "First argument should be either \"single\" or \"all\"" << std::endl;
+        return 0;
+    }
+
     return 0;
 }

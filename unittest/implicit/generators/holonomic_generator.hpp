@@ -20,7 +20,7 @@ class HolonomicInterfaceGenerator : public InterfaceGenerator {
         // acceleration control: level 2
         // ...
         HolonomicInterfaceGenerator(int n, int control_level){
-            K_ = 60;
+            K_ = 100;
             dt_ = 0.05;
             uk_min_ = -10;
             uk_max_ = 10;
@@ -149,6 +149,12 @@ class HolonomicInterfaceGenerator : public InterfaceGenerator {
             j["end"] = end_;
             return j;
         }
+
+        virtual std::string GetInterfaceName(){ return "holonomic";};
+        virtual std::string GetFileNameAppendix(){ return
+            "nb_dimensions_" + std::to_string(n_) + 
+            "_control_level_" + std::to_string(control_level_);
+        };
 
     private:
         int K_;

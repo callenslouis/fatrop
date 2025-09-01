@@ -22,6 +22,8 @@ class InterfaceGenerator{
         virtual ExplicitTestProblem PrepareReformulated() = 0;
         virtual ~InterfaceGenerator() = default;
         virtual json GetJsonData() = 0;
+        virtual std::string GetInterfaceName() = 0;
+        virtual std::string GetFileNameAppendix() = 0;
 };
 
 #endif

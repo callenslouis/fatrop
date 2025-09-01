@@ -147,6 +147,9 @@ class BycicleGenerator : public InterfaceGenerator {
             return j;
         }
 
+        virtual std::string GetInterfaceName(){ return "bycicle";};
+        virtual std::string GetFileNameAppendix(){return "";};
+
     private:
         int K_;
         int nx_;

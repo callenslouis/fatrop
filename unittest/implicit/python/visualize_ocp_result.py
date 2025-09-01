@@ -97,7 +97,8 @@ def visualize_performance(df):
     plt.figure()
     nx_vals = df['nx'].unique()
     nx_vals = np.sort(nx_vals)
-    problem_name = data["generator_data"]["problem_name"]
+    problem_name = df["problem_name"][0]
+    print(f"Visualizing performance for problem: {problem_name}")
 
     # problem_types = df['problem type'].unique()
     problem_types = ['explicit', 'implicit', 'reformulated']
@@ -173,7 +174,7 @@ def visualize_performance(df):
     
     h1, l1 = ax1.get_legend_handles_labels()
     h2, l2 = ax2.get_legend_handles_labels()
-    # ax1.legend(h1+h2, l1+l2)
+    ax1.legend(h1+h2, l1+l2)
     
     fig.tight_layout()
     plt.savefig(f"unittest/implicit/figures/ocp_{problem_name}_performance_comparison_iterations.png", dpi=300)
@@ -205,8 +206,9 @@ def print_performance_table(df):
     ])
 
     print(performance_df.to_markdown())
+    print("")
 
-def print_result_differences(df):
+def print_holonomic_result_differences(df):
     problem_types = ['explicit', 'implicit', 'reformulated']
     results = {}
     baseline = 'implicit'
@@ -254,10 +256,71 @@ def print_result_differences(df):
             avg_err_inputs += np.linalg.norm(inputs_diff)
             nb_entries += 1
 
-        results[problem_type] = {'state_diff_norm': avg_err_states/nb_entries, 'input_diff_norm': avg_err_inputs/nb_entries}
+        if nb_entries > 0:
+            results[problem_type] = {'state_diff_norm': avg_err_states/nb_entries, 'input_diff_norm': avg_err_inputs/nb_entries}
+        else:
+            results[problem_type] = {'state_diff_norm': -1, 'input_diff_norm': -1}
 
     df = pd.DataFrame.from_dict(results, orient='index', columns=['state_diff_norm', 'input_diff_norm'])
     print(df.to_markdown())
+    print("")
+
+def print_trucktrailer_result_differences(df):
+    problem_types = ['explicit', 'implicit', 'reformulated']
+    results = {}
+    baseline = 'implicit'
+
+    for problem_type in problem_types:
+        if problem_type == baseline:
+            continue
+
+        df_pt = df[df['problem type'] == problem_type]
+        df_bl = df[df['problem type'] == baseline]
+
+        avg_err_states = 0
+        avg_err_inputs = 0
+        nb_entries = 0
+        
+        # ensure same dimensions and control levels
+        for n in df_pt['n'].values:
+            df_pt_dc = df_pt[df_pt['n'] == n]
+            df_bl_dc = df_bl[df_bl['n'] == n]
+
+            if df_pt_dc.empty or df_bl_dc.empty:
+                continue
+
+            # compare states and inputs
+            states_bl = np.array(df_bl_dc['states'].tolist()).flatten()
+            inputs_bl = np.array(df_bl_dc['inputs'].tolist()).flatten()
+
+            if problem_type == 'reformulated':
+                states_pt = np.array(df_pt_dc['states'].tolist()).flatten()
+                nu = int(df_bl_dc['nu'].values[0])
+                K = df_bl_dc['K'].values[0]
+                inputs_pt = np.zeros((nu*(K-1)))
+
+                for k in range(K-1):
+                    inputs_pt[nu*k:nu*(k+1)] = np.array(df_pt_dc['inputs'].to_list())[:, k, :nu]
+                inputs_pt = inputs_pt.flatten()
+            else:
+                states_pt = np.array(df_pt_dc['states'].tolist()).flatten()
+                inputs_pt = np.array(df_pt_dc['inputs'].tolist()).flatten()
+
+            states_diff = np.abs(states_bl - states_pt)
+            inputs_diff = np.abs(inputs_bl - inputs_pt)
+
+            avg_err_states += np.linalg.norm(states_diff)
+            avg_err_inputs += np.linalg.norm(inputs_diff)
+            nb_entries += 1
+
+        if nb_entries > 0:
+            results[problem_type] = {'state_diff_norm': avg_err_states/nb_entries, 'input_diff_norm': avg_err_inputs/nb_entries}
+        else:
+            results[problem_type] = {'state_diff_norm': -1, 'input_diff_norm': -1}
+
+    df = pd.DataFrame.from_dict(results, orient='index', columns=['state_diff_norm', 'input_diff_norm'])
+    print(df.to_markdown())
+    print("")
 
 
 if __name__ == "__main__":
@@ -265,7 +328,8 @@ if __name__ == "__main__":
     dir_path = os.path.join(os.path.dirname(__file__), '../../../build/unittest/ocp_results')
 
     # store timing info in dataframe
-    df_holonomic = pd.DataFrame(columns=['problem type', 'solver', 'dimension', 
+    df_holonomic = pd.DataFrame(columns=['problem_name', 'problem type', 
+                                         'solver', 'dimension', 
                                          'control level', 'K', 'nx', 'nu',
                                          'time_total', 
                                          'time_solver', 
@@ -273,7 +337,8 @@ if __name__ == "__main__":
                                          'compute_search_dir',
                                          'nb_iterations',
                                          'states', 'inputs'])
-    df_trucktrailer = pd.DataFrame(columns=['problem type', 'solver', 'n',
+    df_trucktrailer = pd.DataFrame(columns=['problem_name', 'problem type', 
+                                            'solver', 'n',
                                             'K', 'nx', 'nu',
                                             'time_total', 
                                             'time_solver', 
@@ -290,6 +355,7 @@ if __name__ == "__main__":
 
             if data["generator_data"]["problem_name"] == "holonomic":
                 df_holonomic.loc[len(df_holonomic)] = {
+                    'problem_name': data["generator_data"]["problem_name"],
                     'problem type': data['problem type'],
                     'solver': data['solver'],
                     'dimension': data["generator_data"]["n"],
@@ -306,10 +372,11 @@ if __name__ == "__main__":
                     'inputs': data['inputs']
                 }
                 
-                visualize_holonomic_result(data)
+                # visualize_holonomic_result(data)
             
             elif data["generator_data"]["problem_name"] == "truck_trailer":
                 df_trucktrailer.loc[len(df_trucktrailer)] = {
+                    'problem_name': data["generator_data"]["problem_name"],
                     'problem type': data['problem type'],
                     'solver': data['solver'],
                     'n': data["generator_data"]["n"],
@@ -325,7 +392,7 @@ if __name__ == "__main__":
                     'inputs': data['inputs']
                 }
             
-                visualize_trucktrailer_result(data)
+                # visualize_trucktrailer_result(data)
             
             else:
                 print(f"Unknown problem name: {data["generator_data"]['problem_name']}")
@@ -333,9 +400,9 @@ if __name__ == "__main__":
     if (not df_holonomic.empty):
         visualize_performance(df_holonomic)
         print_performance_table(df_holonomic)
-        print_result_differences(df_holonomic)
+        print_holonomic_result_differences(df_holonomic)
 
     if (not df_trucktrailer.empty):
         visualize_performance(df_trucktrailer)
         print_performance_table(df_trucktrailer)
-        # print_result_differences(df_trucktrailer)
+        print_trucktrailer_result_differences(df_trucktrailer)

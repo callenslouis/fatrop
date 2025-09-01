@@ -164,6 +164,9 @@ class TruckTrailerInterfaceGenerator : public InterfaceGenerator {
             return j;
         }
 
+    virtual std::string GetInterfaceName(){ return "truck_trailer";};
+    virtual std::string GetFileNameAppendix(){return "nb_trailers_" + std::to_string(n_);};
+
     private:
         int K_;
         int n_;

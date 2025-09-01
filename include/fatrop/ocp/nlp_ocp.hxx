@@ -81,15 +81,22 @@ namespace fatrop
 
             if constexpr (std::is_same_v<ProblemType, ImplicitOcpType>)
             {
+                const Scalar *inputs_km1 = (k > 0) ? primal_x_p + info.offsets_primal_u[k - 1] : nullptr;
+                const Scalar *states_km1 = (k > 0) ? primal_x_p + info.offsets_primal_x[k - 1] : nullptr;
                 const Scalar *states_kp1 = (k < info.dims.K - 1) ? primal_x_p + info.offsets_primal_x[k + 1] : nullptr;
-                MAT *hess_next = (k < info.dims.K - 1) ? &hess.FuFxt[k].mat() : nullptr;
+                const Scalar *lam_dyn_km1 = (k > 0) ? lam_p + info.offsets_g_eq_dyn[k - 1] : nullptr;
 
                 // Evaluate lagrangian hessian (requires states_kp1 and also 
                 // influences hessian at next stage)
-                ocp_->eval_RSQrqt(&objective_scale, inputs_k, states_k, 
-                                  states_kp1, lam_dyn_k, lam_eq_k, 
-                                  lam_eq_ineq_k, &hess.RSQrqt[k].mat(), 
-                                  hess_next, k);
+                // ocp_->eval_RSQrqt(&objective_scale, inputs_k, states_k, 
+                //                   states_kp1, lam_dyn_k, lam_eq_k, 
+                //                   lam_eq_ineq_k, &hess.RSQrqt[k].mat(), 
+                //                   hess_next, k);
+                ocp_->eval_RSQrqt(&objective_scale, inputs_km1, states_km1,
+                                  inputs_k, states_k, states_kp1, lam_dyn_k, 
+                                  lam_dyn_km1, lam_eq_k, lam_eq_ineq_k, 
+                                  &hess.RSQrqt[k].mat(), k);
+
                 // Evaluate FuFxt terms
                 if (k < info.dims.K - 1) {
                     ocp_->eval_FuFxt(inputs_k, states_k, states_kp1, lam_dyn_k,
