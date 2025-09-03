@@ -84,8 +84,8 @@ json add_json_data(std::shared_ptr<IpData<ProblemType>> data, std::string proble
 
 void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     auto tp_impl = std::make_shared<ImplicitTestProblem>(generator->PrepareImplicit());
-    auto tp_expl = std::make_shared<ExplicitTestProblem>(generator->PrepareExplicit());
     auto tp_reform = std::make_shared<ExplicitTestProblem>(generator->PrepareReformulated());
+    auto tp_expl = std::make_shared<ExplicitTestProblem>(generator->PrepareExplicit());
     ImplicitTestProblem tp_interface_impl = *tp_impl;
     ExplicitTestProblem tp_interface_expl = *tp_expl;
     ExplicitTestProblem tp_interface_reform = *tp_reform;
@@ -106,72 +106,90 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_expl = builder_expl.with_options_registry(&options).build();
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_reform = builder_reform.with_options_registry(&options).build();
     std::cout << "built ip algorithms" << std::endl;
+
+    json result_expl, result_reform, result_impl;
+    bool solved_expl = false, solved_reform = false, solved_impl = false;
     
-    // EXPLICIT
-    std::cout << "solving explicit test problem" << std::endl;
-    Timer timer_expl; timer_expl.start();
-    IpSolverReturnFlag ret_expl = ipalg_expl->optimize();
-    std::cout << "Elapsed time: " << timer_expl.stop() << std::endl;
-    auto data_expl = builder_expl.get_ipdata();
-    json result_expl = add_json_data(data_expl, "explicit");
-    result_expl["generator_data"] = generator->GetJsonData();
-    std::ofstream file2("ocp_results/ocp_result_explicit_" + gen_type + "_" + file_name_appendix + ".json");
-    if (file2.is_open())
-    {
-        file2 << result_expl.dump(4);
-        file2.close();
+    // REFORMULATED
+    try{
+        std::cout << "solving reformulated test problem" << std::endl;
+        Timer timer_reform; timer_reform.start();
+        IpSolverReturnFlag ret_reform = ipalg_reform->optimize();
+        std::cout << "Elapsed time: " << timer_reform.stop() << std::endl;
+        auto data_reform = builder_reform.get_ipdata();
+        result_reform = add_json_data(data_reform, "reformulated");
+        result_reform["generator_data"] = generator->GetJsonData();
+        std::ofstream file3("ocp_results/ocp_result_reformulated_" + gen_type + "_" + file_name_appendix + ".json");
+        if (file3.is_open())
+        {
+            file3 << result_reform.dump(4);
+            file3.close();
+        }
+        solved_reform = true;
+    } catch (std::exception& e){
+        std::cout << "Exception caught during reformulated solve: " << e.what() << std::endl;
     }
 
-    // REFORMULATED
-    std::cout << "solving reformulated test problem" << std::endl;
-    Timer timer_reform; timer_reform.start();
-    IpSolverReturnFlag ret_reform = ipalg_reform->optimize();
-    std::cout << "Elapsed time: " << timer_reform.stop() << std::endl;
-    auto data_reform = builder_reform.get_ipdata();
-    json result_reform = add_json_data(data_reform, "reformulated");
-    result_reform["generator_data"] = generator->GetJsonData();
-    std::ofstream file3("ocp_results/ocp_result_reformulated_" + gen_type + "_" + file_name_appendix + ".json");
-    if (file3.is_open())
-    {
-        file3 << result_reform.dump(4);
-        file3.close();
+    // EXPLICIT
+    try{
+        std::cout << "solving explicit test problem" << std::endl;
+        Timer timer_expl; timer_expl.start();
+        IpSolverReturnFlag ret_expl = ipalg_expl->optimize();
+        std::cout << "Elapsed time: " << timer_expl.stop() << std::endl;
+        auto data_expl = builder_expl.get_ipdata();
+        result_expl = add_json_data(data_expl, "explicit");
+        result_expl["generator_data"] = generator->GetJsonData();
+        std::ofstream file2("ocp_results/ocp_result_explicit_" + gen_type + "_" + file_name_appendix + ".json");
+        if (file2.is_open())
+        {
+            file2 << result_expl.dump(4);
+            file2.close();
+        }
+        solved_expl = true;
+    } catch (std::exception& e){
+        std::cout << "Exception caught during explicit solve: " << e.what() << std::endl;
     }
 
     // IMPLICIT
-    std::cout << "solving implicit test problem" << std::endl;
-    Timer timer_impl; timer_impl.start();
-    IpSolverReturnFlag ret_impl = ipalg_impl->optimize();
-    std::cout << "Elapsed time: " << timer_impl.stop() << std::endl;
-    auto data_impl = builder_impl.get_ipdata();
-    json result_impl = add_json_data(data_impl, "implicit");
-    result_impl["generator_data"] = generator->GetJsonData();
-    std::ofstream file("ocp_results/ocp_result__implicit_" + gen_type + "_" + file_name_appendix + ".json");
-    if (file.is_open())
-    {
-        file << result_impl.dump(4);
-        file.close();
+    try{
+        std::cout << "solving implicit test problem" << std::endl;
+        Timer timer_impl; timer_impl.start();
+        IpSolverReturnFlag ret_impl = ipalg_impl->optimize();
+        std::cout << "Elapsed time: " << timer_impl.stop() << std::endl;
+        auto data_impl = builder_impl.get_ipdata();
+        result_impl = add_json_data(data_impl, "implicit");
+        result_impl["generator_data"] = generator->GetJsonData();
+        std::ofstream file("ocp_results/ocp_result__implicit_" + gen_type + "_" + file_name_appendix + ".json");
+        if (file.is_open())
+        {
+            file << result_impl.dump(4);
+            file.close();
+        }
+        solved_impl = true;
+    } catch (std::exception& e){
+        std::cout << "Exception caught during implicit solve: " << e.what() << std::endl;
     }
 
     std::cout << "Finished solving problem" << std::endl;
     std::cout << "nb iterations: " << std::endl;
-    std::cout << "\texplicit:     " << result_expl["metadata"]["iterations"] << std::endl;
-    std::cout << "\treformulated: " << result_reform["metadata"]["iterations"] << std::endl;
-    std::cout << "\timplicit:     " << result_impl["metadata"]["iterations"] << std::endl;
+    if (solved_expl){std::cout << "\texplicit:     " << result_expl["metadata"]["iterations"] << std::endl;}
+    if (solved_reform){std::cout << "\treformulated: " << result_reform["metadata"]["iterations"] << std::endl;}
+    if (solved_impl){std::cout << "\timplicit:     " << result_impl["metadata"]["iterations"] << std::endl;}
 
     std::cout << "t_total: " << std::endl;
-    std::cout << "\texplicit:     " << result_expl["metadata"]["timing_statistics"]["total"] << std::endl;
-    std::cout << "\treformulated: " << result_reform["metadata"]["timing_statistics"]["total"] << std::endl;
-    std::cout << "\timplicit:     " << result_impl["metadata"]["timing_statistics"]["total"] << std::endl;
+    if (solved_expl){std::cout << "\texplicit:     " << result_expl["metadata"]["timing_statistics"]["total"] << std::endl;}
+    if (solved_reform){std::cout << "\treformulated: " << result_reform["metadata"]["timing_statistics"]["total"] << std::endl;}
+    if (solved_impl){std::cout << "\timplicit:     " << result_impl["metadata"]["timing_statistics"]["total"] << std::endl;}
 
     std::cout << "t_func: " << std::endl;
-    std::cout << "\texplicit:     " << result_expl["metadata"]["timing_statistics"]["function evaluation"] << std::endl;
-    std::cout << "\treformulated: " << result_reform["metadata"]["timing_statistics"]["function evaluation"] << std::endl;
-    std::cout << "\timplicit:     " << result_impl["metadata"]["timing_statistics"]["function evaluation"] << std::endl;
+    if (solved_expl){std::cout << "\texplicit:     " << result_expl["metadata"]["timing_statistics"]["function evaluation"] << std::endl;}
+    if (solved_reform){std::cout << "\treformulated: " << result_reform["metadata"]["timing_statistics"]["function evaluation"] << std::endl;}
+    if (solved_impl){std::cout << "\timplicit:     " << result_impl["metadata"]["timing_statistics"]["function evaluation"] << std::endl;}
 
     std::cout << "t_fatrop: " << std::endl;
-    std::cout << "\texplicit:     " << result_expl["metadata"]["timing_statistics"]["fatrop"] << std::endl;
-    std::cout << "\treformulated: " << result_reform["metadata"]["timing_statistics"]["fatrop"] << std::endl;
-    std::cout << "\timplicit:     " << result_impl["metadata"]["timing_statistics"]["fatrop"] << std::endl;
+    if (solved_expl){std::cout << "\texplicit:     " << result_expl["metadata"]["timing_statistics"]["fatrop"] << std::endl;}
+    if (solved_reform){std::cout << "\treformulated: " << result_reform["metadata"]["timing_statistics"]["fatrop"] << std::endl;}
+    if (solved_impl){std::cout << "\timplicit:     " << result_impl["metadata"]["timing_statistics"]["fatrop"] << std::endl;}
 
 }
 
@@ -181,7 +199,7 @@ void SolveSingleProblemTruckTrailer(int n_trailers){
     SolveProblem(generator);
 }
 void SolveAllTruckTrailer(){
-    for (int n_trailers = 0; n_trailers <= 8; n_trailers++){
+    for (int n_trailers = 0; n_trailers <= 10; n_trailers++){
         SolveSingleProblemTruckTrailer(n_trailers);
     }
 }
@@ -217,7 +235,7 @@ void SolveSingleProblemPlanarRobot(int n_links){
     SolveProblem(generator);
 }
 void SolveAllPlanarRobot(){
-    for (int n_links = 1; n_links <= 7; n_links++){
+    for (int n_links = 1; n_links <= 5; n_links++){
         SolveSingleProblemPlanarRobot(n_links);
     }
 }

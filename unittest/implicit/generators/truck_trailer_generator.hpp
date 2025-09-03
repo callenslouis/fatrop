@@ -137,10 +137,19 @@ class TruckTrailerInterfaceGenerator : public InterfaceGenerator {
             Function eval_gk = Function("eval_gk", {uk_aug, xk_}, {xk_ + dt_*rhs - zk});
             Function eval_dynamics_equation_reformulated = Function("eval_dynamics_equation", {uk_aug, xk_}, {zk});
 
+            std::vector<std::vector<double>> u_init(K_-1, std::vector<double>(nu_ + nx_, 0.0));
+            for (int k = 0; k < K_-1; k++){
+                for (int i = 0; i < nu_; i++){
+                    u_init[k][i] = u_init_[k][i];
+                }
+                for (int i = 0; i < nx_; i++){
+                    u_init[k][nu_ + i] = x_init_[k][i];
+                }
+            }
+
             return ExplicitTestProblem(
                     K_, nx_, nu_+nx_, 
-                    x_init_,
-                    std::vector<std::vector<double>>(K_, std::vector<double>(nu_ + nx_, 0.0)), 
+                    x_init_, u_init,
                     lb_, ub_, lb_K_, ub_K_,
                     eval_objk, eval_objK, eval_gk, eval_g0, eval_gK,
                     eval_gk_ineq, eval_gK_ineq,

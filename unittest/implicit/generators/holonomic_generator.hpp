@@ -122,6 +122,16 @@ class HolonomicInterfaceGenerator : public InterfaceGenerator {
             Function eval_gk = Function("eval_gk", {uk_aug, xk_}, {temp_reformulated});
             Function eval_dynamics_equation_reformulated = Function("eval_dynamics_equation", {uk_aug, xk_}, {zk});
 
+            std::vector<std::vector<double>> u_init(K_-1, std::vector<double>(nu_ + nx_, 0.0));
+            for (int k = 0; k < K_-1; k++){
+                for (int i = 0; i < nu_; i++){
+                    u_init[k][i] = 0;
+                }
+                for (int i = 0; i < nx_; i++){
+                    u_init[k][nu_ + i] = 0;
+                }
+            }
+
             return ExplicitTestProblem(
                     K_, nx_, nu_+nx_, 
                     std::vector<std::vector<double>>(100, std::vector<double>(nx_, 0.0)), 

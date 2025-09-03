@@ -1,5 +1,6 @@
 import json
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 import numpy as np
 import os
 import pandas as pd
@@ -117,17 +118,20 @@ def visualize_planar_robot_result(data, **kwargs):
         yy[0].append(y)
         current_angle = 0
         for i in range(n):
-            current_angle += angles[i,k]
-            x += link_length * np.cos(current_angle)
-            y += link_length * np.sin(current_angle)
+            # current_angle = angles[i,k]
+            current_angle = data['states'][k][i]
+            x -= link_length * np.sin(current_angle)
+            y += link_length * np.cos(current_angle)
             xx[i+1].append(x)
             yy[i+1].append(y)
 
-    # plot chain of links at each time step (with fading color)
-    for i in range(n+1):
-        axs[0].plot(xx[i], yy[i], label=f'joint {i}')
-        step = 5
-        axs[0].quiver(xx[i][::step], yy[i][::step], np.cos(angles[i-1][::step] if i>0 else 0), np.sin(angles[i-1][::step] if i>0 else 0), scale=20, width=0.003, zorder=5)
+    start_color = np.array([1, 0, 0])
+    end_color = np.array([0, 0, 1])
+    step = 15
+    for k in range(0, data["generator_data"]['K'], step):
+        c = k/data["generator_data"]['K']
+        color = start_color * (1 - c) + end_color * c
+        axs[0].plot([xx[i][k] for i in range(n+1)], [yy[i][k] for i in range(n+1)], 'o-', color=color)
 
     axs[0].set_aspect('equal', 'box')
     axs[0].legend()
@@ -144,8 +148,59 @@ def visualize_planar_robot_result(data, **kwargs):
     plt.savefig(f"unittest/implicit/figures/ocp_result_{problem_name}_n_{n}_{problem_type}_{solver}.png", dpi=300)
     plt.close()
 
+def animate_planar_robot_result(data, **kwargs):
+    n = data["generator_data"]["n"]
+    problem_type = data["problem type"]
+    solver = data["solver"]
+    problem_name = data["generator_data"]["problem_name"]
+
+    axs = kwargs.get('axs', None)
+    if axs is None:
+        fig, axs = plt.subplots(1, 1, height_ratios=[1])
+
+    tt = np.linspace(0, data["generator_data"]['K'] * data["generator_data"]['dt'], data["generator_data"]['K'])
+
+    # get positions of joints
+    angles = np.array([data['states'][k][:n] for k in range(data["generator_data"]['K'])]).transpose()
+    print(data["generator_data"])
+    link_length = data["generator_data"]["l"]
+    xx = [[] for _ in range(n+1)]   # xx[joint_idx][time_idx]
+    yy = [[] for _ in range(n+1)]
+    for k in range(data["generator_data"]['K']):
+        x, y = 0, 0
+        xx[0].append(x)
+        yy[0].append(y)
+        current_angle = 0
+        for i in range(n):
+            # current_angle = angles[i,k]
+            current_angle = data['states'][k][i]
+            x -= link_length * np.sin(current_angle)
+            y += link_length * np.cos(current_angle)
+            xx[i+1].append(x)
+            yy[i+1].append(y)
+
+    def update(frame):
+        axs.clear()
+        start_color = np.array([1, 0, 0])
+        end_color = np.array([0, 0, 1])
+        step = 15
+        k = frame
+        c = k/data["generator_data"]['K']
+        color = start_color * (1 - c) + end_color * c
+        plt.plot([xx[i][k] for i in range(n+1)], [yy[i][k] for i in range(n+1)], 'o-', color=color)
+        axs.set_aspect('equal', 'box')
+        axs.set_xlim([-(n+1)*link_length, (n+1)*link_length])
+        axs.set_ylim([-(n+1)*link_length, (n+1)*link_length])
+        axs.set_title(f'Time: {tt[frame]:.2f}s')
+
+    sim_ms_per_frame = 100
+    real_ms_per_frame = data["generator_data"]['dt'] * 1000
+    frame_step = max(1, int(sim_ms_per_frame / real_ms_per_frame))
+    ani = FuncAnimation(fig, update, frames=range(0, data["generator_data"]['K'], frame_step), interval=sim_ms_per_frame)
+    ani.save(f"unittest/implicit/figures/ocp_result_{problem_name}_n_{n}_{problem_type}_{solver}_animation.gif", writer='imagemagick', fps=10)
+    plt.close()
+
 def visualize_performance(df):
-    plt.figure()
     nx_vals = df['nx'].unique()
     nx_vals = np.sort(nx_vals)
     problem_name = df["problem_name"][0]
@@ -154,81 +209,81 @@ def visualize_performance(df):
     # problem_types = df['problem type'].unique()
     problem_types = ['explicit', 'implicit', 'reformulated']
 
-    colors = {'implicit': ['lightblue', 'darkblue'],
-              'explicit': ['red', 'darkred'],
-              'reformulated': ['gray', 'black']}
+    colors = {'implicit': ['blue'],
+              'explicit': ['red'],
+              'reformulated': ['black']}
     
-    # SHOW TIMINGS
-    keys_to_show = ['time_solver', 'time_function_evaluation']
+    # show solver times
+    plt.figure()
     for i, problem_type in enumerate(problem_types):
-        times = [[] for _ in range(len(keys_to_show))]
+        times = []
         df_pt = df[df['problem type'] == problem_type]
         for nx in nx_vals:
             df_nx = df_pt[df_pt['nx'] == nx]
-            for j in range(len(keys_to_show)):
-                times[j].append(df_nx[keys_to_show[j]].mean())
-        
-        for j in range(len(times)):
-            times[j] = np.array(times[j])
+            times.append((df_nx['time_solver'] / df_nx['nb_iterations']).mean())
+    
+        times = np.array(times)
 
         bar_width = 0.2
         index = np.arange(len(nx_vals)) + i*bar_width
         bb = np.zeros(len(nx_vals))
-        for j in range(len(times)):
-            plt.bar(index, times[j], bar_width, bottom=bb, label=f'{problem_type} - {keys_to_show[j]}', color=colors[problem_type][j % len(colors[problem_type])])    
-            bb += np.array(times[j])
+        plt.bar(index, times, bar_width, bottom=bb, label=f'{problem_type}', color=colors[problem_type][0])    
     plt.xlabel('Number of state variables (nx)')
-    plt.ylabel('Time (s)')
-    plt.title('Performance comparison')
+    plt.ylabel('average solver time per iteration (s)')
+    plt.title(problem_name)
     plt.xticks(index + bar_width / 2, nx_vals)
     plt.legend()
     plt.tight_layout()
-    plt.savefig(f"unittest/implicit/figures/ocp_{problem_name}_performance_comparison_times.png", dpi=300)
+    plt.savefig(f"unittest/implicit/figures/ocp_{problem_name}_performance_comparison_avg_solver_times.png", dpi=300)
+    plt.close()
 
-
-    # SHOW ITERATION BRAKWDOWN
-    fig, ax1 = plt.subplots()
-    ax2 = ax1.twinx()
-
-    keys_to_show = ['nb_iterations', 'time_solver', 'time_function_evaluation']
+    # show function evaluation times
+    plt.figure()
     for i, problem_type in enumerate(problem_types):
-        times = [[] for _ in range(len(keys_to_show))]
+        times = []
         df_pt = df[df['problem type'] == problem_type]
-        for nx_idx, nx in enumerate(nx_vals):
+        for nx in nx_vals:
             df_nx = df_pt[df_pt['nx'] == nx]
-            for j in range(len(keys_to_show)):
-                if j == 0:
-                    times[j].append(df_nx[keys_to_show[j]].mean())
-                else:
-                    times[j].append(df_nx[keys_to_show[j]].mean() / times[0][nx_idx])
-        
-        for j in range(len(times)):
-            times[j] = np.array(times[j])
+            times.append((df_nx['time_function_evaluation'] / df_nx['nb_iterations']).mean())
+    
+        times = np.array(times)
 
         bar_width = 0.2
         index = np.arange(len(nx_vals)) + i*bar_width
         bb = np.zeros(len(nx_vals))
-        for j in range(len(times)):
-            if j == 0:
-                # show this on a separate y-axis to preserve scaling
-                ax2.bar(index, times[j], bar_width/len(times), bottom=0*bb, label=f'{problem_type} - {keys_to_show[j]}', color='lightgray')
-            if j > 0:
-                ax1.bar(index + j*bar_width/len(times), times[j], bar_width/len(times), bottom=0*bb, 
-                        label=f'{problem_type} - {keys_to_show[j]}', 
-                        color=colors[problem_type][j % len(colors[problem_type])])    
-            bb += np.array(times[j])
-    ax1.set_xlabel('Number of state variables (nx)')
-    ax1.set_ylabel('Time (s)')
-    ax2.set_ylabel('Number of iterations')
-    plt.title('Performance comparison')
-    ax1.set_xticks(index + bar_width / 2, nx_vals)
+        plt.bar(index, times, bar_width, bottom=bb, label=f'{problem_type}', color=colors[problem_type][0])    
+    plt.xlabel('Number of state variables (nx)')
+    plt.ylabel('average func eval time per iteration (s)')
+    plt.title(problem_name)
+    plt.xticks(index + bar_width / 2, nx_vals)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(f"unittest/implicit/figures/ocp_{problem_name}_performance_comparison_avg_func_eval_times.png", dpi=300)
+    plt.close()
+
+    # show nb of iterations
+    plt.figure()
+    for i, problem_type in enumerate(problem_types):
+        times = []
+        df_pt = df[df['problem type'] == problem_type]
+        for nx in nx_vals:
+            df_nx = df_pt[df_pt['nx'] == nx]
+            times.append((df_nx['nb_iterations']).mean())
     
-    h1, l1 = ax1.get_legend_handles_labels()
-    h2, l2 = ax2.get_legend_handles_labels()
-    ax1.legend(h1+h2, l1+l2)
-    
-    fig.tight_layout()
-    plt.savefig(f"unittest/implicit/figures/ocp_{problem_name}_performance_comparison_iterations.png", dpi=300)
+        times = np.array(times)
+
+        bar_width = 0.2
+        index = np.arange(len(nx_vals)) + i*bar_width
+        bb = np.zeros(len(nx_vals))
+        plt.bar(index, times, bar_width, bottom=bb, label=f'{problem_type}', color=colors[problem_type][0])    
+    plt.xlabel('Number of state variables (nx)')
+    plt.ylabel('nb of iterations (s)')
+    plt.title(problem_name)
+    plt.xticks(index + bar_width / 2, nx_vals)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(f"unittest/implicit/figures/ocp_{problem_name}_performance_comparison_nb_iterations.png", dpi=300)
+    plt.close()
 
 def print_performance_table(df):
     # rows: nb iterations, t_func_avg, t_func_total, t_fatrop_avg, t_fatrop_total, t_total
@@ -474,7 +529,8 @@ if __name__ == "__main__":
                     'inputs': data['inputs']
                 }
 
-                visualize_planar_robot_result(data)
+                # visualize_planar_robot_result(data)
+                # animate_planar_robot_result(data)
             
             else:
                 print(f"Unknown problem name: {data["generator_data"]['problem_name']}")
@@ -488,3 +544,8 @@ if __name__ == "__main__":
         visualize_performance(df_trucktrailer)
         print_performance_table(df_trucktrailer)
         print_trucktrailer_result_differences(df_trucktrailer)
+
+    if (not df_planarrobot.empty):
+        visualize_performance(df_planarrobot)
+        print_performance_table(df_planarrobot)
+        # print_trucktrailer_result_differences(df_planarrobot)

@@ -20,20 +20,26 @@ class PlanarRobot : public InterfaceGenerator {
         // n: number of links
         PlanarRobot(int n){
             // define parameters
-            K_ = 40;
-            dt_ = 0.05;
+            K_ = 500;
+            dt_ = 0.01;
 
             n_ = n;
 
             nx_ = 2*n_;
             nu_ = n_;
 
+            m_ = 1.0/n_;
+            l_ = 1.0/n_;
+            lc_ = l_/2;
+            J = pow(1.0*3.0*(m_*l_), 3);
+
             // define start and endpoints
             start_ = std::vector<double>(nx_, 0.0);
-            end_ = std::vector<double>(nx_, 0.0);
+            end_ = std::vector<double>(n_, 0.0);
             for (int i = 0; i < n_; i++){
-                start_[i] = -3.14/2;
-                end_[i] = 3.14/2;
+                // start_[i] = (i > 0) ? 0.1 : 0.9*3.14;
+                start_[i] = 3.14;
+                end_[i] = 0;
             }
 
             // define variables
@@ -44,6 +50,17 @@ class PlanarRobot : public InterfaceGenerator {
             thp_ = MX::sym("theta_plus", n_);
             thdp_ = MX::sym("theta_dot_plus", n_);
             xkp_ = vertcat(thp_, thdp_);
+
+            // define objective
+            // eval_objk_ = Function("eval_objk", {uk_, xk_}, {10*sumsqr(uk_)});
+            eval_objk_ = Function("eval_objk", {uk_, xk_}, 
+                {sumsqr(uk_) + 0.1*sumsqr(thd_(Slice(0,n_-1)) - thd_(Slice(1,n_))) + 0.1*sumsqr(th_(Slice(0,n_-1)) - th_(Slice(1,n_)))});
+            eval_objK_ = Function("eval_objK", {xk_}, {0});
+            eval_g0_ = Function("eval_g0", {uk_, xk_}, {xk_ - start_});
+            eval_gk_ = Function("eval_gk", {uk_, xk_}, {MX::zeros(0,1)});
+            eval_gk_ineq_ = Function("eval_gk_ineq", {uk_, xk_}, {vertcat(uk_, th_)});
+            eval_gK_ = Function("eval_gK", {xk_}, {thd_});
+            eval_gK_ineq_ = Function("eval_gK_ineq", {xk_}, {sumsqr(th_ - end_)});
             
             // define dynamics basics
             Rinv_ = DM::zeros(n_, n_);
@@ -64,11 +81,11 @@ class PlanarRobot : public InterfaceGenerator {
             lb_ = std::vector<double>(nu_+n_+1, uk_min_);
             ub_ = std::vector<double>(nu_+n_+1, uk_max_);
             for (int i = 0; i < n_ + 1; i++){
-                lb_[i] = -100;
-                ub_[i] = 100;
+                lb_[i] = -50;
+                ub_[i] = 50;
             }
-            lb_K_ = {};
-            ub_K_ = {};
+            lb_K_ = {0};
+            ub_K_ = {1.0e-3};
 
             // set initialization
             x_init_ = std::vector<std::vector<double>>(K_+1, std::vector<double>(nx_, 0.0));
@@ -80,34 +97,18 @@ class PlanarRobot : public InterfaceGenerator {
             }
         };
 
-        virtual ImplicitTestProblem PrepareImplicit(){
-            Function eval_objk = Function("eval_objk", {uk_, xk_}, {sumsqr(uk_)});
-            Function eval_objK = Function("eval_objK", {xk_}, {0});
-            Function eval_gk = Function("eval_gk", {uk_, xk_}, {MX::zeros(0,1)});
-            Function eval_g0 = Function("eval_g0", {uk_, xk_}, {xk_ - start_});
-            Function eval_gk_ineq = Function("eval_gk_ineq", {uk_, xk_}, {uk_});
-            Function eval_gK = Function("eval_gK", {xk_}, {xk_ - end_});
-            Function eval_gK_ineq = Function("eval_gK_ineq", {xk_}, {MX::zeros(0,1)});
-            
+        virtual ImplicitTestProblem PrepareImplicit(){           
             MX rhs = vertcat(thdp_, mtimes(inv(eval_M_(thp_)[0]), mtimes(Rinv_, uk_) - mtimes(eval_C_(xkp_)[0], thdp_) - eval_G_(thp_)[0]));
             Function eval_dynamics_equation_implicit = Function("eval_dynamics_equation", {uk_, xk_, xkp_}, {xk_ + dt_*rhs - xkp_});
 
             return ImplicitTestProblem(K_, nx_, nu_, 
                     x_init_, u_init_, 
                     lb_, ub_, lb_K_, ub_K_,
-                    eval_objk, eval_objK, eval_gk, eval_g0, eval_gK, eval_gk_ineq, eval_gK_ineq,
+                    eval_objk_, eval_objK_, eval_gk_, eval_g0_, eval_gK_, eval_gk_ineq_, eval_gK_ineq_,
                     eval_dynamics_equation_implicit);
         }
 
-        virtual ExplicitTestProblem PrepareExplicit(){
-            Function eval_objk = Function("eval_objk", {uk_, xk_}, {sumsqr(uk_)});
-            Function eval_objK = Function("eval_objK", {xk_}, {0});
-            Function eval_gk = Function("eval_gk", {uk_, xk_}, {MX::zeros(0,1)});
-            Function eval_g0 = Function("eval_g0", {uk_, xk_}, {xk_ - start_});
-            Function eval_gk_ineq = Function("eval_gk_ineq", {uk_, xk_}, {vertcat(th_, uk_)});
-            Function eval_gK = Function("eval_gK", {xk_}, {xk_ - end_});
-            Function eval_gK_ineq = Function("eval_gK_ineq", {xk_}, {MX::zeros(0,1)});
-            
+        virtual ExplicitTestProblem PrepareExplicit(){           
             MX rhs = vertcat(thd_, mtimes(inv(eval_M_(th_)[0]), mtimes(Rinv_, uk_) - mtimes(eval_C_(xk_)[0], thd_) - eval_G_(th_)[0]));
             Function eval_dynamics_equation_explicit = Function("eval_dynamics_equation", {uk_, xk_}, {xk_ + dt_*rhs});
 
@@ -115,32 +116,41 @@ class PlanarRobot : public InterfaceGenerator {
                     K_, nx_, nu_, 
                     x_init_, u_init_,
                     lb_, ub_, lb_K_, ub_K_,
-                    eval_objk, eval_objK, eval_gk, eval_g0, eval_gK,
-                    eval_gk_ineq, eval_gK_ineq, eval_dynamics_equation_explicit);
+                    eval_objk_, eval_objK_, eval_gk_, eval_g0_, eval_gK_,
+                    eval_gk_ineq_, eval_gK_ineq_, eval_dynamics_equation_explicit);
         }
 
         virtual ExplicitTestProblem PrepareReformulated(){
             MX zk = MX::sym("zk", nx_);
             MX uk_aug = vertcat(uk_, zk);
 
-            Function eval_objk = Function("eval_objk", {uk_aug, xk_}, {sumsqr(uk_)});
-            Function eval_objK = Function("eval_objK", {xk_}, {0});
-            Function eval_gk_ineq = Function("eval_gk_ineq", {uk_aug, xk_}, {uk_});
-            Function eval_gK = Function("eval_gK", {xk_}, {xk_ - end_});
-            Function eval_gK_ineq = Function("eval_gK_ineq", {xk_}, {MX::zeros(0,1)});
+            MXVector ukxk = {uk_, xk_};
+            Function eval_objk = Function("eval_objk", {uk_aug, xk_}, {eval_objk_(ukxk)[0]});
+            Function eval_gk_ineq = Function("eval_gk_ineq", {uk_aug, xk_}, {eval_gk_ineq_(ukxk)[0]});
+            Function eval_gK = Function("eval_gK", {xk_}, {eval_gK_(xk_)[0]});
+            Function eval_gK_ineq = Function("eval_gK_ineq", {xk_}, {eval_gK_ineq_(xk_)[0]});
             
             MX rhs = vertcat(thd_, mtimes(inv(eval_M_(th_)[0]), mtimes(Rinv_, uk_) - mtimes(eval_C_(xk_)[0], thd_) - eval_G_(th_)[0]));
 
-            Function eval_g0 = Function("eval_g0", {uk_aug, xk_}, {vertcat(xk_ - start_, xk_ + dt_*rhs - zk)});
-            Function eval_gk = Function("eval_gk", {uk_aug, xk_}, {xk_ + dt_*rhs - zk});
+            Function eval_g0 = Function("eval_g0", {uk_aug, xk_}, {vertcat(eval_g0_(ukxk)[0], xk_ + dt_*rhs - zk)});
+            Function eval_gk = Function("eval_gk", {uk_aug, xk_}, {vertcat(eval_gk_(ukxk)[0], xk_ + dt_*rhs - zk)});
             Function eval_dynamics_equation_reformulated = Function("eval_dynamics_equation", {uk_aug, xk_}, {zk});
+
+            std::vector<std::vector<double>> u_init(K_-1, std::vector<double>(nu_ + nx_, 0.0));
+            for (int k = 0; k < K_-1; k++){
+                for (int i = 0; i < nu_; i++){
+                    u_init[k][i] = u_init_[k][i];
+                }
+                for (int i = 0; i < nx_; i++){
+                    u_init[k][nu_ + i] = x_init_[k][i];
+                }
+            }
 
             return ExplicitTestProblem(
                     K_, nx_, nu_+nx_, 
-                    x_init_,
-                    std::vector<std::vector<double>>(K_, std::vector<double>(nu_ + nx_, 0.0)), 
+                    x_init_, u_init,
                     lb_, ub_, lb_K_, ub_K_,
-                    eval_objk, eval_objK, eval_gk, eval_g0, eval_gK,
+                    eval_objk, eval_objK_, eval_gk, eval_g0, eval_gK,
                     eval_gk_ineq, eval_gK_ineq,
                     eval_dynamics_equation_reformulated);
         }
@@ -227,11 +237,11 @@ class PlanarRobot : public InterfaceGenerator {
         int K_ = 100;
         double dt_ = 0.05;
 
-        double m_ = 1.0;
-        double l_ = 1.0;
-        double lc_ = l_/2;
-        double J = 1.0;
-        double g = 9.81;
+        double m_;
+        double l_;
+        double lc_;
+        double J;
+        double g = 3;
 
         double uk_min_ = -10;
         double uk_max_ = 10;
@@ -248,6 +258,14 @@ class PlanarRobot : public InterfaceGenerator {
         Function eval_M_;
         Function eval_C_;
         Function eval_G_;
+
+        Function eval_objk_;
+        Function eval_objK_;
+        Function eval_g0_;
+        Function eval_gk_;
+        Function eval_gk_ineq_;
+        Function eval_gK_;
+        Function eval_gK_ineq_;
 
         int n_;
         int nx_;
