@@ -235,6 +235,7 @@ void show_implicit_interface_output(OcpAbstractTpl<ImplicitOcpAbstractDynamic>& 
     for (int k = 0; k < K; k++){
         RSQrqt_all.emplace_back(interface.get_nx(k) + interface.get_nu(k) + 1, interface.get_nx(k) + interface.get_nu(k));
     }
+    /*
     for (int k = 0; k < K; k++){
         // virtual Index eval_RSQrqt(const Scalar *objective_scale, const Scalar *inputs_k,
         //                           const Scalar *states_k, const Scalar *states_kp1, 
@@ -256,6 +257,7 @@ void show_implicit_interface_output(OcpAbstractTpl<ImplicitOcpAbstractDynamic>& 
                        k);
         file << "RSQrqt[" << k << "] = \n" << RSQrqt_all[k] << std::endl;
     }
+    */
 
     // eval Ggt
     for (int k = 0; k < K; k++){
@@ -358,6 +360,7 @@ void show_implicit_interface_output(OcpAbstractTpl<ImplicitOcpAbstractDynamic>& 
         file << "initial_uk[" << k << "] = \n" << uk << std::endl;
     }
 
+    /*
     // eval J - eval Jt
     for (int k = 0; k < K - 1; k++){
         // virtual Index eval_J(const Scalar *states_kp1, const Scalar *inputs_k,
@@ -381,6 +384,7 @@ void show_implicit_interface_output(OcpAbstractTpl<ImplicitOcpAbstractDynamic>& 
                 const_cast<MAT *>(&res_check.mat()), 0, 0);
         file << "Jt * Jt_inv[" << k << "] = \n" << res_check << std::endl;
     }
+    */
 
 
     // eval FuFxt

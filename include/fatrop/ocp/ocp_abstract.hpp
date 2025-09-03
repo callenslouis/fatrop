@@ -297,7 +297,10 @@ namespace fatrop
         virtual Index get_ng_ineq(const Index k) const = 0;
         virtual Index get_horizon_length() const = 0;
         virtual Index eval_BAbt(const Scalar *states_kp1, const Scalar *inputs_k,
-                                const Scalar *states_k, MAT *res, const Index k) = 0;
+                                const Scalar *states_k, MAT *res, const Index k){throw std::runtime_error("use of incorrect eval_BAbt method for Implicit OCPs"); return 0;};
+        virtual Index eval_BAJbt(const Scalar *states_kp1, const Scalar *inputs_k,
+                                const Scalar *states_k, MAT *res, MAT *res_J, 
+                                MAT *res_J_inv, const Index k) = 0;
         // does not fit implicit form -----------------------------------------
         virtual Index eval_RSQrqt(const Scalar *objective_scale, const Scalar *inputs_k,
                                   const Scalar *states_k, const Scalar *lam_dyn_k,
@@ -305,13 +308,11 @@ namespace fatrop
                                   const Index k){throw std::runtime_error("use of incorrect eval_RSQrqt method for Implicit OCPs"); return 0;};
         // new version:
         virtual Index eval_RSQrqt(const Scalar *objective_scale, 
-                                  const Scalar *inputs_km1,
-                                  const Scalar *states_km1,
                                   const Scalar *inputs_k,
                                   const Scalar *states_k, const Scalar *states_kp1, 
-                                  const Scalar *lam_dyn_k, const Scalar *lam_dyn_km1,
+                                  const Scalar *lam_dyn_k,
                                   const Scalar *lam_eq_k, const Scalar *lam_eq_ineq_k, 
-                                  MAT *res, const Index k) = 0;
+                                  MAT *res, MAT *res_kp1, MAT *res_FuFxt, const Index k) = 0;
         // --------------------------------------------------------------------
         virtual Index eval_Ggt(const Scalar *inputs_k, const Scalar *states_k, MAT *res,
                                const Index k) = 0;
@@ -333,10 +334,10 @@ namespace fatrop
         virtual ~OcpAbstractTpl() = default;
 
         // Implicit OCP methods
-        virtual Index eval_Jt_inv(const Scalar *states_kp1, const Scalar *inputs_k,
-                                const Scalar *states_k, MAT *res, const Index k) = 0;
-        virtual Index eval_Jt(const Scalar *states_kp1, const Scalar *inputs_k,
-                                const Scalar *states_k, MAT *res, const Index k) = 0;
+        // virtual Index eval_Jt_inv(const Scalar *states_kp1, const Scalar *inputs_k,
+        //                         const Scalar *states_k, MAT *res, const Index k) = 0;
+        // virtual Index eval_Jt(const Scalar *states_kp1, const Scalar *inputs_k,
+        //                         const Scalar *states_k, MAT *res, const Index k) = 0;
         virtual Index eval_FuFxt(const Scalar *inputs_k, const Scalar *states_k, 
                                  const Scalar *states_kp1, const Scalar *lam_dyn_k,
                                  MAT *res, const Index k) = 0;

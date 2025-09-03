@@ -529,7 +529,7 @@ if __name__ == "__main__":
                     'inputs': data['inputs']
                 }
 
-                # visualize_planar_robot_result(data)
+                visualize_planar_robot_result(data)
                 # animate_planar_robot_result(data)
             
             else:

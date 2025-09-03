@@ -76,6 +76,9 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                     jacobian(eval_dynamics_equation_(ukxkxkp)[0], uk),      // B
                     jacobian(eval_dynamics_equation_(ukxkxkp)[0], xk)       // A
                 ))});
+            BAJbt_ = Function("BAJbt"+ts, {uk, xk, xkp}, 
+                {transpose(jacobian(eval_dynamics_equation_(ukxkxkp)[0], vertcat(uk, xk, xkp))),
+                 inv(transpose(jacobian(eval_dynamics_equation_(ukxkxkp)[0], xkp)))});
             Ggt_ = Function("Ggt"+ts, {uk, xk}, {transpose(jacobian(eval_gk_(ukxk)[0], vertcat(uk, xk)))});
             GgKt_ = Function("GgKt"+ts, {xk}, {transpose(jacobian(eval_gK_(xk)[0], xk))});
             Gg0t_ = Function("Gg0t"+ts, {uk, xk}, {transpose(jacobian(eval_g0_(ukxk)[0], vertcat(uk, xk)))});
@@ -95,31 +98,30 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                     ), xkp)
                 });
 
-
-            // construct lagrangian (containing uk, xk and potentially xkp)
+            // construct lagrangian (containing uk, xk and potentially xkp) (omitting dynamics)
             MX lagrangian_k = obj_scale*eval_objk_(ukxk)[0] + \
-                mtimes(transpose(lam_dyn_k), b_(ukxkxkp)[0]) + \
                 mtimes(transpose(lam_eq_k), eval_gk_(ukxk)[0]) + \
                 mtimes(transpose(lam_ineq_k), eval_gk_ineq_(ukxk)[0]);
             MX lagrangian_0 = obj_scale*eval_objk_(ukxk)[0] + \
-                mtimes(transpose(lam_dyn_k), b_(ukxkxkp)[0]) + \
                 mtimes(transpose(lam_eq_0), eval_g0_(ukxk)[0]) + \
                 mtimes(transpose(lam_ineq_k), eval_gk_ineq_(ukxk)[0]);
             MX lagrangian_K = obj_scale*eval_objK_(xk)[0] + \
                 mtimes(transpose(lam_eq_K), eval_gK_(xk)[0]) + \
                 mtimes(transpose(lam_ineq_K), eval_gK_ineq_(xk)[0]);
-            lag_hess_k_ = Function("lag_hess_k"+ts, {uk, xk, xkp, lam_dyn_k, lam_eq_k, lam_ineq_k, obj_scale}, 
+            lag_hess_k_ = Function("lag_hess_k"+ts, {uk, xk, xkp, lam_eq_k, lam_ineq_k, obj_scale}, 
                 {transpose(hessian(lagrangian_k, vertcat(uk, xk)))});
-            lag_hess_0_ = Function("lag_hess_0"+ts, {uk, xk, xkp, lam_dyn_k, lam_eq_0, lam_ineq_k, obj_scale}, 
+            lag_hess_0_ = Function("lag_hess_0"+ts, {uk, xk, xkp, lam_eq_0, lam_ineq_k, obj_scale}, 
                 {transpose(hessian(lagrangian_0, vertcat(uk, xk)))});
-            lag_hess_K_ = Function("lag_hess_K"+ts, {xk, xkp, lam_dyn_k, lam_eq_K, lam_ineq_K, obj_scale}, 
+            lag_hess_K_ = Function("lag_hess_K"+ts, {xk, xkp, lam_eq_K, lam_ineq_K, obj_scale}, 
                 {transpose(hessian(lagrangian_K, xk))});
 
+            // dynamics contribution
             dyn_hess_kp_ = Function("dyn_hess_kp"+ts, {uk, xk, xkp, lam_dyn_k}, 
-                {transpose(hessian(mtimes(transpose(lam_dyn_k), b_(ukxkxkp)[0]), xkp))});
+                {transpose(hessian(mtimes(transpose(lam_dyn_k), b_(ukxkxkp)[0]), vertcat(xkp, uk, xk)))});
 
             // update sparsities
             BAbt_sp_ = BAbt_.sparsity_out(0);
+            BAJbt_sp_ = BAJbt_.sparsity_out(0);
             lag_hess_k_sp_ = lag_hess_k_.sparsity_out(0);
             lag_hess_0_sp_ = lag_hess_0_.sparsity_out(0);
             lag_hess_K_sp_ = lag_hess_K_.sparsity_out(0);
@@ -153,8 +155,8 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             return eval_gk_ineq_.sparsity_out(0).size1();
         };
         virtual Index get_horizon_length() const { return K_; };
-        virtual Index eval_BAbt(const Scalar *states_kp1, const Scalar *inputs_k,
-                                const Scalar *states_k, MAT *res, const Index k)
+        virtual Index eval_BAJbt(const Scalar *states_kp1, const Scalar *inputs_k,
+                                 const Scalar *states_k, MAT *res, MAT *res_J, MAT *res_J_inv, const Index k)
         {
             if (DEBUG_PRINT){
                 std::cout << "entering " << __func__ << " [" << k << "]" << std::endl;
@@ -163,22 +165,45 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                 throw std::runtime_error("Error in eval_BAbt: cannot evaluate BAbt at final stage");
             }
             blasfeo_gese_wrap(res->m, res->n, 0.0, res, 0, 0);
+            blasfeo_gese_wrap(res_J->m, res_J->n, 0.0, res_J, 0, 0);
+            blasfeo_gese_wrap(res_J_inv->m, res_J_inv->n, 0.0, res_J_inv, 0, 0);
             std::vector<const double*> arg_in = {inputs_k, states_k, states_kp1};
-            std::vector<double*> arg_out = {&scratch_[0]};
-            BAbt_gc_(arg_in, arg_out);
+            std::vector<double*> arg_out = {&scratch_[0], &scratch2_[0]};
+            BAJbt_gc_(arg_in, arg_out);
 
             // store nonzeros in the matrix
             int scratch_ptr = 0;
-            for (int j = 0; j < BAbt_sp_.size2(); j++){
-                for (int i = 0; i < BAbt_sp_.size1(); i++){
-                    if (i > res->m || j > res->n){
-                        throw std::runtime_error("Error in eval_BAbt: trying to write outside of matrix bounds");
-                    }
-                    if (BAbt_.sparsity_out(0).has_nz(i, j)) {
-                        blasfeo_matel_wrap(res, i, j) = scratch_[scratch_ptr];
-                        scratch_ptr++;
+            for (int j = 0; j < BAJbt_sp_.size2(); j++){
+                for (int i = 0; i < BAJbt_sp_.size1(); i++){
+                    if (i < get_nu(k) + get_nx(k)){
+                        // contribution to BA
+                        if (BAJbt_.sparsity_out(0).has_nz(i, j)) {
+                            blasfeo_matel_wrap(res, i, j) = scratch_[scratch_ptr];
+                            scratch_ptr++;
+                        } else {
+                            blasfeo_matel_wrap(res, i, j) = 0.0;
+                        }
                     } else {
-                        blasfeo_matel_wrap(res, i, j) = 0.0;
+                        // contribution to J
+                        if (BAJbt_.sparsity_out(0).has_nz(i, j)) {
+                            blasfeo_matel_wrap(res_J, i - get_nu(k) - get_nx(k), j) = scratch_[scratch_ptr];
+                            scratch_ptr++;
+                        } else {
+                            blasfeo_matel_wrap(res, i - get_nu(k) - get_nx(k), j) = 0.0;
+                        }
+                    }
+                }
+            }
+
+            // store nonzeros in the inverse of J
+            int scratch2_ptr = 0;
+            for (int j = 0; j < Jt_inv_sp_.size2(); j++){
+                for (int i = 0; i < Jt_inv_sp_.size1(); i++){
+                    if (Jt_inv_.sparsity_out(0).has_nz(i, j)) {
+                        blasfeo_matel_wrap(res_J_inv, i, j) = scratch2_[scratch2_ptr];
+                        scratch2_ptr++;
+                    } else {
+                        blasfeo_matel_wrap(res_J_inv, i, j) = 0.0;
                     }
                 }
             }
@@ -190,33 +215,47 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             return 0;
         }
         virtual Index eval_RSQrqt(const Scalar *objective_scale, 
-                                    const Scalar *inputs_km1,
-                                    const Scalar *states_km1,
                                     const Scalar *inputs_k,
                                     const Scalar *states_k, 
                                     const Scalar *states_kp1,
                                     const Scalar *lam_dyn_k,
-                                    const Scalar *lam_dyn_km1,
                                     const Scalar *lam_eq_k, 
                                     const Scalar *lam_eq_ineq_k, 
-                                    MAT *res, const Index k)
+                                    MAT *res, MAT *res_kp1, 
+                                    MAT *res_FuFxt, const Index k)
         {
             if (DEBUG_PRINT){
                 std::cout << "entering " << __func__ << " [" << k << "]" << std::endl;
             }
             
-            blasfeo_gese_wrap(res->m, res->n, 0.0, res, 0, 0);
+            blasfeo_gese_wrap(get_nu(k), res->n, 1.0, res, 0, 0);
+            blasfeo_gese_wrap(res->m - get_nu(k), get_nu(k), 1.0, res, get_nu(k), 0);
+            blasfeo_gese_wrap(1, res->n, 1.0, res, get_nu(k) + get_nx(k), 0);
+
+            // reset all of res except res[get_nu(k):-1, get_nu(k):]
+            blasfeo_gese_wrap(get_nu(k), res->n, 0.0, res, 0, 0);
+            blasfeo_gese_wrap(res->m - get_nu(k), get_nu(k), 0.0, res, get_nu(k), 0);
+            blasfeo_gese_wrap(1, res->n, 0.0, res, get_nu(k) + get_nx(k), 0);
+
+
+
+            if (res_kp1){blasfeo_gese_wrap(res_kp1->m, res_kp1->n, 0.0, res_kp1, 0, 0);}
+            if (res_FuFxt){blasfeo_gese_wrap(res_FuFxt->m, res_FuFxt->n, 0.0, res_FuFxt, 0, 0);}
 
             // contribution of obj(uk, xk), equality and inequality constraints
-            // and f(uk, xk, xkp) = 0
             Function lag_hess = (k == 0) ? lag_hess_0_gc_ : (k == K_ - 1) ? lag_hess_K_gc_ : lag_hess_k_gc_;
             Sparsity lag_hess_sp = (k == 0) ? lag_hess_0_sp_ : (k == K_ - 1) ? lag_hess_K_sp_ : lag_hess_k_sp_;
             std::vector<const double*> arg_in = (k == K_ - 1) ? 
-                std::vector<const double*>{states_k, states_kp1, lam_dyn_k, lam_eq_k, lam_eq_ineq_k, objective_scale}:
-                std::vector<const double*>{inputs_k, states_k, states_kp1, lam_dyn_k, lam_eq_k, lam_eq_ineq_k, objective_scale};
+                std::vector<const double*>{states_k, states_kp1, lam_eq_k, lam_eq_ineq_k, objective_scale}:
+                std::vector<const double*>{inputs_k, states_k, states_kp1, lam_eq_k, lam_eq_ineq_k, objective_scale};
             
             std::vector<double*> arg_out = {&scratch_[0]};
             lag_hess(arg_in, arg_out);
+            std::cout << "first scratch: ";
+            for (int i = 0; i < lag_hess_sp.nnz(); i++){
+                std::cout << scratch_[i] << " ";
+            }
+            std::cout << std::endl;
 
             // store nonzeros in the matrix
             int scratch_ptr = 0;
@@ -226,35 +265,76 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                         throw std::runtime_error("Error in eval_RSQrqt: trying to write outside of matrix bounds");
                     }
                     if (lag_hess_sp.has_nz(i, j)) {
-                        blasfeo_matel_wrap(res, i, j) = scratch_[scratch_ptr];
+                        blasfeo_matel_wrap(res, i, j) += scratch_[scratch_ptr];
                         scratch_ptr++;
                     } else {
-                        blasfeo_matel_wrap(res, i, j) = 0.0;
+                        blasfeo_matel_wrap(res, i, j) += 0.0;
                     }
                 }
             }
 
-            // contribution of f(uk-1, xk-1, xk) = 0
-            if (k > 0){
-                std::vector<const double*> arg_in_dyn = {inputs_km1, states_km1, states_k, lam_dyn_km1};
+            // contribution of f(uk, xk, xkp1) = 0
+            if (k < K_ - 1){
+                std::vector<const double*> arg_in_dyn = {inputs_k, states_k, states_kp1, lam_dyn_k};
                 std::vector<double*> arg_out_dyn = {&scratch_[0]};
                 dyn_hess_kp_gc_(arg_in_dyn, arg_out_dyn);
+                std::cout << "second scratch: ";
+                for (int i = 0; i < dyn_hess_kp_sp_.nnz(); i++){
+                    std::cout << scratch_[i] << " ";
+                }
+                std::cout << std::endl;
 
                 // store nonzeros in the matrix
                 int scratch_ptr_dyn = 0;
                 for (int j = 0; j < dyn_hess_kp_sp_.size2(); j++){
                     for (int i = 0; i < dyn_hess_kp_sp_.size1(); i++){
-                        if (i > get_nu(k) + res->m || j > get_nu(k) + res->n){
-                            throw std::runtime_error("Error in eval_RSQrqt (2): trying to write outside of matrix bounds");
-                        }
-                        if (dyn_hess_kp_sp_.has_nz(i, j)) {
-                            blasfeo_matel_wrap(res, get_nu(k) + i, get_nu(k) + j) += scratch_[scratch_ptr_dyn];
-                            scratch_ptr_dyn++;
+                        if (i < get_nx(k+1) && j < get_nx(k+1)){
+                            // contribution to res_kp1
+                            if (dyn_hess_kp_sp_.has_nz(i, j)) {
+                                blasfeo_matel_wrap(res_kp1, i + get_nu(k+1), j + get_nu(k+1)) = scratch_[scratch_ptr_dyn];
+                                scratch_ptr_dyn++;
+                            } else {
+                                blasfeo_matel_wrap(res_kp1, i + get_nu(k+1), j + get_nu(k+1)) = 0.0;
+                            }
+                        } else if (i < get_nx(k+1)){
+                            // contribution to res_FuFx (to be discarded)
+                            if (dyn_hess_kp_sp_.has_nz(i, j)) {
+                                scratch_ptr_dyn++;
+                            }
+                        } else if (j < get_nx(k+1)){
+                            // contribution to res_FuFxt
+                            if (dyn_hess_kp_sp_.has_nz(i, j)) {
+                                blasfeo_matel_wrap(res_FuFxt, i - get_nx(k+1), j) = scratch_[scratch_ptr_dyn];
+                                scratch_ptr_dyn++;
+                            } else {
+                                blasfeo_matel_wrap(res_FuFxt, i - get_nx(k+1), j) = 0.0;
+                            }
                         } else {
-                            blasfeo_matel_wrap(res, get_nu(k) + i, get_nu(k) + j) += 0.0;
+                            // contribution to res
+                            if (dyn_hess_kp_sp_.has_nz(i, j)) {
+                                blasfeo_matel_wrap(res, i - get_nx(k+1), j - get_nx(k+1)) += scratch_[scratch_ptr_dyn];
+                                scratch_ptr_dyn++;
+                            } else {
+                                blasfeo_matel_wrap(res, i - get_nx(k+1), j - get_nx(k+1)) += 0.0;
+                            }
                         }
                     }
                 }
+            }
+
+            std::cout << "FuFxt: " << std::endl;
+            if (res_FuFxt){
+                blasfeo_print_dmat(res_FuFxt->m, res_FuFxt->n, res_FuFxt, 0, 0);
+                std::cout << "Expect to see value: " << -0.1*lam_dyn_k[1]*sin(states_kp1[0]) - 0.1*lam_dyn_k[2]*cos(states_kp1[0]) << std::endl;
+            }
+
+            std::cout << "res: " << std::endl;
+            blasfeo_print_dmat(res->m, res->n, res, 0, 0);
+
+            std::cout << "res_kp1: " << std::endl;
+            if (res_kp1){
+                blasfeo_print_dmat(res_kp1->m, res_kp1->n, res_kp1, 0, 0);
+                std::cout << "Expect to see value: " << -0.1*inputs_k[1]*(lam_dyn_k[2]*sin(states_kp1[0]) + lam_dyn_k[1]*cos(states_kp1[0])) << std::endl;
             }
 
             if (DEBUG_PRINT){
@@ -490,6 +570,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
         };
         virtual ~ImplicitTestProblem() = default;
 
+        /*
         virtual Index eval_Jt(const Scalar *states_kp1, const Scalar *inputs_k,
                                 const Scalar *states_k, MAT *res, const Index k){
             if (DEBUG_PRINT){
@@ -559,6 +640,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             }
             return 0;
         };
+        */
 
         virtual Index eval_FuFxt(const Scalar *inputs_k, const Scalar *states_k, 
                                  const Scalar *states_kp1, 
@@ -627,6 +709,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                 eval_gK_ineq_gc_ = eval_gK_ineq_;
                 eval_dynamics_equation_gc_ = eval_dynamics_equation_;
                 grad_gc_ = grad_; grad_K_gc_ = grad_K_; BAbt_gc_ = BAbt_;
+                BAJbt_gc_ = BAJbt_;
                 lag_hess_k_gc_ = lag_hess_k_; lag_hess_0_gc_ = lag_hess_0_;
                 lag_hess_K_gc_ = lag_hess_K_; Ggt_gc_ = Ggt_; GgKt_gc_ = GgKt_;
                 Gg0t_gc_ = Gg0t_; Ggt_ineq_gc_ = Ggt_ineq_;
@@ -638,14 +721,14 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                 std::vector<Function*> f = {
                     &eval_objk_, &eval_objK_, &eval_gk_, &eval_g0_, &eval_gK_,
                     &eval_gk_ineq_, &eval_gK_ineq_, &eval_dynamics_equation_,
-                    &grad_, &grad_K_, &BAbt_, &lag_hess_k_, &lag_hess_0_,
+                    &grad_, &grad_K_, &BAbt_, &BAJbt_, &lag_hess_k_, &lag_hess_0_,
                     &lag_hess_K_, &dyn_hess_kp_, &Ggt_, &GgKt_, &Gg0t_,
                     &Ggt_ineq_, &GgKt_ineq_, &b_, &Jt_, &Jt_inv_, &FuFxt_
                 };
                 std::vector<Function*> f_gc = {
                     &eval_objk_gc_, &eval_objK_gc_, &eval_gk_gc_, &eval_g0_gc_, &eval_gK_gc_,
                     &eval_gk_ineq_gc_, &eval_gK_ineq_gc_, &eval_dynamics_equation_gc_,
-                    &grad_gc_, &grad_K_gc_, &BAbt_gc_, &lag_hess_k_gc_, &lag_hess_0_gc_,
+                    &grad_gc_, &grad_K_gc_, &BAbt_gc_, &BAJbt_gc_, &lag_hess_k_gc_, &lag_hess_0_gc_,
                     &lag_hess_K_gc_, &dyn_hess_kp_gc_, &Ggt_gc_, &GgKt_gc_, &Gg0t_gc_,
                     &Ggt_ineq_gc_, &GgKt_ineq_gc_, &b_gc_, &Jt_gc_, &Jt_inv_gc_, &FuFxt_gc_
                 };
@@ -685,6 +768,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
         Function grad_;
         Function grad_K_;
         Function BAbt_;
+        Function BAJbt_;
         Function lag_hess_k_;
         Function lag_hess_0_;
         Function lag_hess_K_;
@@ -711,6 +795,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
         Function grad_gc_;
         Function grad_K_gc_;
         Function BAbt_gc_;
+        Function BAJbt_gc_;
         Function lag_hess_k_gc_;
         Function lag_hess_0_gc_;
         Function lag_hess_K_gc_;
@@ -726,6 +811,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
         Function FuFxt_gc_;
 
         Sparsity BAbt_sp_;
+        Sparsity BAJbt_sp_;
         Sparsity lag_hess_k_sp_;
         Sparsity lag_hess_0_sp_;
         Sparsity lag_hess_K_sp_;
