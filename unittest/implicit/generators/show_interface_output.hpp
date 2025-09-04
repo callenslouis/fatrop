@@ -254,7 +254,7 @@ void show_implicit_interface_output(OcpAbstractTpl<ImplicitOcpAbstractDynamic>& 
         }
     }
     // OLD APPROACH
-    bool USE_OLD = true;
+    bool USE_OLD = false;
     if (USE_OLD){
     for (int k = 0; k < K; k++){
         // virtual Index eval_RSQrqt(const Scalar *objective_scale, const Scalar *inputs_k,

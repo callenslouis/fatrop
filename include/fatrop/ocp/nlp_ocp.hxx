@@ -79,7 +79,7 @@ namespace fatrop
             const Scalar *lam_eq_k = lam_p + info.offsets_g_eq_path[k];
             const Scalar *lam_eq_ineq_k = lam_p + info.offsets_g_eq_slack[k];
 
-            bool USE_OLD = true;
+            bool USE_OLD = false;
 
             if constexpr (std::is_same_v<ProblemType, ImplicitOcpType>)
             {

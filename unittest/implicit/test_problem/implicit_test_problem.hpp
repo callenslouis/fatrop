@@ -99,7 +99,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                 });
 
             // construct lagrangian (containing uk, xk and potentially xkp) (omitting dynamics)
-            bool USE_OLD = true;
+            bool USE_OLD = false;
             if (USE_OLD){
             MX lagrangian_k = obj_scale*eval_objk_(ukxk)[0] + \
                 mtimes(transpose(lam_dyn_k), b_(ukxkxkp)[0]) + \
@@ -249,7 +249,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                             blasfeo_matel_wrap(res_J, i - get_nu(k) - get_nx(k), j) = scratch_[scratch_ptr];
                             scratch_ptr++;
                         } else {
-                            blasfeo_matel_wrap(res, i - get_nu(k) - get_nx(k), j) = 0.0;
+                            blasfeo_matel_wrap(res_J, i - get_nu(k) - get_nx(k), j) = 0.0;
                         }
                     }
                 }
@@ -289,17 +289,17 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             if (DEBUG_PRINT){
                 std::cout << "entering " << __func__ << " [" << k << "]" << std::endl;
             }
-
+            
             blasfeo_gese_wrap(res->m, res->n, 0.0, res, 0, 0);
 
             // contribution of obj(uk, xk), equality and inequality constraints
             // and f(uk, xk, xkp) = 0
-            Function lag_hess = (k == 0) ? lag_hess_0_ : (k == K_ - 1) ? lag_hess_K_ : lag_hess_k_;
+            Function lag_hess = (k == 0) ? lag_hess_0_gc_ : (k == K_ - 1) ? lag_hess_K_gc_ : lag_hess_k_gc_;
             Sparsity lag_hess_sp = (k == 0) ? lag_hess_0_sp_ : (k == K_ - 1) ? lag_hess_K_sp_ : lag_hess_k_sp_;
             std::vector<const double*> arg_in = (k == K_ - 1) ? 
                 std::vector<const double*>{states_k, states_kp1, lam_dyn_k, lam_eq_k, lam_eq_ineq_k, objective_scale}:
                 std::vector<const double*>{inputs_k, states_k, states_kp1, lam_dyn_k, lam_eq_k, lam_eq_ineq_k, objective_scale};
-
+            
             std::vector<double*> arg_out = {&scratch_[0]};
             lag_hess(arg_in, arg_out);
 
@@ -323,7 +323,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             if (k > 0){
                 std::vector<const double*> arg_in_dyn = {inputs_km1, states_km1, states_k, lam_dyn_km1};
                 std::vector<double*> arg_out_dyn = {&scratch_[0]};
-                dyn_hess_kp_(arg_in_dyn, arg_out_dyn);
+                dyn_hess_kp_gc_(arg_in_dyn, arg_out_dyn);
 
                 // store nonzeros in the matrix
                 int scratch_ptr_dyn = 0;
@@ -361,8 +361,6 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             if (DEBUG_PRINT){
                 std::cout << "entering " << __func__ << " [" << k << "]" << std::endl;
             }
-            std::cout << "entering " << __func__ << " [" << k << "]" << std::endl;
-            std::cout << "========================================================" << std::endl;
             blasfeo_gese_wrap(get_nu(k), res->n, 1.0, res, 0, 0);
             blasfeo_gese_wrap(res->m - get_nu(k), get_nu(k), 1.0, res, get_nu(k), 0);
             blasfeo_gese_wrap(1, res->n, 1.0, res, get_nu(k) + get_nx(k), 0);
@@ -374,17 +372,6 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
 
             if (res_kp1){blasfeo_gese_wrap(res_kp1->m, res_kp1->n, 0.0, res_kp1, 0, 0);}
             if (res_FuFxt){blasfeo_gese_wrap(res_FuFxt->m, res_FuFxt->n, 0.0, res_FuFxt, 0, 0);}
-
-            std::cout << "received res:" << std::endl;
-            blasfeo_print_dmat(res->m, res->n, res, 0, 0);
-            std::cout << "received res+_kp1:" << std::endl;
-            if (res_kp1){
-                blasfeo_print_dmat(res_kp1->m, res_kp1->n, res_kp1, 0, 0);
-            }
-            std::cout << "received res_FuFxt:" << std::endl;
-            if (res_FuFxt){
-                blasfeo_print_dmat(res_FuFxt->m, res_FuFxt->n, res_FuFxt, 0, 0);
-            }
 
             // contribution of obj(uk, xk), equality and inequality constraints
             Function lag_hess = (k == 0) ? lag_hess_0_gc_ : (k == K_ - 1) ? lag_hess_K_gc_ : lag_hess_k_gc_;
@@ -460,9 +447,6 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                 std::cout << __func__ << " [" << k << "]" << std::endl;
                 blasfeo_print_dmat(res->m, res->n, res, 0, 0);
             }
-
-            std::cout << "exiting " << __func__ << " [" << k << "]" << std::endl;
-            std::cout << "========================================================" << std::endl;
             return 0;
         };
         virtual Index eval_Ggt(const Scalar *inputs_k, const Scalar *states_k, MAT *res,
@@ -692,7 +676,6 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
         };
         virtual ~ImplicitTestProblem() = default;
 
-        
         virtual Index eval_Jt(const Scalar *states_kp1, const Scalar *inputs_k,
                                 const Scalar *states_k, MAT *res, const Index k){
             if (DEBUG_PRINT){
@@ -762,7 +745,6 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             }
             return 0;
         };
-        
 
         virtual Index eval_FuFxt(const Scalar *inputs_k, const Scalar *states_k, 
                                  const Scalar *states_kp1, 
