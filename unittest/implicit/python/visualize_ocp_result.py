@@ -277,12 +277,36 @@ def visualize_performance(df):
         bb = np.zeros(len(nx_vals))
         plt.bar(index, times, bar_width, bottom=bb, label=f'{problem_type}', color=colors[problem_type][0])    
     plt.xlabel('Number of state variables (nx)')
-    plt.ylabel('nb of iterations (s)')
+    plt.ylabel('nb of iterations')
     plt.title(problem_name)
     plt.xticks(index + bar_width / 2, nx_vals)
     plt.legend()
     plt.tight_layout()
     plt.savefig(f"unittest/implicit/figures/ocp_{problem_name}_performance_comparison_nb_iterations.png", dpi=300)
+    plt.close()
+
+    # show total time
+    plt.figure()
+    for i, problem_type in enumerate(problem_types):
+        times = []
+        df_pt = df[df['problem type'] == problem_type]
+        for nx in nx_vals:
+            df_nx = df_pt[df_pt['nx'] == nx]
+            times.append((df_nx['time_total']).mean())
+    
+        times = np.array(times)
+
+        bar_width = 0.2
+        index = np.arange(len(nx_vals)) + i*bar_width
+        bb = np.zeros(len(nx_vals))
+        plt.bar(index, times, bar_width, bottom=bb, label=f'{problem_type}', color=colors[problem_type][0])    
+    plt.xlabel('Number of state variables (nx)')
+    plt.ylabel('total time (s)')
+    plt.title(problem_name)
+    plt.xticks(index + bar_width / 2, nx_vals)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(f"unittest/implicit/figures/ocp_{problem_name}_performance_comparison_total_time.png", dpi=300)
     plt.close()
 
 def print_performance_table(df):
@@ -529,7 +553,7 @@ if __name__ == "__main__":
                     'inputs': data['inputs']
                 }
 
-                visualize_planar_robot_result(data)
+                # visualize_planar_robot_result(data)
                 # animate_planar_robot_result(data)
             
             else:

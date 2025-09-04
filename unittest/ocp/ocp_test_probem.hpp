@@ -282,6 +282,7 @@ namespace fatrop
 
             virtual Index get_ng_ineq(const Index k) const { return k == K_ - 1 ? 0 : 2; };
             virtual Index get_horizon_length() const { return K_; };
+            /*
             virtual Index eval_BAbt(const Scalar *states_kp1, const Scalar *inputs_k,
                                     const Scalar *states_k, MAT *res, const Index k)
             {
@@ -308,6 +309,7 @@ namespace fatrop
                 blasfeo_matel_wrap(res, 5, 1) = dt_;
                 return 0;
             }
+            */
             virtual Index eval_BAJbt(const Scalar *states_kp1, const Scalar *inputs_k,
                                     const Scalar *states_k, MAT *res, MAT *res_J, MAT *res_j_inv, const Index k)
             {
@@ -334,6 +336,7 @@ namespace fatrop
                 blasfeo_matel_wrap(res, 5, 1) = dt_;
                 return 0;
             }
+            /*
             virtual Index eval_RSQrqt_old(const Scalar *objective_scale, 
                                     const Scalar *inputs_km1,
                                     const Scalar *states_km1,
@@ -358,6 +361,7 @@ namespace fatrop
                 }
                 return 0;
             };
+            */
             virtual Index eval_RSQrqt(const Scalar *objective_scale, 
                                       const Scalar *inputs_k,
                                       const Scalar *states_k, 

@@ -79,12 +79,10 @@ namespace fatrop
             const Scalar *lam_eq_k = lam_p + info.offsets_g_eq_path[k];
             const Scalar *lam_eq_ineq_k = lam_p + info.offsets_g_eq_slack[k];
 
-            bool USE_OLD = false;
-
             if constexpr (std::is_same_v<ProblemType, ImplicitOcpType>)
             {
                 // OLD APPROACH
-                if (USE_OLD){
+                /*
                 const Scalar *inputs_km1 = (k > 0) ? primal_x_p + info.offsets_primal_u[k - 1] : nullptr;
                 const Scalar *states_km1 = (k > 0) ? primal_x_p + info.offsets_primal_x[k - 1] : nullptr;
                 const Scalar *states_kp1 = (k < info.dims.K - 1) ? primal_x_p + info.offsets_primal_x[k + 1] : nullptr;
@@ -106,7 +104,8 @@ namespace fatrop
                     ocp_->eval_FuFxt(inputs_k, states_k, states_kp1, lam_dyn_k,
                                      &hess.FuFxt[k].mat(), k);
                 }
-                } else {
+                */
+
                 // NEW APPROACH
                 const Scalar *states_kp1 = (k < info.dims.K - 1) ? primal_x_p + info.offsets_primal_x[k + 1] : nullptr;
                 ocp_->eval_RSQrqt(&objective_scale, inputs_k, states_k, states_kp1,
@@ -115,7 +114,6 @@ namespace fatrop
                                   (k < info.dims.K - 1) ? &hess.RSQrqt[k+1].mat() : nullptr,
                                   (k < info.dims.K - 1) ? &hess.FuFxt[k].mat() : nullptr,
                                   k);
-                }
             } else {
                 ocp_->eval_RSQrqt(&objective_scale, inputs_k, states_k, lam_dyn_k, lam_eq_k,
                                 lam_eq_ineq_k, &hess.RSQrqt[k].mat(), k);
@@ -139,9 +137,9 @@ namespace fatrop
             if (k != info.dims.K - 1)
             {
                 const Scalar *states_kp1 = primal_x_p + info.offsets_primal_x[k + 1];
-                bool USE_OLD = false;
+
                 // OLD APPROACH
-                if (USE_OLD){
+                /*
                 ocp_->eval_BAbt(states_kp1, inputs_k, states_k, &jac.BAbt[k].mat(), k);
 
                 if constexpr (std::is_same_v<ProblemType, ImplicitOcpType>)
@@ -150,7 +148,7 @@ namespace fatrop
                     ocp_->eval_Jt(states_kp1, inputs_k, states_k, &jac.Jt[k].mat(), k);
                     ocp_->eval_Jt_inv(states_kp1, inputs_k, states_k, &jac.Jt_inv[k].mat(), k);
                 }
-                } else {
+                */
 
                 if constexpr (std::is_same_v<ProblemType, ImplicitOcpType>)
                 {
@@ -159,7 +157,6 @@ namespace fatrop
                                      &jac.Jt[k].mat(), &jac.Jt_inv[k].mat(), k);
                 } else {
                     ocp_->eval_BAbt(states_kp1, inputs_k, states_k, &jac.BAbt[k].mat(), k);
-                }
                 }
             }
         }

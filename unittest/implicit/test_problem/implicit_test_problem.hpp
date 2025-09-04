@@ -99,8 +99,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                 });
 
             // construct lagrangian (containing uk, xk and potentially xkp) (omitting dynamics)
-            bool USE_OLD = false;
-            if (USE_OLD){
+            /*
             MX lagrangian_k = obj_scale*eval_objk_(ukxk)[0] + \
                 mtimes(transpose(lam_dyn_k), b_(ukxkxkp)[0]) + \
                 mtimes(transpose(lam_eq_k), eval_gk_(ukxk)[0]) + \
@@ -121,7 +120,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
 
             dyn_hess_kp_ = Function("dyn_hess_kp"+ts, {uk, xk, xkp, lam_dyn_k}, 
                 {transpose(hessian(mtimes(transpose(lam_dyn_k), b_(ukxkxkp)[0]), xkp))});
-            } else {
+            */
             MX lagrangian_k = obj_scale*eval_objk_(ukxk)[0] + \
                 mtimes(transpose(lam_eq_k), eval_gk_(ukxk)[0]) + \
                 mtimes(transpose(lam_ineq_k), eval_gk_ineq_(ukxk)[0]);
@@ -141,7 +140,6 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             // dynamics contribution
             dyn_hess_kp_ = Function("dyn_hess_kp"+ts, {uk, xk, xkp, lam_dyn_k}, 
                 {transpose(hessian(mtimes(transpose(lam_dyn_k), b_(ukxkxkp)[0]), vertcat(xkp, uk, xk)))});
-            }
 
             // update sparsities
             BAbt_sp_ = BAbt_.sparsity_out(0);
@@ -179,6 +177,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             return eval_gk_ineq_.sparsity_out(0).size1();
         };
         virtual Index get_horizon_length() const { return K_; };
+        /*
         virtual Index eval_BAbt(const Scalar *states_kp1, const Scalar *inputs_k,
                                 const Scalar *states_k, MAT *res, const Index k)
         {
@@ -215,6 +214,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             }
             return 0;
         }
+        */
         virtual Index eval_BAJbt(const Scalar *states_kp1, const Scalar *inputs_k,
                                  const Scalar *states_k, MAT *res, MAT *res_J, MAT *res_J_inv, const Index k)
         {
@@ -274,6 +274,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             }
             return 0;
         }
+        /*
         virtual Index eval_RSQrqt_old(const Scalar *objective_scale, 
                                     const Scalar *inputs_km1,
                                     const Scalar *states_km1,
@@ -348,6 +349,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             }
             return 0;
         };
+        */
         virtual Index eval_RSQrqt(const Scalar *objective_scale, 
                                     const Scalar *inputs_k,
                                     const Scalar *states_k, 
@@ -676,6 +678,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
         };
         virtual ~ImplicitTestProblem() = default;
 
+        /*
         virtual Index eval_Jt(const Scalar *states_kp1, const Scalar *inputs_k,
                                 const Scalar *states_k, MAT *res, const Index k){
             if (DEBUG_PRINT){
@@ -782,6 +785,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             }
             return 0;
         };
+        */
     
 
     private:
@@ -805,7 +809,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
         };
 
         void CodeGenerateAll(){
-            bool use_codegen = false;
+            bool use_codegen = true;
             if (!use_codegen){
                 eval_objk_gc_ = eval_objk_; eval_objK_gc_ = eval_objK_;
                 eval_gk_gc_ = eval_gk_; eval_g0_gc_ = eval_g0_;
@@ -842,6 +846,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                     std::cout.flush();
                     *f_gc[i] = CodeGenerateFunction(*f[i]);
                 }
+                std::cout << std::endl;
             }
         };
 

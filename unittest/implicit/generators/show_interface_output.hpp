@@ -254,8 +254,7 @@ void show_implicit_interface_output(OcpAbstractTpl<ImplicitOcpAbstractDynamic>& 
         }
     }
     // OLD APPROACH
-    bool USE_OLD = false;
-    if (USE_OLD){
+    /*
     for (int k = 0; k < K; k++){
         // virtual Index eval_RSQrqt(const Scalar *objective_scale, const Scalar *inputs_k,
         //                           const Scalar *states_k, const Scalar *states_kp1, 
@@ -277,7 +276,7 @@ void show_implicit_interface_output(OcpAbstractTpl<ImplicitOcpAbstractDynamic>& 
                        k);
         file << "RSQrqt[" << k << "] = \n" << RSQrqt_all[k] << std::endl;
     }
-    } else {
+    */
     for (int k = 0; k < K; k++){
         Scalar objective_scale = 0.9;
         interface.eval_RSQrqt(&objective_scale, 
@@ -295,7 +294,7 @@ void show_implicit_interface_output(OcpAbstractTpl<ImplicitOcpAbstractDynamic>& 
     for (int k = 0; k < K; k++){
         file << "RSQrqt[" << k << "] = \n" << RSQrqt_all[k] << std::endl;
     }
-    }
+    // }
 
     for (int k = 0; k < K-1; k++){
         file << "FuFxt[" << k << "] = \n" << FuFxt_all[k] << std::endl;
@@ -430,6 +429,7 @@ void show_implicit_interface_output(OcpAbstractTpl<ImplicitOcpAbstractDynamic>& 
 
 
     // eval FuFxt
+    /*
     for (int k = 0; k < K - 1; k++){
         // virtual Index eval_FuFxt(const Scalar *states_kp1, const Scalar *inputs_k,
         //                     const Scalar *states_k, MAT *res, const Index k)
@@ -437,6 +437,7 @@ void show_implicit_interface_output(OcpAbstractTpl<ImplicitOcpAbstractDynamic>& 
         interface.eval_FuFxt(uk_all[k].data(), xk_all[k].data(), xk_all[k+1].data(), lam_dyn_all[k].data(), &res.mat(), k);
         file << "FuFxt[" << k << "] = \n" << res << std::endl;
     }
+    */
 }
 
 #endif // __SHOW_INTERFACE_OUTPUT_HPP__

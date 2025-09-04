@@ -463,7 +463,7 @@ class ExplicitTestProblem : public OcpAbstract{
         }
 
         void CodeGenerateAll(){
-            bool use_codegen = false;
+            bool use_codegen = true;
             if (!use_codegen){
                 eval_objk_gc_ = eval_objk_; eval_objK_gc_ = eval_objK_;
                 eval_gk_gc_ = eval_gk_; eval_g0_gc_ = eval_g0_;
@@ -497,6 +497,7 @@ class ExplicitTestProblem : public OcpAbstract{
                     std::cout.flush();
                     *f_gc[i] = CodeGenerateFunction(*f[i]);
                 }
+                std::cout << std::endl;
             }
         }
 
