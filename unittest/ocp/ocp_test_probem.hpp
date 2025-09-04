@@ -282,6 +282,32 @@ namespace fatrop
 
             virtual Index get_ng_ineq(const Index k) const { return k == K_ - 1 ? 0 : 2; };
             virtual Index get_horizon_length() const { return K_; };
+            virtual Index eval_BAbt(const Scalar *states_kp1, const Scalar *inputs_k,
+                                    const Scalar *states_k, MAT *res, const Index k)
+            {
+                throw std::runtime_error("function still needs to be updated for combined evaluation of BA, J and J_inv");
+                // set zero
+                blasfeo_gese_wrap(res->m, res->n, 0.0, res, 0, 0);
+                // Matrix B
+                // [  0,    0  ]
+                // [  0,    0  ]
+                // [ dt/m,  0  ]
+                // [  0,   dt/m ]
+
+                // Matrix A
+                // [ 1,  0,  dt,  0  ]
+                // [ 0,  1,   0,  dt ]
+                // [ 0,  0,   1,  0  ]
+                // [ 0,  0,   0,  1  ]
+
+                blasfeo_matel_wrap(res, 0, 2) = dt_ / m_;
+                blasfeo_matel_wrap(res, 1, 3) = dt_ / m_;
+
+                blasfeo_diare_wrap(4, 1.0, res, 2, 0);
+                blasfeo_matel_wrap(res, 4, 0) = dt_;
+                blasfeo_matel_wrap(res, 5, 1) = dt_;
+                return 0;
+            }
             virtual Index eval_BAJbt(const Scalar *states_kp1, const Scalar *inputs_k,
                                     const Scalar *states_k, MAT *res, MAT *res_J, MAT *res_j_inv, const Index k)
             {
@@ -308,6 +334,30 @@ namespace fatrop
                 blasfeo_matel_wrap(res, 5, 1) = dt_;
                 return 0;
             }
+            virtual Index eval_RSQrqt_old(const Scalar *objective_scale, 
+                                    const Scalar *inputs_km1,
+                                    const Scalar *states_km1,
+                                    const Scalar *inputs_k,
+                                    const Scalar *states_k, 
+                                    const Scalar *states_kp1,
+                                    const Scalar *lam_dyn_k,
+                                    const Scalar *lam_dyn_km1,
+                                    const Scalar *lam_eq_k, 
+                                    const Scalar *lam_eq_ineq_k, 
+                                    MAT *res, const Index k)
+            {
+                throw std::runtime_error("function still needs to be updated for combined evaluation of RSQrqt and next stage terms");
+                // set zero
+                blasfeo_gese_wrap(res->m, res->n, 0.0, res, 0, 0);
+                // Matrix R
+                // [ 2,  0 ]
+                // [ 0,  2 ]
+                if (k < K_ - 1)
+                {
+                    blasfeo_diare_wrap(2, *objective_scale*2.0, res, 0, 0);
+                }
+                return 0;
+            };
             virtual Index eval_RSQrqt(const Scalar *objective_scale, 
                                       const Scalar *inputs_k,
                                       const Scalar *states_k, 

@@ -222,6 +222,7 @@ void show_implicit_interface_output(OcpAbstractTpl<ImplicitOcpAbstractDynamic>& 
     }
 
     // eval BAbt
+    /*
     for (int k = 0; k < K - 1; k++){
         // virtual Index eval_BAbt(const Scalar *states_kp1, const Scalar *inputs_k,
         //                 const Scalar *states_k, MAT *res, const Index k)
@@ -229,13 +230,32 @@ void show_implicit_interface_output(OcpAbstractTpl<ImplicitOcpAbstractDynamic>& 
         interface.eval_BAbt(xk_all[k].data(), uk_all[k].data(), xk_all[k+1].data(), &res.mat(), k);
         file << "BAbt[" << k << "] = \n" << res << std::endl;
     }
+    */
 
     // eval RSQrqt
     std::vector<MatRealAllocated> RSQrqt_all; RSQrqt_all.reserve(K);
     for (int k = 0; k < K; k++){
         RSQrqt_all.emplace_back(interface.get_nx(k) + interface.get_nu(k) + 1, interface.get_nx(k) + interface.get_nu(k));
+        // assign random values
+        for (int i = 0; i < RSQrqt_all[k].m(); i++){
+            for (int j = 0; j < RSQrqt_all[k].n(); j++){
+                RSQrqt_all[k](i,j) = 0.01*(i+1) + 0.001*(j+1) + k;
+            }
+        }
     }
-    /*
+    std::vector<MatRealAllocated> FuFxt_all; FuFxt_all.reserve(K);
+    for (int k = 0; k < K-1; k++){
+        FuFxt_all.emplace_back(interface.get_nx(k) + interface.get_nu(k), interface.get_nx(k+1));
+        // assign random values
+        for (int i = 0; i < FuFxt_all[k].m(); i++){
+            for (int j = 0; j < FuFxt_all[k].n(); j++){
+                FuFxt_all[k](i,j) = 0.02*(i+1) + 0.002*(j+1) + k;
+            }
+        }
+    }
+    // OLD APPROACH
+    bool USE_OLD = true;
+    if (USE_OLD){
     for (int k = 0; k < K; k++){
         // virtual Index eval_RSQrqt(const Scalar *objective_scale, const Scalar *inputs_k,
         //                           const Scalar *states_k, const Scalar *states_kp1, 
@@ -243,7 +263,7 @@ void show_implicit_interface_output(OcpAbstractTpl<ImplicitOcpAbstractDynamic>& 
         //                           const Scalar *lam_eq_k, const Scalar *lam_eq_ineq_k, MAT *res, MAT *res_next,
         //                           const Index k)
         Scalar objective_scale = 0.9;
-        interface.eval_RSQrqt(&objective_scale, 
+        interface.eval_RSQrqt_old(&objective_scale, 
                        (k == 0) ? nullptr : uk_all[k-1].data(), 
                        (k == 0) ? nullptr : xk_all[k-1].data(), 
                        (k == K-1) ? nullptr : uk_all[k].data(), 
@@ -257,7 +277,29 @@ void show_implicit_interface_output(OcpAbstractTpl<ImplicitOcpAbstractDynamic>& 
                        k);
         file << "RSQrqt[" << k << "] = \n" << RSQrqt_all[k] << std::endl;
     }
-    */
+    } else {
+    for (int k = 0; k < K; k++){
+        Scalar objective_scale = 0.9;
+        interface.eval_RSQrqt(&objective_scale, 
+                       (k == K-1) ? nullptr : uk_all[k].data(), 
+                       xk_all[k].data(), 
+                       (k == K-1) ? nullptr : xk_all[k+1].data(),
+                       (k == K-1) ? nullptr : lam_dyn_all[k].data(), 
+                       lam_eq_all[k].data(), 
+                       lam_ineq_all[k].data(),
+                       &RSQrqt_all[k].mat(),
+                       (k == K-1) ? nullptr : &RSQrqt_all[k+1].mat(),
+                       (k == K-1) ? nullptr : &FuFxt_all[k].mat(),
+                       k);
+    }
+    for (int k = 0; k < K; k++){
+        file << "RSQrqt[" << k << "] = \n" << RSQrqt_all[k] << std::endl;
+    }
+    }
+
+    for (int k = 0; k < K-1; k++){
+        file << "FuFxt[" << k << "] = \n" << FuFxt_all[k] << std::endl;
+    }
 
     // eval Ggt
     for (int k = 0; k < K; k++){

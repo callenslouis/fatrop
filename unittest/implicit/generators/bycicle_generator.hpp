@@ -95,7 +95,6 @@ class BycicleGenerator : public InterfaceGenerator {
             // Function eval_gk_ineq = Function("eval_gk_ineq", {uk_, xk_}, {uk_});
             Function eval_gk_ineq = Function("eval_gk_ineq", {uk_, xk_}, {zero_});
             Function eval_gK = Function("eval_gK", {xk_}, {vertcat(pxk_ - end_[0], pyk_ - end_[1])});
-            // Function eval_gK = Function("eval_gK", {xk_}, {vertcat(pxk_ - 1, pyk_ - 1)});
             Function eval_gK_ineq = Function("eval_gK_ineq", {xk_}, {MX::zeros(0,1)});
             
             MX rhs = vertcat(wk_, vk_*cos(thk_), vk_*sin(thk_));

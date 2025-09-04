@@ -89,7 +89,7 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     ImplicitTestProblem tp_interface_impl = *tp_impl;
     ExplicitTestProblem tp_interface_expl = *tp_expl;
     ExplicitTestProblem tp_interface_reform = *tp_reform;
-    // show_implicit_interface_output(tp_interface_impl, "output_interface_implicit.txt");
+    show_implicit_interface_output(tp_interface_impl, "output_interface_implicit.txt");
     // show_interface_output(tp_interface_expl, "output_interface_explicit.txt");
     // show_interface_output(tp_interface_reform, "output_interface_reformulated.txt");
 
