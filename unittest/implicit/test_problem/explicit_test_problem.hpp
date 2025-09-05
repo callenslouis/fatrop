@@ -179,6 +179,7 @@ class ExplicitTestProblem : public OcpAbstract{
             if (DEBUG_PRINT){
                 std::cout << "entering " << __func__ << " [" << k << "]" << std::endl;
             }
+                auto start = std::chrono::high_resolution_clock::now();
             blasfeo_gese_wrap(res->m, res->n, 0.0, res, 0, 0);
             Function lag_hess = (k == 0) ? lag_hess_0_gc_ : (k == K_ - 1) ? lag_hess_K_gc_ : lag_hess_k_gc_;
             Sparsity lag_hess_sp = (k == 0) ? lag_hess_0_sp_ : (k == K_ - 1) ? lag_hess_K_sp_ : lag_hess_k_sp_;
@@ -187,7 +188,13 @@ class ExplicitTestProblem : public OcpAbstract{
                 std::vector<const double*>{inputs_k, states_k, lam_dyn_k, lam_eq_k, lam_eq_ineq_k, objective_scale};
             
             std::vector<double*> arg_out = {&scratch_[0]};
+                auto stop = std::chrono::high_resolution_clock::now();
+                us_other_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+                start = std::chrono::high_resolution_clock::now();
             lag_hess(arg_in, arg_out);
+                stop = std::chrono::high_resolution_clock::now();
+                us_function_call_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+                start = std::chrono::high_resolution_clock::now();
                         
             // store nonzeros in the matrix
             int scratch_ptr = 0;
@@ -205,12 +212,23 @@ class ExplicitTestProblem : public OcpAbstract{
                 }
             }
 
+                stop = std::chrono::high_resolution_clock::now();
+                us_store_result_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+
             if (DEBUG_PRINT){
                 std::cout << __func__ << " [" << k << "]" << std::endl;
                 blasfeo_print_dmat(res->m, res->n, res, 0, 0);
             }
             return 0;
         };
+        void get_hess_time_breakdown(int nb_iterations){
+            double total = us_other_ + us_function_call_ + us_store_result_;
+            // std::cout << "Hessian computation time breakdown (microseconds):" << std::endl;
+            std::cout << "\tfunction_call: " << us_function_call_/nb_iterations << " (" << (100.0*us_function_call_/total) << "%)" << std::endl;
+            std::cout << "\tstore_result:  " << us_store_result_/nb_iterations  << " (" << (100.0*us_store_result_/total)  << "%)" << std::endl;
+            std::cout << "\tother:         " << us_other_/nb_iterations         << " (" << (100.0*us_other_/total)         << "%)" << std::endl;
+            std::cout << "\ttotal:         " << total/nb_iterations             << " (100%)"                        << std::endl;
+        }
         virtual Index eval_Ggt(const Scalar *inputs_k, const Scalar *states_k, MAT *res,
                                 const Index k)
         {
@@ -568,6 +586,10 @@ class ExplicitTestProblem : public OcpAbstract{
         Sparsity Gg0t_sp_;
         Sparsity Ggt_ineq_sp_;
         Sparsity GgKt_ineq_sp_;
+
+        double us_function_call_ = 0;
+        double us_store_result_ = 0;
+        double us_other_ = 0;
 
         // scratch space
         std::vector<double> scratch_ = std::vector<double>(1000, 0.0); // Adjust size as needed

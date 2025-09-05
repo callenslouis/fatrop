@@ -309,7 +309,7 @@ def visualize_performance(df):
     plt.savefig(f"unittest/implicit/figures/ocp_{problem_name}_performance_comparison_total_time.png", dpi=300)
     plt.close()
 
-def visualize_func_eval_breakdown(df):
+def visualize_func_eval_breakdown(df, fig_name_appendix=""):
     # group by problem type
     # problem_types = df['problem_type'].unique()
     problem_types = ['explicit', 'implicit', 'reformulated']
@@ -346,7 +346,7 @@ def visualize_func_eval_breakdown(df):
     plt.xticks(bar_xxs, other_columns, rotation=45, ha='right')
     plt.legend()
     plt.tight_layout()
-    plt.savefig(f"unittest/implicit/figures/ocp_function_evaluation_time_breakdown.png", dpi=300)
+    plt.savefig(f"unittest/implicit/figures/ocp_function_evaluation_time_breakdown_{fig_name_appendix}.png", dpi=300)
     plt.close()
 
 def print_performance_table(df):
@@ -605,58 +605,73 @@ if __name__ == "__main__":
 
     
     df_func_eval_breakdown = pd.DataFrame(columns=
-        ['problem_type', 
-         'compute search dir', 
-         'fatrop', 
-         'initialization', 
-         'eval objective', 
-         'eval gradient', 
-         'eval constraint violation', 
-         'eval jacobian', 
-         'eval hessian', 
-         'function evaluation',
-         'rest time', 
-         'total'])
+        ['problem_type', 'compute search dir', 'fatrop', 'initialization', 
+         'eval objective', 'eval gradient', 'eval constraint violation',
+          'eval jacobian', 'eval hessian', 'function evaluation','rest time', 
+          'total'])
+    df_func_eval_holonomic_breakdown = pd.DataFrame(columns=
+        ['problem_type', 'compute search dir', 'fatrop', 'initialization', 
+         'eval objective', 'eval gradient', 'eval constraint violation',
+          'eval jacobian', 'eval hessian', 'function evaluation','rest time', 
+          'total'])
+    df_func_eval_truck_trailer_breakdown = pd.DataFrame(columns=
+        ['problem_type', 'compute search dir', 'fatrop', 'initialization', 
+         'eval objective', 'eval gradient', 'eval constraint violation',
+          'eval jacobian', 'eval hessian', 'function evaluation','rest time', 
+          'total'])
+    df_func_eval_planar_robot_breakdown = pd.DataFrame(columns=
+        ['problem_type', 'compute search dir', 'fatrop', 'initialization', 
+         'eval objective', 'eval gradient', 'eval constraint violation',
+          'eval jacobian', 'eval hessian', 'function evaluation','rest time', 
+          'total'])
     
     # get func eval data for each problem type (holonomic, truck trailer, planar robot)
     for data in all_jsons:
         if data["generator_data"]["problem_name"] not in ["holonomic", "truck_trailer", "planar_robot"]:
             continue
-        elif data["generator_data"]["problem_name"] == "holonomic":
+        timing_stats = data["metadata"]["timing_statistics"]
+        nb_iter = data["metadata"]['iterations']
+        entry = {
+            'problem_type': data['problem type'],
+            'compute search dir': data["metadata"]["timing_statistics"].get('compute search dir', 0)/data["metadata"]['iterations'],
+            'fatrop': data["metadata"]["timing_statistics"].get('fatrop', 0)/data["metadata"]['iterations'],
+            'initialization': data["metadata"]["timing_statistics"].get('initialization', 0),
+            'eval objective': data["metadata"]["timing_statistics"].get('eval objective', 0)/data["metadata"]['iterations'],
+            'eval gradient': data["metadata"]["timing_statistics"].get('eval gradient', 0)/data["metadata"]['iterations'],
+            'eval constraint violation': data["metadata"]["timing_statistics"].get('eval constraint violation', 0)/data["metadata"]['iterations'],
+            'eval jacobian': data["metadata"]["timing_statistics"].get('eval jacobian', 0)/data["metadata"]['iterations'],
+            'eval hessian': data["metadata"]["timing_statistics"].get('eval hessian', 0)/data["metadata"]['iterations'],
+            'rest time': data["metadata"]["timing_statistics"].get('rest time', 0),
+            'function evaluation': data["metadata"]["timing_statistics"].get('function evaluation', 0)/data["metadata"]['iterations'],
+            'total': data["metadata"]["timing_statistics"].get('total', 0)/data["metadata"]['iterations']
+        }
+        if data["generator_data"]["problem_name"] == "holonomic":
             # check if we find the other two problem types with same dimension and control level
             dim = data["generator_data"]["n"]
             ctl = data["generator_data"]["control_level"]
             df_other = df_holonomic[(df_holonomic['dimension'] == dim) & (df_holonomic['control level'] == ctl)]
             if df_other.shape[0] < 3:
                 continue
+            df_func_eval_holonomic_breakdown.loc[len(df_func_eval_holonomic_breakdown)] = entry
         elif data["generator_data"]["problem_name"] == "truck_trailer":
             n = data["generator_data"]["n"]
             df_other = df_trucktrailer[df_trucktrailer['n'] == n]
             if df_other.shape[0] < 3:
                 continue
+            df_func_eval_truck_trailer_breakdown.loc[len(df_func_eval_truck_trailer_breakdown)] = entry
+                
         elif data["generator_data"]["problem_name"] == "planar_robot":
             n = data["generator_data"]["n"]
             df_other = df_planarrobot[df_planarrobot['n'] == n]
             if df_other.shape[0] < 3:
                 continue
-        timing_stats = data["metadata"]["timing_statistics"]
-        nb_iter = data["metadata"]['iterations']
-        df_func_eval_breakdown.loc[len(df_func_eval_breakdown)] = {
-            'problem_type': data['problem type'],
-            'compute search dir': timing_stats.get('compute search dir', 0)/nb_iter,
-            'fatrop': timing_stats.get('fatrop', 0)/nb_iter,
-            'initialization': timing_stats.get('initialization', 0),
-            'eval objective': timing_stats.get('eval objective', 0)/nb_iter,
-            'eval gradient': timing_stats.get('eval gradient', 0)/nb_iter,
-            'eval constraint violation': timing_stats.get('eval constraint violation', 0)/nb_iter,
-            'eval jacobian': timing_stats.get('eval jacobian', 0)/nb_iter,
-            'eval hessian': timing_stats.get('eval hessian', 0)/nb_iter,
-            'rest time': timing_stats.get('rest time', 0),
-            'function evaluation': timing_stats.get('function evaluation', 0)/nb_iter,
-            'total': timing_stats.get('total', 0)/nb_iter
-        }    
+            df_func_eval_planar_robot_breakdown.loc[len(df_func_eval_planar_robot_breakdown)] = entry
+        df_func_eval_breakdown.loc[len(df_func_eval_breakdown)] = entry
     
     visualize_func_eval_breakdown(df_func_eval_breakdown)
+    visualize_func_eval_breakdown(df_func_eval_holonomic_breakdown, fig_name_appendix="holonomic")
+    visualize_func_eval_breakdown(df_func_eval_truck_trailer_breakdown, fig_name_appendix="truck_trailer")
+    visualize_func_eval_breakdown(df_func_eval_planar_robot_breakdown, fig_name_appendix="planar_robot")
 
     if (not df_holonomic.empty):
         visualize_performance(df_holonomic)

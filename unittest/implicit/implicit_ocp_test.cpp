@@ -83,6 +83,7 @@ json add_json_data(std::shared_ptr<IpData<ProblemType>> data, std::string proble
 };
 
 void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
+    bool STORE_SOLUTION = false;
     auto tp_impl = std::make_shared<ImplicitTestProblem>(generator->PrepareImplicit());
     auto tp_reform = std::make_shared<ExplicitTestProblem>(generator->PrepareReformulated());
     auto tp_expl = std::make_shared<ExplicitTestProblem>(generator->PrepareExplicit());
@@ -119,11 +120,13 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
         auto data_expl = builder_expl.get_ipdata();
         result_expl = add_json_data(data_expl, "explicit");
         result_expl["generator_data"] = generator->GetJsonData();
-        std::ofstream file2("ocp_results/ocp_result_explicit_" + gen_type + "_" + file_name_appendix + ".json");
-        if (file2.is_open())
-        {
-            file2 << result_expl.dump(4);
-            file2.close();
+        if (STORE_SOLUTION){
+            std::ofstream file2("ocp_results/ocp_result_explicit_" + gen_type + "_" + file_name_appendix + ".json");
+            if (file2.is_open())
+            {
+                file2 << result_expl.dump(4);
+                file2.close();
+            }
         }
         solved_expl = true;
     } catch (std::exception& e){
@@ -140,10 +143,12 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
         result_reform = add_json_data(data_reform, "reformulated");
         result_reform["generator_data"] = generator->GetJsonData();
         std::ofstream file3("ocp_results/ocp_result_reformulated_" + gen_type + "_" + file_name_appendix + ".json");
-        if (file3.is_open())
-        {
-            file3 << result_reform.dump(4);
-            file3.close();
+        if (STORE_SOLUTION){
+            if (file3.is_open())
+            {
+                file3 << result_reform.dump(4);
+                file3.close();
+            }
         }
         solved_reform = true;
     } catch (std::exception& e){
@@ -160,10 +165,12 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
         result_impl = add_json_data(data_impl, "implicit");
         result_impl["generator_data"] = generator->GetJsonData();
         std::ofstream file("ocp_results/ocp_result__implicit_" + gen_type + "_" + file_name_appendix + ".json");
-        if (file.is_open())
-        {
-            file << result_impl.dump(4);
-            file.close();
+        if (STORE_SOLUTION){
+            if (file.is_open())
+            {
+                file << result_impl.dump(4);
+                file.close();
+            }
         }
         solved_impl = true;
     } catch (std::exception& e){
@@ -191,6 +198,10 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     if (solved_reform){std::cout << "\treformulated: " << result_reform["metadata"]["timing_statistics"]["fatrop"] << std::endl;}
     if (solved_impl){std::cout << "\timplicit:     " << result_impl["metadata"]["timing_statistics"]["fatrop"] << std::endl;}
 
+    std::cout << "hessian eval time breakdown:" << std::endl;
+    if (solved_expl){std::cout << "explicit:" << std::endl; tp_expl->get_hess_time_breakdown(result_expl["metadata"]["iterations"]);}
+    if (solved_reform){std::cout << "reformulated:" << std::endl; tp_reform->get_hess_time_breakdown(result_reform["metadata"]["iterations"]);}
+    if (solved_impl){std::cout << "implicit:" << std::endl; tp_impl->get_hess_time_breakdown(result_impl["metadata"]["iterations"]);}
 }
 
 void SolveSingleProblemTruckTrailer(int n_trailers){

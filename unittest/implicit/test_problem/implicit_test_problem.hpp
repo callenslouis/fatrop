@@ -363,7 +363,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             if (DEBUG_PRINT){
                 std::cout << "entering " << __func__ << " [" << k << "]" << std::endl;
             }
-            auto start = std::chrono::high_resolution_clock::now();
+                auto start = std::chrono::high_resolution_clock::now();
 
             // reset all of res except res[get_nu(k):-1, get_nu(k):]
             blasfeo_gese_wrap(get_nu(k), res->n, 0.0, res, 0, 0);
@@ -381,7 +381,13 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                 std::vector<const double*>{inputs_k, states_k, states_kp1, lam_eq_k, lam_eq_ineq_k, objective_scale};
             
             std::vector<double*> arg_out = {&scratch_[0]};
+                auto stop = std::chrono::high_resolution_clock::now();
+                us_other_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+                start = std::chrono::high_resolution_clock::now();
             lag_hess(arg_in, arg_out);
+                stop = std::chrono::high_resolution_clock::now();
+                us_function_call_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+                start = std::chrono::high_resolution_clock::now();
 
             // store nonzeros in the matrix
             int scratch_ptr = 0;
@@ -398,12 +404,22 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                     }
                 }
             }
+                stop = std::chrono::high_resolution_clock::now();
+                us_store_result_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
 
             // contribution of f(uk, xk, xkp1) = 0
             if (k < K_ - 1){
+                    start = std::chrono::high_resolution_clock::now();
                 std::vector<const double*> arg_in_dyn = {inputs_k, states_k, states_kp1, lam_dyn_k};
                 std::vector<double*> arg_out_dyn = {&scratch_[0]};
+                    stop = std::chrono::high_resolution_clock::now();
+                    us_other_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+                    start = std::chrono::high_resolution_clock::now();
                 dyn_hess_kp_gc_(arg_in_dyn, arg_out_dyn);
+                    
+                    stop = std::chrono::high_resolution_clock::now();
+                    us_function_call_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+                    start = std::chrono::high_resolution_clock::now();
 
                 // store nonzeros in the matrix
                 int scratch_ptr_dyn = 0;
@@ -443,6 +459,9 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                         }
                     }
                 }
+
+                    stop = std::chrono::high_resolution_clock::now();
+                    us_store_result_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
             }
 
             if (DEBUG_PRINT){
@@ -451,6 +470,14 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             }
             return 0;
         };
+        void get_hess_time_breakdown(int nb_iterations){
+            double total = us_other_ + us_function_call_ + us_store_result_;
+            // std::cout << "Hessian computation time breakdown (microseconds):" << std::endl;
+            std::cout << "\tfunction_call: " << us_function_call_/nb_iterations << " (" << (100.0*us_function_call_/total) << "%)" << std::endl;
+            std::cout << "\tstore_result:  " << us_store_result_/nb_iterations  << " (" << (100.0*us_store_result_/total)  << "%)" << std::endl;
+            std::cout << "\tother:         " << us_other_/nb_iterations         << " (" << (100.0*us_other_/total)         << "%)" << std::endl;
+            std::cout << "\ttotal:         " << total/nb_iterations             << " (100%)"                        << std::endl;
+        }
         virtual Index eval_Ggt(const Scalar *inputs_k, const Scalar *states_k, MAT *res,
                                 const Index k)
         {
@@ -933,6 +960,10 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
         Sparsity Jt_sp_;
         Sparsity Jt_inv_sp_;
         // Sparsity FuFxt_sp_;
+
+        double us_function_call_ = 0;
+        double us_store_result_ = 0;
+        double us_other_ = 0;
 
         // scratch space
         std::vector<double> scratch_ = std::vector<double>(1000, 0.0); // Adjust size as needed
