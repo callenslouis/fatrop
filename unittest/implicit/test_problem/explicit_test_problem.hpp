@@ -149,17 +149,11 @@ class ExplicitTestProblem : public OcpAbstract{
 
             // store nonzeros in the matrix
             int scratch_ptr = 0;
-            for (int j = 0; j < BAbt_sp_.size2(); j++){
-                for (int i = 0; i < BAbt_sp_.size1(); i++){
-                    if (i > res->m || j > res->n){
-                        throw std::runtime_error("Error in eval_BAbt: trying to write outside of matrix bounds");
-                    }
-                    if (BAbt_.sparsity_out(0).has_nz(i, j)) {
-                        blasfeo_matel_wrap(res, i, j) = scratch_[scratch_ptr];
-                        scratch_ptr++;
-                    } else {
-                        blasfeo_matel_wrap(res, i, j) = 0.0;
-                    }
+            const casadi_int* c = BAbt_sp_.colind();
+            for (int i = 0; i < BAbt_sp_.size2(); i++){
+                for (int el = c[i]; el != c[i+1]; ++el){
+                    blasfeo_matel_wrap(res, BAbt_sp_.row(el), i) = scratch_[scratch_ptr];
+                    scratch_ptr++;
                 }
             }
 
