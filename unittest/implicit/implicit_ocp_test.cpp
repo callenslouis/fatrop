@@ -110,26 +110,6 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     json result_expl, result_reform, result_impl;
     bool solved_expl = false, solved_reform = false, solved_impl = false;
     
-    // REFORMULATED
-    try{
-        std::cout << "solving reformulated test problem" << std::endl;
-        Timer timer_reform; timer_reform.start();
-        IpSolverReturnFlag ret_reform = ipalg_reform->optimize();
-        std::cout << "Elapsed time: " << timer_reform.stop() << std::endl;
-        auto data_reform = builder_reform.get_ipdata();
-        result_reform = add_json_data(data_reform, "reformulated");
-        result_reform["generator_data"] = generator->GetJsonData();
-        std::ofstream file3("ocp_results/ocp_result_reformulated_" + gen_type + "_" + file_name_appendix + ".json");
-        if (file3.is_open())
-        {
-            file3 << result_reform.dump(4);
-            file3.close();
-        }
-        solved_reform = true;
-    } catch (std::exception& e){
-        std::cout << "Exception caught during reformulated solve: " << e.what() << std::endl;
-    }
-
     // EXPLICIT
     try{
         std::cout << "solving explicit test problem" << std::endl;
@@ -148,6 +128,26 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
         solved_expl = true;
     } catch (std::exception& e){
         std::cout << "Exception caught during explicit solve: " << e.what() << std::endl;
+    }
+
+    // REFORMULATED
+    try{
+        std::cout << "solving reformulated test problem" << std::endl;
+        Timer timer_reform; timer_reform.start();
+        IpSolverReturnFlag ret_reform = ipalg_reform->optimize();
+        std::cout << "Elapsed time: " << timer_reform.stop() << std::endl;
+        auto data_reform = builder_reform.get_ipdata();
+        result_reform = add_json_data(data_reform, "reformulated");
+        result_reform["generator_data"] = generator->GetJsonData();
+        std::ofstream file3("ocp_results/ocp_result_reformulated_" + gen_type + "_" + file_name_appendix + ".json");
+        if (file3.is_open())
+        {
+            file3 << result_reform.dump(4);
+            file3.close();
+        }
+        solved_reform = true;
+    } catch (std::exception& e){
+        std::cout << "Exception caught during reformulated solve: " << e.what() << std::endl;
     }
 
     // IMPLICIT

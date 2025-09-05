@@ -188,7 +188,7 @@ class ExplicitTestProblem : public OcpAbstract{
             
             std::vector<double*> arg_out = {&scratch_[0]};
             lag_hess(arg_in, arg_out);
-
+                        
             // store nonzeros in the matrix
             int scratch_ptr = 0;
             for (int j = 0; j < lag_hess_sp.size2(); j++){
@@ -474,7 +474,7 @@ class ExplicitTestProblem : public OcpAbstract{
                 lag_hess_k_gc_ = lag_hess_k_; lag_hess_0_gc_ = lag_hess_0_;
                 lag_hess_K_gc_ = lag_hess_K_; Ggt_gc_ = Ggt_; GgKt_gc_ = GgKt_;
                 Gg0t_gc_ = Gg0t_; Ggt_ineq_gc_ = Ggt_ineq_;
-                GgKt_ineq_gc_ = GgKt_ineq_; b_gc_ = b_;
+                GgKt_ineq_gc_ = GgKt_ineq_;// b_gc_ = b_;
             } else {
                 // print out progress percentage
                 std::vector<Function*> f = {
@@ -482,14 +482,14 @@ class ExplicitTestProblem : public OcpAbstract{
                     &eval_gk_ineq_, &eval_gK_ineq_, &eval_dynamics_equation_,
                     &grad_, &grad_K_, &BAbt_, &lag_hess_k_, &lag_hess_0_,
                     &lag_hess_K_, &Ggt_, &GgKt_, &Gg0t_,
-                    &Ggt_ineq_, &GgKt_ineq_, &b_
+                    &Ggt_ineq_, &GgKt_ineq_//, &b_
                 };
                 std::vector<Function*> f_gc = {
                     &eval_objk_gc_, &eval_objK_gc_, &eval_gk_gc_, &eval_g0_gc_, &eval_gK_gc_,
                     &eval_gk_ineq_gc_, &eval_gK_ineq_gc_, &eval_dynamics_equation_gc_,
                     &grad_gc_, &grad_K_gc_, &BAbt_gc_, &lag_hess_k_gc_, &lag_hess_0_gc_,
                     &lag_hess_K_gc_, &Ggt_gc_, &GgKt_gc_, &Gg0t_gc_,
-                    &Ggt_ineq_gc_, &GgKt_ineq_gc_, &b_gc_
+                    &Ggt_ineq_gc_, &GgKt_ineq_gc_//, &b_gc_
                 };
                 for (size_t i = 0; i < f.size(); i++){
                     int progress = int(( (i+1) / (double) f.size() ) * 100.0);
@@ -558,7 +558,6 @@ class ExplicitTestProblem : public OcpAbstract{
         Function Gg0t_gc_;
         Function Ggt_ineq_gc_;
         Function GgKt_ineq_gc_;
-        Function b_gc_;
 
         Sparsity BAbt_sp_;
         Sparsity lag_hess_k_sp_;

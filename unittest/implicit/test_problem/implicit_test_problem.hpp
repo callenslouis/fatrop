@@ -84,19 +84,19 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             Gg0t_ = Function("Gg0t"+ts, {uk, xk}, {transpose(jacobian(eval_g0_(ukxk)[0], vertcat(uk, xk)))});
             Ggt_ineq_ = Function("Ggt_ineq"+ts, {uk, xk}, {transpose(jacobian(eval_gk_ineq_(ukxk)[0], vertcat(uk, xk)))});
             GgKt_ineq_ = Function("GgKt_ineq"+ts, {xk}, {transpose(jacobian(eval_gK_ineq_(xk)[0], xk))});
-            b_ = Function("b"+ts, {uk, xk, xkp}, {eval_dynamics_equation_(ukxkxkp)[0]});
+            // b_ = Function("b"+ts, {uk, xk, xkp}, {eval_dynamics_equation_(ukxkxkp)[0]});
             Jt_ = Function("Jt"+ts, {uk, xk, xkp}, 
                 {transpose(
                     jacobian(eval_dynamics_equation_(ukxkxkp)[0], xkp)
                 )});
             Jt_inv_ = Function("Jt_inv"+ts, {uk, xk, xkp},
                 {inv(Jt_(ukxkxkp)[0])});
-            FuFxt_ = Function("FuFxt"+ts, {uk, xk, xkp, lam_dyn_k}, 
-                {jacobian(                                                                      // (nu + nx) x nx
-                    transpose(                                                                  // (nu + nx) x 1
-                        jacobian(mtimes(transpose(lam_dyn_k), b_(ukxkxkp)[0]), vertcat(uk, xk)) // 1 x (nu + nx)
-                    ), xkp)
-                });
+            // FuFxt_ = Function("FuFxt"+ts, {uk, xk, xkp, lam_dyn_k}, 
+            //     {jacobian(                                                                      // (nu + nx) x nx
+            //         transpose(                                                                  // (nu + nx) x 1
+            //             jacobian(mtimes(transpose(lam_dyn_k), b_(ukxkxkp)[0]), vertcat(uk, xk)) // 1 x (nu + nx)
+            //         ), xkp)
+            //     });
 
             // construct lagrangian (containing uk, xk and potentially xkp) (omitting dynamics)
             /*
@@ -139,7 +139,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
 
             // dynamics contribution
             dyn_hess_kp_ = Function("dyn_hess_kp"+ts, {uk, xk, xkp, lam_dyn_k}, 
-                {transpose(hessian(mtimes(transpose(lam_dyn_k), b_(ukxkxkp)[0]), vertcat(xkp, uk, xk)))});
+                {transpose(hessian(mtimes(transpose(lam_dyn_k), eval_dynamics_equation_(ukxkxkp)[0]), vertcat(xkp, uk, xk)))});
 
             // update sparsities
             BAbt_sp_ = BAbt_.sparsity_out(0);
@@ -155,7 +155,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             GgKt_ineq_sp_ = GgKt_ineq_.sparsity_out(0);
             Jt_sp_ = Jt_.sparsity_out(0);
             Jt_inv_sp_ = Jt_inv_.sparsity_out(0);
-            FuFxt_sp_ = FuFxt_.sparsity_out(0);
+            // FuFxt_sp_ = FuFxt_.sparsity_out(0);
 
             CodeGenerateAll();
         };
@@ -363,9 +363,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             if (DEBUG_PRINT){
                 std::cout << "entering " << __func__ << " [" << k << "]" << std::endl;
             }
-            blasfeo_gese_wrap(get_nu(k), res->n, 1.0, res, 0, 0);
-            blasfeo_gese_wrap(res->m - get_nu(k), get_nu(k), 1.0, res, get_nu(k), 0);
-            blasfeo_gese_wrap(1, res->n, 1.0, res, get_nu(k) + get_nx(k), 0);
+            auto start = std::chrono::high_resolution_clock::now();
 
             // reset all of res except res[get_nu(k):-1, get_nu(k):]
             blasfeo_gese_wrap(get_nu(k), res->n, 0.0, res, 0, 0);
@@ -396,7 +394,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                         blasfeo_matel_wrap(res, i, j) += scratch_[scratch_ptr];
                         scratch_ptr++;
                     } else {
-                        blasfeo_matel_wrap(res, i, j) += 0.0;
+                        // blasfeo_matel_wrap(res, i, j) += 0.0;
                     }
                 }
             }
@@ -409,36 +407,38 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
 
                 // store nonzeros in the matrix
                 int scratch_ptr_dyn = 0;
+                bool nz_location = false;
                 for (int j = 0; j < dyn_hess_kp_sp_.size2(); j++){
                     for (int i = 0; i < dyn_hess_kp_sp_.size1(); i++){
+                        nz_location = dyn_hess_kp_sp_.has_nz(i, j);
+                        if (!nz_location){ continue;}
+
                         if (i < get_nx(k+1) && j < get_nx(k+1)){
                             // contribution to res_kp1
-                            if (dyn_hess_kp_sp_.has_nz(i, j)) {
+                            if (nz_location) {
                                 blasfeo_matel_wrap(res_kp1, i + get_nu(k+1), j + get_nu(k+1)) = scratch_[scratch_ptr_dyn];
                                 scratch_ptr_dyn++;
                             } else {
-                                blasfeo_matel_wrap(res_kp1, i + get_nu(k+1), j + get_nu(k+1)) = 0.0;
+                                // blasfeo_matel_wrap(res_kp1, i + get_nu(k+1), j + get_nu(k+1)) = 0.0;
                             }
                         } else if (i < get_nx(k+1)){
                             // contribution to res_FuFx (to be discarded)
-                            if (dyn_hess_kp_sp_.has_nz(i, j)) {
-                                scratch_ptr_dyn++;
-                            }
+                            if (nz_location) { scratch_ptr_dyn++;}
                         } else if (j < get_nx(k+1)){
                             // contribution to res_FuFxt
-                            if (dyn_hess_kp_sp_.has_nz(i, j)) {
+                            if (nz_location) {
                                 blasfeo_matel_wrap(res_FuFxt, i - get_nx(k+1), j) = scratch_[scratch_ptr_dyn];
                                 scratch_ptr_dyn++;
                             } else {
-                                blasfeo_matel_wrap(res_FuFxt, i - get_nx(k+1), j) = 0.0;
+                                // blasfeo_matel_wrap(res_FuFxt, i - get_nx(k+1), j) = 0.0;
                             }
                         } else {
                             // contribution to res
-                            if (dyn_hess_kp_sp_.has_nz(i, j)) {
+                            if (nz_location) {
                                 blasfeo_matel_wrap(res, i - get_nx(k+1), j - get_nx(k+1)) += scratch_[scratch_ptr_dyn];
                                 scratch_ptr_dyn++;
                             } else {
-                                blasfeo_matel_wrap(res, i - get_nx(k+1), j - get_nx(k+1)) += 0.0;
+                                // blasfeo_matel_wrap(res, i - get_nx(k+1), j - get_nx(k+1)) += 0.0;
                             }
                         }
                     }
@@ -821,8 +821,8 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                 lag_hess_k_gc_ = lag_hess_k_; lag_hess_0_gc_ = lag_hess_0_;
                 lag_hess_K_gc_ = lag_hess_K_; Ggt_gc_ = Ggt_; GgKt_gc_ = GgKt_;
                 Gg0t_gc_ = Gg0t_; Ggt_ineq_gc_ = Ggt_ineq_;
-                GgKt_ineq_gc_ = GgKt_ineq_; b_gc_ = b_; Jt_gc_ = Jt_;
-                Jt_inv_gc_ = Jt_inv_; FuFxt_gc_ = FuFxt_;
+                GgKt_ineq_gc_ = GgKt_ineq_; //b_gc_ = b_; Jt_gc_ = Jt_;
+                //Jt_inv_gc_ = Jt_inv_; FuFxt_gc_ = FuFxt_;
                 dyn_hess_kp_gc_ = dyn_hess_kp_;
             } else {
                 // print out progress percentage
@@ -831,14 +831,14 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                     &eval_gk_ineq_, &eval_gK_ineq_, &eval_dynamics_equation_,
                     &grad_, &grad_K_, &BAbt_, &BAJbt_, &lag_hess_k_, &lag_hess_0_,
                     &lag_hess_K_, &dyn_hess_kp_, &Ggt_, &GgKt_, &Gg0t_,
-                    &Ggt_ineq_, &GgKt_ineq_, &b_, &Jt_, &Jt_inv_, &FuFxt_
+                    &Ggt_ineq_, &GgKt_ineq_//, &b_, &Jt_, &Jt_inv_, &FuFxt_
                 };
                 std::vector<Function*> f_gc = {
                     &eval_objk_gc_, &eval_objK_gc_, &eval_gk_gc_, &eval_g0_gc_, &eval_gK_gc_,
                     &eval_gk_ineq_gc_, &eval_gK_ineq_gc_, &eval_dynamics_equation_gc_,
                     &grad_gc_, &grad_K_gc_, &BAbt_gc_, &BAJbt_gc_, &lag_hess_k_gc_, &lag_hess_0_gc_,
                     &lag_hess_K_gc_, &dyn_hess_kp_gc_, &Ggt_gc_, &GgKt_gc_, &Gg0t_gc_,
-                    &Ggt_ineq_gc_, &GgKt_ineq_gc_, &b_gc_, &Jt_gc_, &Jt_inv_gc_, &FuFxt_gc_
+                    &Ggt_ineq_gc_, &GgKt_ineq_gc_//, &b_gc_, &Jt_gc_, &Jt_inv_gc_, &FuFxt_gc_
                 };
                 for (size_t i = 0; i < f.size(); i++){
                     int progress = int(( (i+1) / (double) f.size() ) * 100.0);
@@ -887,10 +887,10 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
         Function Gg0t_;
         Function Ggt_ineq_;
         Function GgKt_ineq_;
-        Function b_;
+        // Function b_;
         Function Jt_;
         Function Jt_inv_;
-        Function FuFxt_;
+        // Function FuFxt_;
 
         // code generated functions
         Function eval_objk_gc_;
@@ -914,10 +914,10 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
         Function Gg0t_gc_;
         Function Ggt_ineq_gc_;
         Function GgKt_ineq_gc_;
-        Function b_gc_;
-        Function Jt_gc_;
-        Function Jt_inv_gc_;
-        Function FuFxt_gc_;
+        // Function b_gc_;
+        // Function Jt_gc_;
+        // Function Jt_inv_gc_;
+        // Function FuFxt_gc_;
 
         Sparsity BAbt_sp_;
         Sparsity BAJbt_sp_;
@@ -932,7 +932,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
         Sparsity GgKt_ineq_sp_;
         Sparsity Jt_sp_;
         Sparsity Jt_inv_sp_;
-        Sparsity FuFxt_sp_;
+        // Sparsity FuFxt_sp_;
 
         // scratch space
         std::vector<double> scratch_ = std::vector<double>(1000, 0.0); // Adjust size as needed

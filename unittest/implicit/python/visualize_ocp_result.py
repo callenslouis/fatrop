@@ -211,7 +211,7 @@ def visualize_performance(df):
 
     colors = {'implicit': ['blue'],
               'explicit': ['red'],
-              'reformulated': ['black']}
+              'reformulated': ['green']}
     
     # show solver times
     plt.figure()
@@ -225,13 +225,13 @@ def visualize_performance(df):
         times = np.array(times)
 
         bar_width = 0.2
-        index = np.arange(len(nx_vals)) + i*bar_width
+        index = nx_vals + (i-1)*bar_width
         bb = np.zeros(len(nx_vals))
         plt.bar(index, times, bar_width, bottom=bb, label=f'{problem_type}', color=colors[problem_type][0])    
     plt.xlabel('Number of state variables (nx)')
     plt.ylabel('average solver time per iteration (s)')
     plt.title(problem_name)
-    plt.xticks(index + bar_width / 2, nx_vals)
+    plt.xticks(nx_vals, nx_vals)
     plt.legend()
     plt.tight_layout()
     plt.savefig(f"unittest/implicit/figures/ocp_{problem_name}_performance_comparison_avg_solver_times.png", dpi=300)
@@ -249,13 +249,13 @@ def visualize_performance(df):
         times = np.array(times)
 
         bar_width = 0.2
-        index = np.arange(len(nx_vals)) + i*bar_width
+        index = nx_vals + (i-1)*bar_width
         bb = np.zeros(len(nx_vals))
         plt.bar(index, times, bar_width, bottom=bb, label=f'{problem_type}', color=colors[problem_type][0])    
     plt.xlabel('Number of state variables (nx)')
     plt.ylabel('average func eval time per iteration (s)')
     plt.title(problem_name)
-    plt.xticks(index + bar_width / 2, nx_vals)
+    plt.xticks(nx_vals, nx_vals)
     plt.legend()
     plt.tight_layout()
     plt.savefig(f"unittest/implicit/figures/ocp_{problem_name}_performance_comparison_avg_func_eval_times.png", dpi=300)
@@ -273,13 +273,13 @@ def visualize_performance(df):
         times = np.array(times)
 
         bar_width = 0.2
-        index = np.arange(len(nx_vals)) + i*bar_width
+        index = nx_vals + (i-1)*bar_width
         bb = np.zeros(len(nx_vals))
         plt.bar(index, times, bar_width, bottom=bb, label=f'{problem_type}', color=colors[problem_type][0])    
     plt.xlabel('Number of state variables (nx)')
     plt.ylabel('nb of iterations')
     plt.title(problem_name)
-    plt.xticks(index + bar_width / 2, nx_vals)
+    plt.xticks(nx_vals, nx_vals)
     plt.legend()
     plt.tight_layout()
     plt.savefig(f"unittest/implicit/figures/ocp_{problem_name}_performance_comparison_nb_iterations.png", dpi=300)
@@ -297,16 +297,56 @@ def visualize_performance(df):
         times = np.array(times)
 
         bar_width = 0.2
-        index = np.arange(len(nx_vals)) + i*bar_width
+        index = nx_vals + (i-1)*bar_width
         bb = np.zeros(len(nx_vals))
         plt.bar(index, times, bar_width, bottom=bb, label=f'{problem_type}', color=colors[problem_type][0])    
     plt.xlabel('Number of state variables (nx)')
     plt.ylabel('total time (s)')
     plt.title(problem_name)
-    plt.xticks(index + bar_width / 2, nx_vals)
+    plt.xticks(nx_vals, nx_vals)
     plt.legend()
     plt.tight_layout()
     plt.savefig(f"unittest/implicit/figures/ocp_{problem_name}_performance_comparison_total_time.png", dpi=300)
+    plt.close()
+
+def visualize_func_eval_breakdown(df):
+    # group by problem type
+    # problem_types = df['problem_type'].unique()
+    problem_types = ['explicit', 'implicit', 'reformulated']
+    colors = ['red', 'blue', 'green']
+    df_per_type = [df[df['problem_type'] == pt] for pt in problem_types]
+
+    cols_to_discard = ['problem_type', 'initialization', 'total']
+
+    # get all other columns of the df
+    other_columns = [col for col in df.columns if col not in cols_to_discard]
+    
+    plt.figure()
+    bar_width = 0.3
+
+    bar_xxs = np.arange(len(other_columns))*1.0
+    # create some spaces
+    bar_xxs[2:] += 1.0
+    bar_xxs[-2:] += 1.0
+
+    for i, df_pt in enumerate(df_per_type):
+        means = df_pt[other_columns].mean()
+        stds = df_pt[other_columns].std()
+
+        index = bar_xxs + (i-1)*bar_width
+
+        bar_values = [means[k] for k in other_columns]
+        bar_stds = [stds[k] for k in other_columns]
+        plt.bar(index, bar_values, bar_width, label=f"{df_pt['problem_type'].values[0]}", color=colors[i])
+        # plt.bar(index, bar_values, bar_width, label=f"{df_pt['problem_type'].values[0]}", color=colors[i], yerr=bar_stds, capsize=5)
+
+    plt.xlabel('Function evaluation components')
+    plt.ylabel('Time (s)')
+    plt.title('Function evaluation time breakdown')
+    plt.xticks(bar_xxs, other_columns, rotation=45, ha='right')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(f"unittest/implicit/figures/ocp_function_evaluation_time_breakdown.png", dpi=300)
     plt.close()
 
 def print_performance_table(df):
@@ -487,77 +527,136 @@ if __name__ == "__main__":
                                             'nb_iterations',
                                             'states', 'inputs'])
 
+    all_jsons = []
     for file_name in os.listdir(dir_path):
         if file_name.endswith('.json'):
             file_path = os.path.join(dir_path, file_name)
             with open(file_path, 'r') as f:
                 data = json.load(f)
 
-            if data["generator_data"]["problem_name"] == "holonomic":
-                df_holonomic.loc[len(df_holonomic)] = {
-                    'problem_name': data["generator_data"]["problem_name"],
-                    'problem type': data['problem type'],
-                    'solver': data['solver'],
-                    'dimension': data["generator_data"]["n"],
-                    'control level': data["generator_data"]["control_level"],
-                    'K': data["generator_data"]['K'],
-                    'nx': data["generator_data"]['nx'], 
-                    'nu': data["generator_data"]['nu'],
-                    'time_total': data["metadata"]["timing_statistics"]['total'],
-                    'time_solver': data["metadata"]["timing_statistics"]['fatrop'],
-                    'time_function_evaluation': data["metadata"]["timing_statistics"]['function evaluation'],
-                    'compute_search_dir': data["metadata"]["timing_statistics"]['compute search dir'],
-                    'nb_iterations': data["metadata"]['iterations'],
-                    'states': data['states'],
-                    'inputs': data['inputs']
-                }
-                
-                # visualize_holonomic_result(data)
+            all_jsons.append(data)
+    
+    for data in all_jsons:
+        if data["generator_data"]["problem_name"] == "holonomic":
+            df_holonomic.loc[len(df_holonomic)] = {
+                'problem_name': data["generator_data"]["problem_name"],
+                'problem type': data['problem type'],
+                'solver': data['solver'],
+                'dimension': data["generator_data"]["n"],
+                'control level': data["generator_data"]["control_level"],
+                'K': data["generator_data"]['K'],
+                'nx': data["generator_data"]['nx'], 
+                'nu': data["generator_data"]['nu'],
+                'time_total': data["metadata"]["timing_statistics"]['total'],
+                'time_solver': data["metadata"]["timing_statistics"]['fatrop'],
+                'time_function_evaluation': data["metadata"]["timing_statistics"]['function evaluation'],
+                'compute_search_dir': data["metadata"]["timing_statistics"]['compute search dir'],
+                'nb_iterations': data["metadata"]['iterations'],
+                'states': data['states'],
+                'inputs': data['inputs']
+            }
             
-            elif data["generator_data"]["problem_name"] == "truck_trailer":
-                df_trucktrailer.loc[len(df_trucktrailer)] = {
-                    'problem_name': data["generator_data"]["problem_name"],
-                    'problem type': data['problem type'],
-                    'solver': data['solver'],
-                    'n': data["generator_data"]["n"],
-                    'K': data["generator_data"]['K'], 
-                    'nx': data["generator_data"]['nx'], 
-                    'nu': data["generator_data"]['nu'],
-                    'time_total': data["metadata"]["timing_statistics"]['total'],
-                    'time_solver': data["metadata"]["timing_statistics"]['fatrop'],
-                    'time_function_evaluation': data["metadata"]["timing_statistics"]['function evaluation'],
-                    'compute_search_dir': data["metadata"]["timing_statistics"]['compute search dir'],
-                    'nb_iterations': data["metadata"]['iterations'],
-                    'states': data['states'],
-                    'inputs': data['inputs']
-                }
-            
-                # visualize_trucktrailer_result(data)
+            # visualize_holonomic_result(data)
+        
+        elif data["generator_data"]["problem_name"] == "truck_trailer":
+            df_trucktrailer.loc[len(df_trucktrailer)] = {
+                'problem_name': data["generator_data"]["problem_name"],
+                'problem type': data['problem type'],
+                'solver': data['solver'],
+                'n': data["generator_data"]["n"],
+                'K': data["generator_data"]['K'], 
+                'nx': data["generator_data"]['nx'], 
+                'nu': data["generator_data"]['nu'],
+                'time_total': data["metadata"]["timing_statistics"]['total'],
+                'time_solver': data["metadata"]["timing_statistics"]['fatrop'],
+                'time_function_evaluation': data["metadata"]["timing_statistics"]['function evaluation'],
+                'compute_search_dir': data["metadata"]["timing_statistics"]['compute search dir'],
+                'nb_iterations': data["metadata"]['iterations'],
+                'states': data['states'],
+                'inputs': data['inputs']
+            }
+        
+            # visualize_trucktrailer_result(data)
 
-            elif data["generator_data"]["problem_name"] == "planar_robot":
-                df_planarrobot.loc[len(df_planarrobot)] = {
-                    'problem_name': data["generator_data"]["problem_name"],
-                    'problem type': data['problem type'],
-                    'solver': data['solver'],
-                    'n': data["generator_data"]["n"],
-                    'K': data["generator_data"]['K'], 
-                    'nx': data["generator_data"]['nx'], 
-                    'nu': data["generator_data"]['nu'],
-                    'l': data["generator_data"]['l'],
-                    'time_total': data["metadata"]["timing_statistics"]['total'],
-                    'time_solver': data["metadata"]["timing_statistics"]['fatrop'],
-                    'time_function_evaluation': data["metadata"]["timing_statistics"]['function evaluation'],
-                    'compute_search_dir': data["metadata"]["timing_statistics"]['compute search dir'],
-                    'nb_iterations': data["metadata"]['iterations'],
-                    'states': data['states'],
-                    'inputs': data['inputs']
-                }
+        elif data["generator_data"]["problem_name"] == "planar_robot":
+            df_planarrobot.loc[len(df_planarrobot)] = {
+                'problem_name': data["generator_data"]["problem_name"],
+                'problem type': data['problem type'],
+                'solver': data['solver'],
+                'n': data["generator_data"]["n"],
+                'K': data["generator_data"]['K'], 
+                'nx': data["generator_data"]['nx'], 
+                'nu': data["generator_data"]['nu'],
+                'l': data["generator_data"]['l'],
+                'time_total': data["metadata"]["timing_statistics"]['total'],
+                'time_solver': data["metadata"]["timing_statistics"]['fatrop'],
+                'time_function_evaluation': data["metadata"]["timing_statistics"]['function evaluation'],
+                'compute_search_dir': data["metadata"]["timing_statistics"]['compute search dir'],
+                'nb_iterations': data["metadata"]['iterations'],
+                'states': data['states'],
+                'inputs': data['inputs']
+            }
 
-                # visualize_planar_robot_result(data)
-                # animate_planar_robot_result(data)
-            
-            else:
-                print(f"Unknown problem name: {data["generator_data"]['problem_name']}")
+            # visualize_planar_robot_result(data)
+            # animate_planar_robot_result(data)
+        
+        else:
+            print(f"Unknown problem name: {data["generator_data"]['problem_name']}")
+
+    
+    df_func_eval_breakdown = pd.DataFrame(columns=
+        ['problem_type', 
+         'compute search dir', 
+         'fatrop', 
+         'initialization', 
+         'eval objective', 
+         'eval gradient', 
+         'eval constraint violation', 
+         'eval jacobian', 
+         'eval hessian', 
+         'function evaluation',
+         'rest time', 
+         'total'])
+    
+    # get func eval data for each problem type (holonomic, truck trailer, planar robot)
+    for data in all_jsons:
+        if data["generator_data"]["problem_name"] not in ["holonomic", "truck_trailer", "planar_robot"]:
+            continue
+        elif data["generator_data"]["problem_name"] == "holonomic":
+            # check if we find the other two problem types with same dimension and control level
+            dim = data["generator_data"]["n"]
+            ctl = data["generator_data"]["control_level"]
+            df_other = df_holonomic[(df_holonomic['dimension'] == dim) & (df_holonomic['control level'] == ctl)]
+            if df_other.shape[0] < 3:
+                continue
+        elif data["generator_data"]["problem_name"] == "truck_trailer":
+            n = data["generator_data"]["n"]
+            df_other = df_trucktrailer[df_trucktrailer['n'] == n]
+            if df_other.shape[0] < 3:
+                continue
+        elif data["generator_data"]["problem_name"] == "planar_robot":
+            n = data["generator_data"]["n"]
+            df_other = df_planarrobot[df_planarrobot['n'] == n]
+            if df_other.shape[0] < 3:
+                continue
+        timing_stats = data["metadata"]["timing_statistics"]
+        nb_iter = data["metadata"]['iterations']
+        df_func_eval_breakdown.loc[len(df_func_eval_breakdown)] = {
+            'problem_type': data['problem type'],
+            'compute search dir': timing_stats.get('compute search dir', 0)/nb_iter,
+            'fatrop': timing_stats.get('fatrop', 0)/nb_iter,
+            'initialization': timing_stats.get('initialization', 0),
+            'eval objective': timing_stats.get('eval objective', 0)/nb_iter,
+            'eval gradient': timing_stats.get('eval gradient', 0)/nb_iter,
+            'eval constraint violation': timing_stats.get('eval constraint violation', 0)/nb_iter,
+            'eval jacobian': timing_stats.get('eval jacobian', 0)/nb_iter,
+            'eval hessian': timing_stats.get('eval hessian', 0)/nb_iter,
+            'rest time': timing_stats.get('rest time', 0),
+            'function evaluation': timing_stats.get('function evaluation', 0)/nb_iter,
+            'total': timing_stats.get('total', 0)/nb_iter
+        }    
+    
+    visualize_func_eval_breakdown(df_func_eval_breakdown)
 
     if (not df_holonomic.empty):
         visualize_performance(df_holonomic)
