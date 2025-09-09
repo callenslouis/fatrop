@@ -91,6 +91,47 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                 )});
             Jt_inv_ = Function("Jt_inv"+ts, {uk, xk, xkp},
                 {inv(Jt_(ukxkxkp)[0])});
+
+            Function J_inv_BAbt_ = Function("J_inv_BAbt"+ts, {uk, xk, xkp}, 
+                {solve(transpose(Jt_(ukxkxkp)[0]), transpose(BAJbt_(ukxkxkp)[0]))});
+            
+
+            // std::cout << "sparsity Jt:" << std::endl;
+            // for (int i = 0; i < Jt_.sparsity_out(0).size1(); i++){
+            //     for (int j = 0; j < Jt_.sparsity_out(0).size2(); j++){
+            //         if (Jt_.sparsity_out(0).has_nz(i, j)){
+            //             std::cout << "X ";
+            //         } else {
+            //             std::cout << ". ";
+            //         }
+            //     }
+            //     std::cout << std::endl;
+            // }
+            // std::cout << "sparsity Jt_inv:" << std::endl;
+            // for (int i = 0; i < Jt_inv_.sparsity_out(0).size1(); i++){
+            //     for (int j = 0; j < Jt_inv_.sparsity_out(0).size2(); j++){
+            //         if (Jt_inv_.sparsity_out(0).has_nz(i, j)){
+            //             std::cout << "X ";
+            //         } else {
+            //             std::cout << ". ";
+            //         }
+            //     }
+            //     std::cout << std::endl;
+            // }
+
+            // std::cout << "sparsity J^-1 * BAbt:" << std::endl;
+            // for (int i = 0; i < J_inv_BAbt_.sparsity_out(0).size1(); i++){
+            //     for (int j = 0; j < J_inv_BAbt_.sparsity_out(0).size2(); j++){
+            //         if (J_inv_BAbt_.sparsity_out(0).has_nz(i, j)){
+            //             std::cout << "X ";
+            //         } else {
+            //             std::cout << ". ";
+            //         }
+            //     }
+            //     std::cout << std::endl;
+            // }
+            // throw std::runtime_error("stop");
+            
             // FuFxt_ = Function("FuFxt"+ts, {uk, xk, xkp, lam_dyn_k}, 
             //     {jacobian(                                                                      // (nu + nx) x nx
             //         transpose(                                                                  // (nu + nx) x 1
@@ -233,40 +274,32 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
 
             // store nonzeros in the matrix
             int scratch_ptr = 0;
-            for (int j = 0; j < BAJbt_sp_.size2(); j++){
-                for (int i = 0; i < BAJbt_sp_.size1(); i++){
-                    if (i < get_nu(k) + get_nx(k)){
+            const casadi_int* c = BAJbt_sp_.colind();
+            int r;
+            for (int i = 0; i < BAJbt_sp_.size2(); i++){
+                for (int el = c[i]; el != c[i+1]; ++el){
+                    r = BAJbt_sp_.row(el);
+                    if (r < get_nu(k) + get_nx(k)){
                         // contribution to BA
-                        if (BAJbt_.sparsity_out(0).has_nz(i, j)) {
-                            blasfeo_matel_wrap(res, i, j) = scratch_[scratch_ptr];
-                            scratch_ptr++;
-                        } else {
-                            blasfeo_matel_wrap(res, i, j) = 0.0;
-                        }
+                        blasfeo_matel_wrap(res, r, i) = scratch_[scratch_ptr];
                     } else {
                         // contribution to J
-                        if (BAJbt_.sparsity_out(0).has_nz(i, j)) {
-                            blasfeo_matel_wrap(res_J, i - get_nu(k) - get_nx(k), j) = scratch_[scratch_ptr];
-                            scratch_ptr++;
-                        } else {
-                            blasfeo_matel_wrap(res_J, i - get_nu(k) - get_nx(k), j) = 0.0;
-                        }
+                        blasfeo_matel_wrap(res_J, r - get_nu(k) - get_nx(k), i) = scratch_[scratch_ptr];
                     }
+                    scratch_ptr++;
                 }
             }
 
             // store nonzeros in the inverse of J
             int scratch2_ptr = 0;
-            for (int j = 0; j < Jt_inv_sp_.size2(); j++){
-                for (int i = 0; i < Jt_inv_sp_.size1(); i++){
-                    if (Jt_inv_.sparsity_out(0).has_nz(i, j)) {
-                        blasfeo_matel_wrap(res_J_inv, i, j) = scratch2_[scratch2_ptr];
-                        scratch2_ptr++;
-                    } else {
-                        blasfeo_matel_wrap(res_J_inv, i, j) = 0.0;
-                    }
+            const casadi_int* c2 = Jt_inv_sp_.colind();
+            for (int i = 0; i < Jt_inv_sp_.size2(); i++){
+                for (int el = c2[i]; el != c2[i+1]; ++el){
+                    blasfeo_matel_wrap(res_J_inv, Jt_inv_sp_.row(el), i) = scratch2_[scratch2_ptr];
+                    scratch2_ptr++;
                 }
             }
+            
 
             if (DEBUG_PRINT){
                 std::cout << __func__ << " [" << k << "]" << std::endl;
@@ -363,7 +396,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             if (DEBUG_PRINT){
                 std::cout << "entering " << __func__ << " [" << k << "]" << std::endl;
             }
-                auto start = std::chrono::high_resolution_clock::now();
+                // auto start = std::chrono::high_resolution_clock::now();
 
             // reset all of res except res[get_nu(k):-1, get_nu(k):]
             blasfeo_gese_wrap(get_nu(k), res->n, 0.0, res, 0, 0);
@@ -381,87 +414,65 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                 std::vector<const double*>{inputs_k, states_k, states_kp1, lam_eq_k, lam_eq_ineq_k, objective_scale};
             
             std::vector<double*> arg_out = {&scratch_[0]};
-                auto stop = std::chrono::high_resolution_clock::now();
-                us_other_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
-                start = std::chrono::high_resolution_clock::now();
+                // auto stop = std::chrono::high_resolution_clock::now();
+                // us_other_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+                // start = std::chrono::high_resolution_clock::now();
             lag_hess(arg_in, arg_out);
-                stop = std::chrono::high_resolution_clock::now();
-                us_function_call_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
-                start = std::chrono::high_resolution_clock::now();
+                // stop = std::chrono::high_resolution_clock::now();
+                // us_function_call_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+                // start = std::chrono::high_resolution_clock::now();
 
             // store nonzeros in the matrix
             int scratch_ptr = 0;
-            for (int j = 0; j < lag_hess_sp.size2(); j++){
-                for (int i = 0; i < lag_hess_sp.size1(); i++){
-                    if (i > res->m || j > res->n){
-                        throw std::runtime_error("Error in eval_RSQrqt: trying to write outside of matrix bounds");
-                    }
-                    if (lag_hess_sp.has_nz(i, j)) {
-                        blasfeo_matel_wrap(res, i, j) += scratch_[scratch_ptr];
-                        scratch_ptr++;
-                    } else {
-                        // blasfeo_matel_wrap(res, i, j) += 0.0;
-                    }
+            const casadi_int* c = lag_hess_sp.colind();
+            for (int i = 0; i < lag_hess_sp.size2(); i++){
+                for (int el = c[i]; el != c[i+1]; ++el){
+                    blasfeo_matel_wrap(res, lag_hess_sp.row(el), i) += scratch_[scratch_ptr];
+                    scratch_ptr++;
                 }
             }
-                stop = std::chrono::high_resolution_clock::now();
-                us_store_result_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+                // stop = std::chrono::high_resolution_clock::now();
+                // us_store_result_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
 
             // contribution of f(uk, xk, xkp1) = 0
             if (k < K_ - 1){
-                    start = std::chrono::high_resolution_clock::now();
+                    // start = std::chrono::high_resolution_clock::now();
                 std::vector<const double*> arg_in_dyn = {inputs_k, states_k, states_kp1, lam_dyn_k};
                 std::vector<double*> arg_out_dyn = {&scratch_[0]};
-                    stop = std::chrono::high_resolution_clock::now();
-                    us_other_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
-                    start = std::chrono::high_resolution_clock::now();
+                    // stop = std::chrono::high_resolution_clock::now();
+                    // us_other_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+                    // start = std::chrono::high_resolution_clock::now();
                 dyn_hess_kp_gc_(arg_in_dyn, arg_out_dyn);
                     
-                    stop = std::chrono::high_resolution_clock::now();
-                    us_function_call_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
-                    start = std::chrono::high_resolution_clock::now();
+                    // stop = std::chrono::high_resolution_clock::now();
+                    // us_function_call_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+                    // start = std::chrono::high_resolution_clock::now();
 
-                // store nonzeros in the matrix
+                // store nonzeros in the matrix   
                 int scratch_ptr_dyn = 0;
-                bool nz_location = false;
-                for (int j = 0; j < dyn_hess_kp_sp_.size2(); j++){
-                    for (int i = 0; i < dyn_hess_kp_sp_.size1(); i++){
-                        nz_location = dyn_hess_kp_sp_.has_nz(i, j);
-                        if (!nz_location){ continue;}
-
-                        if (i < get_nx(k+1) && j < get_nx(k+1)){
+                const casadi_int* c2 = dyn_hess_kp_sp_.colind();
+                int r;
+                for (int i = 0; i < dyn_hess_kp_sp_.size2(); i++){
+                    for (int el = c2[i]; el != c2[i+1]; ++el){
+                        r = dyn_hess_kp_sp_.row(el);
+                        if (i < get_nx(k+1) && r < get_nx(k+1)){
                             // contribution to res_kp1
-                            if (nz_location) {
-                                blasfeo_matel_wrap(res_kp1, i + get_nu(k+1), j + get_nu(k+1)) = scratch_[scratch_ptr_dyn];
-                                scratch_ptr_dyn++;
-                            } else {
-                                // blasfeo_matel_wrap(res_kp1, i + get_nu(k+1), j + get_nu(k+1)) = 0.0;
-                            }
-                        } else if (i < get_nx(k+1)){
-                            // contribution to res_FuFx (to be discarded)
-                            if (nz_location) { scratch_ptr_dyn++;}
-                        } else if (j < get_nx(k+1)){
-                            // contribution to res_FuFxt
-                            if (nz_location) {
-                                blasfeo_matel_wrap(res_FuFxt, i - get_nx(k+1), j) = scratch_[scratch_ptr_dyn];
-                                scratch_ptr_dyn++;
-                            } else {
-                                // blasfeo_matel_wrap(res_FuFxt, i - get_nx(k+1), j) = 0.0;
-                            }
-                        } else {
+                            blasfeo_matel_wrap(res_kp1, r + get_nu(k+1), i + get_nu(k+1)) = scratch_[scratch_ptr_dyn];
+                        } else if (i >= get_nx(k+1) && r >= get_nx(k+1)){
                             // contribution to res
-                            if (nz_location) {
-                                blasfeo_matel_wrap(res, i - get_nx(k+1), j - get_nx(k+1)) += scratch_[scratch_ptr_dyn];
-                                scratch_ptr_dyn++;
-                            } else {
-                                // blasfeo_matel_wrap(res, i - get_nx(k+1), j - get_nx(k+1)) += 0.0;
-                            }
-                        }
+                            blasfeo_matel_wrap(res, r - get_nx(k+1), i - get_nx(k+1)) += scratch_[scratch_ptr_dyn];
+                        } else if (i < get_nx(k+1)){
+                            // contribution to res_FuFxt
+                            blasfeo_matel_wrap(res_FuFxt, r - get_nx(k+1), i) = scratch_[scratch_ptr_dyn];
+                        } // otherwise discard contribution to res_FuFx
+                        // blasfeo_matel_wrap(res, dyn_hess_kp_sp_.row(el), i) = scratch_[scratch_ptr_dyn];
+                        scratch_ptr_dyn++;
                     }
                 }
+                
 
-                    stop = std::chrono::high_resolution_clock::now();
-                    us_store_result_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+                    // stop = std::chrono::high_resolution_clock::now();
+                    // us_store_result_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
             }
 
             if (DEBUG_PRINT){
@@ -472,6 +483,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
         };
         void get_hess_time_breakdown(int nb_iterations){
             double total = us_other_ + us_function_call_ + us_store_result_;
+            if (total == 0){ return;}
             // std::cout << "Hessian computation time breakdown (microseconds):" << std::endl;
             std::cout << "\tfunction_call: " << us_function_call_/nb_iterations << " (" << (100.0*us_function_call_/total) << "%)" << std::endl;
             std::cout << "\tstore_result:  " << us_store_result_/nb_iterations  << " (" << (100.0*us_store_result_/total)  << "%)" << std::endl;
@@ -496,17 +508,11 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
            
             // store nonzeros in the matrix
             int scratch_ptr = 0;
-            for (int j = 0; j < G_sp.size2(); j++){
-                for (int i = 0; i < G_sp.size1(); i++){
-                    if (i > res->m || j > res->n){
-                        throw std::runtime_error("Error in eval_Ggt: trying to write outside of matrix bounds");
-                    }
-                    if (G_sp.has_nz(i, j)) {
-                        blasfeo_matel_wrap(res, i, j) = scratch_[scratch_ptr];
-                        scratch_ptr++;
-                    } else {
-                        blasfeo_matel_wrap(res, i, j) = 0.0;
-                    }
+            const casadi_int* c = G_sp.colind();
+            for (int i = 0; i < G_sp.size2(); i++){
+                for (int el = c[i]; el != c[i+1]; ++el){
+                    blasfeo_matel_wrap(res, G_sp.row(el), i) = scratch_[scratch_ptr];
+                    scratch_ptr++;
                 }
             }
             
@@ -534,17 +540,11 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             
             // store nonzeros in the matrix
             int scratch_ptr = 0;
-            for (int j = 0; j < Ggt_ineq_sp.size2(); j++){
-                for (int i = 0; i < Ggt_ineq_sp.size1(); i++){
-                    if (i > res->m || j > res->n){
-                        throw std::runtime_error("Error in eval_Ggt_ineq: trying to write outside of matrix bounds");
-                    }
-                    if (Ggt_ineq_sp.has_nz(i, j)) {
-                        blasfeo_matel_wrap(res, i, j) = scratch_[scratch_ptr];
-                        scratch_ptr++;
-                    } else {
-                        blasfeo_matel_wrap(res, i, j) = 0.0;
-                    }
+            const casadi_int* c = Ggt_ineq_sp.colind();
+            for (int i = 0; i < Ggt_ineq_sp.size2(); i++){
+                for (int el = c[i]; el != c[i+1]; ++el){
+                    blasfeo_matel_wrap(res, Ggt_ineq_sp.row(el), i) = scratch_[scratch_ptr];
+                    scratch_ptr++;
                 }
             }
 

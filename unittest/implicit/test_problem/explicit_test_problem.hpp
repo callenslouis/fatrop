@@ -173,7 +173,7 @@ class ExplicitTestProblem : public OcpAbstract{
             if (DEBUG_PRINT){
                 std::cout << "entering " << __func__ << " [" << k << "]" << std::endl;
             }
-                auto start = std::chrono::high_resolution_clock::now();
+                // auto start = std::chrono::high_resolution_clock::now();
             blasfeo_gese_wrap(res->m, res->n, 0.0, res, 0, 0);
             Function lag_hess = (k == 0) ? lag_hess_0_gc_ : (k == K_ - 1) ? lag_hess_K_gc_ : lag_hess_k_gc_;
             Sparsity lag_hess_sp = (k == 0) ? lag_hess_0_sp_ : (k == K_ - 1) ? lag_hess_K_sp_ : lag_hess_k_sp_;
@@ -182,32 +182,26 @@ class ExplicitTestProblem : public OcpAbstract{
                 std::vector<const double*>{inputs_k, states_k, lam_dyn_k, lam_eq_k, lam_eq_ineq_k, objective_scale};
             
             std::vector<double*> arg_out = {&scratch_[0]};
-                auto stop = std::chrono::high_resolution_clock::now();
-                us_other_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
-                start = std::chrono::high_resolution_clock::now();
+                // auto stop = std::chrono::high_resolution_clock::now();
+                // us_other_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+                // start = std::chrono::high_resolution_clock::now();
             lag_hess(arg_in, arg_out);
-                stop = std::chrono::high_resolution_clock::now();
-                us_function_call_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
-                start = std::chrono::high_resolution_clock::now();
+                // stop = std::chrono::high_resolution_clock::now();
+                // us_function_call_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+                // start = std::chrono::high_resolution_clock::now();
                         
             // store nonzeros in the matrix
             int scratch_ptr = 0;
-            for (int j = 0; j < lag_hess_sp.size2(); j++){
-                for (int i = 0; i < lag_hess_sp.size1(); i++){
-                    if (i > res->m || j > res->n){
-                        throw std::runtime_error("Error in eval_RSQrqt: trying to write outside of matrix bounds");
-                    }
-                    if (lag_hess_sp.has_nz(i, j)) {
-                        blasfeo_matel_wrap(res, i, j) += scratch_[scratch_ptr];
-                        scratch_ptr++;
-                    } else {
-                        blasfeo_matel_wrap(res, i, j) += 0.0;
-                    }
+            const casadi_int* c = lag_hess_sp.colind();
+            for (int i = 0; i < lag_hess_sp.size2(); i++){
+                for (int el = c[i]; el != c[i+1]; ++el){
+                    blasfeo_matel_wrap(res, lag_hess_sp.row(el), i) = scratch_[scratch_ptr];
+                    scratch_ptr++;
                 }
             }
 
-                stop = std::chrono::high_resolution_clock::now();
-                us_store_result_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
+                // stop = std::chrono::high_resolution_clock::now();
+                // us_store_result_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
 
             if (DEBUG_PRINT){
                 std::cout << __func__ << " [" << k << "]" << std::endl;
@@ -217,6 +211,7 @@ class ExplicitTestProblem : public OcpAbstract{
         };
         void get_hess_time_breakdown(int nb_iterations){
             double total = us_other_ + us_function_call_ + us_store_result_;
+            if (total == 0) { return;}
             // std::cout << "Hessian computation time breakdown (microseconds):" << std::endl;
             std::cout << "\tfunction_call: " << us_function_call_/nb_iterations << " (" << (100.0*us_function_call_/total) << "%)" << std::endl;
             std::cout << "\tstore_result:  " << us_store_result_/nb_iterations  << " (" << (100.0*us_store_result_/total)  << "%)" << std::endl;
@@ -242,17 +237,11 @@ class ExplicitTestProblem : public OcpAbstract{
            
             // store nonzeros in the matrix
             int scratch_ptr = 0;
-            for (int j = 0; j < G_sp.size2(); j++){
-                for (int i = 0; i < G_sp.size1(); i++){
-                    if (i > res->m || j > res->n){
-                        throw std::runtime_error("Error in eval_Ggt: trying to write outside of matrix bounds");
-                    }
-                    if (G_sp.has_nz(i, j)) {
-                        blasfeo_matel_wrap(res, i, j) = scratch_[scratch_ptr];
-                        scratch_ptr++;
-                    } else {
-                        blasfeo_matel_wrap(res, i, j) = 0.0;
-                    }
+            const casadi_int* c = G_sp.colind();
+            for (int i = 0; i < G_sp.size2(); i++){
+                for (int el = c[i]; el != c[i+1]; ++el){
+                    blasfeo_matel_wrap(res, G_sp.row(el), i) = scratch_[scratch_ptr];
+                    scratch_ptr++;
                 }
             }
             
@@ -280,17 +269,11 @@ class ExplicitTestProblem : public OcpAbstract{
             
             // store nonzeros in the matrix
             int scratch_ptr = 0;
-            for (int j = 0; j < Ggt_ineq_sp.size2(); j++){
-                for (int i = 0; i < Ggt_ineq_sp.size1(); i++){
-                    if (i > res->m || j > res->n){
-                        throw std::runtime_error("Error in eval_Ggt_ineq: trying to write outside of matrix bounds");
-                    }
-                    if (Ggt_ineq_sp.has_nz(i, j)) {
-                        blasfeo_matel_wrap(res, i, j) = scratch_[scratch_ptr];
-                        scratch_ptr++;
-                    } else {
-                        blasfeo_matel_wrap(res, i, j) = 0.0;
-                    }
+            const casadi_int* c = Ggt_ineq_sp.colind();
+            for (int i = 0; i < Ggt_ineq_sp.size2(); i++){
+                for (int el = c[i]; el != c[i+1]; ++el){
+                    blasfeo_matel_wrap(res, Ggt_ineq_sp.row(el), i) = scratch_[scratch_ptr];
+                    scratch_ptr++;
                 }
             }
 
