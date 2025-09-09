@@ -83,7 +83,7 @@ json add_json_data(std::shared_ptr<IpData<ProblemType>> data, std::string proble
 };
 
 void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
-    bool STORE_SOLUTION = false;
+    bool STORE_SOLUTION = true;
     auto tp_impl = std::make_shared<ImplicitTestProblem>(generator->PrepareImplicit());
     auto tp_reform = std::make_shared<ExplicitTestProblem>(generator->PrepareReformulated());
     auto tp_expl = std::make_shared<ExplicitTestProblem>(generator->PrepareExplicit());

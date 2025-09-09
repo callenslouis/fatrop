@@ -316,7 +316,7 @@ def visualize_func_eval_breakdown(df, fig_name_appendix=""):
     colors = ['red', 'blue', 'green']
     df_per_type = [df[df['problem_type'] == pt] for pt in problem_types]
 
-    cols_to_discard = ['problem_type', 'initialization', 'total']
+    cols_to_discard = ['problem_type', 'initialization', 'total', 'rest time']
 
     # get all other columns of the df
     other_columns = [col for col in df.columns if col not in cols_to_discard]
@@ -532,8 +532,10 @@ if __name__ == "__main__":
         if file_name.endswith('.json'):
             file_path = os.path.join(dir_path, file_name)
             with open(file_path, 'r') as f:
-                data = json.load(f)
-
+                try:
+                    data = json.load(f)
+                except:
+                    continue
             all_jsons.append(data)
     
     for data in all_jsons:
