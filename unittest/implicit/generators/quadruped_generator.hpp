@@ -19,6 +19,7 @@ class QuadrupedGenerator : public InterfaceGenerator {
         // Constructor
         QuadrupedGenerator(){
             // define params
+            standing_body_pos_[2] += 0.05;
             standing_stance_.insert(standing_stance_.end(), 
                     standing_body_pos_.begin(), standing_body_pos_.end());
             standing_stance_.insert(standing_stance_.end(),
@@ -47,11 +48,11 @@ class QuadrupedGenerator : public InterfaceGenerator {
             }
 
             // define functions
-            eval_objk_ = Function("eval_objk", {uk_, xk_}, 
+            eval_objk_ = Function("eval_objk", {uk_, xk_},
                 {1e1*sumsqr(base_pos_ - standing_body_pos_) + 
                  1e3*sumsqr(base_quat_ - standing_body_quat_) +
                  1e0*sumsqr(v_(Slice(0,3)))});
-            eval_objK_ = Function("eval_objK", {xk_}, 
+            eval_objK_ = Function("eval_objK", {xk_},
                 {1e3*sumsqr(v_) + 
                  1e3*(sumsqr(base_quat_ - standing_body_quat_) + 
                       sumsqr(leg_q_ - standing_leg_q_))});
@@ -93,6 +94,25 @@ class QuadrupedGenerator : public InterfaceGenerator {
             MX vnext = out[1];
             Function eval_dynamics_equation_explicit = Function("eval_dynamics_equation", {uk_, xk_}, {vertcat(qnext, vnext)});
 
+            // std::cout << "explicit dynamics constraint: " << eval_dynamics_equation_explicit << std::endl;
+            // DM q_test = DM(nq_, 1);
+            // DM v_test = DM(nq_-1, 1);
+            // DM u_test = DM(nu_, 1);
+            // for (int i = 0; i < nq_; i++){q_test(i) = 0;}
+            // for (int i = 0; i < nq_-1; i++){v_test(i) = 0;}
+            // for (int i = 0; i < nu_; i++){u_test(i) = 0;}
+            // DMVector out_test = eval_dynamics_equation_explicit(DMVector{u_test, vertcat(q_test, v_test)});
+            // std::cout << "test dynamics: " << out_test[0].T() << std::endl;
+            // for (int i = 0; i < 3; i++){q_test(i) = 0.1*i;}
+            // for (int i = 3; i < 3+4; i++){q_test(i) = 0.1*i;}
+            // for (int i = 3+4; i < nq_; i++){q_test(i) = 0.1*i;}
+            // for (int i = 0; i < nq_-1; i++){v_test(i) = 1+0.1*i;}
+            // for (int i = 0; i < nu_; i++){u_test(i) = -1 + 0.1*i;}
+            // out_test = eval_dynamics_equation_explicit(DMVector{u_test, vertcat(q_test, v_test)});
+            // std::cout << "test dynamics: " << out_test[0].T() << std::endl;
+
+            // std::cout << "acc_func: " << pc_->acc_func(DMVector{q_test, v_test, u_test})[0] << std::endl;
+            
             return ExplicitTestProblem(
                     K_, nx_, nu_, 
                     x_init_, u_init_,
@@ -156,7 +176,7 @@ class QuadrupedGenerator : public InterfaceGenerator {
 
         std::unique_ptr<PinocchioCasadi> pc_;
     private:
-        int K_ = 10 + 0*100;
+        int K_ = 100;
         int nq_ = 3 + 4 + 12;
         int nx_ = 2*nq_ - 1;
         int nu_ = 12;

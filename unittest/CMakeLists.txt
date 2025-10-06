@@ -1,6 +1,8 @@
 # Option to use system Google Test (default is OFF)
 option(WITH_BUILD_GTEST "Use system-installed Google Test" OFF)
 
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftime-report") # if GCC
+
 if(NOT WITH_BUILD_GTEST)
   # Try to find system-installed Google Test
   find_package(GTest)
@@ -30,6 +32,14 @@ include(GoogleTest)
 find_package(CasADi REQUIRED)
 include_directories(include ${CASADI_INCLUDE_DIRS}/casadi)
 
+# Add Eigen
+find_package(Eigen3 REQUIRED)
+include_directories(${EIGEN3_INCLUDE_DIRS})
+
+# Add pinocchio
+find_package(pinocchio REQUIRED)
+include_directories(${PINOCCHIO_INCLUDE_DIRS})
+
 # Add the test executables
 add_executable(vector_test linear_algebra/vector_test.cpp)
 add_executable(matrix_test linear_algebra/matrix_test.cpp)
@@ -47,8 +57,10 @@ add_executable(ip_search_dir_resto_test ocp/ip_search_dir_resto_test.cpp)
 add_executable(ip_initializer_test ip_algorithm/ip_initializer_test.cpp)
 add_executable(ip_filter_test ip_algorithm/ip_filter_test.cpp)
 add_executable(options_test common/options_test.cpp)
-add_executable(implicit_ocp_test implicit/implicit_ocp_test.cpp)
+add_executable(implicit_ocp_test implicit/implicit_ocp_test.cpp implicit/generators/quadruped_helper.cpp)
 add_executable(test_jacobian_decomposition implicit/test_jacobian_decomposition.cpp)
+
+target_precompile_headers(implicit_ocp_test PRIVATE implicit/generators/pch.hpp)
 
 # Link the test executables with Google Test and other required libraries
 target_link_libraries(vector_test GTest::gtest GTest::gtest_main blasfeo fatrop)
@@ -69,8 +81,9 @@ target_link_libraries(ip_search_dir_resto_test GTest::gtest GTest::gtest_main bl
 target_link_libraries(ip_initializer_test GTest::gtest GTest::gtest_main blasfeo fatrop)
 target_link_libraries(ip_filter_test GTest::gtest GTest::gtest_main blasfeo fatrop)
 
-target_link_libraries(implicit_ocp_test blasfeo fatrop casadi)
-target_link_libraries(test_jacobian_decomposition blasfeo fatrop casadi)
+target_link_libraries(implicit_ocp_test blasfeo fatrop casadi pinocchio::pinocchio)
+# target_link_libraries(implicit_ocp_test blasfeo fatrop casadi)
+target_link_libraries(test_jacobian_decomposition blasfeo fatrop casadi pinocchio::pinocchio)
 
 # Discover and add the tests
 gtest_discover_tests(vector_test)

@@ -327,7 +327,7 @@ def visualize_func_eval_breakdown(df, fig_name_appendix=""):
     bar_xxs = np.arange(len(other_columns))*1.0
     # create some spaces
     bar_xxs[2:] += 1.0
-    bar_xxs[-2:] += 1.0
+    # bar_xxs[-2:] += 1.0
 
     for i, df_pt in enumerate(df_per_type):
         means = df_pt[other_columns].mean()

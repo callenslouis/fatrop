@@ -10,6 +10,205 @@ import sys
 sys.path.append("unittest/implicit/quadruped")
 from helper import *
 
+def TestDymamics():
+    quad = QuadrupedDynamics(timestep=0.02)
+    q_test = casadi.DM(quad.model.nq, 1)
+    v_test = casadi.DM(quad.model.nv, 1)
+    u_test = casadi.DM(12, 1)
+    for i in range(3):
+        q_test[i] = 0.1*i
+    for i in range(3, 3+4):
+        q_test[i] = 0.1*i
+    for i in range(3+4, quad.model.nq):
+        q_test[i] = 0.1*i
+    for i in range(quad.model.nv):
+        v_test[i] = 1+0.1*i
+    for i in range(12):
+        u_test[i] = -1 + 0.1*i
+
+    expl, impl = quad.create_discrete_dynamics()
+    
+    x_test = casadi.vertcat(q_test, v_test)
+    x_next = expl(u_test, x_test)
+
+    print("Testing dynamics:")
+    print(x_next)
+
+    print("Testing acc func:")
+    a, temp = quad.acc_func(q_test, v_test, u_test)
+    print(a)
+
+def get_ocp_functions():
+    K = 100
+    nq = 3 + 4 + 12
+    nx = 2*nq - 1
+    nu = 12
+
+    dt = 0.02
+    uk_min = -50
+    uk_max = 50
+
+    push_vx = 1*1.5
+    push_vy = 1*2.0
+
+    base_pos = casadi.MX.sym("base_pos", 3)
+    base_vel = casadi.MX.sym("base_vel", 3)
+    base_quat = casadi.MX.sym("base_quat", 4)
+    base_omega = casadi.MX.sym("base_omega", 3)
+    leg_q = casadi.MX.sym("leg_q", 12)
+    leq_qdot = casadi.MX.sym("leg_qdot", 12)
+    q = casadi.vertcat(base_pos, base_quat, leg_q)
+    v = casadi.vertcat(base_vel, base_omega, leq_qdot)
+
+    base_pos_p = casadi.MX.sym("base_pos_p", 3)
+    base_vel_p = casadi.MX.sym("base_vel_p", 3)
+    base_quat_p = casadi.MX.sym("base_quat_p", 4)
+    base_omega_p = casadi.MX.sym("base_omega_p", 3)
+    leg_q_p = casadi.MX.sym("leg_q_p", 12)
+    leg_v_p = casadi.MX.sym("leg_qdot_p", 12)
+    q_p = casadi.vertcat(base_pos_p, base_quat_p, leg_q_p)
+    v_p = casadi.vertcat(base_vel_p, base_omega_p, leg_v_p)
+
+    xk = casadi.vertcat(q, v)
+    uk = casadi.MX.sym("uk", nu)
+    xkp = casadi.vertcat(q_p, v_p)
+
+    standing_body_pos = [0, 0, 0.5292]
+    original_body_pos = [0, 0, 0.5292]
+    standing_body_quat = [0, 0, 0, 1]
+    standing_leg_q = [-0.1, 0.7, -1, -0.1, -0.7, 1,
+                       0.1, 0.7, -1,  0.1, -0.7, 1]
+    start = [0.0 for _ in range(nx)]
+    lb = [uk_min]*(nu)
+    ub = [uk_max]*(nu)
+    lb_K = []
+    ub_K = []
+
+    standing_body_pos[2] += 0.05
+    standing_stance = standing_body_pos + standing_body_quat + standing_leg_q
+    for i in range(nq): start[i] = standing_stance[i]
+    start[nq] = push_vx
+    start[nq+1] = push_vy
+
+    x_init = []
+    for k in range(K+1):
+        xx = start.copy()
+        xx[nq] = 0
+        xx[nq+1] = 0
+        x_init.append(xx)
+    
+    u_init = []
+    for k in range(K):
+        u_init.append([-4.27557097,   5.91086644,  17.19719031,  -3.27040327,  
+                       -4.81348097, -12.73962232,   3.67687864,   4.22256038,  
+                       10.28272374,   5.82689115,  -3.42997252, -14.4580922])
+        
+    eval_objk = casadi.Function("eval_objk", [uk, xk],
+        [1e1*casadi.sumsqr(base_pos - original_body_pos) +
+         1e3*casadi.sumsqr(base_quat - standing_body_quat) +
+         1e1*casadi.sumsqr(v[:3,:]) + 
+         1e0*casadi.sumsqr(v)])
+    eval_objK = casadi.Function("eval_objK", [xk],
+        [1e3*casadi.sumsqr(v) +
+         1e3*(casadi.sumsqr(base_quat - standing_body_quat) +
+              casadi.sumsqr(leg_q - standing_leg_q))])
+    
+    eval_g0 = casadi.Function("eval_g0", [uk, xk], [xk - start])
+    z = casadi.MX.zeros(0,1)
+    eval_gk = casadi.Function("eval_gk", [uk, xk], [z])
+    eval_gK = casadi.Function("eval_gK", [xk], [z])
+    eval_gk_ineq = casadi.Function("eval_gk_ineq", [uk, xk], [uk])
+    eval_gK_ineq = casadi.Function("eval_gK_ineq", [xk], [z])
+
+    return {
+        "eval_objk": eval_objk,
+        "eval_objK": eval_objK,
+        "eval_g0": eval_g0,
+        "eval_gk": eval_gk,
+        "eval_gK": eval_gK,
+        "eval_gk_ineq": eval_gk_ineq,
+        "eval_gK_ineq": eval_gK_ineq,
+        "start": start,
+        "x_init": x_init,
+        "u_init": u_init,
+        "lb": lb,
+        "ub": ub,
+        "lb_K": lb_K,
+        "ub_K": ub_K,
+        "dt": dt,
+        "K": K,
+    }
+
+def SolveOcp2():
+    opti = casadi.Opti()
+
+    data = get_ocp_functions()
+
+    dt = data["dt"]
+    N = data["K"]
+
+    quad = QuadrupedDynamics(timestep=dt)
+    rhs = quad.acc_func
+
+    qq = opti.variable(quad.model.nq, N+1)
+    vv = opti.variable(quad.model.nv, N+1)
+    uu = opti.variable(12, N)
+
+    start = data["start"]
+    q0 = np.array(start[:quad.model.nq])
+    v0 = np.array(start[quad.model.nq:])
+
+    opti.subject_to(qq[:,0] == q0)
+    opti.subject_to(vv[:,0] == v0)
+
+    for k in range(N):
+        qk = qq[:,k]
+        vk = vv[:,k]
+        uk = uu[:,k]
+
+        x = casadi.vertcat(qk, vk)
+        x_next = quad.forward_casadi(x, uk)
+        q_next = x_next[:quad.model.nq]
+        v_next = x_next[quad.model.nq:]
+
+        opti.subject_to(qq[:,k+1] == q_next)
+        opti.subject_to(vv[:,k+1] == v_next)
+
+        # torque limits
+        opti.subject_to(opti.bounded(-50, uk, 50))
+       
+    obj = 0
+    for k in range(N):
+        qk = qq[:,k]
+        vk = vv[:,k]
+        uk = uu[:,k]
+        obj += data["eval_objk"](uk, casadi.vertcat(qk, vk))
+    qN = qq[:,N]
+    vN = vv[:,N]
+    obj += data["eval_objK"](casadi.vertcat(qN, vN))
+    opti.minimize(obj)
+
+    for k in range(N+1):
+        opti.set_initial(qq[:,k], data["x_init"][k][:quad.model.nq])
+    for k in range(N):
+        opti.set_initial(uu[:,k], data["u_init"][k])
+
+    p_opts = {"expand": True}
+    s_opts = {"max_iter":1000}
+    opti.solver("ipopt", p_opts, s_opts)
+
+    try:
+        sol = opti.solve()
+
+        q_opt = sol.value(qq)
+        v_opt = sol.value(vv)
+        u_opt = sol.value(uu)
+        t_opt = np.arange(N+1)*dt
+        return {"t": t_opt, "q": q_opt, "v": v_opt, "u": u_opt, "dt": dt, "N": N}, \
+            {"model": quad.model, "visual_model": quad.visual_model, 
+                "collision_model": quad.collision_model}
+    except:
+        return None, None
 
 def SolveOcp():
     opti = casadi.Opti()
@@ -27,10 +226,12 @@ def SolveOcp():
     q0 = quad.model.referenceConfigurations["standing"]
     q0 = pin.normalize(quad.model, q0)
     q0[2] += 0.05
+    print(f"q0: {q0}")
+    print(get_ocp_functions()["x_init"][0])
 
     v0 = np.zeros(quad.model.nv)
-    v0[0] = 1.5
-    v0[1] = 2.0
+    v0[0] = 1*1.5
+    v0[1] = 1*2.0
 
     opti.subject_to(qq[:,0] == q0)
     opti.subject_to(vv[:,0] == v0)
@@ -66,15 +267,16 @@ def SolveOcp():
     movement_penalty = casadi.sumsqr(vv)
     body_movement_penalty = casadi.sumsqr(vv[:3,:])
 
-    opti.minimize(0*control_penalty + 
+    opti.minimize(#0*control_penalty + 
                   1e3*terminal_standing_still_penalty + 
                   1e1*reference_body_position_penalty +
                   1e3*reference_body_orientation_penalty + 
-                  0*reference_leg_joints_penalty + 
+                  #0*reference_leg_joints_penalty + 
                   1e0*movement_penalty + 
                   1e1*body_movement_penalty +
                   1e3*terminal_reference_penalty)
 
+    data = get_ocp_functions()
     opti.set_initial(qq, np.tile(q0.reshape(-1,1), (1,N+1)))
     for k in range(N):
         opti.set_initial(uu[:,k], 
@@ -83,18 +285,21 @@ def SolveOcp():
                           10.28272374,   5.82689115,  -3.42997252, -14.4580922])
 
     p_opts = {"expand": True}
-    s_opts = {}
+    s_opts = {"max_iter":1000}
     opti.solver("ipopt", p_opts, s_opts)
 
-    sol = opti.solve()
+    try:
+        sol = opti.solve()
 
-    q_opt = sol.value(qq)
-    v_opt = sol.value(vv)
-    u_opt = sol.value(uu)
-    t_opt = np.arange(N+1)*dt
-    return {"t": t_opt, "q": q_opt, "v": v_opt, "u": u_opt, "dt": dt, "N": N}, \
-           {"model": quad.model, "visual_model": quad.visual_model, 
-            "collision_model": quad.collision_model}
+        q_opt = sol.value(qq)
+        v_opt = sol.value(vv)
+        u_opt = sol.value(uu)
+        t_opt = np.arange(N+1)*dt
+        return {"t": t_opt, "q": q_opt, "v": v_opt, "u": u_opt, "dt": dt, "N": N}, \
+            {"model": quad.model, "visual_model": quad.visual_model, 
+                "collision_model": quad.collision_model}
+    except:
+        return None, None
 
 def visualize_ocp_result(result, models):
     N = result["N"]
@@ -257,8 +462,9 @@ def visualize_ocp_result(result, models):
            
 
 if __name__ == "__main__":
-    quad = QuadrupedDynamics(timestep=0.02)
-    quad.test_dynamics()
+    TestDymamics()
+    # quad = QuadrupedDynamics(timestep=0.02)
+    # quad.test_dynamics()
 
     folder_name = "unittest/implicit/quadruped/json_files/"
 
@@ -268,6 +474,7 @@ if __name__ == "__main__":
 
     if not settings["LOAD_OCP_SOLUTION"]:
         results, models = SolveOcp()
+        results, models = SolveOcp2()
 
         if settings["STORE_OCP_SOLUTION"]:
             # save results to a json file

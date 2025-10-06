@@ -58,6 +58,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             eval_gK_ineq_ = Function("eval_gK_ineq" + ts, {xk}, eval_gK_ineq({xk}));
             eval_dynamics_equation_ = Function("eval_dynamics_equation" + ts, {uk, xk, xkp}, eval_dynamics_equation(ukxkxkp));
 
+            std::cout << "Creating derived functions" << std::endl;
             // Initialize derived functions
             MX lam_dyn_k = MX::sym("lam_dyn_k", nx_);
             MX lam_eq_k = MX::sym("lam_eq_k", eval_gk_.sparsity_out(0).size1());
@@ -161,7 +162,9 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             Jt_inv_sp_ = Jt_inv_.sparsity_out(0);
             // FuFxt_sp_ = FuFxt_.sparsity_out(0);
 
+            std::cout << "code generating" << std::endl;
             CodeGenerateAll();
+            std::cout << "done!" << std::endl;
         };
 
         virtual Index get_nx(const Index k) const { return nx_;}
@@ -839,7 +842,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
         };
 
         void CodeGenerateAll(){
-            bool use_codegen = true;
+            bool use_codegen = false;
             if (!use_codegen){
                 eval_objk_gc_ = eval_objk_; eval_objK_gc_ = eval_objK_;
                 eval_gk_gc_ = eval_gk_; eval_g0_gc_ = eval_g0_;
@@ -971,8 +974,8 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
         double us_other_ = 0;
 
         // scratch space
-        std::vector<double> scratch_ = std::vector<double>(1000, 0.0); // Adjust size as needed
-        std::vector<double> scratch2_ = std::vector<double>(1000, 0.0); // Adjust size as needed
+        std::vector<double> scratch_ = std::vector<double>(100000, 0.0); // Adjust size as needed
+        std::vector<double> scratch2_ = std::vector<double>(100000, 0.0); // Adjust size as needed
 };  // IMPLICIT OCP TEST PROBLEM
 
 #endif //FATROP_IMPLICIT_TEST_PROBLEM_HPP

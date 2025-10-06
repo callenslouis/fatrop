@@ -3,6 +3,9 @@
 #include <vector>
 #include <string>
 
+// json
+#include <json/single_include/nlohmann/json.hpp>
+
 #include <casadi/casadi.hpp>
 
 #include "quadruped_helper.hpp"
@@ -259,6 +262,14 @@ void PinocchioCasadi::SimulateFalling(){
         xx.push_back(x);
     }
 
+    nlohmann::json j;
+    j["states"] = xx;
+    // write to file
+    std::string json_file_name = "quadruped_falling_cpp.json";
+    std::ofstream json_file(json_file_name);
+    json_file << j.dump(4);
+    json_file.close();
+    
     // write results to file
     std::string file_name = "quadruped_falling_cpp.txt";
     std::ofstream file(file_name);

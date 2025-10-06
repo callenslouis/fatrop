@@ -458,7 +458,7 @@ class ExplicitTestProblem : public OcpAbstract{
         }
 
         void CodeGenerateAll(){
-            bool use_codegen = true;
+            bool use_codegen = false;
             if (!use_codegen){
                 eval_objk_gc_ = eval_objk_; eval_objK_gc_ = eval_objK_;
                 eval_gk_gc_ = eval_gk_; eval_g0_gc_ = eval_g0_;
@@ -569,8 +569,8 @@ class ExplicitTestProblem : public OcpAbstract{
         double us_other_ = 0;
 
         // scratch space
-        std::vector<double> scratch_ = std::vector<double>(1000, 0.0); // Adjust size as needed
-        std::vector<double> scratch2_ = std::vector<double>(1000, 0.0); // Adjust size as needed
+        std::vector<double> scratch_ = std::vector<double>(100000, 0.0); // Adjust size as needed
+        std::vector<double> scratch2_ = std::vector<double>(100000, 0.0); // Adjust size as needed
 };  // EXPLICIT OCP TEST PROBLEM
 
 #endif // __EXPLICIT_TEST_PROBLEM_HPP__

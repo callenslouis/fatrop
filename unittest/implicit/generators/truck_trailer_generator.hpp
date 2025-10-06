@@ -13,11 +13,11 @@
 using namespace casadi;
 using namespace fatrop;
 
-class TruckTrailerInterfaceGenerator : public InterfaceGenerator {
+class TruckTrailerGenerator : public InterfaceGenerator {
     public:
         // Constructor
         // n: number of trailers (n=1 means one truck and one trailer)
-        TruckTrailerInterfaceGenerator(int n){
+        TruckTrailerGenerator(int n){
             // define parameters
             K_ = 20;
             dt_ = 0.1;

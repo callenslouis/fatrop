@@ -20,6 +20,7 @@
 #include "generators/example_static_generator.hpp"
 #include "generators/show_interface_output.hpp"
 #include "generators/n_link_planar_robot.hpp"
+#include "generators/quadruped_generator.hpp"
 
 #include "json/single_include/nlohmann/json.hpp"
 
@@ -206,7 +207,7 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
 
 void SolveSingleProblemTruckTrailer(int n_trailers){
     std::unique_ptr<InterfaceGenerator> generator = 
-        std::make_unique<TruckTrailerInterfaceGenerator>(n_trailers);
+        std::make_unique<TruckTrailerGenerator>(n_trailers);
     SolveProblem(generator);
 }
 void SolveAllTruckTrailer(){
@@ -254,8 +255,15 @@ void SolveAllPlanarRobot(){
 
 int main(int argc, char **argv)
 {
+    QuadrupedGenerator qg = QuadrupedGenerator();
+    qg.pc_->SimulateFalling();
+
     // // create a directory ocp_results
     // int temp = system("mkdir -p ocp_results");
+    std::unique_ptr<InterfaceGenerator> temp = std::make_unique<QuadrupedGenerator>();
+    SolveProblem(temp);
+    // std::cout << "implicit test problem is created" << std::endl;
+    return 0;
 
     if (argc < 3){
         std::cout << "Please provide the following arguments to this executable:" << std::endl;
@@ -271,7 +279,7 @@ int main(int argc, char **argv)
         if (std::string(argv[2]) == "truck_trailer"){
             int n_trailers = 1;
             if (argc > 3){ n_trailers = std::stoi(argv[3]);}
-            generator = std::make_unique<TruckTrailerInterfaceGenerator>(n_trailers);
+            generator = std::make_unique<TruckTrailerGenerator>(n_trailers);
 
         } else if (std::string(argv[2]) == "bycicle"){
             generator = std::make_unique<BycicleGenerator>();
