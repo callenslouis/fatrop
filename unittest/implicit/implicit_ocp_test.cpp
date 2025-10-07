@@ -92,14 +92,16 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     ExplicitTestProblem tp_interface_expl = *tp_expl;
     ExplicitTestProblem tp_interface_reform = *tp_reform;
     show_implicit_interface_output(tp_interface_impl, "output_interface_implicit.txt");
-    // show_interface_output(tp_interface_expl, "output_interface_explicit.txt");
-    // show_interface_output(tp_interface_reform, "output_interface_reformulated.txt");
+    show_interface_output(tp_interface_expl, "output_interface_explicit.txt");
+    show_interface_output(tp_interface_reform, "output_interface_reformulated.txt");
 
     std::cout << "Generated test problems" << std::endl;
     std::string gen_type = generator->GetInterfaceName();
     std::string file_name_appendix = generator->GetFileNameAppendix();
 
     OptionRegistry options;
+    // options.set_option("mu_init", 100);
+    // options.set_option("max_iter", 100);
     IpAlgBuilder<ImplicitOcpType> builder_impl(std::make_shared<ImplicitNlpOcp>(tp_impl));
     IpAlgBuilder<OcpType> builder_expl(std::make_shared<NlpOcp>(tp_expl));
     IpAlgBuilder<OcpType> builder_reform(std::make_shared<NlpOcp>(tp_reform));    
@@ -112,6 +114,7 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     json result_expl, result_reform, result_impl;
     bool solved_expl = false, solved_reform = false, solved_impl = false;
     
+
     // EXPLICIT
     try{
         std::cout << "solving explicit test problem" << std::endl;
@@ -133,7 +136,7 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     } catch (std::exception& e){
         std::cout << "Exception caught during explicit solve: " << e.what() << std::endl;
     }
-
+    return;
     // REFORMULATED
     try{
         std::cout << "solving reformulated test problem" << std::endl;
@@ -177,6 +180,7 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     } catch (std::exception& e){
         std::cout << "Exception caught during implicit solve: " << e.what() << std::endl;
     }
+    
 
     std::cout << "Finished solving problem" << std::endl;
     std::cout << "nb iterations: " << std::endl;
@@ -256,10 +260,12 @@ void SolveAllPlanarRobot(){
 int main(int argc, char **argv)
 {
     QuadrupedGenerator qg = QuadrupedGenerator();
-    qg.pc_->SimulateFalling();
+    // qg.pc_->SimulateFalling();
+    qg.SolveOptiInstance();
 
     // // create a directory ocp_results
     // int temp = system("mkdir -p ocp_results");
+
     std::unique_ptr<InterfaceGenerator> temp = std::make_unique<QuadrupedGenerator>();
     SolveProblem(temp);
     // std::cout << "implicit test problem is created" << std::endl;

@@ -279,7 +279,7 @@ void show_implicit_interface_output(OcpAbstractTpl<ImplicitOcpAbstractDynamic>& 
     */
     for (int k = 0; k < K; k++){
         Scalar objective_scale = 0.9;
-        std::cout << "calling eval_RSQRqt for k = " << k << std::endl;
+        // std::cout << "calling eval_RSQRqt for k = " << k << std::endl;
         interface.eval_RSQrqt(&objective_scale, 
                        (k == K-1) ? nullptr : uk_all[k].data(), 
                        xk_all[k].data(), 

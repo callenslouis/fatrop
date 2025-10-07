@@ -19,6 +19,7 @@ using namespace casadi;
 // Helper: build a CasADi SX 3-vector ground reaction force using same form as Python code
 SX ground_reaction_force_SX(const casadi::SX& p, const casadi::SX& v)
 {
+    // return SX::zeros(3,1);
     // p and v are 3x1 SX vectors (world frame)
     double k_ground = 200.0;   // N/m
     double d_ground = 600.0;   // N*s/m
@@ -49,12 +50,9 @@ PinocchioCasadi::PinocchioCasadi(double dt) : timestep(dt)
     std::string urdf_path = "/home/u0143705/miniconda3/envs/pinocchio/share/example-robot-data/robots/anymal_b_simple_description/robots/anymal.urdf";
     // pinocchio::urdf::buildModel(urdf_path, model);
     pinocchio::urdf::buildModel(urdf_path, pinocchio::JointModelFreeFlyer(), model);
-    std::cout << "created model" << std::endl;
-    std::cout << "created models and data" << std::endl;
 
     cmodel = model.cast<ADScalar>();
     cdata = ADData(cmodel);
-    std::cout << "created casadi models and data" << std::endl;
 
     // find foot frame ids (adjust names to your URDF)
     foot_frame_ids.clear();
@@ -66,16 +64,12 @@ PinocchioCasadi::PinocchioCasadi(double dt) : timestep(dt)
         }
     }
 
-    std::cout << "creating dynamics" << std::endl;
     create_dynamics();
-    std::cout << "creating discrete dynamics" << std::endl;
     create_discrete_dynamics();
-    std::cout << "done!" << std::endl;
 };
 
 void PinocchioCasadi::create_dynamics()
 {
-    std::cout << "creating dynamics" << std::endl;
     int nq = model.nq;
     int nv = model.nv;
     int nu = 12; // actuation dimension
@@ -110,11 +104,8 @@ void PinocchioCasadi::create_dynamics()
     
         // Now loop over feet, compute contact forces and add tau_contacts
     SX tau_contacts = SX::zeros(nv);
-    std::cout << "model " << model << std::endl;
-    std::cout << "foot frame ids: " << foot_frame_ids << std::endl;
     for (int fid : foot_frame_ids)
     {
-        std::cout << "\tadding contact of fid: " << fid << std::endl;
         // obtain position and velocity of feet
         // Frame placement translation (3x1)
         // cdata.oMf[fid].translation is of type SE3Tpl<Scalar>::Translation
@@ -144,9 +135,7 @@ void PinocchioCasadi::create_dynamics()
             for (int j = 0; j < J_full.cols(); ++j)
                 J_full(i,j) = SX(0);
         
-        std::cout << "\tcomputing frame jacobian" << std::endl;
         pinocchio::computeFrameJacobian<ADScalar>(cmodel, cdata, q_ad, fid, pinocchio::LOCAL_WORLD_ALIGNED, J_full);
-        std::cout << "\t\tdone" << std::endl;
 
         // Keep only top 3 rows (linear)
         // Convert to casadi SX matrix:
@@ -181,13 +170,10 @@ void PinocchioCasadi::create_dynamics()
     std::vector<SX> outputs = {a_ad};
 
     acc_func = Function("acc", {q, v, u}, {a_ad}, {"q", "v", "u"}, {"a"});
-    std::cout << "\tDone!" << std::endl;
 }
 
 void PinocchioCasadi::create_discrete_dynamics()
 {
-    std::cout << "\tCreating discrete dynamics!" << std::endl;
-
     // Build discrete integrator function using semi-implicit Euler
     int nq = model.nq;
     int nv = model.nv;
@@ -216,7 +202,6 @@ void PinocchioCasadi::create_discrete_dynamics()
     for (int i=0;i<nq;++i) qnext_sx(i) = qnext(i);
     
     discrete_fn = Function("discrete_dyn", {q, v, u}, {qnext_sx, vnext}, {"q","v","u"}, {"qnext","vnext"});
-    std::cout << "\tDone!" << std::endl;
 }
 
 // Simple numeric forward using CasADi numeric evaluation (example)
@@ -250,15 +235,15 @@ void PinocchioCasadi::SimulateFalling(){
     for (int i=0;i<q_standing.size();++i) x[i] = q_standing[i];
     x[2] += 1; // lift up a bit
 
-    std::cout << "let's go" << std::endl;
+    // std::cout << "let's go" << std::endl;
     std::vector<double> u0(12, 0.0);
     std::vector<std::vector<double>> xx;
     xx.push_back(x);
 
     for (int i=0;i<nb_steps;++i){
-        std::cout << "caling forward_numeric" << std::endl;
+        // std::cout << "caling forward_numeric" << std::endl;
         x = forward_numeric(x, u0);
-        std::cout << "\tstoring result" << std::endl;
+        // std::cout << "\tstoring result" << std::endl;
         xx.push_back(x);
     }
 

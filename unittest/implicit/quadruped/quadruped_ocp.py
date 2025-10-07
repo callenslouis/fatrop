@@ -15,16 +15,12 @@ def TestDymamics():
     q_test = casadi.DM(quad.model.nq, 1)
     v_test = casadi.DM(quad.model.nv, 1)
     u_test = casadi.DM(12, 1)
-    for i in range(3):
-        q_test[i] = 0.1*i
-    for i in range(3, 3+4):
-        q_test[i] = 0.1*i
-    for i in range(3+4, quad.model.nq):
-        q_test[i] = 0.1*i
+    for i in range(quad.model.nq):
+        q_test[i] = 1 - 0.1*i + 0.02*i**2
     for i in range(quad.model.nv):
-        v_test[i] = 1+0.1*i
+        v_test[i] = - 2 + 0.524*i**3
     for i in range(12):
-        u_test[i] = -1 + 0.1*i
+        u_test[i] = 3.141592 * (0.5 - i)
 
     expl, impl = quad.create_discrete_dynamics()
     
@@ -39,7 +35,7 @@ def TestDymamics():
     print(a)
 
 def get_ocp_functions():
-    K = 100
+    K = 100 - 1
     nq = 3 + 4 + 12
     nx = 2*nq - 1
     nu = 12
@@ -48,8 +44,8 @@ def get_ocp_functions():
     uk_min = -50
     uk_max = 50
 
-    push_vx = 1*1.5
-    push_vy = 1*2.0
+    push_vx = 0*1.5
+    push_vy = 0*2.0
 
     base_pos = casadi.MX.sym("base_pos", 3)
     base_vel = casadi.MX.sym("base_vel", 3)
@@ -91,8 +87,11 @@ def get_ocp_functions():
     start[nq+1] = push_vy
 
     x_init = []
+    original_stance = original_body_pos + standing_body_quat + standing_leg_q
     for k in range(K+1):
-        xx = start.copy()
+        xx = original_stance.copy()
+        for _ in range(nq-1):
+            xx.append(0.0)
         xx[nq] = 0
         xx[nq+1] = 0
         x_init.append(xx)
@@ -107,11 +106,13 @@ def get_ocp_functions():
         [1e1*casadi.sumsqr(base_pos - original_body_pos) +
          1e3*casadi.sumsqr(base_quat - standing_body_quat) +
          1e1*casadi.sumsqr(v[:3,:]) + 
-         1e0*casadi.sumsqr(v)])
+         1e0*casadi.sumsqr(v) + 
+         0*(casadi.sumsqr(uk) + casadi.sumsqr(xk))])
     eval_objK = casadi.Function("eval_objK", [xk],
         [1e3*casadi.sumsqr(v) +
          1e3*(casadi.sumsqr(base_quat - standing_body_quat) +
-              casadi.sumsqr(leg_q - standing_leg_q))])
+              casadi.sumsqr(leg_q - standing_leg_q)) +
+              0*casadi.sumsqr(xk)])
     
     eval_g0 = casadi.Function("eval_g0", [uk, xk], [xk - start])
     z = casadi.MX.zeros(0,1)
@@ -119,6 +120,9 @@ def get_ocp_functions():
     eval_gK = casadi.Function("eval_gK", [xk], [z])
     eval_gk_ineq = casadi.Function("eval_gk_ineq", [uk, xk], [uk])
     eval_gK_ineq = casadi.Function("eval_gK_ineq", [xk], [z])
+
+    quad = QuadrupedDynamics(timestep=dt)
+    expl, impl = quad.create_discrete_dynamics()
 
     return {
         "eval_objk": eval_objk,
@@ -137,7 +141,92 @@ def get_ocp_functions():
         "ub_K": ub_K,
         "dt": dt,
         "K": K,
+        "expl": expl,
     }
+
+def SolveOcp3():
+    opti = casadi.Opti()
+
+    data = get_ocp_functions()
+
+    dt = data["dt"]
+    N = data["K"]
+
+    quad = QuadrupedDynamics(timestep=dt)
+    rhs = quad.acc_func
+
+    qq_list = []
+    vv_list = []
+    uu_list = []
+    for k in range(N+1):
+        qq_list.append(opti.variable(quad.model.nq))
+        vv_list.append(opti.variable(quad.model.nv))
+        if k < N:
+            uu_list.append(opti.variable(12))
+    qq = casadi.horzcat(*qq_list)
+    vv = casadi.horzcat(*vv_list)
+    uu = casadi.horzcat(*uu_list)
+
+    start = data["start"]
+    q0 = np.array(start[:quad.model.nq])
+    v0 = np.array(start[quad.model.nq:])
+
+    # opti.subject_to(qq[:,0] == q0)
+    # opti.subject_to(vv[:,0] == v0)
+    opti.subject_to(data["eval_g0"](uu[:,0], casadi.vertcat(qq[:,0], vv[:,0])) == 0)
+
+    for k in range(N):
+        qk = qq[:,k]
+        vk = vv[:,k]
+        uk = uu[:,k]
+
+        x = casadi.vertcat(qk, vk)
+        # x_next = quad.forward_casadi(x, uk)
+        x_next = data["expl"](uk, x)
+        q_next = x_next[:quad.model.nq]
+        v_next = x_next[quad.model.nq:]
+
+        opti.subject_to(qq[:,k+1] == q_next)
+        opti.subject_to(vv[:,k+1] == v_next)
+
+        # torque limits
+        # opti.subject_to(opti.bounded(-50, uk, 50))
+        # opti.subject_to(uk <= 50)
+        # opti.subject_to(uk >= -50)
+        opti.subject_to(-50 <= (uk <= 50))
+       
+    obj = 0
+    for k in range(N):
+        qk = qq[:,k]
+        vk = vv[:,k]
+        uk = uu[:,k]
+        obj += data["eval_objk"](uk, casadi.vertcat(qk, vk))
+    qN = qq[:,N]
+    vN = vv[:,N]
+    obj += data["eval_objK"](casadi.vertcat(qN, vN))
+    opti.minimize(obj)
+
+    for k in range(N+1):
+        opti.set_initial(qq[:,k], data["x_init"][0][:quad.model.nq])
+    for k in range(N):
+        opti.set_initial(uu[:,k], data["u_init"][0])
+
+    p_opts = {"structure_detection":'auto'}
+    s_opts = {"max_iter":1000, 'mu_init':0.1}
+    opti.solver("fatrop", p_opts, s_opts)
+
+    try:
+        sol = opti.solve()
+
+        q_opt = sol.value(qq)
+        v_opt = sol.value(vv)
+        u_opt = sol.value(uu)
+        t_opt = np.arange(N+1)*dt
+        return {"t": t_opt, "q": q_opt, "v": v_opt, "u": u_opt, "dt": dt, "N": N}, \
+            {"model": quad.model, "visual_model": quad.visual_model, 
+                "collision_model": quad.collision_model}
+    except:
+        return None, None
 
 def SolveOcp2():
     opti = casadi.Opti()
@@ -189,9 +278,9 @@ def SolveOcp2():
     opti.minimize(obj)
 
     for k in range(N+1):
-        opti.set_initial(qq[:,k], data["x_init"][k][:quad.model.nq])
+        opti.set_initial(qq[:,k], data["x_init"][0][:quad.model.nq])
     for k in range(N):
-        opti.set_initial(uu[:,k], data["u_init"][k])
+        opti.set_initial(uu[:,k], data["u_init"][0])
 
     p_opts = {"expand": True}
     s_opts = {"max_iter":1000}
@@ -473,8 +562,9 @@ if __name__ == "__main__":
         settings = json.load(f)
 
     if not settings["LOAD_OCP_SOLUTION"]:
-        results, models = SolveOcp()
-        results, models = SolveOcp2()
+        # results, models = SolveOcp()
+        # results, models = SolveOcp2()
+        results, models = SolveOcp3()
 
         if settings["STORE_OCP_SOLUTION"]:
             # save results to a json file
