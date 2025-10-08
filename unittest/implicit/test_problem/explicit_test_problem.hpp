@@ -205,7 +205,8 @@ class ExplicitTestProblem : public OcpAbstract{
 
             if (DEBUG_PRINT){
                 std::cout << __func__ << " [" << k << "]" << std::endl;
-                blasfeo_print_dmat(res->m, res->n, res, 0, 0);
+                // blasfeo_print_dmat(res->m, res->n, res, 0, 0);
+                std::cout << "exiting function " << __func__ << std::endl;
             }
             return 0;
         };

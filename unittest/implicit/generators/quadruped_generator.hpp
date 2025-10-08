@@ -41,30 +41,30 @@ class QuadrupedGenerator : public InterfaceGenerator {
 
             // define initial guess
             x_init_ = std::vector<std::vector<double>>(K_+1, std::vector<double>(nx_, 0.0));
-            // for (int k = 0; k < K_+1; k++){
-            //     for (int i = 0; i < nq_; i++){
-            //         x_init_[k][i] = original_standing_stance_[i];
-            //     }
-            // }
+            for (int k = 0; k < K_+1; k++){
+                for (int i = 0; i < nq_; i++){
+                    x_init_[k][i] = original_standing_stance_[i];
+                }
+            }
             u_init_ = std::vector<std::vector<double>>(K_, std::vector<double>(nu_, 0.0));
-            // for (int k = 0; k < K_; k++){
-            //     u_init_[k] = {
-            //         -4.27557097,   5.91086644,  17.19719031,  -3.27040327,  
-            //         -4.81348097, -12.73962232,   3.67687864,   4.22256038,  
-            //         10.28272374,   5.82689115,  -3.42997252, -14.4580922
-            //     };
-            // }
+            for (int k = 0; k < K_; k++){
+                u_init_[k] = {
+                    -4.27557097,   5.91086644,  17.19719031,  -3.27040327,  
+                    -4.81348097, -12.73962232,   3.67687864,   4.22256038,  
+                    10.28272374,   5.82689115,  -3.42997252, -14.4580922
+                };
+            }
 
             // define functions
             eval_objk_ = Function("eval_objk", {uk_, xk_},
-                {0 * 1e1*sumsqr(base_pos_ - original_standing_body_pos_) + 
-                 0 * 1e3*sumsqr(base_quat_ - standing_body_quat_) +
-                 0 * 1e1*sumsqr(v_(Slice(0,3))) +
-                 0 * 1e0*sumsqr(v_) +
-                 0 * 0*(sumsqr(uk_) + sumsqr(xk_))});
+                {1 * 1e1*sumsqr(base_pos_ - original_standing_body_pos_) + 
+                 1 * 1e3*sumsqr(base_quat_ - standing_body_quat_) +
+                 1 * 1e1*sumsqr(v_(Slice(0,3))) +
+                 1 * 1e0*sumsqr(v_) +
+                 1 * 0*(sumsqr(uk_) + sumsqr(xk_))});
             eval_objK_ = Function("eval_objK", {xk_}, //{0});
-                {0 * 1e3*sumsqr(v_) + 
-                 0 * 1e3*(sumsqr(base_quat_ - standing_body_quat_) + 
+                {1 * 1e3*sumsqr(v_) + 
+                 1 * 1e3*(sumsqr(base_quat_ - standing_body_quat_) + 
                       sumsqr(leg_q_ - standing_leg_q_)) +
                       0 * sumsqr(xk_)});
             
@@ -74,8 +74,8 @@ class QuadrupedGenerator : public InterfaceGenerator {
             // eval_g0_ = Function("eval_g0", {uk_, xk_}, {z});
             eval_gk_ = Function("eval_gk", {uk_, xk_}, {z});
             eval_gK_ = Function("eval_gK", {xk_}, {z});
-            // eval_gk_ineq_ = Function("eval_gk_ineq", {uk_, xk_}, {uk_});
-            eval_gk_ineq_ = Function("eval_gk_ineq", {uk_, xk_}, {z});
+            eval_gk_ineq_ = Function("eval_gk_ineq", {uk_, xk_}, {uk_});
+            // eval_gk_ineq_ = Function("eval_gk_ineq", {uk_, xk_}, {z});
             eval_gK_ineq_ = Function("eval_gK_ineq", {xk_}, {z});
 
             pc_ = std::make_unique<PinocchioCasadi>(dt_);
@@ -102,8 +102,11 @@ class QuadrupedGenerator : public InterfaceGenerator {
             MXVector out = pc_->discrete_fn(in);
             MX qnext = out[0];
             MX vnext = out[1];
-            // Function eval_dynamics_equation_explicit = Function("eval_dynamics_equation", {uk_, xk_}, {vertcat(qnext, vnext)});
-            Function eval_dynamics_equation_explicit = Function("eval_dynamics_equation", {uk_, xk_}, {xk_});
+            Function eval_dynamics_equation_explicit = Function("eval_dynamics_equation", {uk_, xk_}, {vertcat(qnext, vnext)});
+            // MX xnext = MX(nx_, 1);
+            // xnext(Slice(0, nx_ - nu_)) = xk_(Slice(0, nx_-nu_));
+            // xnext(Slice(nx_ - nu_, nx_)) = xk_(Slice(nx_-nu_, nx_)) + uk_;
+            // Function eval_dynamics_equation_explicit = Function("eval_dynamics_equation", {uk_, xk_}, {xnext});
 
             DM q_test = DM(nq_, 1);
             DM v_test = DM(nq_-1, 1);
@@ -199,13 +202,19 @@ class QuadrupedGenerator : public InterfaceGenerator {
                 MX q_next = x_next(Slice(0, nq_));
                 MX v_next = x_next(Slice(nq_, nx_));
 
-                // opti.subject_to(qq_list[k+1] == q_next);
-                // opti.subject_to(vv_list[k+1] == v_next);
+                opti.subject_to(qq_list[k+1] == q_next);
+                opti.subject_to(vv_list[k+1] == v_next);
                 // no dynamics
-                opti.subject_to(qq_list[k+1] == qq_list[k]);
-                opti.subject_to(vv_list[k+1] == vv_list[k]);
+                // MX v_next_no_dyn = vk;
+                // for (int i = 0; i < nu_; i++){
+                //     v_next_no_dyn(nq_-1 - nu_ + i) = vk(nq_-1 - nu_ + i) + uk(i);
+                // }
+                // opti.subject_to(qq_list[k+1] == qq_list[k]);
+                // opti.subject_to(vv_list[k+1] == v_next_no_dyn);
 
-                // opti.subject_to(uk_min_ <= (eval_gk_ineq_(MXVector{uk, x})[0] <= uk_max_));
+                if (eval_gk_ineq_.sparsity_out(0).size1() > 0){
+                    opti.subject_to(uk_min_ <= (eval_gk_ineq_(MXVector{uk, x})[0] <= uk_max_));
+                }
             }
 
             MX obj = 0;
@@ -266,7 +275,7 @@ class QuadrupedGenerator : public InterfaceGenerator {
 
         std::unique_ptr<PinocchioCasadi> pc_;
     private:
-        int K_ = 2;
+        int K_ = 100;
         int nq_ = 3 + 4 + 12;
         int nx_ = 2*nq_ - 1;
         int nu_ = 12;
