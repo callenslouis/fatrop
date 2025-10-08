@@ -167,7 +167,7 @@ namespace fatrop
     }
 
     template <typename LinearSolverType, typename ProblemType>
-    void IpLinesearch<LinearSolverType, ProblemType>::find_acceptable_trial_point()
+    bool IpLinesearch<LinearSolverType, ProblemType>::find_acceptable_trial_point()
     {
         IpIterateType *curr_it = &ipdata_->current_iterate();
         IpIterateType *trial_it = &ipdata_->trial_iterate();
@@ -335,7 +335,6 @@ namespace fatrop
             }
             if (!accept) // go to restoration phase
             {
-                // f_out << "calling restoration phase" << std::endl;
                 fatrop_assert_msg(restoration_phase_,
                                   "Restoration phase not set in line search object. Maybe called "
                                   "from restoration phase algorithm.");
@@ -343,8 +342,7 @@ namespace fatrop
                  * todo set the step info
                  */
                 accept = restoration_phase_->perform_restoration();
-                if (!accept)
-                    fatrop_assert(false && "Restoration phase failed");
+                PRINT_DEBUG << "Restoration phase failed" << std::endl;
 
                 in_soft_resto_phase_ = false;
                 soft_resto_counter_ = 0;
@@ -371,6 +369,7 @@ namespace fatrop
                 }
             }
         }
+        return accept;
     }
     template <typename LinearSolverType, typename ProblemType>
     void IpLinesearch<LinearSolverType, ProblemType>::update_step_info(
