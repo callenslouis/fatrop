@@ -101,7 +101,6 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
 
     OptionRegistry options;
     // options.set_option("mu_init", 100);
-    // options.set_option("max_iter", 100);
     IpAlgBuilder<ImplicitOcpType> builder_impl(std::make_shared<ImplicitNlpOcp>(tp_impl));
     IpAlgBuilder<OcpType> builder_expl(std::make_shared<NlpOcp>(tp_expl));
     IpAlgBuilder<OcpType> builder_reform(std::make_shared<NlpOcp>(tp_reform));    
@@ -109,6 +108,7 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     std::shared_ptr<IpAlgorithm<ImplicitOcpType>> ipalg_impl = builder_impl.with_options_registry(&options).build();
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_expl = builder_expl.with_options_registry(&options).build();
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_reform = builder_reform.with_options_registry(&options).build();
+    options.set_option("max_iter", 100);
     std::cout << "built ip algorithms" << std::endl;
 
     json result_expl, result_reform, result_impl;
@@ -259,6 +259,12 @@ void SolveAllPlanarRobot(){
 
 int main(int argc, char **argv)
 {
+    // PlanarRobot pr = PlanarRobot(3);
+    // pr.SolveOptiInstance();
+    // std::unique_ptr<InterfaceGenerator> temp_pr = std::make_unique<PlanarRobot>(3);
+    // SolveProblem(temp_pr);
+    // return 0;
+
     QuadrupedGenerator qg = QuadrupedGenerator();
     // qg.pc_->SimulateFalling();
     qg.SolveOptiInstance();

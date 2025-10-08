@@ -78,9 +78,9 @@ class PlanarRobot : public InterfaceGenerator {
             set_M(); set_C(); set_G();
 
             // set bounds
-            lb_ = std::vector<double>(nu_+n_+1, uk_min_);
-            ub_ = std::vector<double>(nu_+n_+1, uk_max_);
-            for (int i = 0; i < n_ + 1; i++){
+            lb_ = std::vector<double>(nu_+n_, uk_min_);
+            ub_ = std::vector<double>(nu_+n_, uk_max_);
+            for (int i = 0; i < n_; i++){
                 lb_[i] = -50;
                 ub_[i] = 50;
             }
@@ -153,6 +153,95 @@ class PlanarRobot : public InterfaceGenerator {
                     eval_objk, eval_objK_, eval_gk, eval_g0, eval_gK,
                     eval_gk_ineq, eval_gK_ineq,
                     eval_dynamics_equation_reformulated);
+        }
+
+        void SolveOptiInstance(){
+            MX rhs = vertcat(thd_, mtimes(inv(eval_M_(th_)[0]), mtimes(Rinv_, uk_) - mtimes(eval_C_(xk_)[0], thd_) - eval_G_(th_)[0]));
+            Function eval_dynamics_equation_explicit = Function("eval_dynamics_equation", {uk_, xk_}, {xk_ + dt_*rhs});
+
+            Opti opti = Opti();
+            int N = K_-1;
+
+            std::vector<MX> qq_list = {};
+            std::vector<MX> vv_list = {};
+            std::vector<MX> uu_list = {};
+            for (int k = 0; k < N + 1; k++){
+                qq_list.push_back(opti.variable(n_));
+                vv_list.push_back(opti.variable(n_));
+                if (k < N){
+                    uu_list.push_back(opti.variable(n_));
+                }
+            }
+            MX qq = vertcat(qq_list);
+            MX vv = vertcat(vv_list);
+            MX uu = vertcat(uu_list);
+
+            if (eval_g0_.sparsity_out(0).size1() > 0){
+                opti.subject_to(eval_g0_(MXVector{uu_list[0], vertcat(qq_list[0], vv_list[0])})[0] == DM::zeros(eval_g0_.sparsity_out(0).size1()));
+            }
+            
+            for (int k = 0; k < N; k++){
+                MX qk = qq_list[k];
+                MX vk = vv_list[k];
+                MX uk = uu_list[k];
+
+                MX x = vertcat(qk, vk);
+                MX x_next = eval_dynamics_equation_explicit(MXVector{uk, x})[0];
+                MX q_next = x_next(Slice(0, n_));
+                MX v_next = x_next(Slice(n_, nx_));
+
+                opti.subject_to(qq_list[k+1] == q_next);
+                opti.subject_to(vv_list[k+1] == v_next);
+
+                if (eval_gk_ineq_.sparsity_out(0).size1() > 0){
+                    opti.subject_to(
+                        lb_ <= (eval_gk_ineq_(MXVector{uk, x})[0] <= ub_));
+                }
+            }
+
+            MX obj = 0;
+            for (int k = 0; k < N; k++){
+                MX qk = qq_list[k];
+                MX vk = vv_list[k];
+                MX uk = uu_list[k];
+                MX x = vertcat(qk, vk);
+                obj += eval_objk_(MXVector{uk, x})[0];
+            }
+            MX qk = qq_list[N];
+            MX vk = vv_list[N];
+            MX x = vertcat(qk, vk);
+            obj += eval_objK_(x)[0];
+            opti.minimize(obj);
+
+            if (eval_gK_ineq_.sparsity_out(0).size1() > 0){
+                opti.subject_to(lb_K_ <= (eval_gK_ineq_(vertcat(qq_list[N], vv_list[N]))[0] <= ub_K_));
+            }
+            if (eval_gK_.sparsity_out(0).size1() > 0){
+                opti.subject_to(eval_gK_(vertcat(qq_list[N], vv_list[N]))[0] == DM::zeros(eval_gK_.sparsity_out(0).size1()));
+            }
+
+            for (int k = 0; k < N+1; k++){
+                for (int i = 0; i < n_; i++){
+                    opti.set_initial(qq_list[k](i), x_init_[0][i]);
+                }
+                if (k < N){
+                    for (int i = 0; i < nu_; i++){
+                        opti.set_initial(uu_list[k](i), u_init_[0][i]);
+                    }
+                }
+            }
+
+            // define options
+            Dict casadi_opts;
+            Dict solver_opts;
+            casadi_opts["structure_detection"] = "auto";
+            casadi_opts["fatrop.print_level"] = 12;
+            casadi_opts["fatrop.mu_init"] = 0.1;
+            solver_opts["max_iter"] = 1000;
+
+            opti.solver("fatrop", casadi_opts, solver_opts);
+
+            opti.solve();
         }
 
         virtual json GetJsonData(){

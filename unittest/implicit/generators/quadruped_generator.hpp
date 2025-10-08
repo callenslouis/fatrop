@@ -36,8 +36,8 @@ class QuadrupedGenerator : public InterfaceGenerator {
                     standing_leg_q_.begin(), standing_leg_q_.end());
 
             for (int i = 0; i < nq_; i++){start_[i] = standing_stance_[i];}
-            start_[nq_] = push_vx_;
-            start_[nq_ + 1] = push_vy_;
+            start_[nq_] = 0*push_vx_;
+            start_[nq_ + 1] = 0*push_vy_;
 
             // define initial guess
             x_init_ = std::vector<std::vector<double>>(K_+1, std::vector<double>(nx_, 0.0));
@@ -56,17 +56,17 @@ class QuadrupedGenerator : public InterfaceGenerator {
             // }
 
             // define functions
-            eval_objk_ = Function("eval_objk", {uk_, xk_}, //{0});
-                {1e1*sumsqr(base_pos_ - original_standing_body_pos_) + 
-                 1e3*sumsqr(base_quat_ - standing_body_quat_) +
-                 1e1*sumsqr(v_(Slice(0,3))) +
-                 1e0*sumsqr(v_) +
-                 0*(sumsqr(uk_) + sumsqr(xk_))});
+            eval_objk_ = Function("eval_objk", {uk_, xk_},
+                {0 * 1e1*sumsqr(base_pos_ - original_standing_body_pos_) + 
+                 0 * 1e3*sumsqr(base_quat_ - standing_body_quat_) +
+                 0 * 1e1*sumsqr(v_(Slice(0,3))) +
+                 0 * 1e0*sumsqr(v_) +
+                 0 * 0*(sumsqr(uk_) + sumsqr(xk_))});
             eval_objK_ = Function("eval_objK", {xk_}, //{0});
-                {1e3*sumsqr(v_) + 
-                 1e3*(sumsqr(base_quat_ - standing_body_quat_) + 
+                {0 * 1e3*sumsqr(v_) + 
+                 0 * 1e3*(sumsqr(base_quat_ - standing_body_quat_) + 
                       sumsqr(leg_q_ - standing_leg_q_)) +
-                      0*sumsqr(xk_)});
+                      0 * sumsqr(xk_)});
             
             
             MX z = MX::zeros(0,1);
@@ -185,7 +185,9 @@ class QuadrupedGenerator : public InterfaceGenerator {
             MX vv = vertcat(vv_list);
             MX uu = vertcat(uu_list);
 
-            opti.subject_to(eval_g0_(MXVector{uu_list[0], vertcat(qq_list[0], vv_list[0])})[0] == DM::zeros(nx_));
+            if (eval_g0_.sparsity_out(0).size1() > 0){
+                opti.subject_to(eval_g0_(MXVector{uu_list[0], vertcat(qq_list[0], vv_list[0])})[0] == DM::zeros(eval_g0_.sparsity_out(0).size1()));
+            }
             
             for (int k = 0; k < N; k++){
                 MX qk = qq_list[k];
@@ -224,9 +226,6 @@ class QuadrupedGenerator : public InterfaceGenerator {
                 for (int i = 0; i < nq_; i++){
                     opti.set_initial(qq_list[k](i), x_init_[0][i]);
                 }
-                // for (int i = 0; i < nq_-1; i++){
-                //     opti.set_initial(vv_list[k](i), x_init_[0][nq_ + i]);
-                // }
                 if (k < N){
                     for (int i = 0; i < nu_; i++){
                         opti.set_initial(uu_list[k](i), u_init_[0][i]);
@@ -247,7 +246,6 @@ class QuadrupedGenerator : public InterfaceGenerator {
             opti.solver("fatrop", casadi_opts, solver_opts);
 
             opti.solve();
-
         }
 
         virtual json GetJsonData(){
