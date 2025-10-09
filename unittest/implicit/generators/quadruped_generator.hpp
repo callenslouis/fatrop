@@ -61,7 +61,7 @@ class QuadrupedGenerator : public InterfaceGenerator {
                  1 * 1e3*sumsqr(base_quat_ - standing_body_quat_) +
                  1 * 1e1*sumsqr(v_(Slice(0,3))) +
                  1 * 1e0*sumsqr(v_) +
-                 1 * 0*(sumsqr(uk_) + sumsqr(xk_))});
+                 1 * 1e5*(sumsqr(uk_) + 0*sumsqr(xk_))});
             eval_objK_ = Function("eval_objK", {xk_}, //{0});
                 {1 * 1e3*sumsqr(v_) + 
                  1 * 1e3*(sumsqr(base_quat_ - standing_body_quat_) + 
@@ -98,27 +98,30 @@ class QuadrupedGenerator : public InterfaceGenerator {
         }
 
         virtual ExplicitTestProblem PrepareExplicit(){
+            // normal appraoch
             MXVector in = {q_, v_, uk_};
             MXVector out = pc_->discrete_fn(in);
             MX qnext = out[0];
             MX vnext = out[1];
             Function eval_dynamics_equation_explicit = Function("eval_dynamics_equation", {uk_, xk_}, {vertcat(qnext, vnext)});
+
+            // no dynamics
             // MX xnext = MX(nx_, 1);
             // xnext(Slice(0, nx_ - nu_)) = xk_(Slice(0, nx_-nu_));
             // xnext(Slice(nx_ - nu_, nx_)) = xk_(Slice(nx_-nu_, nx_)) + uk_;
             // Function eval_dynamics_equation_explicit = Function("eval_dynamics_equation", {uk_, xk_}, {xnext});
 
-            DM q_test = DM(nq_, 1);
-            DM v_test = DM(nq_-1, 1);
-            DM u_test = DM(nu_, 1);
-            for (int i = 0; i < nq_; i++){q_test(i) = 1 - 0.1*i + 0.02*i*i;}
-            for (int i = 0; i < nq_-1; i++){v_test(i) = -2 + 0.524*i*i*i;}
-            for (int i = 0; i < nu_; i++){u_test(i) = 3.141592*(0.5 - i);}
-            DMVector out_test = eval_dynamics_equation_explicit(DMVector{u_test, vertcat(q_test, v_test)});
+            // test dynamics by evaluating and printing
+            // DM q_test = DM(nq_, 1);
+            // DM v_test = DM(nq_-1, 1);
+            // DM u_test = DM(nu_, 1);
+            // for (int i = 0; i < nq_; i++){q_test(i) = 1 - 0.1*i + 0.02*i*i;}
+            // for (int i = 0; i < nq_-1; i++){v_test(i) = -2 + 0.524*i*i*i;}
+            // for (int i = 0; i < nu_; i++){u_test(i) = 3.141592*(0.5 - i);}
+            // DMVector out_test = eval_dynamics_equation_explicit(DMVector{u_test, vertcat(q_test, v_test)});
             // std::cout << "test dynamics: " << out_test[0].T() << std::endl;
-            
             // std::cout << "acc_func: " << pc_->acc_func(DMVector{q_test, v_test, u_test})[0] << std::endl;
-            
+
             return ExplicitTestProblem(
                     K_, nx_, nu_, 
                     x_init_, u_init_,
@@ -280,8 +283,8 @@ class QuadrupedGenerator : public InterfaceGenerator {
         int nx_ = 2*nq_ - 1;
         int nu_ = 12;
         double dt_ = 0.02;
-        double uk_min_ = -50;
-        double uk_max_ = 50;
+        double uk_min_ = -100;
+        double uk_max_ = 100;
 
         double push_vx_ = 0*1.5;
         double push_vy_ = 0*2.0;

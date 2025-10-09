@@ -19,7 +19,7 @@ using namespace casadi;
 // Helper: build a CasADi SX 3-vector ground reaction force using same form as Python code
 SX ground_reaction_force_SX(const casadi::SX& p, const casadi::SX& v)
 {
-    // return SX::zeros(3,1);
+    return SX::zeros(3,1);
     // p and v are 3x1 SX vectors (world frame)
     double k_ground = 200.0;   // N/m
     double d_ground = 600.0;   // N*s/m
@@ -202,6 +202,8 @@ void PinocchioCasadi::create_discrete_dynamics()
     for (int i=0;i<nq;++i) qnext_sx(i) = qnext(i);
     
     discrete_fn = Function("discrete_dyn", {q, v, u}, {qnext_sx, vnext}, {"q","v","u"}, {"qnext","vnext"});
+    discrete_fn.save("discrete_in.casadi"); // save from an executable that does not contain casadi
+    Function::load("discrete_in.casadi");   // load from an executable that only contains casadi
 }
 
 // Simple numeric forward using CasADi numeric evaluation (example)

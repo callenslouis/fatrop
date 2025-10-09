@@ -489,7 +489,7 @@ class ExplicitTestProblem : public OcpAbstract{
                 };
                 for (size_t i = 0; i < f.size(); i++){
                     int progress = int(( (i+1) / (double) f.size() ) * 100.0);
-                    std::cout << "code generating (" << progress << "%)                             \r";
+                    std::cout << "code generating function " << (*f[i]).name() << " (" << progress << "%)                                          \r";
                     std::cout.flush();
                     *f_gc[i] = CodeGenerateFunction(*f[i]);
                 }

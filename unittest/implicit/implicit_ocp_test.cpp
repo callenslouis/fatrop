@@ -100,7 +100,6 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     std::string file_name_appendix = generator->GetFileNameAppendix();
 
     OptionRegistry options;
-    // options.set_option("mu_init", 100);
     IpAlgBuilder<ImplicitOcpType> builder_impl(std::make_shared<ImplicitNlpOcp>(tp_impl));
     IpAlgBuilder<OcpType> builder_expl(std::make_shared<NlpOcp>(tp_expl));
     IpAlgBuilder<OcpType> builder_reform(std::make_shared<NlpOcp>(tp_reform));    
@@ -108,7 +107,9 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     std::shared_ptr<IpAlgorithm<ImplicitOcpType>> ipalg_impl = builder_impl.with_options_registry(&options).build();
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_expl = builder_expl.with_options_registry(&options).build();
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_reform = builder_reform.with_options_registry(&options).build();
+    // options.set_option("mu_init", 100.0);
     options.set_option("max_iter", 100);
+    options.set_option("print_level", 12);
     std::cout << "built ip algorithms" << std::endl;
 
     json result_expl, result_reform, result_impl;
@@ -256,7 +257,6 @@ void SolveAllPlanarRobot(){
     }
 }
 
-
 int main(int argc, char **argv)
 {
     // PlanarRobot pr = PlanarRobot(3);
@@ -275,6 +275,7 @@ int main(int argc, char **argv)
     std::unique_ptr<InterfaceGenerator> temp = std::make_unique<QuadrupedGenerator>();
     SolveProblem(temp);
     // std::cout << "implicit test problem is created" << std::endl;
+    // std::cout << "returning" << std::endl;
     return 0;
 
     if (argc < 3){
