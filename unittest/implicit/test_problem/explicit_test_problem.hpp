@@ -116,6 +116,87 @@ class ExplicitTestProblem : public OcpAbstract{
             CodeGenerateAll();
         };
 
+        Function build_full_hessian(){
+            MX full_hess = MX::zeros(nu_ * (K_-1) + nx_ * K_, nu_ * (K_-1) + nx_ * K_);
+            // top-left: k == 0
+            // variable sequence: [x0, u0, x1, u1 ... ] ! different than FATROP usually does this
+            
+            // define primal variables
+            std::vector<MX> x_all = {};
+            std::vector<MX> u_all = {};
+            MX x;
+            for (int k = 0; k < K_; k++){
+                x_all.push_back(MX::sym("x_" + std::to_string(k), nx_));
+                x = vertcat(x, x_all.back());
+                if (k < K_-1){
+                    u_all.push_back(MX::sym("u_" + std::to_string(k), nu_));
+                    x = vertcat(x, u_all.back());
+                }
+            }
+
+            // define lagrange multipliers
+            std::vector<MX> lam_g_all = {};
+            std::vector<MX> lam_g_ineq_all = {};
+            std::vector<MX> lam_dyn_all = {};
+            MX lam;
+            for (int k = 0; k < K_; k++){
+                lam_g_all.push_back(MX::sym("lam_g_" + std::to_string(k), (k == 0) ? eval_g0_.sparsity_out(0).size1() : (k == K_-1) ? eval_gK_.sparsity_out(0).size1() : eval_gk_.sparsity_out(0).size1()));
+                lam_g_ineq_all.push_back(MX::sym("lam_g_ineq_" + std::to_string(k), (k == K_-1) ? eval_gK_ineq_.sparsity_out(0).size1() : eval_gk_ineq_.sparsity_out(0).size1()));
+                lam = vertcat(lam, lam_g_all.back(), lam_g_ineq_all.back());
+                
+                if (k < K_-1){
+                    lam_dyn_all.push_back(MX::sym("lam_dyn_" + std::to_string(k), nx_));
+                    lam = vertcat(lam, lam_dyn_all.back());
+                }
+            }
+
+            // evaluate all hessian contributions
+            for (int k = 0; k < K_; k++){
+                MX hess_k;
+                if (k == 0){
+                    MXVector in = {u_all[k], x_all[k], -lam_dyn_all[k], lam_g_all[k], lam_g_ineq_all[k], 1.0};
+                    hess_k = lag_hess_0_(in)[0];
+                } else if (k == K_-1){
+                    MXVector in = {x_all[k], -lam_dyn_all[k-1], lam_g_all[k], lam_g_ineq_all[k], 1.0};
+                    hess_k = lag_hess_K_(in)[0];
+                } else {
+                    MXVector in = {u_all[k], x_all[k], -lam_dyn_all[k], lam_g_all[k], lam_g_ineq_all[k], 1.0};
+                    hess_k = lag_hess_k_(in)[0];
+                }
+
+                int nu = get_nu(k);
+                int nx = get_nx(k);
+
+                // place in full hessian
+                Index row_start = k * (nx_ + nu_);
+                Index col_start = row_start;
+
+                // split the hessian in its parts
+                MX hess_uu = hess_k(Slice(0, nu), Slice(0, nu));
+                MX hess_ux = hess_k(Slice(0, nu), Slice(nu, nu + nx));
+                MX hess_xu = hess_k(Slice(nu, nu + nx), Slice(0, nu));
+                MX hess_xx = hess_k(Slice(nu, nu + nx), Slice(nu, nu + nx));
+
+                // place in full hessian
+                if (k < K_-1){
+                    // full_hess(Slice(row_start, row_start + nu), Slice(col_start, col_start + nu)) = hess_uu;
+                    // full_hess(Slice(row_start, row_start + nu), Slice(col_start + nu, col_start + nu + nx)) = hess_ux;
+                    // full_hess(Slice(row_start + nu, row_start + nu + nx), Slice(col_start, col_start + nu)) = hess_xu;
+                    // full_hess(Slice(row_start + nu, row_start + nu + nx), Slice(col_start + nu, col_start + nu + nx)) = hess_xx;
+                    full_hess(Slice(row_start, row_start + nx), Slice(col_start, col_start + nx)) += hess_xx;
+                    full_hess(Slice(row_start, row_start + nx), Slice(col_start + nx, col_start + nx + nu)) = hess_xu;
+                    full_hess(Slice(row_start + nx, row_start + nx + nu), Slice(col_start, col_start + nx)) = hess_ux;
+                    full_hess(Slice(row_start + nx, row_start + nx + nu), Slice(col_start + nx, col_start + nx + nu)) = hess_uu;
+                } else {
+                    full_hess(Slice(row_start, row_start + nx_), Slice(col_start, col_start + nx_)) = hess_xx;
+                }
+            }
+
+            // wrap all in function
+            Function full_hess_f = Function("full_hess_f", {x, lam}, {full_hess});
+            return full_hess_f;
+        };
+
         virtual Index get_nx(const Index k) const { return nx_;}
         virtual Index get_nu(const Index k) const { return (k == K_-1) ? 0 : nu_;}
         virtual Index get_ng(const Index k) const

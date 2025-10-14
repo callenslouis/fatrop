@@ -70,16 +70,13 @@ class QuadrupedGenerator : public InterfaceGenerator {
             
             
             MX z = MX::zeros(0,1);
-            eval_g0_ = Function("eval_g0", {uk_, xk_}, {xk_ - start_});
-            // eval_g0_ = Function("eval_g0", {uk_, xk_}, {z});
+            // eval_g0_ = Function("eval_g0", {uk_, xk_}, {xk_ - start_});
+            eval_g0_ = Function("eval_g0", {uk_, xk_}, {z});
             eval_gk_ = Function("eval_gk", {uk_, xk_}, {z});
             eval_gK_ = Function("eval_gK", {xk_}, {z});
-            eval_gk_ineq_ = Function("eval_gk_ineq", {uk_, xk_}, {uk_});
-            // eval_gk_ineq_ = Function("eval_gk_ineq", {uk_, xk_}, {z});
+            // eval_gk_ineq_ = Function("eval_gk_ineq", {uk_, xk_}, {uk_});
+            eval_gk_ineq_ = Function("eval_gk_ineq", {uk_, xk_}, {z});
             eval_gK_ineq_ = Function("eval_gK_ineq", {xk_}, {z});
-
-            // pc_ = std::make_unique<PinocchioCasadi>(dt_);
-            // pc_.SimulateFalling();
 
             // load the casadi dynamics functions
             expl_dyn_ = Function::load("quadruped_explicit_integrator.casadi");
@@ -95,30 +92,6 @@ class QuadrupedGenerator : public InterfaceGenerator {
         }
 
         virtual ExplicitTestProblem PrepareExplicit(){
-            // normal appraoch
-            // MXVector in = {q_, v_, uk_};
-            // MXVector out = pc_->discrete_fn(in);
-            // MX qnext = out[0];
-            // MX vnext = out[1];
-            // Function eval_dynamics_equation_explicit = Function("eval_dynamics_equation", {uk_, xk_}, {vertcat(qnext, vnext)});
-
-            // no dynamics
-            // MX xnext = MX(nx_, 1);
-            // xnext(Slice(0, nx_ - nu_)) = xk_(Slice(0, nx_-nu_));
-            // xnext(Slice(nx_ - nu_, nx_)) = xk_(Slice(nx_-nu_, nx_)) + uk_;
-            // Function eval_dynamics_equation_explicit = Function("eval_dynamics_equation", {uk_, xk_}, {xnext});
-
-            // test dynamics by evaluating and printing
-            // DM q_test = DM(nq_, 1);
-            // DM v_test = DM(nq_-1, 1);
-            // DM u_test = DM(nu_, 1);
-            // for (int i = 0; i < nq_; i++){q_test(i) = 1 - 0.1*i + 0.02*i*i;}
-            // for (int i = 0; i < nq_-1; i++){v_test(i) = -2 + 0.524*i*i*i;}
-            // for (int i = 0; i < nu_; i++){u_test(i) = 3.141592*(0.5 - i);}
-            // DMVector out_test = eval_dynamics_equation_explicit(DMVector{u_test, vertcat(q_test, v_test)});
-            // std::cout << "test dynamics: " << out_test[0].T() << std::endl;
-            // std::cout << "acc_func: " << pc_->acc_func(DMVector{q_test, v_test, u_test})[0] << std::endl;
-
             return ExplicitTestProblem(
                     K_, nx_, nu_, 
                     x_init_, u_init_,
@@ -186,9 +159,9 @@ class QuadrupedGenerator : public InterfaceGenerator {
             MX vv = vertcat(vv_list);
             MX uu = vertcat(uu_list);
 
-            if (eval_g0_.sparsity_out(0).size1() > 0){
-                opti.subject_to(eval_g0_(MXVector{uu_list[0], vertcat(qq_list[0], vv_list[0])})[0] == DM::zeros(eval_g0_.sparsity_out(0).size1()));
-            }
+            // if (eval_g0_.sparsity_out(0).size1() > 0){
+            //     opti.subject_to(eval_g0_(MXVector{uu_list[0], vertcat(qq_list[0], vv_list[0])})[0] == DM::zeros(eval_g0_.sparsity_out(0).size1()));
+            // }
             
             for (int k = 0; k < N; k++){
                 MX qk = qq_list[k];
@@ -202,17 +175,10 @@ class QuadrupedGenerator : public InterfaceGenerator {
 
                 opti.subject_to(qq_list[k+1] == q_next);
                 opti.subject_to(vv_list[k+1] == v_next);
-                // no dynamics
-                // MX v_next_no_dyn = vk;
-                // for (int i = 0; i < nu_; i++){
-                //     v_next_no_dyn(nq_-1 - nu_ + i) = vk(nq_-1 - nu_ + i) + uk(i);
-                // }
-                // opti.subject_to(qq_list[k+1] == qq_list[k]);
-                // opti.subject_to(vv_list[k+1] == v_next_no_dyn);
 
-                if (eval_gk_ineq_.sparsity_out(0).size1() > 0){
-                    opti.subject_to(uk_min_ <= (eval_gk_ineq_(MXVector{uk, x})[0] <= uk_max_));
-                }
+                // if (eval_gk_ineq_.sparsity_out(0).size1() > 0){
+                //     opti.subject_to(uk_min_ <= (eval_gk_ineq_(MXVector{uk, x})[0] <= uk_max_));
+                // }
             }
 
             MX obj = 0;
@@ -252,7 +218,106 @@ class QuadrupedGenerator : public InterfaceGenerator {
 
             opti.solver("fatrop", casadi_opts, solver_opts);
 
-            opti.solve();
+            try{
+                opti.solve();
+            } catch (std::exception& e){
+                std::cout << "Exception: " << e.what() << std::endl;
+            }
+
+            MX opti_x = opti.x();
+            MX opti_g = opti.g();
+            MX lam_g = opti.lam_g();
+            MX opti_f = opti.f();
+            Function g_vals = Function("g_vals", {opti_x}, {opti_g});
+            Function g_jac = Function("g_jac", {opti_x}, {jacobian(opti_g, opti_x)});
+            Function hess_lag = Function("hes_lag", {opti_x, lam_g}, 
+                {hessian(0*opti_f + mtimes(transpose(lam_g), opti_g), opti_x)});
+            std::cout << "g_jac: " << g_jac << std::endl;
+            std::cout << "hess_lag: " << hess_lag << std::endl;
+            
+            DM x_numeric = DM(opti_x.size());
+            int x_numeric_ptr = 0;
+            // for (int i = 0; i < opti_x.size1(); i++){
+            //     x_numeric(i) = 1*i;
+            // }
+            for (int k = 0; k < N + 1; k++){
+                for (int i = 0; i < nx_; i++){
+                    x_numeric(x_numeric_ptr) = x_init_[0][i];
+                    x_numeric_ptr++;
+                }
+
+                if (k < N){
+                    for (int i = 0; i < nu_; i++){
+                        x_numeric(x_numeric_ptr) = u_init_[0][i];
+                        x_numeric_ptr++;
+                    }
+                }
+            }
+            DM lam_g_numeric = DM(lam_g.size());
+            for (int i = 0; i < lam_g.size1(); i++){
+                lam_g_numeric(i) = 2*i;
+            }
+            DM g_vals_numeric = g_vals(DMVector{x_numeric})[0];
+            DM g_jac_numeric = g_jac(DMVector{x_numeric})[0];
+            DM hess_lag_numeric = hess_lag(DMVector{x_numeric, lam_g_numeric})[0];
+            
+            // write matrices to file
+            std::ofstream file;
+            file.open("opti_g_vals.txt");
+            for (int i = 0; i < g_vals_numeric.size1(); i++){
+                file << g_vals_numeric(i) << std::endl;
+            }
+            file.close();
+
+            file.open("opti_g_jac.txt");
+            // file << g_jac_numeric;
+            for (int i = 0; i < g_jac_numeric.size1(); i++){
+                for (int j = 0; j < g_jac_numeric.size2(); j++){
+                    if (g_jac.sparsity_out(0).has_nz(i,j)){
+                        file << g_jac_numeric(i,j) << std::endl;
+                    }
+                }
+            }
+            file.close();
+            file.open("opti_hess_lag.txt");
+            // file << hess_lag_numeric;
+            for (int i = 0; i < hess_lag_numeric.size1(); i++){
+                for (int j = 0; j < hess_lag_numeric.size2(); j++){
+                    if (hess_lag.sparsity_out(0).has_nz(i,j)){
+                        file << hess_lag_numeric(i,j) << std::endl;
+                    }
+                }
+            }
+            file.close();    
+
+            Function opti_full_hess = hess_lag;
+            ExplicitTestProblem etp = PrepareExplicit();
+            Function interface_full_hess = etp.build_full_hessian();
+            std::cout << "opti_full_hess: " << opti_full_hess << std::endl;
+            std::cout << "interface_full_hess: " << interface_full_hess << std::endl;
+
+            DM opti_full_hess_numeric = opti_full_hess(DMVector{x_numeric, lam_g_numeric})[0];
+            DM interface_full_hess_numeric = interface_full_hess(DMVector{x_numeric, lam_g_numeric})[0];
+
+            file.open("opti_full_hess.txt");
+            for (int i = 0; i < opti_full_hess_numeric.size1(); i++){
+                for (int j = 0; j < opti_full_hess_numeric.size2(); j++){
+                    // if (opti_full_hess.sparsity_out(0).has_nz(i,j)){
+                    if (double(opti_full_hess_numeric(i,j)) != 0.0){
+                        file << opti_full_hess_numeric(i,j) << std::endl;
+                    }
+                }
+            }
+            file.close();
+            file.open("interface_full_hess.txt");
+            for (int i = 0; i < interface_full_hess_numeric.size1(); i++){
+                for (int j = 0; j < interface_full_hess_numeric.size2(); j++){
+                    // if (interface_full_hess.sparsity_out(0).has_nz(i,j)){
+                    if (double(interface_full_hess_numeric(i,j)) != 0.0){
+                        file << interface_full_hess_numeric(i,j) << std::endl;
+                    }
+                }
+            }
         }
 
         virtual json GetJsonData(){
@@ -273,7 +338,7 @@ class QuadrupedGenerator : public InterfaceGenerator {
 
         // std::unique_ptr<PinocchioCasadi> pc_;
     private:
-        int K_ = 100;
+        int K_ = 4;
         int nq_ = 3 + 4 + 12;
         int nx_ = 2*nq_ - 1;
         int nu_ = 12;

@@ -137,7 +137,7 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     } catch (std::exception& e){
         std::cout << "Exception caught during explicit solve: " << e.what() << std::endl;
     }
-    return;
+    
     // REFORMULATED
     try{
         std::cout << "solving reformulated test problem" << std::endl;
@@ -271,6 +271,8 @@ int main(int argc, char **argv)
 
     std::unique_ptr<InterfaceGenerator> temp = std::make_unique<QuadrupedGenerator>();
     try{
+        ExplicitTestProblem tp = temp->PrepareExplicit();
+        print_jac_and_hess(tp);
         SolveProblem(temp);
     } catch (std::exception& e){
         std::cout << "Exception caught during quadruped solve: " << e.what() << std::endl;

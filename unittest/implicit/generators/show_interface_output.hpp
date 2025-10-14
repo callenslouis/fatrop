@@ -441,4 +441,222 @@ void show_implicit_interface_output(OcpAbstractTpl<ImplicitOcpAbstractDynamic>& 
     */
 }
 
+void print_jac_and_hess(OcpAbstractTpl<OcpAbstractDynamic>& interface){
+    std::cout << "executing " << __func__ << std::endl;
+    int K = interface.get_horizon_length();
+
+    ////////////////////////////////
+    /// set values for xk and uk ///
+    ////////////////////////////////
+    std::vector<VecRealAllocated> xk_all; xk_all.reserve(K);
+    std::vector<VecRealAllocated> uk_all; uk_all.reserve(K-1);
+    int var_count = 0;
+    double s = 1;
+    for (int k = 0; k < K; k++){
+        xk_all.emplace_back(interface.get_nx(k));
+        // for (int i = 0; i < interface.get_nx(k); i++) xk_all[k](i) = s*var_count + s*i;
+        // var_count += interface.get_nx(k);
+        interface.get_initial_xk(xk_all[k].data(), k);
+
+        if (k < K-1){
+            uk_all.emplace_back(interface.get_nu(k));
+        //     for (int i = 0; i < interface.get_nu(k); i++) uk_all[k](i) = s*var_count + s*i;
+        //     var_count += interface.get_nu(k);
+            interface.get_initial_uk(uk_all[k].data(), k);
+        }
+    }
+    std::vector<double> all_vars = {};
+    for (int k = 0; k < K; k++){
+        if (k < K-1){
+            for (int i = 0; i < interface.get_nu(k); i++) all_vars.push_back(uk_all[k](i));
+        }
+        for (int i = 0; i < interface.get_nx(k); i++) all_vars.push_back(xk_all[k](i));
+    }
+    std::string vars_file_name = "interface_all_vars.txt";
+    std::ofstream vars_file(vars_file_name);
+    for (int i = 0; i < all_vars.size(); i++) vars_file << all_vars[i] << std::endl;
+    vars_file.close();
+
+
+
+
+
+
+
+    //////////////////////////////
+    /// set values for lambdas ///
+    //////////////////////////////
+    std::vector<VecRealAllocated> lam_dyn_all; lam_dyn_all.reserve(K-1);
+    std::vector<VecRealAllocated> lam_g_eq_all; lam_g_eq_all.reserve(K);
+    std::vector<VecRealAllocated> lam_g_ineq_all; lam_g_ineq_all.reserve(K);    
+    var_count = 0; s = 2;
+    for (int k = 0; k < K; k++){
+        lam_g_eq_all.emplace_back(interface.get_ng(k));
+        for (int i = 0; i < interface.get_ng(k); i++) lam_g_eq_all[k](i) = (var_count + i)*s;
+        var_count += interface.get_ng(k);
+
+        lam_g_ineq_all.emplace_back(interface.get_ng_ineq(k));
+        for (int i = 0; i < interface.get_ng_ineq(k); i++) lam_g_ineq_all[k](i) = (var_count + i)*s;
+        var_count += interface.get_ng_ineq(k);
+
+        if (k < K-1){
+            lam_dyn_all.emplace_back(interface.get_nx(k+1));
+            for (int i = 0; i < interface.get_nx(k+1); i++) lam_dyn_all[k](i) = -(var_count + i)*s;
+            var_count += interface.get_nx(k);
+        }
+
+    }
+    std::vector<double> all_lams = {};
+    for (int k = 0; k < K; k++){
+        if (k < K-1){
+            for (int i = 0; i < interface.get_nx(k+1); i++) all_lams.push_back(lam_dyn_all[k](i));
+        }
+        for (int i = 0; i < interface.get_ng(k); i++) all_lams.push_back(lam_g_eq_all[k](i));
+        for (int i = 0; i < interface.get_ng_ineq(k); i++) all_lams.push_back(lam_g_ineq_all[k](i));
+    }
+    std::string lams_file_name = "interface_all_lams.txt";
+    std::ofstream lams_file(lams_file_name);
+    for (int i = 0; i < all_lams.size(); i++) lams_file << all_lams[i] << std::endl;
+    lams_file.close();
+
+    std::vector<double> g_jac_nz = {};
+    std::vector<double> hess_lag_nz = {};
+    std::vector<double> g_vals = {};
+    
+
+
+
+
+    ///////////////////////////////
+    /// evaluate g and jacobian ///
+    ///////////////////////////////
+    for (int k = 0; k < K; k++){
+        int ng = interface.get_ng(k);
+        int ng_ineq = interface.get_ng_ineq(k);
+        int nx = interface.get_nx(k);
+        int nu = interface.get_nu(k);
+
+        // g
+        if (ng > 0){
+            MatRealAllocated res_g(nx + nu + 1, ng);
+            interface.eval_Ggt((k == K-1) ? nullptr : uk_all[k].data(), xk_all[k].data(), &res_g.mat(), k);
+            for (int i = 0; i < res_g.m(); i++){
+                for (int j = 0; j < res_g.n(); j++){
+                    if (res_g(i,j) != 0.0){
+                        g_jac_nz.push_back(res_g(i,j));
+                    }
+                }
+            }
+
+            // also store the g values
+            VecRealAllocated res_g_val(ng);
+            interface.eval_g((k == K-1) ? nullptr : uk_all[k].data(), xk_all[k].data(), res_g_val.data(), k);
+            for (int i = 0; i < res_g_val.m(); i++){
+                g_vals.push_back(res_g_val(i));
+            }
+        }
+
+        // g_ineq
+        if (ng_ineq > 0){
+            MatRealAllocated res_g_ineq(nx + nu + 1, ng_ineq);
+            interface.eval_Ggt_ineq((k == K-1) ? nullptr : uk_all[k].data(), xk_all[k].data(), &res_g_ineq.mat(), k);
+            for (int i = 0; i < res_g_ineq.m(); i++){
+                for (int j = 0; j < res_g_ineq.n(); j++){
+                    if (res_g_ineq(i,j) != 0.0){
+                        g_jac_nz.push_back(res_g_ineq(i,j));
+                    }
+                }
+            }
+
+            // also store the g_ineq values
+            VecRealAllocated res_g_ineq_val(ng_ineq);
+            interface.eval_gineq((k == K-1) ? nullptr : uk_all[k].data(), xk_all[k].data(), res_g_ineq_val.data(), k);
+            for (int i = 0; i < res_g_ineq_val.m(); i++){
+                g_vals.push_back(res_g_ineq_val(i));
+            }
+        }
+
+        // dynamics
+        if (k < K - 1){
+            MatRealAllocated res_dyn(nx + nu + 1, interface.get_nx(k+1));
+            interface.eval_BAbt(xk_all[k+1].data(), uk_all[k].data(), xk_all[k].data(), &res_dyn.mat(), k);
+            for (int i = 0; i < res_dyn.m(); i++){
+                for (int j = 0; j < res_dyn.n(); j++){
+                    if (res_dyn(i,j) != 0.0){
+                        g_jac_nz.push_back(-res_dyn(i,j));
+                    }
+                }
+            }
+            for (int i = 0; i < interface.get_nx(k+1); i++){
+                g_jac_nz.push_back(1.0); // identity part
+            }
+
+            // also store the dynamics values
+            VecRealAllocated res_dyn_val(interface.get_nx(k+1));
+            interface.eval_b(xk_all[k+1].data(), uk_all[k].data(), xk_all[k].data(), res_dyn_val.data(), k);
+            for (int i = 0; i < res_dyn_val.m(); i++){
+                g_vals.push_back(-res_dyn_val(i));
+            }
+        }
+    }
+
+
+
+
+    ////////////////////////
+    /// evaluate hessian ///
+    ////////////////////////
+    for (int k = 0; k < K; k++){
+        int ng = interface.get_ng(k);
+        int ng_ineq = interface.get_ng_ineq(k);
+        int nx = interface.get_nx(k);
+        int nu = interface.get_nu(k);
+
+        MatRealAllocated res_hess(nx + nu + 1, nx + nu);
+        Scalar objective_scale = 0.0;
+        interface.eval_RSQrqt(&objective_scale, 
+                       (k == K-1) ? nullptr : uk_all[k].data(), 
+                       xk_all[k].data(), 
+                       (k == K-1) ? nullptr : ((k < K-1) ? lam_dyn_all[k].data() : nullptr), 
+                       lam_g_eq_all[k].data(), 
+                       lam_g_ineq_all[k].data(),
+                       &res_hess.mat(), k);
+        for (int i = 0; i < res_hess.m(); i++){
+            for (int j = 0; j < res_hess.n(); j++){
+                // if (res_hess(i,j) != 0.0){
+                    hess_lag_nz.push_back(res_hess(i,j));
+                // }
+            }
+        }
+        // hess_lag_nz.push_back(10000000);
+    }
+
+
+
+
+
+    //////////////////////
+    /// write to files ///
+    //////////////////////
+    std::string g_vals_file_name = "interface_g_vals.txt";
+    std::cout << "Writing g values to " << g_vals_file_name << std::endl;
+    std::ofstream file_g(g_vals_file_name);
+    for (auto v : g_vals) file_g << v << std::endl;
+    file_g.close();
+
+    std::string g_jac_file_name = "interface_g_jac.txt";
+    std::cout << "Writing g_jac to " << g_jac_file_name << std::endl;
+    std::ofstream file(g_jac_file_name);
+    for (auto v : g_jac_nz) file << v << std::endl; 
+    file.close();
+
+    std::string hess_lag_file_name = "interface_hess_lag.txt";
+    std::cout << "Writing hess_lag to " << hess_lag_file_name << std::endl;
+    std::ofstream file2(hess_lag_file_name);
+    for (auto v : hess_lag_nz) file2 << v << std::endl;
+    file2.close();
+
+
+}
+
 #endif // __SHOW_INTERFACE_OUTPUT_HPP__
