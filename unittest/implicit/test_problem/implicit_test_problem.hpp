@@ -58,7 +58,6 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             eval_gK_ineq_ = Function("eval_gK_ineq" + ts, {xk}, eval_gK_ineq({xk}));
             eval_dynamics_equation_ = Function("eval_dynamics_equation" + ts, {uk, xk, xkp}, eval_dynamics_equation(ukxkxkp));
 
-            std::cout << "Creating derived functions" << std::endl;
             // Initialize derived functions
             MX lam_dyn_k = MX::sym("lam_dyn_k", nx_);
             MX lam_eq_k = MX::sym("lam_eq_k", eval_gk_.sparsity_out(0).size1());
@@ -95,37 +94,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             Jt_inv_ = Function("Jt_inv"+ts, {uk, xk, xkp},
                 {inv(Jt_(ukxkxkp)[0])});
    
-            
-            // FuFxt_ = Function("FuFxt"+ts, {uk, xk, xkp, lam_dyn_k}, 
-            //     {jacobian(                                                                      // (nu + nx) x nx
-            //         transpose(                                                                  // (nu + nx) x 1
-            //             jacobian(mtimes(transpose(lam_dyn_k), b_(ukxkxkp)[0]), vertcat(uk, xk)) // 1 x (nu + nx)
-            //         ), xkp)
-            //     });
-
             // construct lagrangian (containing uk, xk and potentially xkp) (omitting dynamics)
-            /*
-            MX lagrangian_k = obj_scale*eval_objk_(ukxk)[0] + \
-                mtimes(transpose(lam_dyn_k), b_(ukxkxkp)[0]) + \
-                mtimes(transpose(lam_eq_k), eval_gk_(ukxk)[0]) + \
-                mtimes(transpose(lam_ineq_k), eval_gk_ineq_(ukxk)[0]);
-            MX lagrangian_0 = obj_scale*eval_objk_(ukxk)[0] + \
-                mtimes(transpose(lam_dyn_k), b_(ukxkxkp)[0]) + \
-                mtimes(transpose(lam_eq_0), eval_g0_(ukxk)[0]) + \
-                mtimes(transpose(lam_ineq_k), eval_gk_ineq_(ukxk)[0]);
-            MX lagrangian_K = obj_scale*eval_objK_(xk)[0] + \
-                mtimes(transpose(lam_eq_K), eval_gK_(xk)[0]) + \
-                mtimes(transpose(lam_ineq_K), eval_gK_ineq_(xk)[0]);
-            lag_hess_k_ = Function("lag_hess_k"+ts, {uk, xk, xkp, lam_dyn_k, lam_eq_k, lam_ineq_k, obj_scale}, 
-                {transpose(hessian(lagrangian_k, vertcat(uk, xk)))});
-            lag_hess_0_ = Function("lag_hess_0"+ts, {uk, xk, xkp, lam_dyn_k, lam_eq_0, lam_ineq_k, obj_scale}, 
-                {transpose(hessian(lagrangian_0, vertcat(uk, xk)))});
-            lag_hess_K_ = Function("lag_hess_K"+ts, {xk, xkp, lam_dyn_k, lam_eq_K, lam_ineq_K, obj_scale}, 
-                {transpose(hessian(lagrangian_K, xk))});
-
-            dyn_hess_kp_ = Function("dyn_hess_kp"+ts, {uk, xk, xkp, lam_dyn_k}, 
-                {transpose(hessian(mtimes(transpose(lam_dyn_k), b_(ukxkxkp)[0]), xkp))});
-            */
             MX lagrangian_k = obj_scale*eval_objk_(ukxk)[0] + \
                 mtimes(transpose(lam_eq_k), eval_gk_(ukxk)[0]) + \
                 mtimes(transpose(lam_ineq_k), eval_gk_ineq_(ukxk)[0]);
@@ -162,9 +131,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             Jt_inv_sp_ = Jt_inv_.sparsity_out(0);
             // FuFxt_sp_ = FuFxt_.sparsity_out(0);
 
-            std::cout << "code generating" << std::endl;
             CodeGenerateAll();
-            std::cout << "done!" << std::endl;
         };
 
         virtual Index get_nx(const Index k) const { return nx_;}

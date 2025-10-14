@@ -1,3 +1,4 @@
+/*
 // quadruped_dynamics.cpp
 #include <iostream>
 #include <vector>
@@ -283,3 +284,4 @@ void PinocchioCasadi::SimulateFalling(){
 //     std::cout << "discrete_fn name: " << pc.discrete_fn.name() << "\n";
 //     return 0;
 // }
+*/

@@ -91,9 +91,9 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     ImplicitTestProblem tp_interface_impl = *tp_impl;
     ExplicitTestProblem tp_interface_expl = *tp_expl;
     ExplicitTestProblem tp_interface_reform = *tp_reform;
-    show_implicit_interface_output(tp_interface_impl, "output_interface_implicit.txt");
-    show_interface_output(tp_interface_expl, "output_interface_explicit.txt");
-    show_interface_output(tp_interface_reform, "output_interface_reformulated.txt");
+    // show_implicit_interface_output(tp_interface_impl, "output_interface_implicit.txt");
+    // show_interface_output(tp_interface_expl, "output_interface_explicit.txt");
+    // show_interface_output(tp_interface_reform, "output_interface_reformulated.txt");
 
     std::cout << "Generated test problems" << std::endl;
     std::string gen_type = generator->GetInterfaceName();
@@ -109,7 +109,7 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_reform = builder_reform.with_options_registry(&options).build();
     // options.set_option("mu_init", 100.0);
     options.set_option("max_iter", 100);
-    options.set_option("print_level", 12);
+    // options.set_option("print_level", 12);
     std::cout << "built ip algorithms" << std::endl;
 
     json result_expl, result_reform, result_impl;
@@ -259,23 +259,22 @@ void SolveAllPlanarRobot(){
 
 int main(int argc, char **argv)
 {
-    // PlanarRobot pr = PlanarRobot(3);
-    // pr.SolveOptiInstance();
-    // std::unique_ptr<InterfaceGenerator> temp_pr = std::make_unique<PlanarRobot>(3);
-    // SolveProblem(temp_pr);
-    // return 0;
-
     QuadrupedGenerator qg = QuadrupedGenerator();
-    // qg.pc_->SimulateFalling();
-    qg.SolveOptiInstance();
+    try{
+        qg.SolveOptiInstance();
+    } catch (std::exception& e){
+        std::cout << "Exception caught during falling simulation: " << e.what() << std::endl;
+    }
 
     // // create a directory ocp_results
     // int temp = system("mkdir -p ocp_results");
 
     std::unique_ptr<InterfaceGenerator> temp = std::make_unique<QuadrupedGenerator>();
-    SolveProblem(temp);
-    // std::cout << "implicit test problem is created" << std::endl;
-    // std::cout << "returning" << std::endl;
+    try{
+        SolveProblem(temp);
+    } catch (std::exception& e){
+        std::cout << "Exception caught during quadruped solve: " << e.what() << std::endl;
+    }
     return 0;
 
     if (argc < 3){

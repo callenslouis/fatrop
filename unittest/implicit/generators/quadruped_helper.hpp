@@ -1,6 +1,7 @@
 #ifndef __QUADRUPED_HELPER__
 #define __QUADRUPED_HELPER__
 
+/*
 // quadruped_dynamics.cpp
 #include <iostream>
 #include <vector>
@@ -71,5 +72,5 @@ public:
 //     std::cout << "discrete_fn name: " << pc.discrete_fn.name() << "\n";
 //     return 0;
 // }
-
+*/
 #endif

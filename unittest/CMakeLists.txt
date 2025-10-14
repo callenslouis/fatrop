@@ -39,9 +39,9 @@ find_package(Eigen3 REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIRS})
 
 # Add pinocchio
-find_package(pinocchio REQUIRED)
-include_directories(${PINOCCHIO_INCLUDE_DIRS})
-message(STATUS "Pinocchio include dirs: ${PINOCCHIO_INCLUDE_DIRS}")
+# find_package(pinocchio REQUIRED)
+# include_directories(${PINOCCHIO_INCLUDE_DIRS})
+# message(STATUS "Pinocchio include dirs: ${PINOCCHIO_INCLUDE_DIRS}")
 
 # Add the test executables
 add_executable(vector_test linear_algebra/vector_test.cpp)
@@ -60,9 +60,10 @@ add_executable(ip_search_dir_resto_test ocp/ip_search_dir_resto_test.cpp)
 add_executable(ip_initializer_test ip_algorithm/ip_initializer_test.cpp)
 add_executable(ip_filter_test ip_algorithm/ip_filter_test.cpp)
 add_executable(options_test common/options_test.cpp)
-# add_executable(implicit_ocp_test implicit/implicit_ocp_test.cpp implicit/generators/quadruped_helper.cpp)
+add_executable(implicit_ocp_test implicit/implicit_ocp_test.cpp)
 #add_executable(test_jacobian_decomposition implicit/test_jacobian_decomposition.cpp)
-add_executable(generate_models implicit/quadruped/cpp/generate_models.cpp implicit/quadruped/cpp/quadruped_helper_pinocchio.cpp)
+# add_executable(generate_models implicit/quadruped/cpp/generate_models.cpp implicit/quadruped/cpp/quadruped_helper_pinocchio.cpp)
+add_executable(casadi_test implicit/casadi_test.cpp)
 
 # target_precompile_headers(implicit_ocp_test PRIVATE implicit/generators/pch.hpp)
 
@@ -72,7 +73,6 @@ target_link_libraries(options_test GTest::gtest GTest::gtest_main fatrop)
 target_link_libraries(matrix_test GTest::gtest GTest::gtest_main blasfeo fatrop)
 target_link_libraries(lu_factorization_test GTest::gtest GTest::gtest_main blasfeo fatrop)
 target_link_libraries(jacobian_hessian_test GTest::gtest GTest::gtest_main blasfeo fatrop)
-# target_link_libraries(aug_system_solver_test GTest::gtest GTest::gtest_main blasfeo fatrop ${CASADI_LIBRARIES})
 target_link_libraries(aug_system_solver_test GTest::gtest GTest::gtest_main blasfeo fatrop casadi::casadi)
 target_link_libraries(problem_info_test GTest::gtest GTest::gtest_main blasfeo fatrop)
 target_link_libraries(pd_system_solver_test GTest::gtest GTest::gtest_main blasfeo fatrop)
@@ -85,9 +85,10 @@ target_link_libraries(ip_search_dir_resto_test GTest::gtest GTest::gtest_main bl
 target_link_libraries(ip_initializer_test GTest::gtest GTest::gtest_main blasfeo fatrop)
 target_link_libraries(ip_filter_test GTest::gtest GTest::gtest_main blasfeo fatrop)
 
-# target_link_libraries(implicit_ocp_test blasfeo fatrop casadi::casadi pinocchio::pinocchio)
+target_link_libraries(implicit_ocp_test blasfeo fatrop casadi::casadi)
 # target_link_libraries(test_jacobian_decomposition blasfeo casadi fatrop pinocchio::pinocchio)
-target_link_libraries(generate_models blasfeo fatrop pinocchio::pinocchio)
+# target_link_libraries(generate_models blasfeo fatrop pinocchio::pinocchio)
+target_link_libraries(casadi_test casadi::casadi)
 
 # Discover and add the tests
 gtest_discover_tests(vector_test)

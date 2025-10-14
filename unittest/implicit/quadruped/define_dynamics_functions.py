@@ -20,7 +20,9 @@ functions = [explicit_integrator, implicit_integrator]
 names = ["quadruped_explicit_integrator", "quadruped_implicit_integrator"]
 
 for f, n in zip(functions, names):
-    f.generate(f"{n}.c")
-    subprocess.run(["gcc", "-fPIC", "-shared", f"{n}.c", "-o", f"{n}.so"], check=True)
-    shutil.move(f"{n}.c", f"build/unittest/{n}.c")
-    shutil.move(f"{n}.so", f"build/unittest/{n}.so")
+    # f.generate(f"{n}.c")
+    # subprocess.run(["gcc", "-fPIC", "-shared", f"{n}.c", "-o", f"{n}.so"], check=True)
+    # shutil.move(f"{n}.c", f"build/unittest/{n}.c")
+    # shutil.move(f"{n}.so", f"build/unittest/{n}.so")
+
+    f.save(f"build/unittest/{n}.casadi")

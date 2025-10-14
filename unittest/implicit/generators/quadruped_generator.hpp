@@ -78,32 +78,29 @@ class QuadrupedGenerator : public InterfaceGenerator {
             // eval_gk_ineq_ = Function("eval_gk_ineq", {uk_, xk_}, {z});
             eval_gK_ineq_ = Function("eval_gK_ineq", {xk_}, {z});
 
-            pc_ = std::make_unique<PinocchioCasadi>(dt_);
+            // pc_ = std::make_unique<PinocchioCasadi>(dt_);
             // pc_.SimulateFalling();
+
+            // load the casadi dynamics functions
+            expl_dyn_ = Function::load("quadruped_explicit_integrator.casadi");
+            impl_dyn_ = Function::load("quadruped_implicit_integrator.casadi");
         };
 
         virtual ImplicitTestProblem PrepareImplicit(){
-            MXVector in = {q_, v_, uk_};
-            MXVector out = pc_->discrete_fn(in);
-            MX qnext = out[0];
-            MX vnext = out[1];
-            Function eval_dynamics_equation_implicit = 
-                Function("eval_dynamics_equataion", {uk_, xk_, xkp_}, {vertcat(qnext - q_p_, vnext - v_p_)});
-
             return ImplicitTestProblem(K_, nx_, nu_, 
                     x_init_, u_init_, 
                     lb_, ub_, lb_K_, ub_K_,
                     eval_objk_, eval_objK_, eval_gk_, eval_g0_, eval_gK_, eval_gk_ineq_, eval_gK_ineq_,
-                    eval_dynamics_equation_implicit);
+                    impl_dyn_);
         }
 
         virtual ExplicitTestProblem PrepareExplicit(){
             // normal appraoch
-            MXVector in = {q_, v_, uk_};
-            MXVector out = pc_->discrete_fn(in);
-            MX qnext = out[0];
-            MX vnext = out[1];
-            Function eval_dynamics_equation_explicit = Function("eval_dynamics_equation", {uk_, xk_}, {vertcat(qnext, vnext)});
+            // MXVector in = {q_, v_, uk_};
+            // MXVector out = pc_->discrete_fn(in);
+            // MX qnext = out[0];
+            // MX vnext = out[1];
+            // Function eval_dynamics_equation_explicit = Function("eval_dynamics_equation", {uk_, xk_}, {vertcat(qnext, vnext)});
 
             // no dynamics
             // MX xnext = MX(nx_, 1);
@@ -127,24 +124,22 @@ class QuadrupedGenerator : public InterfaceGenerator {
                     x_init_, u_init_,
                     lb_, ub_, lb_K_, ub_K_,
                     eval_objk_, eval_objK_, eval_gk_, eval_g0_, eval_gK_,
-                    eval_gk_ineq_, eval_gK_ineq_, eval_dynamics_equation_explicit);
+                    eval_gk_ineq_, eval_gK_ineq_, expl_dyn_);
         }
 
         virtual ExplicitTestProblem PrepareReformulated(){
             MX zk = MX::sym("zk", nx_);
             MX uk_aug = vertcat(uk_, zk);
             MXVector ukxk = {uk_, xk_};
-            eval_objk_(ukxk);
 
             Function eval_objk = Function("eval_objk", {uk_aug, xk_}, {eval_objk_(ukxk)[0]});
             Function eval_gk_ineq = Function("eval_gk_ineq", {uk_aug, xk_}, {eval_gk_ineq_(ukxk)[0]});
 
-            MXVector in = {q_, v_, uk_};
-            MXVector out = pc_->discrete_fn(in);
-            MX qnext = out[0];
-            MX vnext = out[1];
-            Function eval_g0 = Function("eval_g0", {uk_aug, xk_}, {vertcat(eval_g0_(ukxk)[0], vertcat(qnext, vnext) - zk)});
-            Function eval_gk = Function("eval_gk", {uk_aug, xk_}, {vertcat(qnext, vnext) - zk});
+            MXVector in = {uk_, xk_, zk};
+            MXVector out = impl_dyn_(in);
+            MX xnext = out[0];
+            Function eval_g0 = Function("eval_g0", {uk_aug, xk_}, {vertcat(eval_g0_(ukxk)[0], xnext - zk)});
+            Function eval_gk = Function("eval_gk", {uk_aug, xk_}, {xnext - zk});
 
             Function eval_dynamics_equation_reformulated = Function("eval_dynamics_equation", {uk_aug, xk_}, {zk});
 
@@ -168,11 +163,11 @@ class QuadrupedGenerator : public InterfaceGenerator {
         }
 
         void SolveOptiInstance(){
-            MXVector in = {q_, v_, uk_};
-            MXVector out = pc_->discrete_fn(in);
-            MX qnext = out[0];
-            MX vnext = out[1];
-            Function eval_dynamics_equation_explicit = Function("eval_dynamics_equation", {uk_, xk_}, {vertcat(qnext, vnext)});
+            MXVector in = {uk_, vertcat(q_, v_)};
+            // MXVector out = pc_->discrete_fn(in);
+            MXVector out = expl_dyn_(in);
+            MX xnext = out[0];
+            Function eval_dynamics_equation_explicit = Function("eval_dynamics_equation", {uk_, xk_}, {xnext});
 
             Opti opti = Opti();
             int N = K_-1;
@@ -249,7 +244,7 @@ class QuadrupedGenerator : public InterfaceGenerator {
             Dict casadi_opts;
             Dict solver_opts;
             casadi_opts["structure_detection"] = "auto";
-            casadi_opts["fatrop.print_level"] = 12;
+            // casadi_opts["fatrop.print_level"] = 12;
             casadi_opts["fatrop.mu_init"] = 0.1;
             solver_opts["max_iter"] = 1000;
             // solver_opts["mu_init"] = 0.1;
@@ -276,7 +271,7 @@ class QuadrupedGenerator : public InterfaceGenerator {
     virtual std::string GetInterfaceName(){ return "quadruped";};
     virtual std::string GetFileNameAppendix(){return "";};
 
-        std::unique_ptr<PinocchioCasadi> pc_;
+        // std::unique_ptr<PinocchioCasadi> pc_;
     private:
         int K_ = 100;
         int nq_ = 3 + 4 + 12;
@@ -335,6 +330,9 @@ class QuadrupedGenerator : public InterfaceGenerator {
         Function eval_gK_;
         Function eval_gk_ineq_;
         Function eval_gK_ineq_;
+
+        Function expl_dyn_;
+        Function impl_dyn_;
 };
 
 #endif
