@@ -108,7 +108,7 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_expl = builder_expl.with_options_registry(&options).build();
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_reform = builder_reform.with_options_registry(&options).build();
     // options.set_option("mu_init", 100.0);
-    options.set_option("max_iter", 10);
+    options.set_option("max_iter", 100);
     // options.set_option("print_level", 12);
     std::cout << "built ip algorithms" << std::endl;
 
@@ -137,7 +137,29 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     } catch (std::exception& e){
         std::cout << "Exception caught during explicit solve: " << e.what() << std::endl;
     }
-    
+
+    // IMPLICIT
+    try{
+        std::cout << "solving implicit test problem" << std::endl;
+        Timer timer_impl; timer_impl.start();
+        IpSolverReturnFlag ret_impl = ipalg_impl->optimize();
+        std::cout << "Elapsed time: " << timer_impl.stop() << std::endl;
+        auto data_impl = builder_impl.get_ipdata();
+        result_impl = add_json_data(data_impl, "implicit");
+        result_impl["generator_data"] = generator->GetJsonData();
+        std::ofstream file("ocp_results/ocp_result_implicit_" + gen_type + "_" + file_name_appendix + ".json");
+        if (STORE_SOLUTION){
+            if (file.is_open())
+            {
+                file << result_impl.dump(4);
+                file.close();
+            }
+        }
+        solved_impl = true;
+    } catch (std::exception& e){
+        std::cout << "Exception caught during implicit solve: " << e.what() << std::endl;
+    }
+
     // REFORMULATED
     try{
         std::cout << "solving reformulated test problem" << std::endl;
@@ -158,28 +180,6 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
         solved_reform = true;
     } catch (std::exception& e){
         std::cout << "Exception caught during reformulated solve: " << e.what() << std::endl;
-    }
-
-    // IMPLICIT
-    try{
-        std::cout << "solving implicit test problem" << std::endl;
-        Timer timer_impl; timer_impl.start();
-        IpSolverReturnFlag ret_impl = ipalg_impl->optimize();
-        std::cout << "Elapsed time: " << timer_impl.stop() << std::endl;
-        auto data_impl = builder_impl.get_ipdata();
-        result_impl = add_json_data(data_impl, "implicit");
-        result_impl["generator_data"] = generator->GetJsonData();
-        std::ofstream file("ocp_results/ocp_result__implicit_" + gen_type + "_" + file_name_appendix + ".json");
-        if (STORE_SOLUTION){
-            if (file.is_open())
-            {
-                file << result_impl.dump(4);
-                file.close();
-            }
-        }
-        solved_impl = true;
-    } catch (std::exception& e){
-        std::cout << "Exception caught during implicit solve: " << e.what() << std::endl;
     }
     
 
@@ -271,8 +271,8 @@ int main(int argc, char **argv)
 
     std::unique_ptr<InterfaceGenerator> temp = std::make_unique<QuadrupedGenerator>();
     try{
-        ExplicitTestProblem tp = temp->PrepareExplicit();
-        print_jac_and_hess(tp);
+        // ExplicitTestProblem tp = temp->PrepareExplicit();
+        // print_jac_and_hess(tp);
         SolveProblem(temp);
     } catch (std::exception& e){
         std::cout << "Exception caught during quadruped solve: " << e.what() << std::endl;

@@ -11,7 +11,7 @@ from helper import *
 import subprocess
 import shutil
 
-dt = 0.02
+dt = 0.03
 quad = QuadrupedDynamics(timestep=dt)
 
 explicit_integrator, implicit_integrator = quad.create_discrete_dynamics()

@@ -36,8 +36,8 @@ class QuadrupedGenerator : public InterfaceGenerator {
                     standing_leg_q_.begin(), standing_leg_q_.end());
 
             for (int i = 0; i < nq_; i++){start_[i] = standing_stance_[i];}
-            start_[nq_] = 0*push_vx_;
-            start_[nq_ + 1] = 0*push_vy_;
+            start_[nq_] = push_vx_;
+            start_[nq_ + 1] = push_vy_;
 
             // define initial guess
             x_init_ = std::vector<std::vector<double>>(K_+1, std::vector<double>(nx_, 0.0));
@@ -89,6 +89,9 @@ class QuadrupedGenerator : public InterfaceGenerator {
             // load the casadi dynamics functions
             expl_dyn_ = Function::load("quadruped_explicit_integrator.casadi");
             impl_dyn_ = Function::load("quadruped_implicit_integrator.casadi");
+
+            // for now, wrap the expl dynamics in an impl dynamics function
+            // impl_dyn_ = Function("impl_dyn", {uk_, xk_, xkp_}, {expl_dyn_(MXVector{uk_, xk_})[0] - xkp_});
         };
 
         virtual ImplicitTestProblem PrepareImplicit(){
@@ -113,11 +116,15 @@ class QuadrupedGenerator : public InterfaceGenerator {
             MX uk_aug = vertcat(uk_, zk);
             MXVector ukxk = {uk_, xk_};
 
-            Function eval_objk = Function("eval_objk", {uk_aug, xk_}, {eval_objk_(ukxk)[0]});
+            MX zk_sum = MX(0);
+            for (int i = 0; i < nx_; i++) zk_sum += zk(i);
+            Function eval_objk = Function("eval_objk", {uk_aug, xk_}, {eval_objk_(ukxk)[0] + 1e-5*zk_sum});
             Function eval_gk_ineq = Function("eval_gk_ineq", {uk_aug, xk_}, {eval_gk_ineq_(ukxk)[0]});
 
             MXVector in = {uk_, xk_, zk};
             MXVector out = impl_dyn_(in);
+            // MXVector in = {uk_, xk_};
+            // MXVector out = expl_dyn_(in);
             MX xnext = out[0];
             Function eval_g0 = Function("eval_g0", {uk_aug, xk_}, {vertcat(eval_g0_(ukxk)[0], xnext - zk)});
             Function eval_gk = Function("eval_gk", {uk_aug, xk_}, {xnext - zk});
@@ -220,7 +227,7 @@ class QuadrupedGenerator : public InterfaceGenerator {
             casadi_opts["structure_detection"] = "auto";
             // casadi_opts["fatrop.print_level"] = 12;
             casadi_opts["fatrop.mu_init"] = 0.1;
-            solver_opts["max_iter"] = 10;
+            solver_opts["max_iter"] = 100;
             // solver_opts["mu_init"] = 0.1;
             // solver_opts["print_level"] = 7;
 
@@ -232,7 +239,7 @@ class QuadrupedGenerator : public InterfaceGenerator {
                 std::cout << "Exception: " << e.what() << std::endl;
             }
 
-
+            /*
             /// define functions ///
             MX opti_x = opti.x();
             MX opti_g = opti.g();
@@ -367,6 +374,7 @@ class QuadrupedGenerator : public InterfaceGenerator {
                     }
                 }
             }
+            */
         }
 
         virtual json GetJsonData(){
@@ -387,16 +395,16 @@ class QuadrupedGenerator : public InterfaceGenerator {
 
         // std::unique_ptr<PinocchioCasadi> pc_;
     private:
-        int K_ = 4;
+        int K_ = 50;
         int nq_ = 3 + 4 + 12;
         int nx_ = 2*nq_ - 1;
         int nu_ = 12;
-        double dt_ = 0.02;
-        double uk_min_ = -100;
-        double uk_max_ = 100;
+        double dt_ = 0.03;
+        double uk_min_ = -50;
+        double uk_max_ = 50;
 
-        double push_vx_ = 0*1.5;
-        double push_vy_ = 0*2.0;
+        double push_vx_ = 0.9*1.5;
+        double push_vy_ = 0.9*2.0;
 
 
         MX base_pos_ = MX::sym("base_pos", 3);

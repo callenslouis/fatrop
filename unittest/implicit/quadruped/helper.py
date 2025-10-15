@@ -23,16 +23,16 @@ def sigmoid(x):
         return 1 / (1 + np.exp(-x))
         
 def ground_reaction_force(p, v):
-    return np.array([0, 0, 0])
+    # return np.array([0, 0, 0])
     # Ground stiffness and damping parameters
-    # k_ground = 200  # N/m
-    # d_ground = 600  # N·s/m
-    # alpha_k = 40
-    # alpha_d = 40
-    k_ground = 0
-    d_ground = 0
-    alpha_k = 0
-    alpha_d = 0
+    k_ground = 200  # N/m
+    d_ground = 600  # N·s/m
+    alpha_k = 40
+    alpha_d = 40
+    # k_ground = 0
+    # d_ground = 0
+    # alpha_k = 0
+    # alpha_d = 0
 
     penetration = -p[2]
     fx = -d_ground * sigmoid(alpha_d*penetration)*v[0]
@@ -108,8 +108,8 @@ class PinocchioCasadi:
 
         dt = self.timestep
         vnext = v + a * dt
-        # qnext = cpin.integrate(self.cmodel, q, dt * vnext)
-        qnext = q + casadi.vertcat(0, dt * vnext)
+        qnext = cpin.integrate(self.cmodel, q, dt * vnext)
+        # qnext = q + casadi.vertcat(0, dt * vnext)
 
         x = casadi.vertcat(q, v)
         xnext = casadi.vertcat(qnext, vnext)
@@ -128,13 +128,16 @@ class PinocchioCasadi:
         qnext = casadi.SX.sym("qnext", self.model.nq)
         vnext = casadi.SX.sym("vnext", self.model.nv)
         xnext = casadi.vertcat(qnext, vnext)
-        a, temp = self.acc_func(qnext, vnext, u)
+        a_start, _ = self.acc_func(q, v, u)
+        a_end, _ = self.acc_func(qnext, vnext, u)
+        # a = 0.5 * (a_start + a_end)
+        a = a_end
 
         dt = self.timestep
         x = casadi.vertcat(q, v)
         dyn_equations = \
-            casadi.vertcat(v + a * dt - vnext,
-                           cpin.integrate(self.cmodel, q, dt * vnext) - qnext)
+            casadi.vertcat(cpin.integrate(self.cmodel, q, dt * vnext) - qnext,
+                           v + a * dt - vnext)
 
         implicit_integrator = casadi.Function(
             "quadruped_implicit_integrator",
