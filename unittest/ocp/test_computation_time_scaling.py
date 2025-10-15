@@ -771,7 +771,8 @@ if __name__ == "__main__":
         show_flops_2d_plot_all_cases(data_all_cases, ax=axs[3], independent_var='ng')
         show_flops_2d_plot_all_cases(data_all_cases, ax=axs[4], independent_var='ng_ineq')
         add_legend_below(fig)
-        plt.savefig("unittest/ocp/figures/flop_count_scaling.png", dpi=300)
+        # plt.savefig("unittest/ocp/figures/flop_count_scaling.png", dpi=300)
+        plt.savefig("unittest/ocp/figures/flop_count_scaling.svg")
     
     ### simplified 2d figure of experimental results
     if VISUALIZE_EXPERIMENTS:
@@ -784,7 +785,8 @@ if __name__ == "__main__":
         show_2d_plot_all_cases(data_all_cases, ax=axs[3], independent_var='ng', implicit_timings_details=timing_details_implicit)
         show_2d_plot_all_cases(data_all_cases, ax=axs[4], independent_var='ng_ineq', implicit_timings_details=timing_details_implicit)
         add_legend_below(fig, timing_details=timing_details_implicit)
-        plt.savefig("unittest/ocp/figures/t_comp_scaling.png", dpi=300)
+        # plt.savefig("unittest/ocp/figures/t_comp_scaling.png", dpi=300)
+        plt.savefig("unittest/ocp/figures/t_comp_count_scaling.svg")
     
     ### visualize speedup
     if VISUALIZE_SPEEDUP:
@@ -798,7 +800,8 @@ if __name__ == "__main__":
         show_speedup_2d_plot_all_cases(data_all_cases, ax=axs[4], independent_var='ng_ineq')
         # add_legend_below(fig)
         plt.tight_layout()
-        plt.savefig("unittest/ocp/figures/speedup_scaling.png", dpi=300)
+        # plt.savefig("unittest/ocp/figures/speedup_scaling.png", dpi=300)
+        plt.savefig("unittest/ocp/figures/speedup_scaling.svg")
 
     ### visualize expected speedup
     if VISUALIZE_EXPECTED_SPEEDUP:
@@ -812,12 +815,14 @@ if __name__ == "__main__":
         show_speedup_2d_plot_all_cases(data_all_cases, show_expected_speedup=True, ax=axs[4], independent_var='ng_ineq')
         # add_legend_below(fig)
         plt.tight_layout()
-        plt.savefig("unittest/ocp/figures/expected_speedup_scaling.png", dpi=300)
+        # plt.savefig("unittest/ocp/figures/expected_speedup_scaling.png", dpi=300)
+        plt.savefig("unittest/ocp/figures/expected_speedup_scaling.svg")
 
     if VISUALIZE_2D_SPEEDUP:
         print(f"Visualizing 2d speedup")
         show_speedup_heatmap_all_plots(data_implicit, data_reformulation, ['nx', 'nu', 'K', 'ng', 'ng_ineq'])
-        plt.savefig("unittest/ocp/figures/speedup_heatmap.png", dpi=300)
+        # plt.savefig("unittest/ocp/figures/speedup_heatmap.png", dpi=300)
+        plt.savefig("unittest/ocp/figures/speedup_heatmap.svg")
 
     plt.show()
 

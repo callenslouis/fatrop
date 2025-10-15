@@ -108,7 +108,7 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_expl = builder_expl.with_options_registry(&options).build();
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_reform = builder_reform.with_options_registry(&options).build();
     // options.set_option("mu_init", 100.0);
-    options.set_option("max_iter", 100);
+    options.set_option("max_iter", 10);
     // options.set_option("print_level", 12);
     std::cout << "built ip algorithms" << std::endl;
 

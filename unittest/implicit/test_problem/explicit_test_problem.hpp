@@ -183,7 +183,7 @@ class ExplicitTestProblem : public OcpAbstract{
                     // full_hess(Slice(row_start, row_start + nu), Slice(col_start + nu, col_start + nu + nx)) = hess_ux;
                     // full_hess(Slice(row_start + nu, row_start + nu + nx), Slice(col_start, col_start + nu)) = hess_xu;
                     // full_hess(Slice(row_start + nu, row_start + nu + nx), Slice(col_start + nu, col_start + nu + nx)) = hess_xx;
-                    full_hess(Slice(row_start, row_start + nx), Slice(col_start, col_start + nx)) += hess_xx;
+                    full_hess(Slice(row_start, row_start + nx), Slice(col_start, col_start + nx)) = hess_xx;
                     full_hess(Slice(row_start, row_start + nx), Slice(col_start + nx, col_start + nx + nu)) = hess_xu;
                     full_hess(Slice(row_start + nx, row_start + nx + nu), Slice(col_start, col_start + nx)) = hess_ux;
                     full_hess(Slice(row_start + nx, row_start + nx + nu), Slice(col_start + nx, col_start + nx + nu)) = hess_uu;
@@ -374,14 +374,14 @@ class ExplicitTestProblem : public OcpAbstract{
             std::vector<const double*> arg_in = {inputs_k, states_k};
             std::vector<double*> arg_out = {res};
             eval_dynamics_equation_gc_(arg_in, arg_out);
-            for (int i = 0; i < get_nx(k); i++){
+            for (int i = 0; i < get_nx(k+1); i++){
                 res[i] -= states_kp1[i];
             }
             
             if (DEBUG_PRINT){
                 std::cout << __func__ << " [" << k << "]" << std::endl;
                 std::cout << "b: ";
-                for (Index i = 0; i < get_nx(k); ++i) {
+                for (Index i = 0; i < get_nx(k+1); ++i) {
                     std::cout << res[i] << " ";
                 }
                 std::cout<<std::endl;

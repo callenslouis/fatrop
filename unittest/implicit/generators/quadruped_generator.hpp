@@ -56,26 +56,34 @@ class QuadrupedGenerator : public InterfaceGenerator {
             }
 
             // define functions
-            eval_objk_ = Function("eval_objk", {uk_, xk_},
+            MX uk_sum = MX(0);
+            for (int i = 0; i < nu_; i++) uk_sum += uk_(i);
+            MX xk_sum = MX(0);
+            for (int i = 0; i < nx_; i++) xk_sum += xk_(i);
+            eval_objk_ = Function("eval_objk", {uk_, xk_}, //{0});
                 {1 * 1e1*sumsqr(base_pos_ - original_standing_body_pos_) + 
                  1 * 1e3*sumsqr(base_quat_ - standing_body_quat_) +
                  1 * 1e1*sumsqr(v_(Slice(0,3))) +
                  1 * 1e0*sumsqr(v_) +
-                 1 * 1e5*(sumsqr(uk_) + 0*sumsqr(xk_))});
+                 0 * 1e5*(sumsqr(uk_) + 0*sumsqr(xk_)) +
+                 1 * 1.0e-5*(uk_sum + xk_sum) +
+                 0 * uk_(0)*uk_(0) +
+                 0 * v_(0)*v_(0) +
+                 0 * 1e0*sumsqr(v_)});
             eval_objK_ = Function("eval_objK", {xk_}, //{0});
                 {1 * 1e3*sumsqr(v_) + 
                  1 * 1e3*(sumsqr(base_quat_ - standing_body_quat_) + 
                       sumsqr(leg_q_ - standing_leg_q_)) +
-                      0 * sumsqr(xk_)});
+                 1 * 1.0e-5*xk_sum});
             
             
             MX z = MX::zeros(0,1);
-            // eval_g0_ = Function("eval_g0", {uk_, xk_}, {xk_ - start_});
-            eval_g0_ = Function("eval_g0", {uk_, xk_}, {z});
+            eval_g0_ = Function("eval_g0", {uk_, xk_}, {xk_ - start_});
+            // eval_g0_ = Function("eval_g0", {uk_, xk_}, {z});
             eval_gk_ = Function("eval_gk", {uk_, xk_}, {z});
             eval_gK_ = Function("eval_gK", {xk_}, {z});
-            // eval_gk_ineq_ = Function("eval_gk_ineq", {uk_, xk_}, {uk_});
-            eval_gk_ineq_ = Function("eval_gk_ineq", {uk_, xk_}, {z});
+            eval_gk_ineq_ = Function("eval_gk_ineq", {uk_, xk_}, {uk_});
+            // eval_gk_ineq_ = Function("eval_gk_ineq", {uk_, xk_}, {z});
             eval_gK_ineq_ = Function("eval_gK_ineq", {xk_}, {z});
 
             // load the casadi dynamics functions
@@ -159,9 +167,9 @@ class QuadrupedGenerator : public InterfaceGenerator {
             MX vv = vertcat(vv_list);
             MX uu = vertcat(uu_list);
 
-            // if (eval_g0_.sparsity_out(0).size1() > 0){
-            //     opti.subject_to(eval_g0_(MXVector{uu_list[0], vertcat(qq_list[0], vv_list[0])})[0] == DM::zeros(eval_g0_.sparsity_out(0).size1()));
-            // }
+            if (eval_g0_.sparsity_out(0).size1() > 0){
+                opti.subject_to(eval_g0_(MXVector{uu_list[0], vertcat(qq_list[0], vv_list[0])})[0] == DM::zeros(eval_g0_.sparsity_out(0).size1()));
+            }
             
             for (int k = 0; k < N; k++){
                 MX qk = qq_list[k];
@@ -176,9 +184,9 @@ class QuadrupedGenerator : public InterfaceGenerator {
                 opti.subject_to(qq_list[k+1] == q_next);
                 opti.subject_to(vv_list[k+1] == v_next);
 
-                // if (eval_gk_ineq_.sparsity_out(0).size1() > 0){
-                //     opti.subject_to(uk_min_ <= (eval_gk_ineq_(MXVector{uk, x})[0] <= uk_max_));
-                // }
+                if (eval_gk_ineq_.sparsity_out(0).size1() > 0){
+                    opti.subject_to(uk_min_ <= (eval_gk_ineq_(MXVector{uk, x})[0] <= uk_max_));
+                }
             }
 
             MX obj = 0;
@@ -212,7 +220,7 @@ class QuadrupedGenerator : public InterfaceGenerator {
             casadi_opts["structure_detection"] = "auto";
             // casadi_opts["fatrop.print_level"] = 12;
             casadi_opts["fatrop.mu_init"] = 0.1;
-            solver_opts["max_iter"] = 1000;
+            solver_opts["max_iter"] = 10;
             // solver_opts["mu_init"] = 0.1;
             // solver_opts["print_level"] = 7;
 
@@ -224,6 +232,8 @@ class QuadrupedGenerator : public InterfaceGenerator {
                 std::cout << "Exception: " << e.what() << std::endl;
             }
 
+
+            /// define functions ///
             MX opti_x = opti.x();
             MX opti_g = opti.g();
             MX lam_g = opti.lam_g();
@@ -231,15 +241,15 @@ class QuadrupedGenerator : public InterfaceGenerator {
             Function g_vals = Function("g_vals", {opti_x}, {opti_g});
             Function g_jac = Function("g_jac", {opti_x}, {jacobian(opti_g, opti_x)});
             Function hess_lag = Function("hes_lag", {opti_x, lam_g}, 
-                {hessian(0*opti_f + mtimes(transpose(lam_g), opti_g), opti_x)});
+                {hessian(opti_f + mtimes(transpose(lam_g), opti_g), opti_x)});
             std::cout << "g_jac: " << g_jac << std::endl;
             std::cout << "hess_lag: " << hess_lag << std::endl;
             
+
+
+            /// define variable values ///
             DM x_numeric = DM(opti_x.size());
             int x_numeric_ptr = 0;
-            // for (int i = 0; i < opti_x.size1(); i++){
-            //     x_numeric(i) = 1*i;
-            // }
             for (int k = 0; k < N + 1; k++){
                 for (int i = 0; i < nx_; i++){
                     x_numeric(x_numeric_ptr) = x_init_[0][i];
@@ -255,13 +265,20 @@ class QuadrupedGenerator : public InterfaceGenerator {
             }
             DM lam_g_numeric = DM(lam_g.size());
             for (int i = 0; i < lam_g.size1(); i++){
-                lam_g_numeric(i) = 2*i;
+                lam_g_numeric(i) = 0.2*i;
             }
+
+
+
+            /// evaluate functions ///
             DM g_vals_numeric = g_vals(DMVector{x_numeric})[0];
             DM g_jac_numeric = g_jac(DMVector{x_numeric})[0];
             DM hess_lag_numeric = hess_lag(DMVector{x_numeric, lam_g_numeric})[0];
             
-            // write matrices to file
+            
+            
+            
+            /// write function output to file ///
             std::ofstream file;
             file.open("opti_g_vals.txt");
             for (int i = 0; i < g_vals_numeric.size1(); i++){
@@ -290,15 +307,47 @@ class QuadrupedGenerator : public InterfaceGenerator {
             }
             file.close();    
 
+
+
+
+            /// construct full hess functions ///
+            // randomize x_numeric en lam_g_numeric
+            for (int i = 0; i < x_numeric.size1(); i++){
+                x_numeric(i) = double(rand()) / double(RAND_MAX);
+            }
+            for (int i = 0; i < lam_g_numeric.size1(); i++){
+                lam_g_numeric(i) = double(rand()) / double(RAND_MAX);
+            }
             Function opti_full_hess = hess_lag;
             ExplicitTestProblem etp = PrepareExplicit();
             Function interface_full_hess = etp.build_full_hessian();
             std::cout << "opti_full_hess: " << opti_full_hess << std::endl;
             std::cout << "interface_full_hess: " << interface_full_hess << std::endl;
-
             DM opti_full_hess_numeric = opti_full_hess(DMVector{x_numeric, lam_g_numeric})[0];
             DM interface_full_hess_numeric = interface_full_hess(DMVector{x_numeric, lam_g_numeric})[0];
 
+
+
+            /// check equality of full hess ///
+            if (false){
+                std::cout << "checking equality: " << std::endl;
+                DM equality_mtx = opti_full_hess_numeric - interface_full_hess_numeric;
+                for (int i = 0; i < equality_mtx.size1(); i++){
+                    for (int j = 0; j < equality_mtx.size2(); j++){
+                        if (double(equality_mtx(i,j)) > 1.0e-16){
+                            std::cout << "First non-equal entry at (" << i << "," << j << "): " 
+                                    << opti_full_hess_numeric(i,j) << " != " 
+                                    << interface_full_hess_numeric(i,j) 
+                                    << " (" << equality_mtx(i,j) << ")" << std::endl;
+                            // throw std::runtime_error("Matrices are not equal!");
+                        }
+                    }
+                }
+            }
+
+
+
+            /// write full hess to file ///
             file.open("opti_full_hess.txt");
             for (int i = 0; i < opti_full_hess_numeric.size1(); i++){
                 for (int j = 0; j < opti_full_hess_numeric.size2(); j++){

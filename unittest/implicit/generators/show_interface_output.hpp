@@ -489,7 +489,7 @@ void print_jac_and_hess(OcpAbstractTpl<OcpAbstractDynamic>& interface){
     std::vector<VecRealAllocated> lam_dyn_all; lam_dyn_all.reserve(K-1);
     std::vector<VecRealAllocated> lam_g_eq_all; lam_g_eq_all.reserve(K);
     std::vector<VecRealAllocated> lam_g_ineq_all; lam_g_ineq_all.reserve(K);    
-    var_count = 0; s = 2;
+    var_count = 0; s = 0.2;
     for (int k = 0; k < K; k++){
         lam_g_eq_all.emplace_back(interface.get_ng(k));
         for (int i = 0; i < interface.get_ng(k); i++) lam_g_eq_all[k](i) = (var_count + i)*s;
@@ -613,14 +613,15 @@ void print_jac_and_hess(OcpAbstractTpl<OcpAbstractDynamic>& interface){
         int nu = interface.get_nu(k);
 
         MatRealAllocated res_hess(nx + nu + 1, nx + nu);
-        Scalar objective_scale = 0.0;
+        Scalar objective_scale = 1.0;
         interface.eval_RSQrqt(&objective_scale, 
                        (k == K-1) ? nullptr : uk_all[k].data(), 
                        xk_all[k].data(), 
-                       (k == K-1) ? nullptr : ((k < K-1) ? lam_dyn_all[k].data() : nullptr), 
+                       (k == K-1) ? nullptr : lam_dyn_all[k].data(), 
                        lam_g_eq_all[k].data(), 
                        lam_g_ineq_all[k].data(),
                        &res_hess.mat(), k);
+        // blasfeo_print_dmat(nx + nu + 1, nx + nu, &res_hess.mat(), 0, 0);
         for (int i = 0; i < res_hess.m(); i++){
             for (int j = 0; j < res_hess.n(); j++){
                 // if (res_hess(i,j) != 0.0){
