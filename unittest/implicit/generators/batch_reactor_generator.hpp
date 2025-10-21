@@ -30,26 +30,26 @@ class BatchReactorGenerator : public InterfaceGenerator {
             MX Cp = 1.16*xk_(0) + 0.827*(1 - xk_(0)) + (3.4*xk_(0) + 0.92*(1-xk_(0)))*(xk_(4)-298)*1.0e-3;
             double UA = 1000;
 
-            // rhs_ = Function("rhs", {uk_, xk_}, {
-            //     vertcat(
-            //         -ki(0)*xk_(0) - (ki(2) + ki(3) + ki(4))*xk_(0)*xk_(1),
-            //         ki(0)*xk_(0) - ki(1)*xk_(1) + ki(2)*xk_(0)*xk_(1),
-            //         ki(1)*xk_(1) + ki(3)*xk_(0)*xk_(1),
-            //         ki(4)*xk_(0)*xk_(1),
-            //         (602.4*ki(0)*xk_(0) - 0.833*UA/rho*(xk_(4)-xk_(5))) / Cp,
-            //         uk_(0)*(873 - xk_(5)) + uk_(1)*(373 - xk_(5)) + 0.01357*UA*(xk_(4)-xk_(5))
-            //     )
-            // });
-            rhs_ = Function("rhs", {uk_, xk_}, {MX::zeros(nx_,1)});
+            rhs_ = Function("rhs", {uk_, xk_}, {
+                vertcat(
+                    -ki(0)*xk_(0) - (ki(2) + ki(3) + ki(4))*xk_(0)*xk_(1),
+                    ki(0)*xk_(0) - ki(1)*xk_(1) + ki(2)*xk_(0)*xk_(1),
+                    ki(1)*xk_(1) + ki(3)*xk_(0)*xk_(1),
+                    ki(4)*xk_(0)*xk_(1),
+                    (602.4*ki(0)*xk_(0) - 0.833*UA/rho*(xk_(4)-xk_(5))) / Cp,
+                    uk_(0)*(873 - xk_(5)) + uk_(1)*(373 - xk_(5)) + 0.01357*UA*(xk_(4)-xk_(5))
+                )
+            });
+            // rhs_ = Function("rhs", {uk_, xk_}, {MX::zeros(nx_,1)});
 
 
             // set initialization //
             x_init_ = std::vector<std::vector<double>>(K_+1, std::vector<double>(nx_, 0.0));
             u_init_ = std::vector<std::vector<double>>(K_, std::vector<double>(nu_, 0.0));
             for (int k = 0; k < K_+1; k++){
-                for (int i = 0; i < nx_; i++){ x_init_[k][i] = 0*start_[i];}
+                for (int i = 0; i < nx_; i++){ x_init_[k][i] = start_[i];}
             }
-            for (int k = 0; k < K_; k++){ u_init_[k][0] = 0*1; u_init_[k][1] = 0;}
+            for (int k = 0; k < K_; k++){ u_init_[k][0] = 1; u_init_[k][1] = 0;}
         };
 
         virtual ImplicitTestProblem PrepareImplicit(){           
@@ -123,17 +123,23 @@ class BatchReactorGenerator : public InterfaceGenerator {
             if (eval_g0_.sparsity_out(0).size1() > 0){
                 opti.subject_to(eval_g0_(MXVector{uu_list[0], xx_list[0]})[0] == DM::zeros(eval_g0_.sparsity_out(0).size1()));
             }
+            // opti.subject_to(xx_list[0] == DM(start_));
 
             for (int k = 0; k < K_; k++){
                 MX xk = xx_list[k];
                 MX uk = uu_list[k];
 
                 MX x_next = xk + dt_*rhs_(MXVector{uk, xk})[0];
-                opti.subject_to(xx_list[k+1] == x_next);
+                // MX x_next = xk + dt_*rhs_(MXVector{uk, xx_list[k+1]})[0];
+                // opti.subject_to(xx_list[k+1] == x_next);
+                opti.subject_to(xx_list[k+1] == xx_list[k]);
 
                 if (eval_gk_ineq_.sparsity_out(0).size1() > 0){
                     opti.subject_to(lb_ <= (eval_gk_ineq_(MXVector{uk, xk})[0] <= ub_));
                 }
+                // opti.subject_to(0 <= (xx_list[k](Slice(0,4)) <= 1));
+                // opti.subject_to(698.15 <= (xx_list[k](4) <= 748.15));
+                // opti.subject_to(0 <= (uk <= 5));
             }
 
             MX obj = 0;
@@ -146,14 +152,21 @@ class BatchReactorGenerator : public InterfaceGenerator {
             obj += eval_objK_(xk)[0];
             opti.minimize(obj);
 
+            // for (int k = 0; k < K_+1; k++){
+            //     for (int i = 0; i < nx_; i++){
+            //         opti.set_initial(xx_list[k](i), x_init_[0][i]);
+            //     }
+            //     if (k < K_){
+            //         for (int i = 0; i < nu_; i++){
+            //             opti.set_initial(uu_list[k](i), u_init_[0][i]);
+            //         }
+            //     }
+            // }
             for (int k = 0; k < K_+1; k++){
-                for (int i = 0; i < nx_; i++){
-                    opti.set_initial(xx_list[k](i), x_init_[0][i]);
-                }
+                opti.set_initial(xx_list[k], DM({0.95, 0.0, 0.0, 0.0, 698.15, 698.15}));
                 if (k < K_){
-                    for (int i = 0; i < nu_; i++){
-                        opti.set_initial(uu_list[k](i), u_init_[0][i]);
-                    }
+                    opti.set_initial(uu_list[k](0), 1);
+                    opti.set_initial(uu_list[k](1), 0);
                 }
             }
 
@@ -167,6 +180,7 @@ class BatchReactorGenerator : public InterfaceGenerator {
                 casadi_opts["fatrop.mu_init"] = 0.1;
             } else if (solver_name == "ipopt"){
                 solver_opts["linear_solver"] = "ma27";
+                // solver_opts["linear_solver"] = "MUMPS";
             }
             opti.solver(solver_name, casadi_opts, solver_opts);
 
@@ -196,7 +210,7 @@ class BatchReactorGenerator : public InterfaceGenerator {
     private:
         MX ki(int i, MX T){ return k0_[i] * exp(-E_[i]/(R_*T));}
 
-        int K_ = 10;
+        int K_ = 20;
         double T_ = 1;
         double dt_;
 
