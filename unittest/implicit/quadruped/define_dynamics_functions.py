@@ -11,6 +11,12 @@ from helper import *
 import subprocess
 import shutil
 
+manip = ContactManipulator()
+expl, impl = manip.get_discrete_dynamics()
+# manip.simulate_joint_configurations()
+# manip.simulate()
+manip.example_opti()
+
 dt = 0.03
 quad = QuadrupedDynamics(timestep=dt)
 

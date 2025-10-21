@@ -61,7 +61,7 @@ add_executable(ip_initializer_test ip_algorithm/ip_initializer_test.cpp)
 add_executable(ip_filter_test ip_algorithm/ip_filter_test.cpp)
 add_executable(options_test common/options_test.cpp)
 add_executable(implicit_ocp_test implicit/implicit_ocp_test.cpp)
-#add_executable(test_jacobian_decomposition implicit/test_jacobian_decomposition.cpp)
+add_executable(test_jacobian_decomposition implicit/test_jacobian_decomposition.cpp)
 # add_executable(generate_models implicit/quadruped/cpp/generate_models.cpp implicit/quadruped/cpp/quadruped_helper_pinocchio.cpp)
 add_executable(casadi_test implicit/casadi_test.cpp)
 
@@ -86,7 +86,7 @@ target_link_libraries(ip_initializer_test GTest::gtest GTest::gtest_main blasfeo
 target_link_libraries(ip_filter_test GTest::gtest GTest::gtest_main blasfeo fatrop)
 
 target_link_libraries(implicit_ocp_test blasfeo fatrop casadi::casadi)
-# target_link_libraries(test_jacobian_decomposition blasfeo casadi fatrop pinocchio::pinocchio)
+target_link_libraries(test_jacobian_decomposition blasfeo casadi fatrop)
 # target_link_libraries(generate_models blasfeo fatrop pinocchio::pinocchio)
 target_link_libraries(casadi_test casadi::casadi)
 

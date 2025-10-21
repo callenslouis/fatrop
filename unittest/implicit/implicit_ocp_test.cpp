@@ -21,6 +21,7 @@
 #include "generators/show_interface_output.hpp"
 #include "generators/n_link_planar_robot.hpp"
 #include "generators/quadruped_generator.hpp"
+#include "generators/batch_reactor_generator.hpp"
 
 #include "json/single_include/nlohmann/json.hpp"
 
@@ -257,27 +258,41 @@ void SolveAllPlanarRobot(){
     }
 }
 
+void SolveSingleProblemQuadruped(double vx, double vy){
+    std::unique_ptr<InterfaceGenerator> generator = 
+        std::make_unique<QuadrupedGenerator>(vx, vy);
+    SolveProblem(generator);
+}
+void SolveAllQuadruped(){
+    double vel = 2.0;
+    std::vector<double> angles = {0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75};
+    for (double angle : angles){
+        double vx = vel*cos(angle*3.1415);
+        double vy = vel*sin(angle*3.1415);
+        SolveSingleProblemQuadruped(vx, vy);
+    }
+}
+
 int main(int argc, char **argv)
 {
-    QuadrupedGenerator qg = QuadrupedGenerator();
-    try{
-        qg.SolveOptiInstance();
-    } catch (std::exception& e){
-        std::cout << "Exception caught during falling simulation: " << e.what() << std::endl;
-    }
-
     // // create a directory ocp_results
     // int temp = system("mkdir -p ocp_results");
 
-    std::unique_ptr<InterfaceGenerator> temp = std::make_unique<QuadrupedGenerator>();
+    BatchReactorGenerator brg = BatchReactorGenerator();
+    brg.SolveOptiInstance("ipopt");
+    brg.SolveOptiInstance("fatrop");
+    return 0;
+
+    std::unique_ptr<InterfaceGenerator> temp = std::make_unique<BatchReactorGenerator>();
     try{
         // ExplicitTestProblem tp = temp->PrepareExplicit();
         // print_jac_and_hess(tp);
         SolveProblem(temp);
     } catch (std::exception& e){
-        std::cout << "Exception caught during quadruped solve: " << e.what() << std::endl;
+        std::cout << "Exception caught during batch reactor solve: " << e.what() << std::endl;
     }
     return 0;
+
 
     if (argc < 3){
         std::cout << "Please provide the following arguments to this executable:" << std::endl;
@@ -311,8 +326,14 @@ int main(int argc, char **argv)
             int n_links = 3;
             if (argc > 3){ n_links = std::stoi(argv[3]);}
             generator = std::make_unique<PlanarRobot>(n_links);
+        } else if (std::string(argv[2]) == "quadruped"){
+            double vx = 0.0;
+            double vy = 0.0;
+            if (argc > 3){ vx = std::stod(argv[3]);}
+            if (argc > 4){ vy = std::stod(argv[4]);}
+            generator = std::make_unique<QuadrupedGenerator>(vx, vy);
         } else {
-            std::cout << "Second argument should be either \"truck_trailer\", \"bycicle\", \"example_static\" or \"holonomic\" when first argument is \"single\"" << std::endl;
+            std::cout << "Second argument should be either \"truck_trailer\", \"bycicle\", \"example_static\", \"holonomic\", \"planar_robot\" or \"quadruped\" when first argument is \"single\"" << std::endl;
             return 0;
         }
 
@@ -325,8 +346,10 @@ int main(int argc, char **argv)
             SolveAllHolonomic();
         } else if (std::string(argv[2]) == "planar_robot"){
             SolveAllPlanarRobot();
+        } else if (std::string(argv[2]) == "quadruped"){
+            SolveAllQuadruped();
         } else {
-            std::cout << "Second argument should be either \"truck_trailer\", \"holonomic\" or \"planar_robot\" when first argument is \"all\"" << std::endl;
+            std::cout << "Second argument should be either \"truck_trailer\", \"holonomic\". \"planar_robot\" or \"quadruped\" when first argument is \"all\"" << std::endl;
             return 0;
         }
 

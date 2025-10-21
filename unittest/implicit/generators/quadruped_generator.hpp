@@ -17,7 +17,10 @@ using namespace fatrop;
 class QuadrupedGenerator : public InterfaceGenerator {
     public:
         // Constructor
-        QuadrupedGenerator(){
+        QuadrupedGenerator(double push_vx = 0.0, double push_vy = 0.0){
+            push_vx_ = push_vx;
+            push_vy_ = push_vy;
+
             // define params
             original_standing_stance_.insert(original_standing_stance_.end(), 
                     standing_body_pos_.begin(), standing_body_pos_.end());
@@ -27,7 +30,12 @@ class QuadrupedGenerator : public InterfaceGenerator {
                     standing_leg_q_.begin(), standing_leg_q_.end());
 
             std::vector<double> original_standing_body_pos_ = standing_body_pos_;
-            standing_body_pos_[2] += 0.05;
+            std::vector<double> terminal_standing_body_pos_ = standing_body_pos_;
+            // standing_body_pos_[2] += 0.05;
+
+            terminal_standing_body_pos_[0] += 0*0.3; // forward
+            terminal_standing_body_pos_[1] += 0*0.3; // left
+
             standing_stance_.insert(standing_stance_.end(), 
                     standing_body_pos_.begin(), standing_body_pos_.end());
             standing_stance_.insert(standing_stance_.end(),
@@ -74,6 +82,7 @@ class QuadrupedGenerator : public InterfaceGenerator {
                 {1 * 1e3*sumsqr(v_) + 
                  1 * 1e3*(sumsqr(base_quat_ - standing_body_quat_) + 
                       sumsqr(leg_q_ - standing_leg_q_)) +
+                 1 * 1e3*sumsqr(base_pos_ - terminal_standing_body_pos_) +
                  1 * 1.0e-5*xk_sum});
             
             
@@ -125,9 +134,8 @@ class QuadrupedGenerator : public InterfaceGenerator {
             MXVector out = impl_dyn_(in);
             // MXVector in = {uk_, xk_};
             // MXVector out = expl_dyn_(in);
-            MX xnext = out[0];
-            Function eval_g0 = Function("eval_g0", {uk_aug, xk_}, {vertcat(eval_g0_(ukxk)[0], xnext - zk)});
-            Function eval_gk = Function("eval_gk", {uk_aug, xk_}, {xnext - zk});
+            Function eval_g0 = Function("eval_g0", {uk_aug, xk_}, {vertcat(eval_g0_(ukxk)[0], out[0])});
+            Function eval_gk = Function("eval_gk", {uk_aug, xk_}, {out[0]});
 
             Function eval_dynamics_equation_reformulated = Function("eval_dynamics_equation", {uk_aug, xk_}, {zk});
 
@@ -381,6 +389,8 @@ class QuadrupedGenerator : public InterfaceGenerator {
             json j;
             j["problem_name"] = "quadruped";
             j["K"] = K_;
+            j["v0x"] = push_vx_;
+            j["v0y"] = push_vy_;
             j["nx"] = nx_;
             j["nu"] = nu_;
             j["dt"] = dt_;
@@ -391,7 +401,11 @@ class QuadrupedGenerator : public InterfaceGenerator {
         }
 
     virtual std::string GetInterfaceName(){ return "quadruped";};
-    virtual std::string GetFileNameAppendix(){return "";};
+    virtual std::string GetFileNameAppendix(){
+        std::string app = "vx_" + std::to_string(push_vx_) + "_vy_" + std::to_string(push_vy_);
+        std::replace(app.begin(), app.end(), '.', 'p');
+        return app;
+    };
 
         // std::unique_ptr<PinocchioCasadi> pc_;
     private:
@@ -403,8 +417,10 @@ class QuadrupedGenerator : public InterfaceGenerator {
         double uk_min_ = -50;
         double uk_max_ = 50;
 
-        double push_vx_ = 0.9*1.5;
-        double push_vy_ = 0.9*2.0;
+        double push_vx_ = 0;
+        double push_vy_ = -1.0;
+        // double push_vx_ = 0*2.0*cos(3.1415/2.0); // forward
+        // double push_vy_ = 0*2.0*sin(3.1415/2.0); // left
 
 
         MX base_pos_ = MX::sym("base_pos", 3);

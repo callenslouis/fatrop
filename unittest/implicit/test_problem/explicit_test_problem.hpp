@@ -519,11 +519,21 @@ class ExplicitTestProblem : public OcpAbstract{
         };
         virtual ~ExplicitTestProblem() = default;  
 
+        void set_debug_print(const bool debug_print){
+            DEBUG_PRINT = debug_print;
+        }
+
+        void use_codegen(const bool use_codegen){
+            USE_CODEGEN_ = use_codegen;
+        }
+
     private:
         Function CodeGenerateFunction(Function &f){
             std::string name = f.name();
             f.generate(name);
             std::string compile_command = "gcc -fPIC -shared -O3 " + name + ".c -o " + name + ".so";
+            // std::string compile_command = "gcc -fPIC -shared " + name + ".c -o " + name + ".so";
+            // std::string compile_command = "gcc -fPIC -shared -march=native -ffast-math " + name + ".c -o " + name + ".so";
             int flag = system(compile_command.c_str());
             if (flag != 0){
                 throw std::runtime_error("Error in CodeGenerateFunction: could not compile " + name + ".so");
@@ -540,8 +550,7 @@ class ExplicitTestProblem : public OcpAbstract{
         }
 
         void CodeGenerateAll(){
-            bool use_codegen = false;
-            if (!use_codegen){
+            if (!USE_CODEGEN_){
                 eval_objk_gc_ = eval_objk_; eval_objK_gc_ = eval_objK_;
                 eval_gk_gc_ = eval_gk_; eval_g0_gc_ = eval_g0_;
                 eval_gK_gc_ = eval_gK_; eval_gk_ineq_gc_ = eval_gk_ineq_;
@@ -579,6 +588,7 @@ class ExplicitTestProblem : public OcpAbstract{
         }
 
         bool DEBUG_PRINT = false;
+        bool USE_CODEGEN_ = false;
 
         // user-provided info
         Index K_;

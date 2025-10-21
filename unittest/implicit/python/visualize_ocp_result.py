@@ -309,6 +309,128 @@ def visualize_performance(df):
     plt.savefig(f"unittest/implicit/figures/ocp_{problem_name}_performance_comparison_total_time.png", dpi=300)
     plt.close()
 
+def visualize_performance_quadruped(df):
+    problem_name = df["problem_name"][0]
+    print(f"Visualizing performance for problem: {problem_name}")
+
+    # problem_types = df['problem type'].unique()
+    problem_types = ['explicit', 'implicit', 'reformulated']
+
+    colors = {'implicit': ['blue'],
+              'explicit': ['red'],
+              'reformulated': ['green']}
+    
+    vx_vy_pairs = df[['v0x', 'v0y']].drop_duplicates().values
+    nx_vals = np.arange(len(vx_vy_pairs))
+    
+    # show solver times
+    plt.figure()
+    for i, problem_type in enumerate(problem_types):
+        times = []
+        df_pt = df[df['problem type'] == problem_type]
+        # for nx in nx_vals:
+        #     df_nx = df_pt[df_pt['nx'] == nx]
+        #     times.append((df_nx['time_solver'] / df_nx['nb_iterations']).mean())
+        for (vx, vy) in vx_vy_pairs:
+            df_v = df_pt[(df_pt['v0x'] == vx) & (df_pt['v0y'] == vy)]
+            times.append((df_v['time_solver'] / df_v['nb_iterations']).mean())
+    
+        times = np.array(times)
+
+        bar_width = 0.2
+        index = nx_vals + (i-1)*bar_width
+        bb = np.zeros(len(nx_vals))
+        plt.bar(index, times, bar_width, bottom=bb, label=f'{problem_type}', color=colors[problem_type][0])    
+    # plt.xlabel('Number of state variables (nx)')
+    plt.ylabel('average solver time per iteration (s)')
+    plt.title(problem_name)
+    # plt.xticks(nx_vals, nx_vals)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(f"unittest/implicit/figures/ocp_{problem_name}_performance_comparison_avg_solver_times.png", dpi=300)
+    plt.close()
+
+    # show function evaluation times
+    plt.figure()
+    for i, problem_type in enumerate(problem_types):
+        times = []
+        df_pt = df[df['problem type'] == problem_type]
+        # for nx in nx_vals:
+        #     df_nx = df_pt[df_pt['nx'] == nx]
+        #     times.append((df_nx['time_function_evaluation'] / df_nx['nb_iterations']).mean())
+        for (vx, vy) in vx_vy_pairs:
+            df_v = df_pt[(df_pt['v0x'] == vx) & (df_pt['v0y'] == vy)]
+            times.append((df_v['time_function_evaluation'] / df_v['nb_iterations']).mean())
+    
+        times = np.array(times)
+
+        bar_width = 0.2
+        index = nx_vals + (i-1)*bar_width
+        bb = np.zeros(len(nx_vals))
+        plt.bar(index, times, bar_width, bottom=bb, label=f'{problem_type}', color=colors[problem_type][0])    
+    # plt.xlabel('Number of state variables (nx)')
+    plt.ylabel('average func eval time per iteration (s)')
+    plt.title(problem_name)
+    # plt.xticks(nx_vals, nx_vals)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(f"unittest/implicit/figures/ocp_{problem_name}_performance_comparison_avg_func_eval_times.png", dpi=300)
+    plt.close()
+
+    # show nb of iterations
+    plt.figure()
+    for i, problem_type in enumerate(problem_types):
+        times = []
+        df_pt = df[df['problem type'] == problem_type]
+        # for nx in nx_vals:
+        #     df_nx = df_pt[df_pt['nx'] == nx]
+        #     times.append((df_nx['nb_iterations']).mean())
+        for (vx, vy) in vx_vy_pairs:
+            df_v = df_pt[(df_pt['v0x'] == vx) & (df_pt['v0y'] == vy)]
+            times.append((df_v['nb_iterations']).mean())
+    
+        times = np.array(times)
+
+        bar_width = 0.2
+        index = nx_vals + (i-1)*bar_width
+        bb = np.zeros(len(nx_vals))
+        plt.bar(index, times, bar_width, bottom=bb, label=f'{problem_type}', color=colors[problem_type][0])    
+    # plt.xlabel('Number of state variables (nx)')
+    plt.ylabel('nb of iterations')
+    plt.title(problem_name)
+    # plt.xticks(nx_vals, nx_vals)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(f"unittest/implicit/figures/ocp_{problem_name}_performance_comparison_nb_iterations.png", dpi=300)
+    plt.close()
+
+    # show total time
+    plt.figure()
+    for i, problem_type in enumerate(problem_types):
+        times = []
+        df_pt = df[df['problem type'] == problem_type]
+        # for nx in nx_vals:
+        #     df_nx = df_pt[df_pt['nx'] == nx]
+        #     times.append((df_nx['time_total']).mean())
+        for (vx, vy) in vx_vy_pairs:
+            df_v = df_pt[(df_pt['v0x'] == vx) & (df_pt['v0y'] == vy)]
+            times.append((df_v['time_total']).mean())
+    
+        times = np.array(times)
+
+        bar_width = 0.2
+        index = nx_vals + (i-1)*bar_width
+        bb = np.zeros(len(nx_vals))
+        plt.bar(index, times, bar_width, bottom=bb, label=f'{problem_type}', color=colors[problem_type][0])    
+    # plt.xlabel('Number of state variables (nx)')
+    plt.ylabel('total time (s)')
+    plt.title(problem_name)
+    # plt.xticks(nx_vals, nx_vals)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(f"unittest/implicit/figures/ocp_{problem_name}_performance_comparison_total_time.png", dpi=300)
+    plt.close()
+
 def visualize_func_eval_breakdown(df, fig_name_appendix=""):
     # group by problem type
     # problem_types = df['problem_type'].unique()
@@ -526,6 +648,16 @@ if __name__ == "__main__":
                                             'compute_search_dir',
                                             'nb_iterations',
                                             'states', 'inputs'])
+    
+    df_quadruped = pd.DataFrame(columns=['problem_name', 'problem type',
+                                          'solver', 'v0x', 'v0y',
+                                          'K', 'nx', 'nu', 
+                                          'time_total', 
+                                          'time_solver', 
+                                          'time_function_evaluation', 
+                                          'compute_search_dir',
+                                          'nb_iterations',
+                                          'states', 'inputs'])
 
     all_jsons = []
     for file_name in os.listdir(dir_path):
@@ -602,6 +734,27 @@ if __name__ == "__main__":
             # visualize_planar_robot_result(data)
             # animate_planar_robot_result(data)
         
+        elif data["generator_data"]["problem_name"] == "quadruped":
+            df_quadruped.loc[len(df_quadruped)] = {
+                'problem_name': data["generator_data"]["problem_name"],
+                'problem type': data['problem type'],
+                'solver': data['solver'],
+                'K': data["generator_data"]['K'], 
+                'v0x': data["generator_data"]['v0x'],
+                'v0y': data["generator_data"]['v0y'],
+                'nx': data["generator_data"]['nx'], 
+                'nu': data["generator_data"]['nu'],
+                'time_total': data["metadata"]["timing_statistics"]['total'],
+                'time_solver': data["metadata"]["timing_statistics"]['fatrop'],
+                'time_function_evaluation': data["metadata"]["timing_statistics"]['function evaluation'],
+                'compute_search_dir': data["metadata"]["timing_statistics"]['compute search dir'],
+                'nb_iterations': data["metadata"]['iterations'],
+                'states': data['states'],
+                'inputs': data['inputs']
+            }
+            
+            # visualize_quadruped_result(data)
+        
         else:
             print(f"Unknown problem name: {data["generator_data"]['problem_name']}")
 
@@ -626,10 +779,15 @@ if __name__ == "__main__":
          'eval objective', 'eval gradient', 'eval constraint violation',
           'eval jacobian', 'eval hessian', 'function evaluation','rest time', 
           'total'])
+    df_func_eval_quadruped_breakdown = pd.DataFrame(columns=
+        ['problem_type', 'compute search dir', 'fatrop', 'initialization', 
+         'eval objective', 'eval gradient', 'eval constraint violation',
+          'eval jacobian', 'eval hessian', 'function evaluation','rest time', 
+          'total'])
     
-    # get func eval data for each problem type (holonomic, truck trailer, planar robot)
+    # get func eval data for each problem type (holonomic, truck trailer, planar robot, quadruped)
     for data in all_jsons:
-        if data["generator_data"]["problem_name"] not in ["holonomic", "truck_trailer", "planar_robot"]:
+        if data["generator_data"]["problem_name"] not in ["holonomic", "truck_trailer", "planar_robot", "quadruped"]:
             continue
         timing_stats = data["metadata"]["timing_statistics"]
         nb_iter = data["metadata"]['iterations']
@@ -668,12 +826,18 @@ if __name__ == "__main__":
             if df_other.shape[0] < 3:
                 continue
             df_func_eval_planar_robot_breakdown.loc[len(df_func_eval_planar_robot_breakdown)] = entry
+
+        elif data["generator_data"]["problem_name"] == "quadruped":
+            df_func_eval_quadruped_breakdown.loc[len(df_func_eval_quadruped_breakdown)] = entry
+            continue
+
         df_func_eval_breakdown.loc[len(df_func_eval_breakdown)] = entry
     
     visualize_func_eval_breakdown(df_func_eval_breakdown)
     visualize_func_eval_breakdown(df_func_eval_holonomic_breakdown, fig_name_appendix="holonomic")
     visualize_func_eval_breakdown(df_func_eval_truck_trailer_breakdown, fig_name_appendix="truck_trailer")
     visualize_func_eval_breakdown(df_func_eval_planar_robot_breakdown, fig_name_appendix="planar_robot")
+    visualize_func_eval_breakdown(df_func_eval_quadruped_breakdown, fig_name_appendix="quadruped")
 
     if (not df_holonomic.empty):
         visualize_performance(df_holonomic)
@@ -689,3 +853,7 @@ if __name__ == "__main__":
         visualize_performance(df_planarrobot)
         print_performance_table(df_planarrobot)
         # print_trucktrailer_result_differences(df_planarrobot)
+
+    if (not df_quadruped.empty):
+        visualize_performance_quadruped(df_quadruped)
+        print_performance_table(df_quadruped)

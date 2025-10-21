@@ -16,7 +16,7 @@
 #include "generators/example_static_generator.hpp"
 #include "generators/show_interface_output.hpp"
 #include "generators/n_link_planar_robot.hpp"
-// #include "generators/quadruped_generator.hpp"
+#include "generators/quadruped_generator.hpp"
 
 #include "json/single_include/nlohmann/json.hpp"
 
@@ -118,8 +118,14 @@ int normal_main(int argc, char **argv){
         int n_links = 3;
         if (argc > 2){ n_links = std::stoi(argv[2]);}
         generator = std::make_unique<PlanarRobot>(n_links);
+    } else if (std::string(argv[1]) == "quadruped"){
+        double vx = 0.0;
+        double vy = 0.0;
+        if (argc > 2){ vx = std::stod(argv[2]);}
+        if (argc > 3){ vy = std::stod(argv[3]);}
+        generator = std::make_unique<QuadrupedGenerator>(vx, vy);
     } else {
-        std::cout << "Unknown problem name. Available: truck_trailer, holonomic, planar_robot" << std::endl;
+        std::cout << "Unknown problem name. Available: truck_trailer, holonomic, planar_robot, quadruped" << std::endl;
         return 0;
     }
 
@@ -155,6 +161,10 @@ int main(int argc, char **argv){
         return 0;
     }
     std::unique_ptr<InterfaceGenerator> generator;
+
+    if (std::string(argv[1]) == "quadruped"){
+        return normal_main(argc, argv);
+    }
 
     std::vector<int> n_trailers_list(31);
     for (int i = 0; i < 31; i++) n_trailers_list[i] = i;
