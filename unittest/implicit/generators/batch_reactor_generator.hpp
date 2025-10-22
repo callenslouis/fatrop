@@ -18,7 +18,7 @@ class BatchReactorGenerator : public InterfaceGenerator {
     public:
         // Constructor
         BatchReactorGenerator(){
-            dt_ = K_/T_;
+            dt_ = T_/K_;
 
             // define dynamics //
             MX ki = MX(5,1);
@@ -107,6 +107,23 @@ class BatchReactorGenerator : public InterfaceGenerator {
         }
 
         void SolveOptiInstance(std::string solver_name="fatrop"){
+            // test RHS values
+            std::vector<double> x_numeric = {};
+            std::vector<double> u_numeric = {};
+            for (int i = 0; i < nx_; i++){
+                x_numeric.push_back(0.1*i + 0.5);
+            }
+            for (int i = 0; i < nu_; i++){
+                u_numeric.push_back(0.5*i + 0.1);
+            }
+            DM rhs_val = rhs_(DMVector{DM(u_numeric), DM(x_numeric)})[0];
+            std::cout << "RHS value test: " << rhs_val << std::endl;
+
+            // load rhs function 
+            Function rhs_python = Function::load("../../unittest/implicit/generators/bath_reactor_rhs.casadi");
+
+            std::cout << "dt: " << dt_ << std::endl;
+
             Opti opti = Opti();
 
             std::vector<MX> xx_list = {};
@@ -131,8 +148,8 @@ class BatchReactorGenerator : public InterfaceGenerator {
 
                 MX x_next = xk + dt_*rhs_(MXVector{uk, xk})[0];
                 // MX x_next = xk + dt_*rhs_(MXVector{uk, xx_list[k+1]})[0];
-                // opti.subject_to(xx_list[k+1] == x_next);
-                opti.subject_to(xx_list[k+1] == xx_list[k]);
+                opti.subject_to(xx_list[k+1] == x_next);
+                // opti.subject_to(xx_list[k+1] == xx_list[k]);
 
                 if (eval_gk_ineq_.sparsity_out(0).size1() > 0){
                     opti.subject_to(lb_ <= (eval_gk_ineq_(MXVector{uk, xk})[0] <= ub_));
