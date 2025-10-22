@@ -17,7 +17,7 @@
 #include "fatrop/ip_algorithm/ip_timings.hpp"
 #include "fatrop/nlp/nlp.hpp"
 #include "fatrop/ocp/type.hpp"
-
+#include "fatrop/version.hpp"
 namespace fatrop
 {
 
@@ -46,6 +46,12 @@ void print_dimensions(std::shared_ptr<IpData<ProblemType>> &ip_data_, std::strin
     {
     }
 
+    template <typename ProblemType> void IpAlgorithm<ProblemType>::print_version()
+    {
+        PRINT_ITERATIONS << "This is Fatrop version " << project_version << "." << std::endl;
+        // Note: would be nice to extend with additional information, e.g., ... with BLASFEO target ...
+    }
+
     template <typename ProblemType> void IpAlgorithm<ProblemType>::reset(bool is_resto /* = false*/)
     {
         // todo who resets the ipdata?
@@ -68,6 +74,7 @@ void print_dimensions(std::shared_ptr<IpData<ProblemType>> &ip_data_, std::strin
         IpSolverReturnFlag retval = IpSolverReturnFlag::Unknown;
         IpConvergenceStatus conv_status = convergence_check_->check_converged();
 
+        print_version(); // Note: can be moved to another location if printing at every optimize call is not preferred
         iteration_output_->print_header();
 
         while (conv_status == IpConvergenceStatus::Continue)
