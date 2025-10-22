@@ -281,8 +281,7 @@ int main(int argc, char **argv)
     BatchReactorGenerator brg = BatchReactorGenerator();
     brg.SolveOptiInstance("ipopt");
     brg.SolveOptiInstance("fatrop");
-    return 0;
-
+    
     std::unique_ptr<InterfaceGenerator> temp = std::make_unique<BatchReactorGenerator>();
     try{
         // ExplicitTestProblem tp = temp->PrepareExplicit();
