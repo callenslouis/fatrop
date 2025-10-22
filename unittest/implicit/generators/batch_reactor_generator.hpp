@@ -126,11 +126,13 @@ class BatchReactorGenerator : public InterfaceGenerator {
 
             Opti opti = Opti();
 
+            int N = K_ - 1;
+
             std::vector<MX> xx_list = {};
             std::vector<MX> uu_list = {};
-            for (int k = 0; k < K_ + 1; k++){
+            for (int k = 0; k < N + 1; k++){
                 xx_list.push_back(opti.variable(nx_));
-                if (k < K_){
+                if (k < N){
                     uu_list.push_back(opti.variable(nu_));
                 }
             }
@@ -142,7 +144,7 @@ class BatchReactorGenerator : public InterfaceGenerator {
             }
             // opti.subject_to(xx_list[0] == DM(start_));
 
-            for (int k = 0; k < K_; k++){
+            for (int k = 0; k < N; k++){
                 MX xk = xx_list[k];
                 MX uk = uu_list[k];
 
@@ -159,33 +161,37 @@ class BatchReactorGenerator : public InterfaceGenerator {
                 // opti.subject_to(0 <= (uk <= 5));
             }
 
+            if (eval_gK_ineq_.sparsity_out(0).size1() > 0){
+                opti.subject_to(lb_K_ <= (eval_gK_ineq_(xx_list[N])[0] <= ub_K_));
+            }
+
             MX obj = 0;
-            for (int k = 0; k < K_; k++){
+            for (int k = 0; k < N; k++){
                 MX xk = xx_list[k];
                 MX uk = uu_list[k];
                 obj += eval_objk_(MXVector{uk, xk})[0];
             }
-            MX xk = xx_list[K_];
+            MX xk = xx_list[N];
             obj += eval_objK_(xk)[0];
             opti.minimize(obj);
 
-            // for (int k = 0; k < K_+1; k++){
-            //     for (int i = 0; i < nx_; i++){
-            //         opti.set_initial(xx_list[k](i), x_init_[0][i]);
-            //     }
-            //     if (k < K_){
-            //         for (int i = 0; i < nu_; i++){
-            //             opti.set_initial(uu_list[k](i), u_init_[0][i]);
-            //         }
-            //     }
-            // }
-            for (int k = 0; k < K_+1; k++){
-                opti.set_initial(xx_list[k], DM({0.95, 0.0, 0.0, 0.0, 698.15, 698.15}));
-                if (k < K_){
-                    opti.set_initial(uu_list[k](0), 1);
-                    opti.set_initial(uu_list[k](1), 0);
+            for (int k = 0; k < N + 1; k++){
+                for (int i = 0; i < nx_; i++){
+                    opti.set_initial(xx_list[k](i), x_init_[0][i]);
+                }
+                if (k < N){
+                    for (int i = 0; i < nu_; i++){
+                        opti.set_initial(uu_list[k](i), u_init_[0][i]);
+                    }
                 }
             }
+            // for (int k = 0; k < K_+1; k++){
+            //     opti.set_initial(xx_list[k], DM({0.95, 0.0, 0.0, 0.0, 698.15, 698.15}));
+            //     if (k < K_){
+            //         opti.set_initial(uu_list[k](0), 1);
+            //         opti.set_initial(uu_list[k](1), 0);
+            //     }
+            // }
 
             // define options
             Dict casadi_opts;
@@ -203,6 +209,127 @@ class BatchReactorGenerator : public InterfaceGenerator {
 
             try{
                 opti.solve();
+
+                /// define functions ///
+                MX opti_x = opti.x();
+                MX opti_g = opti.g();
+                MX lam_g = opti.lam_g();
+                MX opti_f = opti.f();
+                Function g_vals = Function("g_vals", {opti_x}, {opti_g});
+                Function g_jac = Function("g_jac", {opti_x}, {jacobian(opti_g, opti_x)});
+                Function hess_lag = Function("hes_lag", {opti_x, lam_g}, 
+                    {hessian(opti_f + mtimes(transpose(lam_g), opti_g), opti_x)});
+                std::cout << "g_jac: " << g_jac << std::endl;
+                std::cout << "hess_lag: " << hess_lag << std::endl;
+                std::ofstream file;
+
+                /// define variable values ///
+                DM x_numeric = DM(opti_x.size());
+                // int x_numeric_ptr = 0;
+                // for (int k = 0; k < N + 1; k++){
+                //     for (int i = 0; i < nx_; i++){
+                //         x_numeric(x_numeric_ptr) = 0*x_init_[0][i];
+                //         x_numeric_ptr++;
+                //     }
+
+                //     if (k < N - 1){
+                //         for (int i = 0; i < nu_; i++){
+                //             x_numeric(x_numeric_ptr) = 0*u_init_[0][i];
+                //             x_numeric_ptr++;
+                //         }
+                //     }
+                // }
+                DM lam_g_numeric = DM(lam_g.size());
+                // for (int i = 0; i < lam_g.size1(); i++){ lam_g_numeric(i) = 0.2*i;}
+
+                /// construct full hess functions ///
+                // randomize x_numeric en lam_g_numeric
+                for (int i = 0; i < x_numeric.size1(); i++){
+                    x_numeric(i) = double(rand()) / double(RAND_MAX);
+                }
+                for (int i = 0; i < lam_g_numeric.size1(); i++){
+                    lam_g_numeric(i) = double(rand()) / double(RAND_MAX);
+                }
+                // set all lambdas corresponding to dynamics equal to zero
+                // int lam_ptr = eval_g0_.size1_out(0);
+                // for (int k = 0; k < N; k++){
+                //     for (int i = 0; i < nx_; i++){
+                //         lam_g_numeric(lam_ptr + i) = 0.0;
+                //     }
+                //     lam_ptr += nx_ + eval_gk_.size1_out(0) + eval_gk_ineq_.size1_out(0);
+                // }
+                Function opti_full_hess = hess_lag;
+                std::cout << "\npreparing explicit full hess\n" << std::endl;
+                ExplicitTestProblem etp = PrepareExplicit();
+                Function interface_full_hess = etp.build_full_hessian();
+                std::cout << "\n\tDone!\n" << std::endl;
+                std::cout << "opti_full_hess: " << opti_full_hess << std::endl;
+                std::cout << "interface_full_hess: " << interface_full_hess << std::endl;
+                DM opti_full_hess_numeric = opti_full_hess(DMVector{x_numeric, lam_g_numeric})[0];
+                DM interface_full_hess_numeric = interface_full_hess(DMVector{x_numeric, lam_g_numeric})[0];
+
+
+                /// check equality of full hess ///
+                if (false){
+                    std::cout << "checking equality: " << std::endl;
+                    DM equality_mtx = opti_full_hess_numeric - interface_full_hess_numeric;
+                    for (int i = 0; i < equality_mtx.size1(); i++){
+                        for (int j = 0; j < equality_mtx.size2(); j++){
+                            if (double(equality_mtx(i,j)) > 1.0e-16){
+                                std::cout << "First non-equal entry at (" << i << "," << j << "): " 
+                                        << opti_full_hess_numeric(i,j) << " != " 
+                                        << interface_full_hess_numeric(i,j) 
+                                        << " (" << equality_mtx(i,j) << ")" << std::endl;
+                                // throw std::runtime_error("Matrices are not equal!");
+                            }
+                        }
+                    }
+                }
+
+
+                /// write full hess to file ///
+                file.open("opti_full_hess.txt");
+                for (int i = 0; i < opti_full_hess_numeric.size1(); i++){
+                    for (int j = 0; j < opti_full_hess_numeric.size2(); j++){
+                        // if (opti_full_hess.sparsity_out(0).has_nz(i,j)){
+                        if (double(opti_full_hess_numeric(i,j)) != 0.0){
+                            file << opti_full_hess_numeric(i,j) << std::endl;
+                        }
+                    }
+                }
+                file.close();
+                file.open("interface_full_hess.txt");
+                for (int i = 0; i < interface_full_hess_numeric.size1(); i++){
+                    for (int j = 0; j < interface_full_hess_numeric.size2(); j++){
+                        // if (interface_full_hess.sparsity_out(0).has_nz(i,j)){
+                        if (double(interface_full_hess_numeric(i,j)) != 0.0){
+                            file << interface_full_hess_numeric(i,j) << std::endl;
+                        }
+                    }
+                }
+                file.close();
+
+                if (nx_ < 50){
+                    file.open("opti_full_hess_mtx.txt");
+                    for (int i = 0; i < opti_full_hess_numeric.size1(); i++){
+                        for (int j = 0; j < opti_full_hess_numeric.size2(); j++){
+                            file << opti_full_hess_numeric(i,j) << " ";
+                        }
+                        file << std::endl;
+                    }
+                    file.close();
+
+                    file.open("interface_full_hess_mtx.txt");
+                    for (int i = 0; i < interface_full_hess_numeric.size1(); i++){
+                        for (int j = 0; j < interface_full_hess_numeric.size2(); j++){
+                            file << interface_full_hess_numeric(i,j) << " ";
+                        }
+                        file << std::endl;
+                    }
+                    file.close();
+                }
+
+
             } catch (std::exception& e){
                 std::cout << "Exception: " << e.what() << std::endl;
             }
@@ -227,7 +354,7 @@ class BatchReactorGenerator : public InterfaceGenerator {
     private:
         MX ki(int i, MX T){ return k0_[i] * exp(-E_[i]/(R_*T));}
 
-        int K_ = 20;
+        int K_ = 2;
         double T_ = 1;
         double dt_;
 

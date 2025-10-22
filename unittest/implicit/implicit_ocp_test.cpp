@@ -116,8 +116,12 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     json result_expl, result_reform, result_impl;
     bool solved_expl = false, solved_reform = false, solved_impl = false;
     
+    bool skip_expl = false;
+    bool skip_reform = true;
+    bool skip_impl = true;
 
     // EXPLICIT
+    if (!skip_expl){
     try{
         std::cout << "solving explicit test problem" << std::endl;
         Timer timer_expl; timer_expl.start();
@@ -138,8 +142,10 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     } catch (std::exception& e){
         std::cout << "Exception caught during explicit solve: " << e.what() << std::endl;
     }
+    }
 
     // IMPLICIT
+    if (!skip_impl){
     try{
         std::cout << "solving implicit test problem" << std::endl;
         Timer timer_impl; timer_impl.start();
@@ -160,8 +166,10 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     } catch (std::exception& e){
         std::cout << "Exception caught during implicit solve: " << e.what() << std::endl;
     }
+    }
 
     // REFORMULATED
+    if (!skip_reform){
     try{
         std::cout << "solving reformulated test problem" << std::endl;
         Timer timer_reform; timer_reform.start();
@@ -181,6 +189,7 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
         solved_reform = true;
     } catch (std::exception& e){
         std::cout << "Exception caught during reformulated solve: " << e.what() << std::endl;
+    }
     }
     
 

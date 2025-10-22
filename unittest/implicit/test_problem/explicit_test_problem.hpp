@@ -139,16 +139,28 @@ class ExplicitTestProblem : public OcpAbstract{
             std::vector<MX> lam_g_ineq_all = {};
             std::vector<MX> lam_dyn_all = {};
             MX lam;
+            int nb_eq_constraints = 0;
+            int nb_ineq_constraints = 0;
             for (int k = 0; k < K_; k++){
+                // equality constraints
                 lam_g_all.push_back(MX::sym("lam_g_" + std::to_string(k), (k == 0) ? eval_g0_.sparsity_out(0).size1() : (k == K_-1) ? eval_gK_.sparsity_out(0).size1() : eval_gk_.sparsity_out(0).size1()));
-                lam_g_ineq_all.push_back(MX::sym("lam_g_ineq_" + std::to_string(k), (k == K_-1) ? eval_gK_ineq_.sparsity_out(0).size1() : eval_gk_ineq_.sparsity_out(0).size1()));
-                lam = vertcat(lam, lam_g_all.back(), lam_g_ineq_all.back());
-                
+                nb_eq_constraints += lam_g_all.back().size1();
+                lam = vertcat(lam, lam_g_all.back());
+
+                // dynamics constraints
                 if (k < K_-1){
                     lam_dyn_all.push_back(MX::sym("lam_dyn_" + std::to_string(k), nx_));
                     lam = vertcat(lam, lam_dyn_all.back());
+                    nb_eq_constraints += nx_;
                 }
+
+                // inequality constraints
+                lam_g_ineq_all.push_back(MX::sym("lam_g_ineq_" + std::to_string(k), (k == K_-1) ? eval_gK_ineq_.sparsity_out(0).size1() : eval_gk_ineq_.sparsity_out(0).size1()));
+                nb_ineq_constraints += lam_g_ineq_all.back().size1();
+                lam = vertcat(lam, lam_g_ineq_all.back());
             }
+            std::cout << "nb eq constraints: " << nb_eq_constraints << std::endl;
+            std::cout << "nb ineq constraints: " << nb_ineq_constraints << std::endl;
 
             // evaluate all hessian contributions
             for (int k = 0; k < K_; k++){
