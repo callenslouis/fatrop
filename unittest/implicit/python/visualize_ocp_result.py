@@ -459,7 +459,11 @@ def visualize_func_eval_breakdown(df, fig_name_appendix=""):
 
         bar_values = [means[k] for k in other_columns]
         bar_stds = [stds[k] for k in other_columns]
-        plt.bar(index, bar_values, bar_width, label=f"{df_pt['problem_type'].values[0]}", color=colors[i])
+        try:
+            label = f"{df_pt['problem_type'].values[0]}"
+        except:
+            label = None
+        plt.bar(index, bar_values, bar_width, label=label, color=colors[i])
         # plt.bar(index, bar_values, bar_width, label=f"{df_pt['problem_type'].values[0]}", color=colors[i], yerr=bar_stds, capsize=5)
 
     plt.xlabel('Function evaluation components')
@@ -659,6 +663,16 @@ if __name__ == "__main__":
                                           'nb_iterations',
                                           'states', 'inputs'])
 
+    df_batch_reactor = pd.DataFrame(columns=['problem_name', 'problem type',
+                                             'solver', 'n',
+                                             'K', 'nx', 'nu', 
+                                             'time_total', 
+                                             'time_solver', 
+                                             'time_function_evaluation', 
+                                             'compute_search_dir',
+                                             'nb_iterations',
+                                             'states', 'inputs'])
+
     all_jsons = []
     for file_name in os.listdir(dir_path):
         if file_name.endswith('.json'):
@@ -754,6 +768,24 @@ if __name__ == "__main__":
             }
             
             # visualize_quadruped_result(data)
+
+        elif data["generator_data"]["problem_name"] == "batch_reactor":
+            df_batch_reactor.loc[len(df_batch_reactor)] = {
+                'problem_name': data["generator_data"]["problem_name"],
+                'problem type': data['problem type'],
+                'solver': data['solver'],
+                'n': data["generator_data"]["n"],
+                'K': data["generator_data"]['K'], 
+                'nx': data["generator_data"]['nx'], 
+                'nu': data["generator_data"]['nu'],
+                'time_total': data["metadata"]["timing_statistics"]['total'],
+                'time_solver': data["metadata"]["timing_statistics"]['fatrop'],
+                'time_function_evaluation': data["metadata"]["timing_statistics"]['function evaluation'],
+                'compute_search_dir': data["metadata"]["timing_statistics"]['compute search dir'],
+                'nb_iterations': data["metadata"]['iterations'],
+                'states': data['states'],
+                'inputs': data['inputs']
+            }
         
         else:
             print(f"Unknown problem name: {data["generator_data"]['problem_name']}")
@@ -784,10 +816,15 @@ if __name__ == "__main__":
          'eval objective', 'eval gradient', 'eval constraint violation',
           'eval jacobian', 'eval hessian', 'function evaluation','rest time', 
           'total'])
+    df_func_eval_batch_reactor_breakdown = pd.DataFrame(columns=
+        ['problem_type', 'compute search dir', 'fatrop', 'initialization', 
+         'eval objective', 'eval gradient', 'eval constraint violation',
+          'eval jacobian', 'eval hessian', 'function evaluation','rest time', 
+          'total'])
     
     # get func eval data for each problem type (holonomic, truck trailer, planar robot, quadruped)
     for data in all_jsons:
-        if data["generator_data"]["problem_name"] not in ["holonomic", "truck_trailer", "planar_robot", "quadruped"]:
+        if data["generator_data"]["problem_name"] not in ["holonomic", "truck_trailer", "planar_robot", "quadruped", "batch_reactor"]:
             continue
         timing_stats = data["metadata"]["timing_statistics"]
         nb_iter = data["metadata"]['iterations']
@@ -831,6 +868,10 @@ if __name__ == "__main__":
             df_func_eval_quadruped_breakdown.loc[len(df_func_eval_quadruped_breakdown)] = entry
             continue
 
+        elif data["generator_data"]["problem_name"] == "batch_reactor":
+            df_func_eval_batch_reactor_breakdown.loc[len(df_func_eval_batch_reactor_breakdown)] = entry
+            continue
+
         df_func_eval_breakdown.loc[len(df_func_eval_breakdown)] = entry
     
     visualize_func_eval_breakdown(df_func_eval_breakdown)
@@ -838,6 +879,7 @@ if __name__ == "__main__":
     visualize_func_eval_breakdown(df_func_eval_truck_trailer_breakdown, fig_name_appendix="truck_trailer")
     visualize_func_eval_breakdown(df_func_eval_planar_robot_breakdown, fig_name_appendix="planar_robot")
     visualize_func_eval_breakdown(df_func_eval_quadruped_breakdown, fig_name_appendix="quadruped")
+    visualize_func_eval_breakdown(df_func_eval_batch_reactor_breakdown, fig_name_appendix="batch_reactor")
 
     if (not df_holonomic.empty):
         visualize_performance(df_holonomic)
@@ -857,3 +899,7 @@ if __name__ == "__main__":
     if (not df_quadruped.empty):
         visualize_performance_quadruped(df_quadruped)
         print_performance_table(df_quadruped)
+
+    if (not df_batch_reactor.empty):
+        visualize_performance(df_batch_reactor)
+        print_performance_table(df_batch_reactor)

@@ -600,7 +600,7 @@ class ExplicitTestProblem : public OcpAbstract{
         }
 
         bool DEBUG_PRINT = false;
-        bool USE_CODEGEN_ = false;
+        bool USE_CODEGEN_ = true;
 
         // user-provided info
         Index K_;

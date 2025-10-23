@@ -17,7 +17,8 @@ using namespace fatrop;
 class BatchReactorGenerator : public InterfaceGenerator {
     public:
         // Constructor
-        BatchReactorGenerator(){
+        BatchReactorGenerator(int n){
+            n_ = n;
             dt_ = T_/K_;
 
             // define dynamics //
@@ -210,6 +211,7 @@ class BatchReactorGenerator : public InterfaceGenerator {
             try{
                 opti.solve();
 
+                /*
                 /// define functions ///
                 MX opti_x = opti.x();
                 MX opti_g = opti.g();
@@ -309,7 +311,7 @@ class BatchReactorGenerator : public InterfaceGenerator {
                 }
                 file.close();
 
-                if (nx_ < 50){
+                if (nx_ < 10){
                     file.open("opti_full_hess_mtx.txt");
                     for (int i = 0; i < opti_full_hess_numeric.size1(); i++){
                         for (int j = 0; j < opti_full_hess_numeric.size2(); j++){
@@ -328,6 +330,7 @@ class BatchReactorGenerator : public InterfaceGenerator {
                     }
                     file.close();
                 }
+                */
 
 
             } catch (std::exception& e){
@@ -338,6 +341,7 @@ class BatchReactorGenerator : public InterfaceGenerator {
         virtual json GetJsonData(){
             json j;
             j["problem_name"] = "batch_reactor";
+            j["n"] = n_;
             j["K"] = K_;
             j["nx"] = nx_;
             j["nu"] = nu_;
@@ -349,14 +353,16 @@ class BatchReactorGenerator : public InterfaceGenerator {
         }
 
         virtual std::string GetInterfaceName(){ return "batch_reactor";};
-        virtual std::string GetFileNameAppendix(){return "";};
+        virtual std::string GetFileNameAppendix(){return std::to_string(n_);};
 
     private:
         MX ki(int i, MX T){ return k0_[i] * exp(-E_[i]/(R_*T));}
 
-        int K_ = 2;
-        double T_ = 1;
+        int K_ = 80;
+        double T_ = 9;
         double dt_;
+
+        int n_;
 
         double uk_min_ = 0;
         double uk_max_ = 5;
@@ -369,7 +375,7 @@ class BatchReactorGenerator : public InterfaceGenerator {
         MX xkp_ = MX::sym("xkp", nx_);
         
         MX z = MX::zeros(0,1);
-        MX xk_term = 0*1.0e-10*sumsqr(xk_);
+        MX xk_term = 1*1.0e-10*sumsqr(xk_);
         Function eval_objk_ = Function("eval_objk", {uk_, xk_}, {1.0e-6 * (uk_(0)*uk_(0) * uk_(1)*uk_(1)) + xk_term});
         Function eval_objK_ = Function("eval_objK", {xk_}, {-xk_(1) + xk_term});
 

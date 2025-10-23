@@ -117,8 +117,8 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     bool solved_expl = false, solved_reform = false, solved_impl = false;
     
     bool skip_expl = false;
-    bool skip_reform = true;
-    bool skip_impl = true;
+    bool skip_reform = false;
+    bool skip_impl = false;
 
     // EXPLICIT
     if (!skip_expl){
@@ -282,30 +282,41 @@ void SolveAllQuadruped(){
     }
 }
 
+void SolveSingeBatchReactor(int n){
+    std::unique_ptr<InterfaceGenerator> generator = 
+        std::make_unique<BatchReactorGenerator>(n);
+    SolveProblem(generator);
+}
+void SolveAllBatchReactor(){
+    for (int n = 0; n <= 10; n++){
+        SolveSingeBatchReactor(n);
+    }
+}
+
 int main(int argc, char **argv)
 {
     // // create a directory ocp_results
     // int temp = system("mkdir -p ocp_results");
 
-    BatchReactorGenerator brg = BatchReactorGenerator();
-    brg.SolveOptiInstance("ipopt");
-    brg.SolveOptiInstance("fatrop");
+    // BatchReactorGenerator brg = BatchReactorGenerator();
+    // brg.SolveOptiInstance("ipopt");
+    // brg.SolveOptiInstance("fatrop");
     
-    std::unique_ptr<InterfaceGenerator> temp = std::make_unique<BatchReactorGenerator>();
-    try{
-        // ExplicitTestProblem tp = temp->PrepareExplicit();
-        // print_jac_and_hess(tp);
-        SolveProblem(temp);
-    } catch (std::exception& e){
-        std::cout << "Exception caught during batch reactor solve: " << e.what() << std::endl;
-    }
-    return 0;
+    // std::unique_ptr<InterfaceGenerator> temp = std::make_unique<BatchReactorGenerator>();
+    // try{
+    //     // ExplicitTestProblem tp = temp->PrepareExplicit();
+    //     // print_jac_and_hess(tp);
+    //     SolveProblem(temp);
+    // } catch (std::exception& e){
+    //     std::cout << "Exception caught during batch reactor solve: " << e.what() << std::endl;
+    // }
+    // return 0;
 
 
     if (argc < 3){
         std::cout << "Please provide the following arguments to this executable:" << std::endl;
         std::cout << "\t\"single\" or \"all\"" << std::endl;
-        std::cout << "\tproblem name (truck_trailer, bycicle, example_static, holonomic)" << std::endl;
+        std::cout << "\tproblem name (truck_trailer, bycicle, example_static, holonomic, planar_robot, quadruped, batch_reactor)" << std::endl;
         std::cout << "in case of a single problem, also provide the parameters desired (optionally)" << std::endl;
         return 0;
     }
@@ -340,8 +351,12 @@ int main(int argc, char **argv)
             if (argc > 3){ vx = std::stod(argv[3]);}
             if (argc > 4){ vy = std::stod(argv[4]);}
             generator = std::make_unique<QuadrupedGenerator>(vx, vy);
+        } else if (std::string(argv[2]) == "batch_reactor"){
+            int n = 0;
+            if (argc > 3){ n = std::stoi(argv[3]);}
+            generator = std::make_unique<BatchReactorGenerator>(n);
         } else {
-            std::cout << "Second argument should be either \"truck_trailer\", \"bycicle\", \"example_static\", \"holonomic\", \"planar_robot\" or \"quadruped\" when first argument is \"single\"" << std::endl;
+            std::cout << "Second argument should be either \"truck_trailer\", \"bycicle\", \"example_static\", \"holonomic\", \"planar_robot\", \"quadruped\" or \"batch_reactor\" when first argument is \"single\"" << std::endl;
             return 0;
         }
 
@@ -356,6 +371,8 @@ int main(int argc, char **argv)
             SolveAllPlanarRobot();
         } else if (std::string(argv[2]) == "quadruped"){
             SolveAllQuadruped();
+        } else if (std::string(argv[2]) == "batch_reactor"){
+            SolveAllBatchReactor();
         } else {
             std::cout << "Second argument should be either \"truck_trailer\", \"holonomic\". \"planar_robot\" or \"quadruped\" when first argument is \"all\"" << std::endl;
             return 0;
