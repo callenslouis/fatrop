@@ -22,6 +22,7 @@
 #include "generators/n_link_planar_robot.hpp"
 #include "generators/quadruped_generator.hpp"
 #include "generators/batch_reactor_generator.hpp"
+#include "generators/solar_receiver_reactor_generator.hpp"
 
 #include "json/single_include/nlohmann/json.hpp"
 
@@ -298,19 +299,19 @@ int main(int argc, char **argv)
     // // create a directory ocp_results
     // int temp = system("mkdir -p ocp_results");
 
-    // BatchReactorGenerator brg = BatchReactorGenerator();
-    // brg.SolveOptiInstance("ipopt");
-    // brg.SolveOptiInstance("fatrop");
+    // SolarReceiverReactorGenerator srrg = SolarReceiverReactorGenerator(0);
+    // srrg.SolveOptiInstance("ipopt");
+    // srrg.SolveOptiInstance("fatrop");
     
-    // std::unique_ptr<InterfaceGenerator> temp = std::make_unique<BatchReactorGenerator>();
-    // try{
-    //     // ExplicitTestProblem tp = temp->PrepareExplicit();
-    //     // print_jac_and_hess(tp);
-    //     SolveProblem(temp);
-    // } catch (std::exception& e){
-    //     std::cout << "Exception caught during batch reactor solve: " << e.what() << std::endl;
-    // }
-    // return 0;
+    std::unique_ptr<InterfaceGenerator> temp = std::make_unique<SolarReceiverReactorGenerator>(0);
+    try{
+        // ExplicitTestProblem tp = temp->PrepareExplicit();
+        // print_jac_and_hess(tp);
+        SolveProblem(temp);
+    } catch (std::exception& e){
+        std::cout << "Exception caught during batch reactor solve: " << e.what() << std::endl;
+    }
+    return 0;
 
 
     if (argc < 3){

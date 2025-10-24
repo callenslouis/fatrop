@@ -26,7 +26,7 @@ class ExplicitTestProblem : public OcpAbstract{
             std::vector<double> g_ineq_K_lb, std::vector<double> g_ineq_K_ub, 
             Function eval_objk, Function eval_objK, Function eval_gk, Function eval_g0, 
             Function eval_gK, Function eval_gk_ineq, Function eval_gK_ineq,
-            Function eval_dynamics_equation){
+            Function eval_dynamics_equation, Function eval_p = Function("eval_p", {MX::sym("k",1,1)}, {MX::zeros(0,0)})){
             K_ = K;
             nx_ = nx;
             nu_ = nu;
@@ -40,6 +40,7 @@ class ExplicitTestProblem : public OcpAbstract{
             MX xk = MX::sym("xk", nx_);
             MX uk = MX::sym("uk", nu_);
             MX xkp = MX::sym("xkp", nx_);
+            MX p = MX::sym("p", 1, 1);
             MXVector ukxk = {uk, xk};
             MXVector ukxkxkp = {uk, xk, xkp};
 
@@ -51,12 +52,17 @@ class ExplicitTestProblem : public OcpAbstract{
 
             eval_objk_ = Function("eval_objk" + ts, {uk, xk}, eval_objk(ukxk));
             eval_objK_ = Function("eval_objK" + ts, {xk}, eval_objK({xk}));
-            eval_gk_ = Function("eval_gk" + ts, {uk, xk}, eval_gk(ukxk));
-            eval_g0_ = Function("eval_g0" + ts, {uk, xk}, eval_g0(ukxk));
+
+            MXVector args_g = {uk, xk};
+            if (eval_gk.n_in() == 3){ args_g.push_back(p); use_parameter_for_equality_constraints_ = true;}
+            eval_gk_ = Function("eval_gk" + ts, args_g, eval_gk(args_g));
+            eval_g0_ = Function("eval_g0" + ts, args_g, eval_g0(args_g));
+            
             eval_gK_ = Function("eval_gK" + ts, {xk}, eval_gK({xk}));
             eval_gk_ineq_ = Function("eval_gk_ineq" + ts, {uk, xk}, eval_gk_ineq(ukxk));
             eval_gK_ineq_ = Function("eval_gK_ineq" + ts, {xk}, eval_gK_ineq({xk}));
-            eval_dynamics_equation_ = Function("eval_dynamics_equation" + ts, {uk, xk}, eval_dynamics_equation(ukxk));
+            MX k = MX::sym("k", 1, 1);
+            eval_p_ = Function("eval_p" + ts, {k}, eval_p({k}));
 
             // Initialize derived functions
             MX lam_dyn_k = MX::sym("lam_dyn_k", nx_);
@@ -71,34 +77,46 @@ class ExplicitTestProblem : public OcpAbstract{
                 {transpose(jacobian(eval_objk_(ukxk)[0], vertcat(uk, xk)))});
             grad_K_ = Function("gradK"+ts, {xk}, 
                 {transpose(jacobian(eval_objK_(xk)[0], xk))});
-            BAbt_ = Function("BAbt"+ts, {uk, xk, xkp}, 
-                {transpose(horzcat(
-                    jacobian(eval_dynamics_equation_(ukxk)[0], uk),      // B
-                    jacobian(eval_dynamics_equation_(ukxk)[0], xk)       // A
-                ))});
-            Ggt_ = Function("Ggt"+ts, {uk, xk}, {transpose(jacobian(eval_gk_(ukxk)[0], vertcat(uk, xk)))});
+            Ggt_ = Function("Ggt"+ts, args_g, {transpose(jacobian(eval_gk_(args_g)[0], vertcat(uk, xk)))});
             GgKt_ = Function("GgKt"+ts, {xk}, {transpose(jacobian(eval_gK_(xk)[0], xk))});
-            Gg0t_ = Function("Gg0t"+ts, {uk, xk}, {transpose(jacobian(eval_g0_(ukxk)[0], vertcat(uk, xk)))});
+            Gg0t_ = Function("Gg0t"+ts, args_g, {transpose(jacobian(eval_g0_(args_g)[0], vertcat(uk, xk)))});
             Ggt_ineq_ = Function("Ggt_ineq"+ts, {uk, xk}, {transpose(jacobian(eval_gk_ineq_(ukxk)[0], vertcat(uk, xk)))});
             GgKt_ineq_ = Function("GgKt_ineq"+ts, {xk}, {transpose(jacobian(eval_gK_ineq_(xk)[0], xk))});
-            b_ = Function("b"+ts, {uk, xk}, {eval_dynamics_equation_(ukxk)[0]});
+
+            // dynamics
+            MXVector args = {uk, xk};
+            if (eval_dynamics_equation.n_in() == 3){ args.push_back(p); use_parameter_for_dynamics_ = true;}
+            eval_dynamics_equation_ = Function("eval_dynamics_equation" + ts, args, eval_dynamics_equation(args));
+            BAbt_ = Function("BAbt"+ts, args, 
+                {transpose(horzcat(
+                    jacobian(eval_dynamics_equation_(args)[0], uk),      // B
+                    jacobian(eval_dynamics_equation_(args)[0], xk)       // A
+                ))});
+            b_ = Function("b"+ts, {args}, {eval_dynamics_equation_(args)[0]});
 
             // construct lagrangian (containing uk, xk and potentially xkp)
             MX lagrangian_k = obj_scale*eval_objk_(ukxk)[0] + \
-                mtimes(transpose(lam_dyn_k), b_(ukxk)[0]) + \
-                mtimes(transpose(lam_eq_k), eval_gk_(ukxk)[0]) + \
+                mtimes(transpose(lam_dyn_k), b_(args)[0]) + \
+                mtimes(transpose(lam_eq_k), eval_gk_(args_g)[0]) + \
                 mtimes(transpose(lam_ineq_k), eval_gk_ineq_(ukxk)[0]);
             MX lagrangian_0 = obj_scale*eval_objk_(ukxk)[0] + \
-                mtimes(transpose(lam_dyn_k), b_(ukxk)[0]) + \
-                mtimes(transpose(lam_eq_0), eval_g0_(ukxk)[0]) + \
+                mtimes(transpose(lam_dyn_k), b_(args)[0]) + \
+                mtimes(transpose(lam_eq_0), eval_g0_(args_g)[0]) + \
                 mtimes(transpose(lam_ineq_k), eval_gk_ineq_(ukxk)[0]);
             MX lagrangian_K = obj_scale*eval_objK_(xk)[0] + \
                 mtimes(transpose(lam_eq_K), eval_gK_(xk)[0]) + \
                 mtimes(transpose(lam_ineq_K), eval_gK_ineq_(xk)[0]);
-            lag_hess_k_ = Function("lag_hess_k"+ts, {uk, xk, lam_dyn_k, lam_eq_k, lam_ineq_k, obj_scale}, 
-                {transpose(hessian(lagrangian_k, vertcat(uk, xk)))});               // RSQ[k+1]
-            lag_hess_0_ = Function("lag_hess_0"+ts, {uk, xk, lam_dyn_k, lam_eq_0, lam_ineq_k, obj_scale}, 
-                {transpose(hessian(lagrangian_0, vertcat(uk, xk)))});               // RSQ[k+1]
+            if (use_parameter_for_dynamics_ || use_parameter_for_equality_constraints_){
+                lag_hess_k_ = Function("lag_hess_k"+ts, {uk, xk, lam_dyn_k, lam_eq_k, lam_ineq_k, obj_scale, p}, 
+                    {transpose(hessian(lagrangian_k, vertcat(uk, xk)))});               // RSQ[k+1]
+                lag_hess_0_ = Function("lag_hess_0"+ts, {uk, xk, lam_dyn_k, lam_eq_0, lam_ineq_k, obj_scale, p}, 
+                    {transpose(hessian(lagrangian_0, vertcat(uk, xk)))});               // RSQ[k+1]
+            } else {
+                lag_hess_k_ = Function("lag_hess_k"+ts, {uk, xk, lam_dyn_k, lam_eq_k, lam_ineq_k, obj_scale}, 
+                    {transpose(hessian(lagrangian_k, vertcat(uk, xk)))});               // RSQ[k+1]
+                lag_hess_0_ = Function("lag_hess_0"+ts, {uk, xk, lam_dyn_k, lam_eq_0, lam_ineq_k, obj_scale}, 
+                    {transpose(hessian(lagrangian_0, vertcat(uk, xk)))});               // RSQ[k+1]
+            }
             lag_hess_K_ = Function("lag_hess_K"+ts, {xk, lam_dyn_k, lam_eq_K, lam_ineq_K, obj_scale}, 
                 {transpose(hessian(lagrangian_K, xk))});
 
@@ -236,7 +254,16 @@ class ExplicitTestProblem : public OcpAbstract{
             if (k == K_ - 1){
                 throw std::runtime_error("Error in eval_BAbt: cannot evaluate BAbt at final stage");
             }
-            std::vector<const double*> arg_in = {inputs_k, states_k, states_kp1};
+            std::vector<const double*> arg_in = {inputs_k, states_k};
+            if (use_parameter_for_dynamics_){
+                // evaluate parameter
+                double p_val[1];
+                double k_double = static_cast<double>(k);
+                std::vector<const double*> arg_in_p = {&k_double};
+                std::vector<double*> arg_out_p = {p_val};
+                eval_p_(arg_in_p, arg_out_p);
+                arg_in.push_back(p_val);
+            }
             std::vector<double*> arg_out = {&scratch_[0]};
             BAbt_gc_(arg_in, arg_out);
 
@@ -273,6 +300,15 @@ class ExplicitTestProblem : public OcpAbstract{
             std::vector<const double*> arg_in = (k == K_ - 1) ?
                 std::vector<const double*>{states_k, lam_dyn_k, lam_eq_k, lam_eq_ineq_k, objective_scale} : 
                 std::vector<const double*>{inputs_k, states_k, lam_dyn_k, lam_eq_k, lam_eq_ineq_k, objective_scale};
+            if (k < K_ - 1 && (use_parameter_for_dynamics_ || use_parameter_for_equality_constraints_)){
+                // evaluate parameter
+                double p_val[1];
+                double k_double = static_cast<double>(k);
+                std::vector<const double*> arg_in_p = {&k_double};
+                std::vector<double*> arg_out_p = {p_val};
+                eval_p_(arg_in_p, arg_out_p);
+                arg_in.push_back(p_val);
+            }
             
             std::vector<double*> arg_out = {&scratch_[0]};
                 // auto stop = std::chrono::high_resolution_clock::now();
@@ -325,6 +361,15 @@ class ExplicitTestProblem : public OcpAbstract{
             std::vector<const double*> arg_in = (k == K_ - 1) ? 
                 std::vector<const double*>{states_k} : 
                 std::vector<const double*>{inputs_k, states_k};
+            if (k < K_ - 1 && use_parameter_for_equality_constraints_){
+                // evaluate parameter
+                double p_val[1];
+                double k_double = static_cast<double>(k);
+                std::vector<const double*> arg_in_p = {&k_double};
+                std::vector<double*> arg_out_p = {p_val};
+                eval_p_(arg_in_p, arg_out_p);
+                arg_in.push_back(p_val);
+            }
             
             std::vector<double*> arg_out = {&scratch_[0]};
             G(arg_in, arg_out);
@@ -384,6 +429,15 @@ class ExplicitTestProblem : public OcpAbstract{
                 std::cout << "entering " << __func__ << " [" << k << "]" << std::endl;
             }
             std::vector<const double*> arg_in = {inputs_k, states_k};
+            if (use_parameter_for_dynamics_){
+                // evaluate parameter
+                double p_val[1];
+                double k_double = static_cast<double>(k);
+                std::vector<const double*> arg_in_p = {&k_double};
+                std::vector<double*> arg_out_p = {p_val};
+                eval_p_(arg_in_p, arg_out_p);
+                arg_in.push_back(p_val);
+            }
             std::vector<double*> arg_out = {res};
             eval_dynamics_equation_gc_(arg_in, arg_out);
             for (int i = 0; i < get_nx(k+1); i++){
@@ -410,6 +464,15 @@ class ExplicitTestProblem : public OcpAbstract{
             std::vector<const double*> arg_in = (k == K_ - 1) ? 
                 std::vector<const double*>{states_k} : 
                 std::vector<const double*>{inputs_k, states_k};
+            if (k < K_ - 1 && use_parameter_for_equality_constraints_){
+                // evaluate parameter
+                double p_val[1];
+                double k_double = static_cast<double>(k);
+                std::vector<const double*> arg_in_p = {&k_double};
+                std::vector<double*> arg_out_p = {p_val};
+                eval_p_(arg_in_p, arg_out_p);
+                arg_in.push_back(p_val);
+            }
 
             std::vector<double*> arg_out = {res};
             if (k == 0){
@@ -622,6 +685,9 @@ class ExplicitTestProblem : public OcpAbstract{
         Function eval_gk_ineq_;
         Function eval_gK_ineq_;
         Function eval_dynamics_equation_;
+        Function eval_p_;
+        bool use_parameter_for_dynamics_ = false;
+        bool use_parameter_for_equality_constraints_ = false;
 
         // deduced info
         Function grad_;

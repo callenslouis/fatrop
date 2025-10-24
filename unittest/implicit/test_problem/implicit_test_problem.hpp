@@ -26,7 +26,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             std::vector<double> g_ineq_K_lb, std::vector<double> g_ineq_K_ub, 
             Function eval_objk, Function eval_objK, Function eval_gk, Function eval_g0, 
             Function eval_gK, Function eval_gk_ineq, Function eval_gK_ineq,
-            Function eval_dynamics_equation){
+            Function eval_dynamics_equation, Function eval_p = Function("eval_p", {MX::sym("k",1,1)}, {MX::zeros(0,0)})){
             K_ = K;
             nx_ = nx;
             nu_ = nu;
@@ -40,6 +40,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             MX xk = MX::sym("xk", nx_);
             MX uk = MX::sym("uk", nu_);
             MX xkp = MX::sym("xkp", nx_);
+            MX p = MX::sym("p", 1, 1);
             MXVector ukxk = {uk, xk};
             MXVector ukxkxkp = {uk, xk, xkp};
 
@@ -56,7 +57,8 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             eval_gK_ = Function("eval_gK" + ts, {xk}, eval_gK({xk}));
             eval_gk_ineq_ = Function("eval_gk_ineq" + ts, {uk, xk}, eval_gk_ineq(ukxk));
             eval_gK_ineq_ = Function("eval_gK_ineq" + ts, {xk}, eval_gK_ineq({xk}));
-            eval_dynamics_equation_ = Function("eval_dynamics_equation" + ts, {uk, xk, xkp}, eval_dynamics_equation(ukxkxkp));
+            MX k = MX::sym("k", 1, 1);
+            eval_p_ = Function("eval_p" + ts, {k}, eval_p({k}));
 
             // Initialize derived functions
             MX lam_dyn_k = MX::sym("lam_dyn_k", nx_);
@@ -71,28 +73,34 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                 {transpose(jacobian(eval_objk_(ukxk)[0], vertcat(uk, xk)))});
             grad_K_ = Function("gradK"+ts, {xk}, 
                 {transpose(jacobian(eval_objK_(xk)[0], xk))});
-            BAbt_ = Function("BAbt"+ts, {uk, xk, xkp}, 
-                {transpose(horzcat(
-                    jacobian(eval_dynamics_equation_(ukxkxkp)[0], uk),      // B
-                    jacobian(eval_dynamics_equation_(ukxkxkp)[0], xk)       // A
-                ))});
-            BAJbt_ = Function("BAJbt"+ts, {uk, xk, xkp}, 
-                {transpose(jacobian(eval_dynamics_equation_(ukxkxkp)[0], vertcat(uk, xk, xkp))),
-                 inv(transpose(jacobian(eval_dynamics_equation_(ukxkxkp)[0], xkp)))});
-            BAJbt_no_inv_ = Function("BAJbt_no_inv"+ts, {uk, xk, xkp}, 
-                {transpose(jacobian(eval_dynamics_equation_(ukxkxkp)[0], vertcat(uk, xk, xkp)))});
             Ggt_ = Function("Ggt"+ts, {uk, xk}, {transpose(jacobian(eval_gk_(ukxk)[0], vertcat(uk, xk)))});
             GgKt_ = Function("GgKt"+ts, {xk}, {transpose(jacobian(eval_gK_(xk)[0], xk))});
             Gg0t_ = Function("Gg0t"+ts, {uk, xk}, {transpose(jacobian(eval_g0_(ukxk)[0], vertcat(uk, xk)))});
             Ggt_ineq_ = Function("Ggt_ineq"+ts, {uk, xk}, {transpose(jacobian(eval_gk_ineq_(ukxk)[0], vertcat(uk, xk)))});
             GgKt_ineq_ = Function("GgKt_ineq"+ts, {xk}, {transpose(jacobian(eval_gK_ineq_(xk)[0], xk))});
-            // b_ = Function("b"+ts, {uk, xk, xkp}, {eval_dynamics_equation_(ukxkxkp)[0]});
-            Jt_ = Function("Jt"+ts, {uk, xk, xkp}, 
+
+            // dynamics
+            MXVector args = {uk, xk, xkp};
+            if (eval_dynamics_equation.n_in() == 4){ args.push_back(p); use_parameter_for_dynamics_ = true;}
+
+            eval_dynamics_equation_ = Function("eval_dynamics_equation" + ts, args, eval_dynamics_equation(args));
+            BAbt_ = Function("BAbt"+ts, args, 
+                {transpose(horzcat(
+                    jacobian(eval_dynamics_equation_(args)[0], uk),      // B
+                    jacobian(eval_dynamics_equation_(args)[0], xk)       // A
+                ))});
+            BAJbt_ = Function("BAJbt"+ts, args, 
+                {transpose(jacobian(eval_dynamics_equation_(args)[0], vertcat(uk, xk, xkp))),
+                 inv(transpose(jacobian(eval_dynamics_equation_(args)[0], xkp)))});
+            BAJbt_no_inv_ = Function("BAJbt_no_inv"+ts, args, 
+                {transpose(jacobian(eval_dynamics_equation_(args)[0], vertcat(uk, xk, xkp)))});
+            // b_ = Function("b"+ts, args, {eval_dynamics_equation_(args)[0]});
+            Jt_ = Function("Jt"+ts, args, 
                 {transpose(
-                    jacobian(eval_dynamics_equation_(ukxkxkp)[0], xkp)
+                    jacobian(eval_dynamics_equation_(args)[0], xkp)
                 )});
-            Jt_inv_ = Function("Jt_inv"+ts, {uk, xk, xkp},
-                {inv(Jt_(ukxkxkp)[0])});
+            Jt_inv_ = Function("Jt_inv"+ts, args,
+                {inv(Jt_(args)[0])});
    
             // construct lagrangian (containing uk, xk and potentially xkp) (omitting dynamics)
             MX lagrangian_k = obj_scale*eval_objk_(ukxk)[0] + \
@@ -112,8 +120,13 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                 {transpose(hessian(lagrangian_K, xk))});
 
             // dynamics contribution
-            dyn_hess_kp_ = Function("dyn_hess_kp"+ts, {uk, xk, xkp, lam_dyn_k}, 
-                {transpose(hessian(mtimes(transpose(lam_dyn_k), eval_dynamics_equation_(ukxkxkp)[0]), vertcat(xkp, uk, xk)))});
+            if (eval_dynamics_equation.n_in() == 3){
+                dyn_hess_kp_ = Function("dyn_hess_kp"+ts, {uk, xk, xkp, lam_dyn_k}, 
+                    {transpose(hessian(mtimes(transpose(lam_dyn_k), eval_dynamics_equation_(args)[0]), vertcat(xkp, uk, xk)))});
+            } else {
+                dyn_hess_kp_ = Function("dyn_hess_kp"+ts, {uk, xk, xkp, lam_dyn_k, p}, 
+                    {transpose(hessian(mtimes(transpose(lam_dyn_k), eval_dynamics_equation_(args)[0]), vertcat(xkp, uk, xk)))});
+            }
 
             // update sparsities
             BAbt_sp_ = BAbt_.sparsity_out(0);
@@ -202,6 +215,15 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             blasfeo_gese_wrap(res_J->m, res_J->n, 0.0, res_J, 0, 0);
             blasfeo_gese_wrap(res_J_inv->m, res_J_inv->n, 0.0, res_J_inv, 0, 0);
             std::vector<const double*> arg_in = {inputs_k, states_k, states_kp1};
+            if (use_parameter_for_dynamics_){
+                // evaluate parameter
+                double p_val[1];
+                double k_double = static_cast<double>(k);
+                std::vector<const double*> arg_in_p = {&k_double};
+                std::vector<double*> arg_out_p = {p_val};
+                eval_p_(arg_in_p, arg_out_p);
+                arg_in.push_back(p_val);
+            }
             std::vector<double*> arg_out = {&scratch_[0], &scratch2_[0]};
             BAJbt_gc_(arg_in, arg_out);
 
@@ -252,6 +274,15 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             blasfeo_gese_wrap(res->m, res->n, 0.0, res, 0, 0);
             blasfeo_gese_wrap(res_J->m, res_J->n, 0.0, res_J, 0, 0);
             std::vector<const double*> arg_in = {inputs_k, states_k, states_kp1};
+            if (use_parameter_for_dynamics_){
+                // evaluate parameter
+                double p_val[1];
+                double k_double = static_cast<double>(k);
+                std::vector<const double*> arg_in_p = {&k_double};
+                std::vector<double*> arg_out_p = {p_val};
+                eval_p_(arg_in_p, arg_out_p);
+                arg_in.push_back(p_val);
+            }
             std::vector<double*> arg_out = {&scratch_[0]};
             std::cout << "calling function " << BAJbt_no_inv_gc_ << std::endl;
             BAJbt_no_inv_gc_(arg_in, arg_out);
@@ -411,6 +442,15 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             if (k < K_ - 1){
                     // start = std::chrono::high_resolution_clock::now();
                 std::vector<const double*> arg_in_dyn = {inputs_k, states_k, states_kp1, lam_dyn_k};
+                if (use_parameter_for_dynamics_){
+                    // evaluate parameter
+                    double p_val[1];
+                    double k_double = static_cast<double>(k);
+                    std::vector<const double*> arg_in_p = {&k_double};
+                    std::vector<double*> arg_out_p = {p_val};
+                    eval_p_(arg_in_p, arg_out_p);
+                    arg_in_dyn.push_back(p_val);
+                }
                 std::vector<double*> arg_out_dyn = {&scratch_[0]};
                     // stop = std::chrono::high_resolution_clock::now();
                     // us_other_ += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
@@ -534,6 +574,15 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                 std::cout << "entering " << __func__ << " [" << k << "]" << std::endl;
             }
             std::vector<const double*> arg_in = {inputs_k, states_k, states_kp1};
+            if (use_parameter_for_dynamics_){
+                // evaluate parameter
+                double p_val[1];
+                double k_double = static_cast<double>(k);
+                std::vector<const double*> arg_in_p = {&k_double};
+                std::vector<double*> arg_out_p = {p_val};
+                eval_p_(arg_in_p, arg_out_p);
+                arg_in.push_back(p_val);
+            }
             std::vector<double*> arg_out = {res};
             eval_dynamics_equation_gc_(arg_in, arg_out);
             
@@ -882,6 +931,8 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
         Function eval_gk_ineq_;
         Function eval_gK_ineq_;
         Function eval_dynamics_equation_;
+        Function eval_p_;
+        bool use_parameter_for_dynamics_ = false;
 
         // deduced info
         Function grad_;

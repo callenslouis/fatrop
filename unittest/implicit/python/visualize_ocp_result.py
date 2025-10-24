@@ -209,9 +209,9 @@ def visualize_performance(df):
     # problem_types = df['problem type'].unique()
     problem_types = ['explicit', 'implicit', 'reformulated']
 
-    colors = {'implicit': ['blue'],
-              'explicit': ['red'],
-              'reformulated': ['green']}
+    colors = {'implicit': ['royalblue'],
+              'explicit': ['firebrick'],
+              'reformulated': ['midnightblue']}
     
     # show solver times
     plt.figure()
@@ -309,6 +309,78 @@ def visualize_performance(df):
     plt.savefig(f"unittest/implicit/figures/ocp_{problem_name}_performance_comparison_total_time.png", dpi=300)
     plt.close()
 
+# def visualize_performance_different_problems(list_of_dfs):
+#     problem_types = ['explicit', 'implicit', 'reformulated']
+#     colors = {'implicit': ['royalblue'],
+#               'explicit': ['firebrick'],
+#               'reformulated': ['midnightblue']}
+    
+#     # for each performance metric, create a figure comparing averages of each df
+#     performance_metrics = ['time_solver', 'time_function_evaluation', 'nb_iterations', 'time_total']
+#     problem_names = [df["problem_name"].values[0] for df in list_of_dfs]
+
+#     for metric in performance_metrics:
+#         plt.figure()
+#         for i, problem_type in enumerate(problem_types):
+#             times = []
+#             for df in list_of_dfs:
+#                 df_pt = df[df['problem type'] == problem_type]
+#                 times.append(df_pt[metric].mean())
+        
+#             times = np.array(times)
+
+#             bar_width = 0.2
+#             index = np.arange(len(list_of_dfs)) + (i-1)*bar_width
+#             bb = np.zeros(len(list_of_dfs))
+#             plt.bar(index, times, bar_width, bottom=bb, label=f'{problem_type}', color=colors[problem_type][0])
+#         plt.ylabel(metric.replace('_', ' '))
+#         plt.title(f'Performance comparison: {metric.replace("_", " ")}')
+#         plt.xticks(np.arange(len(list_of_dfs)), problem_names)
+#         plt.xlabel('Problem')
+#         plt.legend()
+#         plt.tight_layout()
+#         plt.savefig(f"unittest/implicit/figures/ocp_performance_comparison_{metric}.png", dpi=300)
+#         plt.close()
+    
+def visualize_performance_different_problems(list_of_dfs):
+    problem_types = ['explicit', 'implicit', 'reformulated']
+    colors = {'implicit': ['royalblue'],
+              'explicit': ['firebrick'],
+              'reformulated': ['midnightblue']}
+    
+    # for each performance metric, create a figure comparing averages of each df
+    performance_metrics = ['time_solver', 'time_function_evaluation', 'nb_iterations', 'time_total']
+    ylabels = ['time [s]', 'time [s]', '', 'time [s]']
+    problem_names = [df["problem_name"].values[0] for df in list_of_dfs]
+
+    for metric in performance_metrics:
+        plt.figure(figsize=(2*len(problem_names), 5))
+        for i, problem_name in enumerate(problem_names):
+            plt.subplot(1, len(problem_names), i+1)
+
+            times = []
+            df = list_of_dfs[i]
+            for j, problem_type in enumerate(problem_types):
+                df_pt = df[df['problem type'] == problem_type]
+                times.append(df_pt[metric].mean())
+                plt.bar(-1+j, times[-1], color=colors[problem_type][0], label=problem_type)
+        
+            plt.xticks([])
+            plt.title(problem_name)
+            plt.gca().set_ylabel(ylabels[performance_metrics.index(metric)])
+
+        plt.tight_layout()
+        # put the legend of the last plot under the figure
+        handles, labels = plt.gca().get_legend_handles_labels()
+        plt.subplots_adjust(bottom=0.1, top=0.9, left=0.1, right=0.9)
+        plt.figlegend(handles, labels, loc='lower center', ncol=len(problem_types), bbox_to_anchor=(0.5, 0.02))
+
+        plt.suptitle(metric)
+        plt.savefig(f"unittest/implicit/figures/ocp_performance_comparison_{metric}.png", dpi=300)
+        plt.close()
+
+
+
 def visualize_performance_quadruped(df):
     problem_name = df["problem_name"][0]
     print(f"Visualizing performance for problem: {problem_name}")
@@ -316,9 +388,9 @@ def visualize_performance_quadruped(df):
     # problem_types = df['problem type'].unique()
     problem_types = ['explicit', 'implicit', 'reformulated']
 
-    colors = {'implicit': ['blue'],
-              'explicit': ['red'],
-              'reformulated': ['green']}
+    colors = {'implicit': ['royalblue'],
+              'explicit': ['firebrick'],
+              'reformulated': ['midnightblue']}
     
     vx_vy_pairs = df[['v0x', 'v0y']].drop_duplicates().values
     nx_vals = np.arange(len(vx_vy_pairs))
@@ -435,7 +507,7 @@ def visualize_func_eval_breakdown(df, fig_name_appendix=""):
     # group by problem type
     # problem_types = df['problem_type'].unique()
     problem_types = ['explicit', 'implicit', 'reformulated']
-    colors = ['red', 'blue', 'green']
+    colors = ['firebrick', 'royalblue', 'midnightblue']
     df_per_type = [df[df['problem_type'] == pt] for pt in problem_types]
 
     cols_to_discard = ['problem_type', 'initialization', 'total', 'rest time']
@@ -672,6 +744,16 @@ if __name__ == "__main__":
                                              'compute_search_dir',
                                              'nb_iterations',
                                              'states', 'inputs'])
+    
+    df_solar_receiver_reactor = pd.DataFrame(columns=['problem_name', 'problem type',
+                                                'solver',
+                                                'K', 'nx', 'nu', 
+                                                'time_total', 
+                                                'time_solver', 
+                                                'time_function_evaluation', 
+                                                'compute_search_dir',
+                                                'nb_iterations',
+                                                'states', 'inputs'])
 
     all_jsons = []
     for file_name in os.listdir(dir_path):
@@ -786,6 +868,33 @@ if __name__ == "__main__":
                 'states': data['states'],
                 'inputs': data['inputs']
             }
+
+        elif data["generator_data"]["problem_name"] == "solar_receiver_reactor":
+            # check if the entry just added is the explicit one
+            if data['problem type'] == 'explicit':
+                # timings are not reliable, so set to zero
+                data['metadata']['timing_statistics'] = {
+                    'total': 0.0,
+                    'fatrop': 0.0,
+                    'function evaluation': 0.0,
+                    'compute search dir': 0.0
+                }
+                data['metadata']['iterations'] = 1e-8
+            df_solar_receiver_reactor.loc[len(df_solar_receiver_reactor)] = {
+                'problem_name': data["generator_data"]["problem_name"],
+                'problem type': data['problem type'],
+                'solver': data['solver'],
+                'K': data["generator_data"]['K'], 
+                'nx': data["generator_data"]['nx'], 
+                'nu': data["generator_data"]['nu'],
+                'time_total': data["metadata"]["timing_statistics"]['total'],
+                'time_solver': data["metadata"]["timing_statistics"]['fatrop'],
+                'time_function_evaluation': data["metadata"]["timing_statistics"]['function evaluation'],
+                'compute_search_dir': data["metadata"]["timing_statistics"]['compute search dir'],
+                'nb_iterations': data["metadata"]['iterations'],
+                'states': data['states'],
+                'inputs': data['inputs']
+            }
         
         else:
             print(f"Unknown problem name: {data["generator_data"]['problem_name']}")
@@ -821,10 +930,15 @@ if __name__ == "__main__":
          'eval objective', 'eval gradient', 'eval constraint violation',
           'eval jacobian', 'eval hessian', 'function evaluation','rest time', 
           'total'])
-    
+    df_func_eval_solar_receiver_reactor_breakdown = pd.DataFrame(columns=
+        ['problem_type', 'compute search dir', 'fatrop', 'initialization', 
+         'eval objective', 'eval gradient', 'eval constraint violation',
+          'eval jacobian', 'eval hessian', 'function evaluation','rest time', 
+          'total'])
+
     # get func eval data for each problem type (holonomic, truck trailer, planar robot, quadruped)
     for data in all_jsons:
-        if data["generator_data"]["problem_name"] not in ["holonomic", "truck_trailer", "planar_robot", "quadruped", "batch_reactor"]:
+        if data["generator_data"]["problem_name"] not in ["holonomic", "truck_trailer", "planar_robot", "quadruped", "batch_reactor", "solar_receiver_reactor"]:
             continue
         timing_stats = data["metadata"]["timing_statistics"]
         nb_iter = data["metadata"]['iterations']
@@ -872,14 +986,19 @@ if __name__ == "__main__":
             df_func_eval_batch_reactor_breakdown.loc[len(df_func_eval_batch_reactor_breakdown)] = entry
             continue
 
+        elif data["generator_data"]["problem_name"] == "solar_receiver_reactor":
+            df_func_eval_solar_receiver_reactor_breakdown.loc[len(df_func_eval_solar_receiver_reactor_breakdown)] = entry
+            continue
+
         df_func_eval_breakdown.loc[len(df_func_eval_breakdown)] = entry
     
-    visualize_func_eval_breakdown(df_func_eval_breakdown)
-    visualize_func_eval_breakdown(df_func_eval_holonomic_breakdown, fig_name_appendix="holonomic")
-    visualize_func_eval_breakdown(df_func_eval_truck_trailer_breakdown, fig_name_appendix="truck_trailer")
-    visualize_func_eval_breakdown(df_func_eval_planar_robot_breakdown, fig_name_appendix="planar_robot")
-    visualize_func_eval_breakdown(df_func_eval_quadruped_breakdown, fig_name_appendix="quadruped")
-    visualize_func_eval_breakdown(df_func_eval_batch_reactor_breakdown, fig_name_appendix="batch_reactor")
+    # visualize_func_eval_breakdown(df_func_eval_breakdown)
+    # visualize_func_eval_breakdown(df_func_eval_holonomic_breakdown, fig_name_appendix="holonomic")
+    # visualize_func_eval_breakdown(df_func_eval_truck_trailer_breakdown, fig_name_appendix="truck_trailer")
+    # visualize_func_eval_breakdown(df_func_eval_planar_robot_breakdown, fig_name_appendix="planar_robot")
+    # visualize_func_eval_breakdown(df_func_eval_quadruped_breakdown, fig_name_appendix="quadruped")
+    # visualize_func_eval_breakdown(df_func_eval_batch_reactor_breakdown, fig_name_appendix="batch_reactor")
+    # visualize_func_eval_breakdown(df_func_eval_solar_receiver_reactor_breakdown, fig_name_appendix="solar_receiver_reactor")
 
     if (not df_holonomic.empty):
         visualize_performance(df_holonomic)
@@ -903,3 +1022,9 @@ if __name__ == "__main__":
     if (not df_batch_reactor.empty):
         visualize_performance(df_batch_reactor)
         print_performance_table(df_batch_reactor)
+
+    if (not df_solar_receiver_reactor.empty):
+        visualize_performance(df_solar_receiver_reactor)
+        print_performance_table(df_solar_receiver_reactor)
+
+    visualize_performance_different_problems([df_trucktrailer, df_quadruped, df_batch_reactor, df_solar_receiver_reactor])
