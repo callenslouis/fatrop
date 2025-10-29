@@ -349,8 +349,8 @@ def visualize_performance_different_problems(list_of_dfs):
               'reformulated': ['midnightblue']}
     
     # for each performance metric, create a figure comparing averages of each df
-    performance_metrics = ['time_solver', 'time_function_evaluation', 'nb_iterations', 'time_total']
-    ylabels = ['time [s]', 'time [s]', '', 'time [s]']
+    performance_metrics = ['time_solver', 'time_function_evaluation', 'nb_iterations', 'time_total', 'compute_search_dir']
+    ylabels = ['time [s]', 'time [s]', '', 'time [s]', 'time [s]']
     problem_names = [df["problem_name"].values[0] for df in list_of_dfs]
 
     for metric in performance_metrics:

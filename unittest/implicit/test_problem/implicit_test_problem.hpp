@@ -165,43 +165,6 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
         };
         virtual Index get_horizon_length() const { return K_; };
         /*
-        virtual Index eval_BAbt(const Scalar *states_kp1, const Scalar *inputs_k,
-                                const Scalar *states_k, MAT *res, const Index k)
-        {
-            if (DEBUG_PRINT){
-                std::cout << "entering " << __func__ << " [" << k << "]" << std::endl;
-            }
-            if (k == K_ - 1){
-                throw std::runtime_error("Error in eval_BAbt: cannot evaluate BAbt at final stage");
-            }
-            blasfeo_gese_wrap(res->m, res->n, 0.0, res, 0, 0);
-            std::vector<const double*> arg_in = {inputs_k, states_k, states_kp1};
-            std::vector<double*> arg_out = {&scratch_[0]};
-            BAbt_gc_(arg_in, arg_out);
-
-            // store nonzeros in the matrix
-            int scratch_ptr = 0;
-            for (int j = 0; j < BAbt_sp_.size2(); j++){
-                for (int i = 0; i < BAbt_sp_.size1(); i++){
-                    if (i > res->m || j > res->n){
-                        throw std::runtime_error("Error in eval_BAbt: trying to write outside of matrix bounds");
-                    }
-                    if (BAbt_.sparsity_out(0).has_nz(i, j)) {
-                        blasfeo_matel_wrap(res, i, j) = scratch_[scratch_ptr];
-                        scratch_ptr++;
-                    } else {
-                        blasfeo_matel_wrap(res, i, j) = 0.0;
-                    }
-                }
-            }
-
-            if (DEBUG_PRINT){
-                std::cout << __func__ << " [" << k << "]" << std::endl;
-                blasfeo_print_dmat(res->m, res->n, res, 0, 0);
-            }
-            return 0;
-        }
-        */
         virtual Index eval_BAJbt(const Scalar *states_kp1, const Scalar *inputs_k,
                                  const Scalar *states_k, MAT *res, MAT *res_J, MAT *res_J_inv, const Index k)
         {
@@ -262,6 +225,88 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             }
             return 0;
         }
+        */
+        virtual Index eval_BAJbt(const Scalar *states_kp1, const Scalar *inputs_k,
+                                 const Scalar *states_k, MAT *res, MAT *res_J, MAT *res_J_inv, const Index k)
+        {
+            if (DEBUG_PRINT){
+                std::cout << "entering " << __func__ << " [" << k << "]" << std::endl;
+            }
+            if (k == K_ - 1){
+                throw std::runtime_error("Error in eval_BAbt: cannot evaluate BAbt at final stage");
+            }
+            blasfeo_gese_wrap(res->m, res->n, 0.0, res, 0, 0);
+            blasfeo_gese_wrap(res_J->m, res_J->n, 0.0, res_J, 0, 0);
+            blasfeo_gese_wrap(res_J_inv->m, res_J_inv->n, 0.0, res_J_inv, 0, 0);
+            std::vector<const double*> arg_in = {inputs_k, states_k, states_kp1};
+            if (use_parameter_for_dynamics_){
+                // evaluate parameter
+                double p_val[1];
+                double k_double = static_cast<double>(k);
+                std::vector<const double*> arg_in_p = {&k_double};
+                std::vector<double*> arg_out_p = {p_val};
+                eval_p_(arg_in_p, arg_out_p);
+                arg_in.push_back(p_val);
+            }
+            // std::vector<double*> arg_out = {&scratch_[0], &scratch2_[0]};
+            // BAJbt_gc_(arg_in, arg_out);
+            std::vector<double*> arg_out = {&scratch_[0]};
+            BAJbt_no_inv_gc_(arg_in, arg_out);
+
+            // store nonzeros in the matrix
+            int scratch_ptr = 0;
+            const casadi_int* c = BAJbt_sp_.colind();
+            int r;
+            for (int i = 0; i < BAJbt_sp_.size2(); i++){
+                for (int el = c[i]; el != c[i+1]; ++el){
+                    r = BAJbt_sp_.row(el);
+                    if (r < get_nu(k) + get_nx(k)){
+                        // contribution to BA
+                        blasfeo_matel_wrap(res, r, i) = scratch_[scratch_ptr];
+                    } else {
+                        // contribution to J
+                        blasfeo_matel_wrap(res_J, r - get_nu(k) - get_nx(k), i) = scratch_[scratch_ptr];
+                    }
+                    scratch_ptr++;
+                }
+            }
+
+            /*
+            // store nonzeros in the inverse of J
+            int scratch2_ptr = 0;
+            const casadi_int* c2 = Jt_inv_sp_.colind();
+            for (int i = 0; i < Jt_inv_sp_.size2(); i++){
+                for (int el = c2[i]; el != c2[i+1]; ++el){
+                    blasfeo_matel_wrap(res_J_inv, Jt_inv_sp_.row(el), i) = scratch2_[scratch2_ptr];
+                    scratch2_ptr++;
+                }
+            }
+            */
+
+            // compute the inverse of J
+            // step 1: get LU factorization of Jt
+            Index nx_next = get_nx(k+1);
+            MatRealAllocated LU(nx_next, nx_next);
+            MatRealAllocated I(nx_next, nx_next);
+            for (Index i = 0; i < nx_next; ++i){
+                blasfeo_matel_wrap(&I.mat(), i, i) = 1.0;
+            }
+            // MatRealAllocated res_J_inv_test(nx_next, nx_next);
+            blasfeo_dgetrf_np(nx_next, nx_next, res_J, 0, 0, &LU.mat(), 0, 0);
+
+            // step 2: compute inverse via solving with identity matrix
+            MatRealAllocated Y(nx_next, nx_next);
+            blasfeo_dtrsm_runn(nx_next, nx_next, 1.0, &LU.mat(), 0, 0, &I.mat(), 0, 0, &Y.mat(), 0, 0);
+            blasfeo_dtrsm_rlnu(nx_next, nx_next, 1.0, &LU.mat(), 0, 0, &Y.mat(), 0, 0, res_J_inv, 0, 0);
+            
+
+            if (DEBUG_PRINT){
+                std::cout << __func__ << " [" << k << "]" << std::endl;
+                blasfeo_print_dmat(res->m, res->n, res, 0, 0);
+            }
+            return 0;
+        }
+
         virtual Index eval_BAJbt_no_inverse(const Scalar *states_kp1, const Scalar *inputs_k,
                                  const Scalar *states_k, MAT *res, MAT *res_J, const Index k)
         {
@@ -874,8 +919,8 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                 eval_gK_gc_ = eval_gK_; eval_gk_ineq_gc_ = eval_gk_ineq_;
                 eval_gK_ineq_gc_ = eval_gK_ineq_;
                 eval_dynamics_equation_gc_ = eval_dynamics_equation_;
-                grad_gc_ = grad_; grad_K_gc_ = grad_K_; BAbt_gc_ = BAbt_;
-                BAJbt_gc_ = BAJbt_; BAJbt_no_inv_gc_ = BAJbt_no_inv_;
+                grad_gc_ = grad_; grad_K_gc_ = grad_K_; /*BAbt_gc_ = BAbt_;*/
+                /*BAJbt_gc_ = BAJbt_;*/ BAJbt_no_inv_gc_ = BAJbt_no_inv_;
                 lag_hess_k_gc_ = lag_hess_k_; lag_hess_0_gc_ = lag_hess_0_;
                 lag_hess_K_gc_ = lag_hess_K_; Ggt_gc_ = Ggt_; GgKt_gc_ = GgKt_;
                 Gg0t_gc_ = Gg0t_; Ggt_ineq_gc_ = Ggt_ineq_;
@@ -887,14 +932,14 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                 std::vector<Function*> f = {
                     &eval_objk_, &eval_objK_, &eval_gk_, &eval_g0_, &eval_gK_,
                     &eval_gk_ineq_, &eval_gK_ineq_, &eval_dynamics_equation_,
-                    &grad_, &grad_K_, &BAbt_, &BAJbt_, &BAJbt_no_inv_, &lag_hess_k_, &lag_hess_0_,
+                    &grad_, &grad_K_, /*&BAbt_, &BAJbt_,*/ &BAJbt_no_inv_, &lag_hess_k_, &lag_hess_0_,
                     &lag_hess_K_, &dyn_hess_kp_, &Ggt_, &GgKt_, &Gg0t_,
                     &Ggt_ineq_, &GgKt_ineq_//, &b_, &Jt_, &Jt_inv_, &FuFxt_
                 };
                 std::vector<Function*> f_gc = {
                     &eval_objk_gc_, &eval_objK_gc_, &eval_gk_gc_, &eval_g0_gc_, &eval_gK_gc_,
                     &eval_gk_ineq_gc_, &eval_gK_ineq_gc_, &eval_dynamics_equation_gc_,
-                    &grad_gc_, &grad_K_gc_, &BAbt_gc_, &BAJbt_gc_, &BAJbt_no_inv_gc_, &lag_hess_k_gc_, &lag_hess_0_gc_,
+                    &grad_gc_, &grad_K_gc_, /*&BAbt_gc_, &BAJbt_gc_,*/ &BAJbt_no_inv_gc_, &lag_hess_k_gc_, &lag_hess_0_gc_,
                     &lag_hess_K_gc_, &dyn_hess_kp_gc_, &Ggt_gc_, &GgKt_gc_, &Gg0t_gc_,
                     &Ggt_ineq_gc_, &GgKt_ineq_gc_//, &b_gc_, &Jt_gc_, &Jt_inv_gc_, &FuFxt_gc_
                 };
@@ -902,7 +947,13 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                     int progress = int(( (i+1) / (double) f.size() ) * 100.0);
                     std::cout << "code generating function " << (*f[i]).name() << " (" << progress << "%)                                          \r";
                     std::cout.flush();
-                    *f_gc[i] = CodeGenerateFunction(*f[i]);
+                    try{
+                        // expand function
+                        Function f_expanded = (*f[i]).expand();
+                        *f_gc[i] = CodeGenerateFunction(f_expanded);
+                    } catch (casadi::CasadiException& e){
+                        *f_gc[i] = CodeGenerateFunction(*f[i]);
+                    }
                 }
                 std::cout << std::endl;
             }

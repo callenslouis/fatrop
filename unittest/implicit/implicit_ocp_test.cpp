@@ -110,7 +110,7 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_expl = builder_expl.with_options_registry(&options).build();
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_reform = builder_reform.with_options_registry(&options).build();
     // options.set_option("mu_init", 100.0);
-    options.set_option("max_iter", 100);
+    options.set_option("max_iter", 1000);
     // options.set_option("print_level", 12);
     std::cout << "built ip algorithms" << std::endl;
 
@@ -294,6 +294,17 @@ void SolveAllBatchReactor(){
     }
 }
 
+void SolveSingeSolarReceiverReactor(int n){
+    std::unique_ptr<InterfaceGenerator> generator = 
+        std::make_unique<SolarReceiverReactorGenerator>(n);
+    SolveProblem(generator);
+}
+void SolveAllSolarReceiverReactor(){
+    for (int n = 0; n <= 10; n++){
+        SolveSingeSolarReceiverReactor(n);
+    }
+}
+
 int main(int argc, char **argv)
 {
     // // create a directory ocp_results
@@ -303,21 +314,21 @@ int main(int argc, char **argv)
     // srrg.SolveOptiInstance("ipopt");
     // srrg.SolveOptiInstance("fatrop");
     
-    std::unique_ptr<InterfaceGenerator> temp = std::make_unique<SolarReceiverReactorGenerator>(0);
-    try{
-        // ExplicitTestProblem tp = temp->PrepareExplicit();
-        // print_jac_and_hess(tp);
-        SolveProblem(temp);
-    } catch (std::exception& e){
-        std::cout << "Exception caught during batch reactor solve: " << e.what() << std::endl;
-    }
-    return 0;
+    // std::unique_ptr<InterfaceGenerator> temp = std::make_unique<SolarReceiverReactorGenerator>(0);
+    // try{
+    //     // ExplicitTestProblem tp = temp->PrepareExplicit();
+    //     // print_jac_and_hess(tp);
+    //     SolveProblem(temp);
+    // } catch (std::exception& e){
+    //     std::cout << "Exception caught during batch reactor solve: " << e.what() << std::endl;
+    // }
+    // return 0;
 
 
     if (argc < 3){
         std::cout << "Please provide the following arguments to this executable:" << std::endl;
         std::cout << "\t\"single\" or \"all\"" << std::endl;
-        std::cout << "\tproblem name (truck_trailer, bycicle, example_static, holonomic, planar_robot, quadruped, batch_reactor)" << std::endl;
+        std::cout << "\tproblem name (truck_trailer, bycicle, example_static, holonomic, planar_robot, quadruped, batch_reactor, solar_receiver_reactor)" << std::endl;
         std::cout << "in case of a single problem, also provide the parameters desired (optionally)" << std::endl;
         return 0;
     }
@@ -356,8 +367,12 @@ int main(int argc, char **argv)
             int n = 0;
             if (argc > 3){ n = std::stoi(argv[3]);}
             generator = std::make_unique<BatchReactorGenerator>(n);
+        } else if (std::string(argv[2]) == "solar_receiver_reactor"){
+            int n = 0;
+            if (argc > 3){ n = std::stoi(argv[3]);}
+            generator = std::make_unique<SolarReceiverReactorGenerator>(n);
         } else {
-            std::cout << "Second argument should be either \"truck_trailer\", \"bycicle\", \"example_static\", \"holonomic\", \"planar_robot\", \"quadruped\" or \"batch_reactor\" when first argument is \"single\"" << std::endl;
+            std::cout << "Second argument should be either \"truck_trailer\", \"bycicle\", \"example_static\", \"holonomic\", \"planar_robot\", \"quadruped\", \"batch_reactor\" or \"solar_receiver_reactor\" when first argument is \"single\"" << std::endl;
             return 0;
         }
 
@@ -374,6 +389,8 @@ int main(int argc, char **argv)
             SolveAllQuadruped();
         } else if (std::string(argv[2]) == "batch_reactor"){
             SolveAllBatchReactor();
+        } else if (std::string(argv[2]) == "solar_receiver_reactor"){
+            SolveAllSolarReceiverReactor();
         } else {
             std::cout << "Second argument should be either \"truck_trailer\", \"holonomic\". \"planar_robot\" or \"quadruped\" when first argument is \"all\"" << std::endl;
             return 0;
