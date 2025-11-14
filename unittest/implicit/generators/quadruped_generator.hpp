@@ -111,6 +111,18 @@ class QuadrupedGenerator : public InterfaceGenerator {
                     impl_dyn_);
         }
 
+        virtual ExplicitTestProblem PrepareRootFinder(){
+            Function eval_dynamics_equation_implicit = Function("eval_dynamics_equation", {xkp_, uk_, xk_}, {impl_dyn_(MXVector{uk_, xk_, xkp_})[0]});
+            Function rf = rootfinder("rf", "newton", eval_dynamics_equation_implicit);
+            Function explicit_rootfinder = Function("explicit_rootfinder", {uk_, xk_}, {rf(MXVector{xk_, uk_, xk_})});
+
+            return ExplicitTestProblem(K_, nx_, nu_, 
+                    x_init_, u_init_, 
+                    lb_, ub_, lb_K_, ub_K_,
+                    eval_objk_, eval_objK_, eval_gk_, eval_g0_, eval_gK_, eval_gk_ineq_, eval_gK_ineq_,
+                    explicit_rootfinder);
+        }
+
         virtual ExplicitTestProblem PrepareExplicit(){
             return ExplicitTestProblem(
                     K_, nx_, nu_, 

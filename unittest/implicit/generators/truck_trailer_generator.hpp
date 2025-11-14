@@ -89,6 +89,33 @@ class TruckTrailerGenerator : public InterfaceGenerator {
                     eval_dynamics_equation_implicit);
         }
 
+        ExplicitTestProblem PrepareRootFinder(){
+            Function eval_objk = Function("eval_objk", {uk_, xk_}, {sumsqr(uk_)});
+            Function eval_objK = Function("eval_objK", {xk_}, {0});
+            Function eval_gk = Function("eval_gk", {uk_, xk_}, {MX::zeros(0,1)});
+            Function eval_g0 = Function("eval_g0", {uk_, xk_}, {xk_ - start_});
+            Function eval_gk_ineq = Function("eval_gk_ineq", {uk_, xk_}, {vertcat(th_, uk_)});
+            Function eval_gK = Function("eval_gK", {xk_}, {xk_(Slice(nx_-2, nx_, 1)) - end_});
+            Function eval_gK_ineq = Function("eval_gK_ineq", {xk_}, {MX::zeros(0,1)});
+            
+            MX v = MX(n_+1, 1); v(0) = uk_(0);
+            MX th_der = MX(n_+1, 1); th_der(0) = uk_(1);
+            for (int i = 0; i < n_; i++){
+                v(i+1) = v(i)*cos(thp_(i) - thp_(i+1)) + M_*th_der(i)*sin(thp_(i) - thp_(i+1));
+                th_der(i+1) = v(i)*sin(thp_(i) - thp_(i+1))/L_ - M_*cos(thp_(i) - thp_(i+1))*th_der(i)/L_;
+            }
+            MX rhs = vertcat(th_der, v(n_)*cos(thp_(n_)), v(n_)*sin(thp_(n_)));
+            Function eval_dynamics_equation_implicit = Function("eval_dynamics_equation", {xkp_, uk_, xk_}, {xk_ + dt_*rhs - xkp_});
+            Function rf = rootfinder("rf", "newton", eval_dynamics_equation_implicit);
+            Function explicit_rootfinder = Function("explicit_rootfinder", {uk_, xk_}, {rf(MXVector{xk_, uk_, xk_})});
+
+            return ExplicitTestProblem(K_, nx_, nu_, 
+                    x_init_, u_init_, 
+                    lb_, ub_, lb_K_, ub_K_,
+                    eval_objk, eval_objK, eval_gk, eval_g0, eval_gK, eval_gk_ineq, eval_gK_ineq,
+                    explicit_rootfinder);
+        }
+
         virtual ExplicitTestProblem PrepareExplicit(){
             Function eval_objk = Function("eval_objk", {uk_, xk_}, {sumsqr(uk_)});
             Function eval_objK = Function("eval_objK", {xk_}, {0});

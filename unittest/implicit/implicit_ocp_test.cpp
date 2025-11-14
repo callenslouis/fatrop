@@ -88,12 +88,15 @@ json add_json_data(std::shared_ptr<IpData<ProblemType>> data, std::string proble
 void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     bool STORE_SOLUTION = true;
     auto tp_impl = std::make_shared<ImplicitTestProblem>(generator->PrepareImplicit());
+    auto tp_rf = std::make_shared<ExplicitTestProblem>(generator->PrepareRootFinder());
     auto tp_reform = std::make_shared<ExplicitTestProblem>(generator->PrepareReformulated());
     auto tp_expl = std::make_shared<ExplicitTestProblem>(generator->PrepareExplicit());
     ImplicitTestProblem tp_interface_impl = *tp_impl;
+    ExplicitTestProblem tp_interface_rf = *tp_rf;
     ExplicitTestProblem tp_interface_expl = *tp_expl;
     ExplicitTestProblem tp_interface_reform = *tp_reform;
     // show_implicit_interface_output(tp_interface_impl, "output_interface_implicit.txt");
+    // show_interface_output(tp_interface_rf, "output_interface_rootfinder.txt");
     // show_interface_output(tp_interface_expl, "output_interface_explicit.txt");
     // show_interface_output(tp_interface_reform, "output_interface_reformulated.txt");
 
@@ -103,10 +106,12 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
 
     OptionRegistry options;
     IpAlgBuilder<ImplicitOcpType> builder_impl(std::make_shared<ImplicitNlpOcp>(tp_impl));
+    IpAlgBuilder<OcpType> builder_rf(std::make_shared<NlpOcp>(tp_rf));
     IpAlgBuilder<OcpType> builder_expl(std::make_shared<NlpOcp>(tp_expl));
     IpAlgBuilder<OcpType> builder_reform(std::make_shared<NlpOcp>(tp_reform));    
 
     std::shared_ptr<IpAlgorithm<ImplicitOcpType>> ipalg_impl = builder_impl.with_options_registry(&options).build();
+    std::shared_ptr<IpAlgorithm<OcpType>> ipalg_rf = builder_rf.with_options_registry(&options).build();
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_expl = builder_expl.with_options_registry(&options).build();
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_reform = builder_reform.with_options_registry(&options).build();
     // options.set_option("mu_init", 100.0);
@@ -114,12 +119,13 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     // options.set_option("print_level", 12);
     std::cout << "built ip algorithms" << std::endl;
 
-    json result_expl, result_reform, result_impl;
-    bool solved_expl = false, solved_reform = false, solved_impl = false;
+    json result_expl, result_reform, result_impl, result_rf;
+    bool solved_expl = false, solved_reform = false, solved_impl = false, solved_rf = false;
     
     bool skip_expl = false;
     bool skip_reform = false;
     bool skip_impl = false;
+    bool skip_rf = false;
 
     // EXPLICIT
     if (!skip_expl){
@@ -193,32 +199,60 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     }
     }
     
+    // ROOTFINDER
+    if (!skip_rf){
+    try{
+        std::cout << "solving rootfinder test problem" << std::endl;
+        Timer timer_rf; timer_rf.start();
+        IpSolverReturnFlag ret_rf = ipalg_rf->optimize();
+        std::cout << "Elapsed time: " << timer_rf.stop() << std::endl;
+        auto data_rf = builder_rf.get_ipdata();
+        result_rf = add_json_data(data_rf, "rootfinder");
+        result_rf["generator_data"] = generator->GetJsonData();
+        std::ofstream file4("ocp_results/ocp_result_rootfinder_" + gen_type + "_" + file_name_appendix + ".json");
+        if (STORE_SOLUTION){
+            if (file4.is_open())
+            {
+                file4 << result_rf.dump(4);
+                file4.close();
+            }
+        }
+        solved_rf = true;
+    } catch (std::exception& e){
+        std::cout << "Exception caught during rootfinder solve: " << e.what() << std::endl;
+    }
+    }
 
     std::cout << "Finished solving problem" << std::endl;
     std::cout << "nb iterations: " << std::endl;
     if (solved_expl){std::cout << "\texplicit:     " << result_expl["metadata"]["iterations"] << std::endl;}
     if (solved_reform){std::cout << "\treformulated: " << result_reform["metadata"]["iterations"] << std::endl;}
     if (solved_impl){std::cout << "\timplicit:     " << result_impl["metadata"]["iterations"] << std::endl;}
+    if (solved_rf){std::cout << "\trootfinder:   " << result_rf["metadata"]["iterations"] << std::endl;}
 
     std::cout << "t_total: " << std::endl;
     if (solved_expl){std::cout << "\texplicit:     " << result_expl["metadata"]["timing_statistics"]["total"] << std::endl;}
     if (solved_reform){std::cout << "\treformulated: " << result_reform["metadata"]["timing_statistics"]["total"] << std::endl;}
     if (solved_impl){std::cout << "\timplicit:     " << result_impl["metadata"]["timing_statistics"]["total"] << std::endl;}
+    if (solved_rf){std::cout << "\trootfinder:   " << result_rf["metadata"]["timing_statistics"]["total"] << std::endl;}
 
     std::cout << "t_func: " << std::endl;
     if (solved_expl){std::cout << "\texplicit:     " << result_expl["metadata"]["timing_statistics"]["function evaluation"] << std::endl;}
     if (solved_reform){std::cout << "\treformulated: " << result_reform["metadata"]["timing_statistics"]["function evaluation"] << std::endl;}
     if (solved_impl){std::cout << "\timplicit:     " << result_impl["metadata"]["timing_statistics"]["function evaluation"] << std::endl;}
+    if (solved_rf){std::cout << "\trootfinder:   " << result_rf["metadata"]["timing_statistics"]["function evaluation"] << std::endl;}
 
     std::cout << "t_fatrop: " << std::endl;
     if (solved_expl){std::cout << "\texplicit:     " << result_expl["metadata"]["timing_statistics"]["fatrop"] << std::endl;}
     if (solved_reform){std::cout << "\treformulated: " << result_reform["metadata"]["timing_statistics"]["fatrop"] << std::endl;}
     if (solved_impl){std::cout << "\timplicit:     " << result_impl["metadata"]["timing_statistics"]["fatrop"] << std::endl;}
+    if (solved_rf){std::cout << "\trootfinder:   " << result_rf["metadata"]["timing_statistics"]["fatrop"] << std::endl;}
 
     std::cout << "hessian eval time breakdown:" << std::endl;
     if (solved_expl){std::cout << "explicit:" << std::endl; tp_expl->get_hess_time_breakdown(result_expl["metadata"]["iterations"]);}
     if (solved_reform){std::cout << "reformulated:" << std::endl; tp_reform->get_hess_time_breakdown(result_reform["metadata"]["iterations"]);}
     if (solved_impl){std::cout << "implicit:" << std::endl; tp_impl->get_hess_time_breakdown(result_impl["metadata"]["iterations"]);}
+    if (solved_rf){std::cout << "rootfinder:" << std::endl; tp_rf->get_hess_time_breakdown(result_rf["metadata"]["iterations"]);}
 }
 
 void SolveSingleProblemTruckTrailer(int n_trailers){
@@ -313,8 +347,15 @@ int main(int argc, char **argv)
     // SolarReceiverReactorGenerator srrg = SolarReceiverReactorGenerator(0);
     // srrg.SolveOptiInstance("ipopt");
     // srrg.SolveOptiInstance("fatrop");
+    // TruckTrailerGenerator ttg = TruckTrailerGenerator(2);
+    // auto tp =  std::make_shared<ExplicitTestProblem>(ttg.PrepareRootFinder());
+    // IpAlgBuilder<OcpType> builder_expl(std::make_shared<NlpOcp>(tp));
+    // OptionRegistry options;
+    // std::shared_ptr<IpAlgorithm<OcpType>> ipalg_expl = builder_expl.with_options_registry(&options).build();
+    // ipalg_expl->optimize();
     
-    // std::unique_ptr<InterfaceGenerator> temp = std::make_unique<SolarReceiverReactorGenerator>(0);
+    
+    // std::unique_ptr<InterfaceGenerator> temp = std::make_unique<TruckTrailerGenerator>(2);
     // try{
     //     // ExplicitTestProblem tp = temp->PrepareExplicit();
     //     // print_jac_and_hess(tp);

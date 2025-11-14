@@ -71,6 +71,37 @@ class HolonomicInterfaceGenerator : public InterfaceGenerator {
                     eval_dynamics_equation_implicit);
         }
 
+        virtual ExplicitTestProblem PrepareRootFinder(){
+            Function eval_objk = Function("eval_objk", {uk_, xk_}, {sumsqr(uk_)});
+            Function eval_objK = Function("eval_objK", {xk_}, {0});
+            Function eval_gk = Function("eval_gk", {uk_, xk_}, {MX::zeros(0,1)});
+            Function eval_g0 = Function("eval_g0", {uk_, xk_}, {xk_ - start_});
+            Function eval_gK = Function("eval_gK", {xk_}, {xk_ - end_});
+            Function eval_gk_ineq = Function("eval_gk_ineq", {uk_, xk_}, {uk_});
+            Function eval_gK_ineq = Function("eval_gK_ineq", {xk_}, {MX::zeros(0,1)});
+            
+            MX temp_implicit = MX(nx_, 1);
+            for (int i = 0; i < control_level_; ++i) {
+                for (int j = 0; j < n_; ++j) {
+                    MX der_implicit = (i < control_level_ - 1) ? xkp_((i+1)*n_ + j) : uk_(j);
+                    temp_implicit(i*n_ + j) = xk_(i*n_ + j) + dt_*der_implicit - xkp_(i*n_ + j);
+                }
+            }
+            Function eval_dynamics_equation_implicit = Function("eval_dynamics_equation", {xkp_, uk_, xk_}, {temp_implicit});
+            Function rf = rootfinder("rf", "newton", eval_dynamics_equation_implicit);
+            Function explicit_rootfinder = Function("explicit_rootfinder", {uk_, xk_}, {rf(MXVector{xk_, uk_, xk_})});
+
+            return ExplicitTestProblem(K_, nx_, nu_, 
+                    std::vector<std::vector<double>>(100, std::vector<double>(nx_, 0.0)), 
+                    std::vector<std::vector<double>>(100, std::vector<double>(nu_, 0.0)), 
+                    std::vector<double>(nu_, uk_min_), 
+                    std::vector<double>(nu_, uk_max_), 
+                    std::vector<double>(0,0), 
+                    std::vector<double>(0,0),
+                    eval_objk, eval_objK, eval_gk, eval_g0, eval_gK, eval_gk_ineq, eval_gK_ineq,
+                    explicit_rootfinder);
+        }
+
         virtual ExplicitTestProblem PrepareExplicit(){
             Function eval_objk = Function("eval_objk", {uk_, xk_}, {sumsqr(uk_)});
             Function eval_objK = Function("eval_objK", {xk_}, {0});

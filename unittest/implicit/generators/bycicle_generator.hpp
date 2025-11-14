@@ -87,6 +87,28 @@ class BycicleGenerator : public InterfaceGenerator {
                     eval_dynamics_equation_implicit);
         }
 
+        virtual ExplicitTestProblem PrepareRootFinder(){
+            Function eval_objk = Function("eval_objk", {uk_, xk_}, {sumsqr(uk_)});
+            Function eval_objK = Function("eval_objK", {xk_}, {0});
+            Function eval_gk = Function("eval_gk", {uk_, xk_}, {MX::zeros(0,1)});
+            Function eval_g0 = Function("eval_g0", {uk_, xk_}, {xk_ - start_});
+            // Function eval_gk_ineq = Function("eval_gk_ineq", {uk_, xk_}, {uk_});
+            Function eval_gk_ineq = Function("eval_gk_ineq", {uk_, xk_}, {zero_});
+            Function eval_gK = Function("eval_gK", {xk_}, {vertcat(pxk_ - end_[0], pyk_ - end_[1])});
+            Function eval_gK_ineq = Function("eval_gK_ineq", {xk_}, {MX::zeros(0,1)});
+            
+            MX rhs = vertcat(wk_, vk_*cos(thkp_), vk_*sin(thkp_));
+            Function eval_dynamics_equation_implicit = Function("eval_dynamics_equation", {xkp_, uk_, xk_}, {xk_ + dt_*rhs - xkp_});
+            Function rf = rootfinder("rf", "newton", eval_dynamics_equation_implicit);
+            Function explicit_rootfinder = Function("explicit_rootfinder", {uk_, xk_}, {rf(MXVector{xk_, uk_, xk_})});
+
+            return ExplicitTestProblem(K_, nx_, nu_, 
+                    x_init_, u_init_, 
+                    lb_, ub_, lb_K_, ub_K_,
+                    eval_objk, eval_objK, eval_gk, eval_g0, eval_gK, eval_gk_ineq, eval_gK_ineq,
+                    explicit_rootfinder);
+        }
+
         virtual ExplicitTestProblem PrepareExplicit(){
             Function eval_objk = Function("eval_objk", {uk_, xk_}, {sumsqr(uk_)});
             Function eval_objK = Function("eval_objK", {xk_}, {0});

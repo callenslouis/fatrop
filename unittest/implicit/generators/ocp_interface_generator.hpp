@@ -18,6 +18,7 @@ using json = nlohmann::json;
 class InterfaceGenerator{
     public:
         virtual ImplicitTestProblem PrepareImplicit() = 0;
+        virtual ExplicitTestProblem PrepareRootFinder() = 0;
         virtual ExplicitTestProblem PrepareExplicit() = 0;
         virtual ExplicitTestProblem PrepareReformulated() = 0;
         virtual ~InterfaceGenerator() = default;

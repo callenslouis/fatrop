@@ -960,7 +960,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
         };
 
         bool DEBUG_PRINT = false;
-        bool USE_CODEGEN_ = true;
+        bool USE_CODEGEN_ = false;
 
         // user-provided info
         Index K_;
