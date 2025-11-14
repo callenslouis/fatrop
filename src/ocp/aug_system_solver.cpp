@@ -1328,7 +1328,7 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
                eq_mult, info.offsets_g_eq_dyn[k]);
         
         // pi_k+1 <-- - Jt_inv * pi_k+1
-        if (jacobian.ASSUME_INVERSE_GIVEN){
+        if (true || jacobian.ASSUME_INVERSE_GIVEN){
             VecRealAllocated original_pi = VecRealAllocated(nx_next);
             for (int i = 0; i < nx_next; i++){
                 original_pi(i) = eq_mult(info.offsets_g_eq_dyn[k]+i);
@@ -1339,7 +1339,8 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
                 original_pi, 0, 
                 eq_mult, info.offsets_g_eq_dyn[k]);
         } else {
-            throw std::runtime_error("Not implemented yet for ASSUME_INVERSE_GIVEN == false");
+            // by now, we've computed the inverse anyway so it's okay
+            // throw std::runtime_error("Not implemented yet for ASSUME_INVERSE_GIVEN == false");
         }
     }
     auto stop = std::chrono::high_resolution_clock::now();

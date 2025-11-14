@@ -119,16 +119,12 @@ namespace fatrop
             Jt.reserve(dims.K - 1);
             Jt_LU.reserve(dims.K - 1);
             Jt_inv.reserve(dims.K - 1);
-            Pl.reserve(dims.K - 1);
-            Pr.reserve(dims.K - 1);
             rho.reserve(dims.K - 1);
             for (int k = 0; k < dims.K - 1; ++k)
             {
                 Jt.emplace_back(dims.number_of_states[k + 1], dims.number_of_states[k + 1]);
                 Jt_LU.emplace_back(dims.number_of_states[k + 1], dims.number_of_states[k + 1]);
                 Jt_inv.emplace_back(dims.number_of_states[k + 1], dims.number_of_states[k + 1]);
-                Pl.emplace_back(dims.number_of_states[k + 1]);
-                Pr.emplace_back(dims.number_of_states[k + 1]);
             }
         }
         
@@ -159,7 +155,7 @@ namespace fatrop
          */
         std::vector<MatRealAllocated> Jt;
         std::vector<MatRealAllocated> Jt_inv;
-        bool ASSUME_INVERSE_GIVEN = true;
+        bool ASSUME_INVERSE_GIVEN = false;
 
         // printing
         friend std::ostream &operator<<(std::ostream &os, const Jacobian<ImplicitOcpType> &jac)
@@ -185,8 +181,6 @@ namespace fatrop
         double dgemm_time = 0;
     private:
         std::vector<MatRealAllocated> Jt_LU;
-        std::vector<PermutationMatrix> Pl;
-        std::vector<PermutationMatrix> Pr;
         std::vector<int> rho;
         std::vector<MatRealAllocated> BAbt_original;
 

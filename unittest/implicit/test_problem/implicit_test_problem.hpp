@@ -284,6 +284,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             */
 
             // compute the inverse of J
+            /*
             // step 1: get LU factorization of Jt
             Index nx_next = get_nx(k+1);
             MatRealAllocated LU(nx_next, nx_next);
@@ -298,7 +299,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             MatRealAllocated Y(nx_next, nx_next);
             blasfeo_dtrsm_runn(nx_next, nx_next, 1.0, &LU.mat(), 0, 0, &I.mat(), 0, 0, &Y.mat(), 0, 0);
             blasfeo_dtrsm_rlnu(nx_next, nx_next, 1.0, &LU.mat(), 0, 0, &Y.mat(), 0, 0, res_J_inv, 0, 0);
-            
+            */
 
             if (DEBUG_PRINT){
                 std::cout << __func__ << " [" << k << "]" << std::endl;

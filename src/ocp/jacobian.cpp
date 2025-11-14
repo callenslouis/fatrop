@@ -248,29 +248,29 @@ void Jacobian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
     for (int i = 0; i < info.number_of_eq_constraints; i++){
         g_copy(i) = g(i);
     }    
+    if (!ASSUME_INVERSE_GIVEN){
+        // Jt_inv has to be prepared first
+        PrepareInverseOfJ(info);
+    }
+
     for (int k = 0; k < info.dims.K - 1; ++k){                                                      // 75% of the jacobian preprocessing time
         Index nx_next = info.dims.number_of_states[k + 1];
         Index nx = info.dims.number_of_states[k];
         Index nu = info.dims.number_of_controls[k];
 
-        if (ASSUME_INVERSE_GIVEN){
-            blasfeo_dgemm_nn(nx + nu + 1, nx_next, nx_next, -1.0, 
-                             &BAbt_original[k].mat(), 0, 0, &Jt_inv[k].mat(), 0, 0, 0.0,
-                             &BAbt[k].mat(), 0, 0, &BAbt[k].mat(), 0, 0);
+        blasfeo_dgemm_nn(nx + nu + 1, nx_next, nx_next, -1.0, 
+                            &BAbt_original[k].mat(), 0, 0, &Jt_inv[k].mat(), 0, 0, 0.0,
+                            &BAbt[k].mat(), 0, 0, &BAbt[k].mat(), 0, 0);
 
-            // apply transformation to rhs also, since AugSystemSolver<OcpType> 
-            // overwrites the entries corresponding to the vector b in BAbt
-            // by considering g (b <-- -J^-1 @ b)
-            blasfeo_dgemv_t(nx_next, nx_next, -1.0,
-                            &Jt_inv[k].mat(), 0, 0, 
-                            &g_copy.vec(), info.offsets_g_eq_dyn[k], 0.0,
-                            &g_copy.vec(), info.offsets_g_eq_dyn[k],
-                            &g.vec(), info.offsets_g_eq_dyn[k]);
+        // apply transformation to rhs also, since AugSystemSolver<OcpType> 
+        // overwrites the entries corresponding to the vector b in BAbt
+        // by considering g (b <-- -J^-1 @ b)
+        blasfeo_dgemv_t(nx_next, nx_next, -1.0,
+                        &Jt_inv[k].mat(), 0, 0, 
+                        &g_copy.vec(), info.offsets_g_eq_dyn[k], 0.0,
+                        &g_copy.vec(), info.offsets_g_eq_dyn[k],
+                        &g.vec(), info.offsets_g_eq_dyn[k]);
 
-        } else {
-            throw std::runtime_error("Jacobian<ImplicitOcpType>::PreProcess: "
-                                 "ASSUME_INVERSE_GIVEN == false is not implemented yet.");
-        }
     } 
 }
 
@@ -284,8 +284,22 @@ void Jacobian<ImplicitOcpType>::PrepareInverseOfJ(const ProblemInfo &info){
     if (ASSUME_INVERSE_GIVEN){
         return;
     } else {
-        throw std::runtime_error("Jacobian<ImplicitOcpType>::PrepareInverseOfJ: "
-                                 "ASSUME_INVERSE_GIVEN == false is not implemented yet.");
+        // throw std::runtime_error("Jacobian<ImplicitOcpType>::PrepareInverseOfJ: "
+        //                          "ASSUME_INVERSE_GIVEN == false is not implemented yet.");
+        for (int k = 0; k < info.dims.K - 1; ++k){
+            Index nx_next = info.dims.number_of_states[k + 1];
+            MatRealAllocated I(nx_next, nx_next);
+            MatRealAllocated Y(nx_next, nx_next);
+            for (Index i = 0; i < nx_next; ++i){
+                blasfeo_matel_wrap(&I.mat(), i, i) = 1.0;
+            }
+            // MatRealAllocated res_J_inv_test(nx_next, nx_next);
+            blasfeo_dgetrf_np(nx_next, nx_next, &Jt[k].mat(), 0, 0, &Jt_LU[k].mat(), 0, 0);
+
+            // step 2: compute inverse via solving with identity matrix
+            blasfeo_dtrsm_runn(nx_next, nx_next, 1.0, &Jt_LU[k].mat(), 0, 0, &I.mat(), 0, 0, &Y.mat(), 0, 0);
+            blasfeo_dtrsm_rlnu(nx_next, nx_next, 1.0, &Jt_LU[k].mat(), 0, 0, &Y.mat(), 0, 0, &Jt_inv[k].mat(), 0, 0);
+        }
     }
 }
 
