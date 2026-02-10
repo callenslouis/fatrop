@@ -1320,7 +1320,7 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
         int nx_next = info.dims.number_of_states[k + 1];
         int nu = info.dims.number_of_controls[k];
 
-        // pi_k+1 <-- pi_k+1 + Fu[k] uk + Fx[k] xk
+        // pi_k+1 <-- pi_k+1 + Fu[k]' uk + Fx[k]' xk
         gemv_t(nu+nx, nx_next, 1.0, 
                hessian.FuFxt[k], 0, 0, 
                x, info.offsets_primal_u[k], 1.0, 
