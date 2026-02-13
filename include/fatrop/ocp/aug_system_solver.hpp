@@ -200,7 +200,7 @@ namespace fatrop
     class ModifiedAugSystemSolver
     {
     public:
-            ModifiedAugSystemSolver();
+        ModifiedAugSystemSolver(const ProblemInfo &info);
 
         /**
          * @brief Solves the augmented system without path equality constraint regularization.
@@ -331,14 +331,14 @@ namespace fatrop
 
     // define ImplicitOcpType augmented system solver
     template<>
-    class AugSystemSolver<ImplicitOcpType> : public AugSystemSolver<OcpType>
+    class AugSystemSolver<ImplicitOcpType> : public ModifiedAugSystemSolver
     {
     public:
         /**
          * @brief Constructs an AugSystemSolver<ImplicitOcpType> object.
          * @param info Problem information for the optimal control problem.
          */
-        AugSystemSolver(const ProblemInfo &info) : AugSystemSolver<OcpType>(info)
+        AugSystemSolver(const ProblemInfo &info) : ModifiedAugSystemSolver(info)
         {
             // Initialize additional members specific to ImplicitOcpType if needed
         };
