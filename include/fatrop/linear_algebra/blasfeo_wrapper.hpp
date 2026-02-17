@@ -288,6 +288,22 @@ namespace fatrop
                 const_cast<MAT *>(sC), ci, cj, sD, di, dj);
     }
 
+    static inline void blasfeo_gemm_nn_wrap(int m, int n, int k, Scalar alpha, const MAT *sA,
+                                            int ai, int aj, const MAT *sB, int bi, int bj,
+                                            Scalar beta, const MAT *sC, int ci, int cj, MAT *sD,
+                                            int di, int dj)
+    {
+        fatrop_dbg_assert(m >= 0 && n >= 0 && k >= 0 && "Matrix dimensions must be positive");
+        fatrop_dbg_assert(ai >= 0 && aj >= 0 && bi >= 0 && bj >= 0 && ci >= 0 && cj >= 0 &&
+                          di >= 0 && dj >= 0 && "Indices must be non-negative");
+        fatrop_dbg_assert(ai + m <= sA->m && aj + k <= sA->n && bi + n <= sB->m &&
+                          bj + k <= sB->n && ci + m <= sC->m && cj + n <= sC->n &&
+                          di + m <= sD->m && dj + n <= sD->n &&
+                          "Submatrices must fit within matrix dimensions");
+        GEMM_NN(m, n, k, alpha, const_cast<MAT *>(sA), ai, aj, const_cast<MAT *>(sB), bi, bj, beta,
+                const_cast<MAT *>(sC), ci, cj, sD, di, dj);
+    }
+
     static inline void blasfeo_syrk_ln_mn_wrap(int m, int n, int k, Scalar alpha, const MAT *sA,
                                                int ai, int aj, const MAT *sB, int bi, int bj,
                                                Scalar beta, const MAT *sC, int ci, int cj, MAT *sD,

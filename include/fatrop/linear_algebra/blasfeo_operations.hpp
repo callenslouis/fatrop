@@ -171,6 +171,15 @@ namespace fatrop
                              &D.mat(), D.ai() + di, D.aj() + dj);
     }
 
+    static inline void gemm_nn(int m, int n, int k, Scalar alpha, const MatRealView &A, int ai,
+                               int aj, const MatRealView &B, int bi, int bj, Scalar beta,
+                               const MatRealView &C, int ci, int cj, MatRealView &D, int di, int dj)
+    {
+        blasfeo_gemm_nn_wrap(m, n, k, alpha, &A.mat(), A.ai() + ai, A.aj() + aj, &B.mat(),
+                             B.ai() + bi, B.aj() + bj, beta, &C.mat(), C.ai() + ci, C.aj() + cj,
+                             &D.mat(), D.ai() + di, D.aj() + dj);
+    }
+
     static inline void syrk_ln_mn(int m, int n, int k, Scalar alpha, const MatRealView &A, int ai,
                                   int aj, const MatRealView &B, int bi, int bj, Scalar beta,
                                   const MatRealView &C, int ci, int cj, MatRealView &D, int di,

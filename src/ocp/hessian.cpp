@@ -98,6 +98,21 @@ void Hessian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
                                           VecRealView &f,
                                           VecRealView &g)
 {
+    // GENERAL CASE
+    for (int k = 0; k < info.dims.K; ++k){
+        // consider the right-hand-side for the vector [r; q] (this is also 
+        // what AugSystemSolver<OcpType> does in its preprocess step)
+        rowin(info.dims.number_of_states[k] + info.dims.number_of_controls[k],
+              1.0, f, info.offsets_primal_u[k], RSQrqt[k],
+              info.dims.number_of_states[k] + info.dims.number_of_controls[k], 0); 
+
+        RSQrqt_original[k] = RSQrqt[k];
+    }
+    for (int k = 0; k < info.dims.K-1; ++k){
+        FuFxt_original[k] = FuFxt[k];
+    }
+    return;
+
     auto start = std::chrono::high_resolution_clock::now();
     for (int k = 0; k < info.dims.K; ++k){
         RSQrqt_original[k] = RSQrqt[k];

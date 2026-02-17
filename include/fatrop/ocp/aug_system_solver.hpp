@@ -424,17 +424,20 @@ namespace fatrop
         std::chrono::microseconds duration_postprocess;
         std::chrono::microseconds duration_copying_rhs;
     private:
-        void PreProcess(const ProblemInfo &info, 
+        ProblemInfo PreProcess(const ProblemInfo &info, 
                         Jacobian<ImplicitOcpType> &jacobian,
                         Hessian<ImplicitOcpType> &hessian,
                         VecRealView &f, VecRealView &g);
 
         void PostProcess(const ProblemInfo &info, 
+                         const ProblemInfo &modified_info,
                          Jacobian<ImplicitOcpType> &jacobian,
                          Hessian<ImplicitOcpType> &hessian,
                          VecRealView &x, VecRealView &eq_mult);
 
-        bool print_debug = false;
+        bool print_debug = true;
+
+        double lu_fact_tol = 1e-5;
 
     };
 

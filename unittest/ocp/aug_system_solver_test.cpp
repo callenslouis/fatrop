@@ -14,10 +14,11 @@
 #include <vector>
 #include <iostream>
 #include <chrono>
-#include <casadi/casadi.hpp>
+// #include <casadi/casadi.hpp>
 
 using namespace fatrop;
-using namespace casadi;
+// using namespace casadi;
+
 
 class AugSystemSolverTest : public ::testing::Test
 {

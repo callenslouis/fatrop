@@ -120,11 +120,27 @@ namespace fatrop
             Jt_LU.reserve(dims.K - 1);
             Jt_inv.reserve(dims.K - 1);
             rho.reserve(dims.K - 1);
+            J_ranks.reserve(dims.K - 1);
+            Pl_pre.reserve(dims.K - 1);
+            Pr_pre.reserve(dims.K - 1);
+            U1U2t.reserve(dims.K - 1);
+            U1t.reserve(dims.K - 1);
             for (int k = 0; k < dims.K - 1; ++k)
             {
                 Jt.emplace_back(dims.number_of_states[k + 1], dims.number_of_states[k + 1]);
                 Jt_LU.emplace_back(dims.number_of_states[k + 1], dims.number_of_states[k + 1]);
                 Jt_inv.emplace_back(dims.number_of_states[k + 1], dims.number_of_states[k + 1]);
+                Pl_pre.emplace_back(dims.number_of_states[k + 1]);
+                Pr_pre.emplace_back(dims.number_of_states[k + 1]);
+                U1U2t.emplace_back(dims.number_of_states[k + 1], dims.number_of_states[k + 1]);
+                U1t.emplace_back(dims.number_of_states[k + 1], dims.number_of_states[k + 1]);
+            }
+
+            // store eq constraint jacobian
+            Gg_eqt_original.reserve(dims.K);
+            for (int k = 0; k < dims.K; ++k){
+                Gg_eqt_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1,
+                                  dims.number_of_eq_constraints[k]);
             }
         }
         
@@ -154,7 +170,14 @@ namespace fatrop
          *   nx[k+1]: number of states at time step k+1
          */
         std::vector<MatRealAllocated> Jt;
-        std::vector<MatRealAllocated> Jt_inv;
+        std::vector<PermutationMatrix> Pl_pre;
+        std::vector<PermutationMatrix> Pr_pre;
+        std::vector<MatRealAllocated> U1U2t; // -(U1^-1 * U2)^T
+        std::vector<MatRealAllocated> U1t;    // U1^T
+        std::vector<Index> J_ranks;
+        std::vector<MatRealAllocated> Jt_LU;
+
+        std::vector<MatRealAllocated> Jt_inv; // remove
         bool ASSUME_INVERSE_GIVEN = false;
 
         // printing
@@ -180,9 +203,9 @@ namespace fatrop
         }
         double dgemm_time = 0;
     private:
-        std::vector<MatRealAllocated> Jt_LU;
         std::vector<int> rho;
         std::vector<MatRealAllocated> BAbt_original;
+        std::vector<MatRealAllocated> Gg_eqt_original;
 
         bool print_debug = false;
     };

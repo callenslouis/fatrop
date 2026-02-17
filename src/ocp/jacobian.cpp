@@ -228,6 +228,28 @@ namespace fatrop
 void Jacobian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
                                            VecRealView &f,
                                            VecRealView &g){
+    // GENERAL CASE
+    for (int k = 0; k < info.dims.K - 1; ++k){
+        // consider provided right-hand-side as b column
+        rowin(info.dims.number_of_states[k + 1], 1.0,
+              g, info.offsets_g_eq_dyn[k], 
+              BAbt[k], info.dims.number_of_states[k] + 
+              info.dims.number_of_controls[k], 0);
+        
+        BAbt_original[k] = BAbt[k];
+
+    }
+    for (int k = 0; k < info.dims.K; ++k){
+        rowin(info.dims.number_of_eq_constraints[k], 1.0, 
+              g, info.offsets_g_eq_path[k], 
+              Gg_eqt[k], info.dims.number_of_states[k] + 
+              info.dims.number_of_controls[k], 0);
+
+        Gg_eqt_original[k] = Gg_eqt[k];
+
+    }
+    return;
+
     dgemm_time = 0.0;
     // Make sure to store the current BAbt into BAbt_original before modifying BAbt matrices
     for (int k = 0; k < info.dims.K - 1; ++k){
@@ -276,8 +298,13 @@ void Jacobian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
 
 void Jacobian<ImplicitOcpType>::ResetPreProcess(const ProblemInfo &info){
     for (int k = 0; k < info.dims.K - 1; ++k){
+        std::cout << BAbt[k] << std::endl;
+        std::cout << BAbt_original[k] << std::endl << std::endl;
         BAbt[k] = BAbt_original[k];
     }   
+    for (int k = 0; k < info.dims.K; ++k){
+        Gg_eqt[k] = Gg_eqt_original[k];
+    }
 }
 
 void Jacobian<ImplicitOcpType>::PrepareInverseOfJ(const ProblemInfo &info){

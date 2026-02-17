@@ -104,10 +104,16 @@ namespace fatrop
 
             // store additional dynamics hessians
             FuFxt.reserve(dims.K - 1);
+            FuFxt_original.reserve(dims.K - 1);
+            GFt.reserve(dims.K - 1);
             for (int k = 0; k < dims.K - 1; ++k)
             {
                 FuFxt.emplace_back(1*(dims.number_of_controls[k] + dims.number_of_states[k]),
                                    1*(dims.number_of_states[k + 1]));
+                FuFxt_original.emplace_back(1*(dims.number_of_controls[k] + dims.number_of_states[k]),
+                                   1*(dims.number_of_states[k + 1]));
+                GFt.emplace_back(1*(dims.number_of_controls[k] + dims.number_of_states[k]),
+                                1*(dims.number_of_states[k + 1]) + dims.number_of_controls[k + 1]);
             }
         }
 
@@ -117,6 +123,7 @@ namespace fatrop
         Hessian(Hessian<ImplicitOcpType> &&other)
             : Hessian<OcpType>(std::move(other)),
               FuFxt(std::move(other.FuFxt)),
+              FuFxt_original(std::move(other.FuFxt_original)),
               RSQrqt_original(std::move(other.RSQrqt_original)),
               duration_copy_RSQrqt(other.duration_copy_RSQrqt),
               duration_modifying_RSQrqt(other.duration_modifying_RSQrqt) {
@@ -128,6 +135,8 @@ namespace fatrop
             if (this != &other){
                 Hessian<OcpType>::operator=(std::move(other));
                 FuFxt = std::move(other.FuFxt);
+                FuFxt_original = std::move(other.FuFxt_original);
+                GFt = std::move(other.GFt);
                 RSQrqt_original = std::move(other.RSQrqt_original);
                 duration_copy_RSQrqt = other.duration_copy_RSQrqt;
                 duration_modifying_RSQrqt = other.duration_modifying_RSQrqt;
@@ -151,7 +160,9 @@ namespace fatrop
 
         // dimensions nu[k] + nx[k] x nx[k+1]
         std::vector<MatRealAllocated> FuFxt;
+        std::vector<MatRealAllocated> GFt; // contains preprocessed info
         std::vector<MatRealAllocated> RSQrqt_original;
+        std::vector<MatRealAllocated> FuFxt_original;
 
         // printing
         friend std::ostream& operator<<(std::ostream& os, const Hessian<ImplicitOcpType>& hess)
