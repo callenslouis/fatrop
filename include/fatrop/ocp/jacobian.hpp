@@ -136,11 +136,19 @@ namespace fatrop
                 U1t.emplace_back(dims.number_of_states[k + 1], dims.number_of_states[k + 1]);
             }
 
+            // enlarge Gg_eqt (since states from the previous time-step could be added)
+            Gg_eqt = {};
+            Gg_eqt.reserve(dims.K);
+            for (int k = 0; k < dims.K; ++k){
+                Gg_eqt.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1,
+                                  dims.number_of_eq_constraints[k] + ((k > 0) ? dims.number_of_states[k - 1] : 0));
+            }
+
             // store eq constraint jacobian
             Gg_eqt_original.reserve(dims.K);
             for (int k = 0; k < dims.K; ++k){
                 Gg_eqt_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1,
-                                  dims.number_of_eq_constraints[k]);
+                                  dims.number_of_eq_constraints[k] + ((k > 0) ? dims.number_of_states[k - 1] : 0));
             }
         }
         

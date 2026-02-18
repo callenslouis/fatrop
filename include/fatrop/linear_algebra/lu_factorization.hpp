@@ -17,6 +17,7 @@
 #include "fatrop/context/context.hpp"
 #include "fwd.hpp"
 #include <vector>
+#include <ostream>
 
 namespace fatrop
 {
@@ -72,6 +73,23 @@ namespace fatrop
             fatrop_dbg_assert(i >= 0 && i < size_);
             return permutation_vector_[i];
         }
+
+        friend std::ostream& operator<<(std::ostream& os, const PermutationMatrix& p)
+        {
+            os << "PermutationMatrix of size " << p.size() << ": [";
+            std::vector<int> v = p.get_permutation_vector();
+            for (Index i = 0; i < p.size(); ++i)
+            {
+                os << v[i];
+                if (i < p.size() - 1)
+                    os << ", ";
+            }
+            os << "]";
+            return os;
+        }
+
+        Index size() const{ return size_;}
+        std::vector<int> get_permutation_vector() const { return permutation_vector_; }
 
     private:
         const Index size_;                    ///< The size of the permutation matrix.
