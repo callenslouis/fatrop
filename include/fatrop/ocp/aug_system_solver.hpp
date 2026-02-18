@@ -12,6 +12,7 @@
 #include "fatrop/linear_algebra/linear_solver_return_flags.hpp"
 #include <vector>
 #include <chrono>
+#include <memory>
 
 namespace fatrop
 {
@@ -338,10 +339,7 @@ namespace fatrop
          * @brief Constructs an AugSystemSolver<ImplicitOcpType> object.
          * @param info Problem information for the optimal control problem.
          */
-        AugSystemSolver(const ProblemInfo &info) : ModifiedAugSystemSolver(info)
-        {
-            // Initialize additional members specific to ImplicitOcpType if needed
-        };
+        AugSystemSolver(const ProblemInfo &info);
 
         /**
          * @brief Solves the augmented system without path equality constraint regularization.
@@ -435,10 +433,17 @@ namespace fatrop
                          Hessian<ImplicitOcpType> &hessian,
                          VecRealView &x, VecRealView &eq_mult);
 
+        // take last (nx_next - rank) columns (or rows) and insert them after
+        // the first nu_next columns (or rows) of A, while shifting all
+        // remaining columns (or rows) to the end of A
+        void TreatStatesAsInputs(Index nu_next, Index nx_next, Index rank, 
+                                 MatRealAllocated& A, bool rows=false);
+
         bool print_debug = true;
-
+        
         double lu_fact_tol = 1e-5;
-
+        
+        std::unique_ptr<MatRealAllocated> scratch = std::make_unique<MatRealAllocated>(0,0);
     };
 
 } // namespace fatrop

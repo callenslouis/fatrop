@@ -2220,6 +2220,17 @@ void VerifyIntermediateSolution(const ProblemInfo &info,
 
 
 
+AugSystemSolver<ImplicitOcpType>::AugSystemSolver(const ProblemInfo &info) : ModifiedAugSystemSolver(info)
+{
+    // Initialize additional members specific to ImplicitOcpType if needed
+    int max_nx = *std::max_element(info.dims.number_of_states.begin(), info.dims.number_of_states.end());
+    int max_nu = *std::max_element(info.dims.number_of_controls.begin(), info.dims.number_of_controls.end());
+    int max_ng = *std::max_element(info.dims.number_of_eq_constraints.begin(), info.dims.number_of_eq_constraints.end());
+    int dim = std::max(max_nu + max_nx + 1, max_ng);
+
+    scratch = std::make_unique<MatRealAllocated>(dim, dim);
+};
+
 LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info,
                                            Jacobian<ImplicitOcpType> &jacobian, Hessian<ImplicitOcpType> &hessian,
                                            const VecRealView &D_x, const VecRealView &D_s,
@@ -2402,59 +2413,70 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
         trtr_l(nu_next + nx_next, hessian.RSQrqt[k+1], 0, 0, hessian.RSQrqt[k+1], 0, 0); // copy lower part of RSQ to upper part
         // right-multiply second-column part with Dr^-1
         jacobian.Pr_pre[k].apply_on_cols(rank, &hessian.RSQrqt[k+1].mat()); // TODO: figure out how to offset this with nu_next (top-left part should be spared)
-        gemm_nn(nx_next - rank, nu_next + nx_next, rank, 1.0, JBAbt_modified, 0, 0, hessian.RSQrqt[k+1], nu_next, 0, 1.0, 
+        gemm_nn(nx_next - rank, nu_next + nx_next, rank, 1.0, JBAbt_modified, rank, 0, hessian.RSQrqt[k+1], nu_next, 0, 1.0, 
                 hessian.RSQrqt[k+1], rank, 0, hessian.RSQrqt[k+1], rank, 0);
         // right-multiply S
         jacobian.Pr_pre[k].apply_on_cols(rank, &hessian.RSQrqt[k+1].mat()); // TODO: figure out how to offset this with nu_next (top-left part should be spared)
-        gemm_nn(nx_next - rank, nu_next, rank, 1.0, JBAbt_modified, 0, 0, hessian.RSQrqt[k+1], 0, nu_next, 1.0, 
+        gemm_nn(nx_next - rank, nu_next, rank, 1.0, JBAbt_modified, rank, 0, hessian.RSQrqt[k+1], 0, nu_next, 1.0, 
                 hessian.RSQrqt[k+1], rank, nu_next, hessian.RSQrqt[k+1], rank, nu_next);
         // left-multiply bottom part with Dl^-T
         jacobian.Pr_pre[k].apply_on_rows(rank, &hessian.RSQrqt[k+1].mat()); // TODO: figure out how to offset this with nu_next (top-left part should be spared)
-        gemm_nt(nu_next + nx_next + 1, nx_next - rank, rank, 1.0, hessian.RSQrqt[k+1], 0, nu_next, JBAbt_modified, 0, 0, 1.0, 
+        gemm_nt(nu_next + nx_next + 1, nx_next - rank, rank, 1.0, hessian.RSQrqt[k+1], 0, nu_next, JBAbt_modified, rank, 0, 1.0, 
                 hessian.RSQrqt[k+1], nu_next, rank, hessian.RSQrqt[k+1], nu_next, rank);
         // left-multiply S^T
         jacobian.Pr_pre[k].apply_on_rows(rank, &hessian.RSQrqt[k+1].mat()); // TODO: figure out how to offset this with nu_next (top-left part should be spared)
-        gemm_nt(nx_next, nx_next - rank, rank, 1.0, hessian.RSQrqt[k+1], nu_next, 0, JBAbt_modified, 0, 0, 1.0, 
+        gemm_nt(nx_next, nx_next - rank, rank, 1.0, hessian.RSQrqt[k+1], nu_next, 0, JBAbt_modified, rank, 0, 1.0, 
                 hessian.RSQrqt[k+1], 0, nu_next + rank, hessian.RSQrqt[k+1], 0, nu_next + rank);
 
         // hessian contribution of dynamics
         gecp(nx + nu, nx_next, hessian.FuFxt[k], 0, 0, hessian.GFt[k], 0, nu_next);
         jacobian.Pr_pre[k].apply_on_cols(rank, &hessian.GFt[k].mat()); // TODO: figure out how to offset this with nu_next
-        gemm_nn(nx_next - rank, nu + nx, rank, 1.0, JBAbt_modified, 0, 0, hessian.GFt[k], nu_next, 0, 1.0, hessian.GFt[k], nu_next + rank, 0, hessian.GFt[k], nu_next + rank, 0);
+        gemm_nn(nx_next - rank, nu + nx, rank, 1.0, JBAbt_modified, rank, 0, hessian.GFt[k], nu_next, 0, 1.0, hessian.GFt[k], nu_next + rank, 0, hessian.GFt[k], nu_next + rank, 0);
             
         if (k < K - 2){
+            int nx_next_next = number_of_states[k + 2];
             // right multiply with Dr^-1
             jacobian.Pr_pre[k].apply_on_cols(rank, &jacobian.BAbt[k+1].mat()); // TODO: figure out how to offset this
-            gemm_nn(nx_next - rank, nx_next, rank, 1.0, JBAbt_modified, 0, 0, jacobian.BAbt[k+1], 0, nu_next, 1.0, 
+            gemm_nn(nx_next - rank, nx_next_next, rank, 1.0, JBAbt_modified, rank, 0, jacobian.BAbt[k+1], 0, nu_next, 1.0, 
                     jacobian.BAbt[k+1], rank, nu_next, jacobian.BAbt[k+1], rank, nu_next);
             jacobian.Pr_pre[k].apply_on_cols(rank, &hessian.FuFxt[k+1].mat()); // TODO: figure out how to offset this
-            gemm_nn(nx_next - rank, nx_next, rank, 1.0, JBAbt_modified, 0, 0, hessian.FuFxt[k+1], 0, nu_next, 1.0, 
+            gemm_nn(nx_next - rank, nx_next_next, rank, 1.0, JBAbt_modified, rank, 0, hessian.FuFxt[k+1], 0, nu_next, 1.0, 
                     hessian.FuFxt[k+1], rank, nu_next, hessian.FuFxt[k+1], rank, nu_next);
             jacobian.Pr_pre[k].apply_on_cols(rank, &jacobian.Gg_eqt[k+1].mat());    // TODO: figure out how to offset this
-            gemm_nn(nx_next - rank, info.dims.number_of_eq_constraints[k+1], rank, 1.0, JBAbt_modified, 0, 0, jacobian.Gg_eqt[k+1], 0, nu_next, 1.0, 
+            gemm_nn(nx_next - rank, info.dims.number_of_eq_constraints[k+1], rank, 1.0, JBAbt_modified, rank, 0, jacobian.Gg_eqt[k+1], 0, nu_next, 1.0, 
                     jacobian.Gg_eqt[k+1], rank, nu_next, jacobian.Gg_eqt[k+1], rank, nu_next);
         }
 
         // Move undefined states to controls (multiplications using Wk)
         // construct permutation (chaning undefined states to controls)
-        PermutationMatrix Wk(nu_next + nx_next);
-        for (int i = nu_next; i < nu_next + nx_next - rank; i++){ Wk[i] = i + rank;}
-        for (int i = nu_next + nx_next - rank; i < nu_next + nx_next; i++){ Wk[i] = i - nx_next + rank;}
+        // PermutationMatrix Wk(nu_next + nx_next);
+        // for (int i = nu_next; i < nu_next + nx_next - rank; i++){ Wk[i] = i + rank;}
+        // for (int i = nu_next + nx_next - rank; i < nu_next + nx_next; i++){ Wk[i] = i - nx_next + rank;}
 
         if (rank < nx_next){
-            Wk.apply_on_cols(nu_next + nx_next, &hessian.GFt[k].mat());
-            Wk.apply_on_rows(nu_next + nx_next, &hessian.RSQrqt[k+1].mat());
-            Wk.apply_on_cols(nu_next + nx_next, &hessian.RSQrqt[k+1].mat());
-            Wk.apply_on_rows(nu_next + nx_next, &jacobian.Gg_eqt[k+1].mat());
-            Wk.apply_on_rows(nu_next + nx_next, &jacobian.BAbt[k+1].mat());
+            // Wk.apply_on_cols(nu_next + nx_next, &hessian.GFt[k].mat());
+            // Wk.apply_on_rows(nu_next + nx_next, &hessian.RSQrqt[k+1].mat());
+            // Wk.apply_on_cols(nu_next + nx_next, &hessian.RSQrqt[k+1].mat());
+            // Wk.apply_on_rows(nu_next + nx_next, &jacobian.Gg_eqt[k+1].mat());
+            // Wk.apply_on_rows(nu_next + nx_next, &jacobian.BAbt[k+1].mat());
+            TreatStatesAsInputs(nu_next, nx_next, rank, hessian.GFt[k]);
+            TreatStatesAsInputs(nu_next, nx_next, rank, hessian.RSQrqt[k+1], true);
+            TreatStatesAsInputs(nu_next, nx_next, rank, hessian.RSQrqt[k+1]);
+            TreatStatesAsInputs(nu_next, nx_next, rank, jacobian.Gg_eqt[k+1], true);
+            TreatStatesAsInputs(nu_next, nx_next, rank, jacobian.BAbt[k+1], true);
 
             // treat some of the dynamics constraints as path constraints
-            gecp(nu + nx + 1, nx_next - rank, jacobian.BAbt[k+1], 0, rank, jacobian.Gg_eqt[k+1], info.dims.number_of_eq_constraints[k+1], 0);
+            std::cout << "BAbt before" << std::endl << jacobian.BAbt[k] << std::endl;
+            std::cout << "Gg_eqt before" << std::endl << jacobian.Gg_eqt[k] << std::endl;
+            gecp(nu + nx + 1, nx_next - rank, jacobian.BAbt[k], 0, nu_next + rank, jacobian.Gg_eqt[k], 0, info.dims.number_of_eq_constraints[k]);
+            std::cout << "BAbt after" << std::endl << jacobian.BAbt[k] << std::endl;
+            std::cout << "Gg_eqt after" << std::endl << jacobian.Gg_eqt[k] << std::endl;
+            // TODO: figure out why this does not do anything!
 
             // update dimensions
             int sk = nx_next - rank;
             number_of_controls[k + 1] += sk;
-            number_of_eq_constraints[k + 1] += sk;
+            number_of_eq_constraints[k] += sk;
             number_of_states[k + 1] = rank;
         }
 
@@ -2559,7 +2581,7 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
 
         // controls (plain copy)
         for (int i = 0; i < nu; i++){
-            x(info.offsets_primal_u[k] + i) = x_copy(info.offsets_primal_u[k] + i);
+            x(info.offsets_primal_u[k] + i) = x_copy(modified_info.offsets_primal_u[k] + i);
         }
 
         // states (copy existing states, and append additional states treated as controls)
@@ -2568,7 +2590,7 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
                 x(info.offsets_primal_x[k] + i) = x_copy(modified_info.offsets_primal_x[k] + i);
             }
             for (int i = 0; i < s; i++){
-                x(info.offsets_primal_x[k] + jacobian.J_ranks[k] + i) = x_copy(modified_info.offsets_primal_u[k] + nu + i);
+                x(info.offsets_primal_x[k] + jacobian.J_ranks[k-1] + i) = x_copy(modified_info.offsets_primal_u[k] + nu + i);
             }
 
             // dynamics (copy existing dynamics, and append additional path constraints)
@@ -2593,18 +2615,77 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
         
         // scale states and dynamics multipliers
         if (k > 0){
-            trsv_lnn(jacobian.J_ranks[k-1], jacobian.U1t[k-1], 0, 0, eq_mult, info.offsets_g_eq_dyn[k-1],
-                eq_mult, info.offsets_g_eq_dyn[k-1]);
-            vecsc(jacobian.J_ranks[k-1], -1.0, eq_mult, info.offsets_g_eq_dyn[k-1]);
             gemv_t(info.dims.number_of_states[k], info.dims.number_of_states[k] - jacobian.J_ranks[k-1], 1.0, 
-                jacobian.Jt_LU[k-1], 0, 0, 
+                jacobian.Jt_LU[k-1], 0, jacobian.J_ranks[k-1], 
                 x, info.offsets_primal_x[k] + jacobian.J_ranks[k-1], 1.0, 
                 x, info.offsets_primal_x[k], 
                 x, info.offsets_primal_x[k]);
+
+            trsv_lnn(jacobian.J_ranks[k-1], jacobian.U1t[k-1], 0, 0, eq_mult, info.offsets_g_eq_dyn[k-1],
+                eq_mult, info.offsets_g_eq_dyn[k-1]);
+            vecsc(jacobian.J_ranks[k-1], -1.0, eq_mult, info.offsets_g_eq_dyn[k-1]);
+            
         }
+    }
+
+    for (int k = 0; k < info.dims.K; k++){
+        std::cout << "inputs original: ";
+        for (int i = 0; i < info.dims.number_of_controls[k]; i++){
+            std::cout << x(info.offsets_primal_u[k] + i) << "\t";
+        }
+        std::cout << "\ninputs modified: ";
+        for (int i = 0; i < modified_info.dims.number_of_controls[k]; i++){
+            std::cout << x_copy(modified_info.offsets_primal_u[k] + i) << "\t";
+        }
+        std::cout << std::endl;
+        std::cout << "\nstates original: ";
+        for (int i = 0; i < info.dims.number_of_states[k]; i++){
+            std::cout << x(info.offsets_primal_x[k] + i) << "\t";
+        }
+        std::cout << "\nstates modified: ";
+        for (int i = 0; i < modified_info.dims.number_of_states[k]; i++){
+            std::cout << x_copy(modified_info.offsets_primal_x[k] + i) << "\t";
+        }
+        std::cout << std::endl;
+        std::cout << std::endl;
+    }
+    for (int k = 0; k < x.m(); k++){
+        std::cout << x(k) << "\t" << x_copy(k) << std::endl;
     }
 
     jacobian.ResetPreProcess(info);
     hessian.ResetPreProcess(info, jacobian);
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::PostProcess done" << std::endl;}
+}
+
+void AugSystemSolver<ImplicitOcpType>::TreatStatesAsInputs(Index nu_next, Index nx_next, Index rank, MatRealAllocated& A, bool rows){
+    // std::cout << "Matrix before shifting states to inputs:" << std::endl;
+    // std::cout << A << std::endl;
+    if (!rows){
+        // copy nu_next + nx_next columns to scratch
+        gecp(A.m(), nu_next + nx_next, A, 0, 0, *scratch, 0, 0);
+
+        // put last nx_next - rank columns in front
+        gecp(A.m(), nx_next - rank, *scratch, 0, nu_next + rank, A, 0, nu_next);
+
+        // shift back the first rank columns
+        gecp(A.m(), rank, *scratch, 0, nu_next, A, 0, nu_next + nx_next - rank);
+
+        // insert copied columns
+        gecp(A.m(), nx_next - rank, *scratch, 0, 0, A, 0, nu_next);
+    } else {
+        // copy nu_next + nx_next rows to scratch
+        gecp(nu_next + nx_next, A.n(), A, 0, 0, *scratch, 0, 0);
+
+        // put last nx_next - rank rows in front
+        gecp(nx_next - rank, A.n(), *scratch, nu_next + rank, 0, A, nu_next, 0);
+
+        // shift back the first rank rows
+        gecp(rank, A.n(), *scratch, nu_next, 0, A, nu_next + nx_next - rank, 0);
+
+        // insert copied rows
+        gecp(nx_next - rank, A.n(), *scratch, 0, 0, A, 0, 0);
+    }
+    // std::cout << "Matrix after shifting states to inputs:" << std::endl;
+    // std::cout << A << std::endl;
 }

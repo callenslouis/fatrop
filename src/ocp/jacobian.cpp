@@ -298,8 +298,8 @@ void Jacobian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
 
 void Jacobian<ImplicitOcpType>::ResetPreProcess(const ProblemInfo &info){
     for (int k = 0; k < info.dims.K - 1; ++k){
-        // std::cout << "BAbt[" << k << "]:" << std::endl << BAbt[k] << std::endl;
-        // std::cout << "BAbt_original[" << k << "]:" << std::endl << BAbt_original[k] << std::endl;
+        std::cout << "BAbt[" << k << "]:" << std::endl << BAbt[k] << std::endl;
+        std::cout << "BAbt_original[" << k << "]:" << std::endl << BAbt_original[k] << std::endl;
         BAbt[k] = BAbt_original[k];
     }   
     for (int k = 0; k < info.dims.K; ++k){
