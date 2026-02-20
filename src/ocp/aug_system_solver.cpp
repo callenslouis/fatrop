@@ -2604,7 +2604,8 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
         
         // scale states and dynamics multipliers
         if (k > 0){
-            gemv_t(info.dims.number_of_states[k] - jacobian.J_ranks[k-1], info.dims.number_of_states[k], 1.0, 
+            // TODO: figure out why valgrind complains about this sometimes
+            gemv_t(info.dims.number_of_states[k], info.dims.number_of_states[k] - jacobian.J_ranks[k-1], 1.0, 
                 jacobian.Jt_LU[k-1], 0, jacobian.J_ranks[k-1], 
                 x, info.offsets_primal_x[k] + jacobian.J_ranks[k-1], 1.0, 
                 x, info.offsets_primal_x[k], 

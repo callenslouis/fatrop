@@ -22,12 +22,12 @@ public:
     bool no_second_order_effects = true;
 
     // Create OcpDims object
-    // int K = 10;                                                   // Number of stages
-    // std::vector<Index> nx = {20, 10, 10, 10, 10, 2, 0, 1, 10, 5}; // State dimensions for each stage
-    // std::vector<Index> r =  {20, 5, 2, 10, 9, 1, 0, 1, 6, 0};
-    // std::vector<Index> nu = {1, 4, 2, 10, 1, 30, 4, 5, 10, 5};    // Input dimensions for each stage
-    // std::vector<Index> ng = {9, 3, 4, 3, 4, 2, 1, 0, 1, 5}; // Equality constraints for each stage
-    // std::vector<Index> ng_ineq = {0, 5, 10, 4, 0, 0, 0, 0, 10, 0}; // Inequality constraints for each stage
+    int K = 10;                                                   // Number of stages
+    std::vector<Index> nx = {20, 10, 10, 10, 10, 2, 0, 1, 10, 5}; // State dimensions for each stage
+    std::vector<Index> r =  {20, 5, 2, 10, 9, 1, 0, 1, 6, 0};
+    std::vector<Index> nu = {1, 4, 2, 10, 1, 30, 4, 5, 10, 2};    // Input dimensions for each stage
+    std::vector<Index> ng = {9, 3, 4, 3, 4, 2, 1, 0, 1, 5}; // Equality constraints for each stage
+    std::vector<Index> ng_ineq = {0, 5, 10, 4, 0, 0, 0, 0, 10, 0}; // Inequality constraints for each stage
     // int K = 3;
     // std::vector<Index> nx = {2, 2, 2};
     // std::vector<Index> r =  {2, 0, 2};
@@ -40,12 +40,12 @@ public:
     // std::vector<Index> nu = {3, 4, 0};
     // std::vector<Index> ng = {2, 1, 1};
     // std::vector<Index> ng_ineq = {1, 2, 2};
-    int K = 2;
-    std::vector<Index> nx = {2, 2};
-    std::vector<Index> r =  {2, 1};
-    std::vector<Index> nu = {4, 0};
-    std::vector<Index> ng = {1, 1};
-    std::vector<Index> ng_ineq = {3, 1};
+    // int K = 2;
+    // std::vector<Index> nx = {2, 2};
+    // std::vector<Index> r =  {2, 1};
+    // std::vector<Index> nu = {4, 1};
+    // std::vector<Index> ng = {1, 1};
+    // std::vector<Index> ng_ineq = {3, 1};
 
     ProblemDims dims{K, nu, nx, ng, ng_ineq};
 
