@@ -235,18 +235,23 @@ void Jacobian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
               g, info.offsets_g_eq_dyn[k], 
               BAbt[k], info.dims.number_of_states[k] + 
               info.dims.number_of_controls[k], 0);
-        
         BAbt_original[k] = BAbt[k];
 
     }
     for (int k = 0; k < info.dims.K; ++k){
+        // equalities
         rowin(info.dims.number_of_eq_constraints[k], 1.0, 
               g, info.offsets_g_eq_path[k], 
               Gg_eqt[k], info.dims.number_of_states[k] + 
               info.dims.number_of_controls[k], 0);
-
         Gg_eqt_original[k] = Gg_eqt[k];
 
+        // inequalities
+        rowin(info.dims.number_of_ineq_constraints[k], 1.0, 
+              g, info.offsets_g_eq_slack[k], 
+              Gg_ineqt[k], info.dims.number_of_states[k] + 
+              info.dims.number_of_controls[k], 0);
+        Gg_ineqt_original[k] = Gg_ineqt[k];
     }
     return;
 
@@ -306,6 +311,7 @@ void Jacobian<ImplicitOcpType>::ResetPreProcess(const ProblemInfo &info){
         // std::cout << "Gg_eqt[" << k << "]:" << std::endl << Gg_eqt[k] << std::endl;
         // std::cout << "Gg_eqt_original[" << k << "]:" << std::endl << Gg_eqt_original[k] << std::endl;
         Gg_eqt[k] = Gg_eqt_original[k];
+        Gg_ineqt[k] = Gg_ineqt_original[k];
     }
 }
 

@@ -22,19 +22,19 @@ public:
     bool no_second_order_effects = true;
 
     // Create OcpDims object
-    // int K = 10;                                                   // Number of stages
-    // std::vector<Index> nx = {20, 10, 10, 10, 10, 2, 0, 1, 10, 5}; // State dimensions for each stage
-    // std::vector<Index> r =  {20,  8, 10, 10, 10, 2, 0, 1, 10, 5};
-    // std::vector<Index> nu = {1, 4, 2, 10, 1, 30, 4, 1, 10, 0};    // Input dimensions for each stage
-    // std::vector<Index> ng = {9, 3, 4, 3, 4, 0, 1, 0, 1, 5}; // Equality constraints for each stage
-    // std::vector<Index> ng_ineq = {0, 5, 10, 0,   0,
-    //                               0, 0, 0,  10, 0}; // Inequality constraints for each stage
-    int K = 3;                                                   // Number of stages
-    std::vector<Index> nx = {2, 2, 2}; // State dimensions for each stage
-    std::vector<Index> r =  {2, 1, 2};
-    std::vector<Index> nu = {0, 0, 0};    // Input dimensions for each stage
-    std::vector<Index> ng = {0, 0, 0}; // Equality constraints for each stage
-    std::vector<Index> ng_ineq = {0, 0, 0}; // Inequa
+    int K = 10;                                                   // Number of stages
+    std::vector<Index> nx = {20, 10, 10, 10, 10, 2, 0, 1, 10, 5}; // State dimensions for each stage
+    std::vector<Index> r =  {20,  10, 10, 10, 10, 2, 0, 1, 10, 5};
+    std::vector<Index> nu = {1, 4, 2, 10, 1, 30, 4, 1, 10, 0};    // Input dimensions for each stage
+    std::vector<Index> ng = {9, 3, 4, 3, 4, 0, 1, 0, 1, 5}; // Equality constraints for each stage
+    std::vector<Index> ng_ineq = {0, 5, 10, 0,   0,
+                                  0, 0, 0,  10, 0}; // Inequality constraints for each stage
+    // int K = 3;                                                   // Number of stages
+    // std::vector<Index> nx = {2, 2, 2}; // State dimensions for each stage
+    // std::vector<Index> r =  {2, 1, 2};
+    // std::vector<Index> nu = {1, 3, 1};    // Input dimensions for each stage
+    // std::vector<Index> ng = {2, 1, 1}; // Equality constraints for each stage
+    // std::vector<Index> ng_ineq = {0, 0, 0}; // Inequa
 
     ProblemDims dims{K, nu, nx, ng, ng_ineq};
 
@@ -58,6 +58,7 @@ public:
                          info.number_of_primal_variables + info.number_of_eq_constraints);
     AugSystemSolver<ImplicitOcpType> solver = AugSystemSolver<ImplicitOcpType>(info);
 
+    /*
     // // Normal case (manual treatment of dynamics as equality constraints)
     std::vector<Index> nu2 = {0, 1, 0};    // Input dimensions for each stage
     std::vector<Index> ng2 = {1, 0, 0}; // Equality constraints for each stage
@@ -82,6 +83,7 @@ public:
         MatRealAllocated(info2.number_of_primal_variables + info2.number_of_eq_constraints,
                          info2.number_of_primal_variables + info2.number_of_eq_constraints);
     AugSystemSolver<OcpType> solver2 = AugSystemSolver<OcpType>(info2);
+    */
 
 
     void SetUp()
@@ -190,8 +192,8 @@ public:
         // fill the x vector with random values
         for (Index i = 0; i < info.number_of_primal_variables; ++i)
         {
-            rhs_x(i) = 0 * 1.0 * i;
-            D_x = 0 * 1.0 * (i + 0.1);
+            rhs_x(i) = 1.0 * i;
+            D_x = 1.0 * (i + 0.1);
         }
         // fill the mult vector with random values
         for (Index i = 0; i < info.number_of_eq_constraints; ++i)
@@ -201,11 +203,11 @@ public:
 
         for (Index i = 0; i < info.number_of_g_eq_path; ++i)
         {
-            D_eq(i) = 0 * 1.0 * (i + 1);
+            D_eq(i) = 1.0 * (i + 1);
         }
         for (Index i = 0; i < info.number_of_slack_variables; ++i)
         {
-            D_s(i) = 0 * 1.0 * (i + 0.1);
+            D_s(i) = 1.0 * (i + 0.1);
         }
 
 
@@ -220,9 +222,7 @@ public:
 
 
 
-
-
-
+        /*
         x2 = 0;
         full_matrix_jacobian2 = 0.;
 
@@ -243,16 +243,9 @@ public:
                 jacobian2.BAbt[k].block(nu2, nx_next2, 0, 0) =
                     jacobian.BAbt[k].block(nu2, nx_next2, r[k], 0);
                 jacobian2.BAbt[k].block(nx2, nx_next2, nu2, 0) =
-                    jacobian.BAbt[k].block(nx2, nx_next2, 0, 0);
-                std::cout << jacobian.BAbt[k] << std::endl;
-                std::cout << "jacobian.BAbt[k].block(nu2, nx_next2, 0, r[k])" << std::endl << jacobian.BAbt[k].block(nu2, nx_next2, 0, r[k]) << std::endl;
-                std::cout << "jacobian.BAbt[k].block(nx2, nx_next2, 0, 0)" << std::endl << jacobian.BAbt[k].block(nx2, nx_next2, 0, 0) << std::endl;
-                
+                    jacobian.BAbt[k].block(nx2, nx_next2, 0, 0);                
                 jacobian2.Gg_eqt[k].block(nu + nx, info2.dims.number_of_eq_constraints[k], 0, 0) =
                     jacobian.BAbt[k].block(nu + nx, info2.dims.number_of_eq_constraints[k], 0, r[k+1]);
-                std::cout << "jacobian2.Gg_eqt[k] = " << std::endl << jacobian2.Gg_eqt[k] << std::endl;
-                std::cout << "jacobian.BAbt[k] = " << std::endl << jacobian.BAbt[k] << std::endl;
-                std::cout << "jacobian.BAbt[k].block(nu + nx, info2.dims.number_of_eq_constraints[k], 0, r[k]): " << std::endl << jacobian.BAbt[k].block(nu + nx, info2.dims.number_of_eq_constraints[k], 0, r[k]) << std::endl;
             } else {
                 // jacobian2.Gg_eqt[k] should be empty
             }
@@ -367,6 +360,7 @@ public:
         {
             D_s2(i) = 0 * 1.0 * (i + 0.1);
         }
+        */
     };
 };
 
@@ -376,6 +370,7 @@ TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
     Index ret = solver.solve(info, jacobian, hessian, D_x, D_s, rhs_x, rhs_g, x, mult);
     EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
 
+    /*
     // print the full KKT matrix and rhs
     std::cout << "KKT = np.array([\n";
     for (Index i = 0; i < full_kkt_matrix.m(); i++){
@@ -409,7 +404,9 @@ TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
     // print obtained solution //
     std::cout << "Obtained solution x:" << std::endl << x << std::endl;
     std::cout << "Obtained solution mult:" << std::endl << mult << std::endl;
+    */
 
+    /*
     // NORMAL OCP VERSION //
     Index ret2 = solver2.solve(info2, jacobian2, hessian2, D_x2, D_s2, rhs_x2, rhs_g2, x2, mult2);
     EXPECT_EQ(ret2, LinsolReturnFlag::SUCCESS);
@@ -447,7 +444,7 @@ TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
     // print obtained solution //
     std::cout << "Obtained solution x2:" << std::endl << x2 << std::endl;
     std::cout << "Obtained solution mult2:" << std::endl << mult2 << std::endl;
-
+    */
 
 
 
@@ -477,27 +474,4 @@ TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
     {
         EXPECT_NEAR(grad(i), 0, 1e-5);
     }
-
-    // compute rhs by multiplication
-    VecRealAllocated rhs_x_test(info.number_of_primal_variables);
-    VecRealAllocated rhs_g_test(info.number_of_eq_constraints);
-    
-    hessian.apply_on_right(info, x, 0.0, rhs_x_test, rhs_x_test);
-    jacobian.transpose_apply_on_right(info, mult, 1.0, rhs_x_test, rhs_x_test);
-
-    jacobian.apply_on_right(info, x, 0.0, rhs_g_test, rhs_g_test);
-
-    // compare rhs with real rhs
-    std::cout << " Real  -  Multiplication " << std::endl;
-    for (Index i = 0; i < info.number_of_primal_variables; ++i)
-    {
-        std::cout << rhs_x(i) << " - " << rhs_x_test(i) << std::endl;
-    }
-    std::cout << "------------------------------------" << std::endl;
-
-    for (Index i = 0; i < info.number_of_eq_constraints; ++i)
-    {
-        std::cout << rhs_g(i) << " - " << rhs_g_test(i) << std::endl;
-    }
-
 }

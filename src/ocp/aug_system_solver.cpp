@@ -1052,7 +1052,6 @@ LinsolReturnFlag AugSystemSolver<OcpType>::solve_rhs(const ProblemInfo &info,
 
 ModifiedAugSystemSolver::ModifiedAugSystemSolver(const ProblemInfo &info)
 {
-    // TODO: modify problem info such that we allocate enough space in case new controls/constraints are added
     std::vector<Index> number_of_controls = info.dims.number_of_controls;
     std::vector<Index> number_of_states = info.dims.number_of_states;
     std::vector<Index> number_of_ineq_constraints = info.dims.number_of_ineq_constraints;
@@ -1064,7 +1063,14 @@ ModifiedAugSystemSolver::ModifiedAugSystemSolver(const ProblemInfo &info)
     }
     for (Index i = 0; i < number_of_eq_constraints.size()-1; i++)
     {
-        number_of_eq_constraints[i] += info.dims.number_of_states[i+1];
+        // There can be no more constraints than number of controls and states.
+        // Otherwise, the constraints can not be satisfied (assuming the 
+        // jacobian is not degenerate)
+        // The preprocessing should check the rank of the J-matrix to make
+        // sure we don't end up in this case.
+        number_of_eq_constraints[i] = std::min(
+            number_of_eq_constraints[i] + info.dims.number_of_states[i+1],
+            number_of_controls[i] + number_of_states[i]);
     }
     ProblemInfo new_info = ProblemInfo(ProblemDims(info.dims.K, number_of_controls, number_of_states, number_of_eq_constraints,
                        number_of_ineq_constraints));
@@ -2272,35 +2278,9 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
     ProblemInfo modified_info = PreProcess(info, jacobian, hessian, f_copy, g_copy);
     start = std::chrono::high_resolution_clock::now();
     // LinsolReturnFlag flag = AugSystemSolver<OcpType>::solve(info, jacobian, hessian, D_x, D_s, f_copy, g_copy, x, eq_mult);
-    std::cout << "calling solve with f: " << f_copy << std::endl;
-    std::cout << "and g: " << g_copy << std::endl;
-    std::cout << "modified dims: " << std::endl;
-    std::cout << "\tK: " << modified_info.dims.K << std::endl;
-    std::cout << "\tnumber_of_controls: ";
-    for (int i = 0; i < modified_info.dims.number_of_controls.size(); i++){
-        std::cout << modified_info.dims.number_of_controls[i] << " ";
-    }
-    std::cout << std::endl;
-    std::cout << "\tnumber_of_states: ";
-    for (int i = 0; i < modified_info.dims.number_of_states.size(); i++){
-        std::cout << modified_info.dims.number_of_states[i] << " ";
-    }
-    std::cout << std::endl;
-    std::cout << "\tnumber_of_eq_constraints: ";
-    for (int i = 0; i < modified_info.dims.number_of_eq_constraints.size(); i++){
-        std::cout << modified_info.dims.number_of_eq_constraints[i] << " ";
-    }
-    std::cout << std::endl;
-    std::cout << "\tnumber_of_ineq_constraints: ";
-    for (int i = 0; i < modified_info.dims.number_of_ineq_constraints.size(); i++){
-        std::cout << modified_info.dims.number_of_ineq_constraints[i] << " ";
-    }
-    std::cout << std::endl;
     LinsolReturnFlag flag = ModifiedAugSystemSolver::solve(modified_info, jacobian, hessian, D_x, D_s, f_copy, g_copy, x, eq_mult);
     auto end = std::chrono::high_resolution_clock::now();
     duration_solve = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    std::cout << "obtained solution x: (before postprocessing)" << std::endl << x << std::endl;
-    std::cout << "obtained solution eq_mult: (before postprocessing)" << std::endl << eq_mult << std::endl;
     PostProcess(info, modified_info, jacobian, hessian, x, eq_mult);
     if (print_debug) {std::cout << "AugSystemSolver<ImplicitOcpType> solve end" << std::endl;}
     return flag;
@@ -2417,11 +2397,7 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::PreProcess start" << std::endl;}
 
     // GENERAL VERSION
-    std::cout << "BAbt before jacobian preprocessing: " << std::endl;
-    for (int k = 0; k < info.dims.K-1; k++){ std::cout << "BAbt[" << k << "]:" << std::endl << jacobian.BAbt[k] << std::endl;}
     jacobian.PreProcess(info, f, g);
-    std::cout << "BAbt after jacobian preprocessing: " << std::endl;
-    for (int k = 0; k < info.dims.K-1; k++){ std::cout << "BAbt[" << k << "]:" << std::endl << jacobian.BAbt[k] << std::endl;}
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::jacobian::PreProcess done" << std::endl;}
     hessian.PreProcess(info, jacobian, f, g);
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::hessian::PreProcess done" << std::endl;}
@@ -2432,7 +2408,6 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
     std::vector<Index> number_of_eq_constraints = info.dims.number_of_eq_constraints;
     std::vector<Index> number_of_ineq_constraints = info.dims.number_of_ineq_constraints;
     for (int k = 0; k < K-1; ++k){
-        std::cout << "BAbt[" << k << "] init: " << std::endl << jacobian.BAbt[k] << std::endl;
         int nx = number_of_states[k];
         int nx_next = number_of_states[k + 1];
         int nu = number_of_controls[k];
@@ -2452,32 +2427,36 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
         if (rank < nx_next && k == K-2){
             throw std::runtime_error("Undefined states detected in last stage. An additional termainal stage should be added, this is not implemented yet.");
         }
+        if (nu + nx < info.dims.number_of_eq_constraints[k] + nx_next - rank){
+            // there will be more constraints at this stage than can be
+            // satisfied using the constrols and the states.
+            // likely, the problem is ill-defined
+            throw std::runtime_error("The problem seems to be ill-defined since the number of constraints at stage " + std::to_string(k) + " exceeds the number of controls and states that can be used to satisfy them.");
+        }
 
         // Modify dynamics jacobian
         trsm_rlnn(nx_next + nu + nx + 1, rank, -1.0, JBAbt, 0, 0, JBAbt, 0, 0, JBAbt_modified, 0, 0);
-        std::cout << "BAbt before: " << std::endl << jacobian.BAbt[k] << std::endl;
         gecp(nu + nx + 1, nx_next, JBAbt_modified, nx_next, 0, jacobian.BAbt[k], 0, 0);
-        std::cout << "BAbt after: " << std::endl << jacobian.BAbt[k] << std::endl;
         gecp(nx_next-rank, rank, JBAbt_modified, rank, 0, jacobian.U1U2t[k], 0, 0);
 
         // other hessian contribution
         trtr_l(nu_next + nx_next, hessian.RSQrqt[k+1], 0, 0, hessian.RSQrqt[k+1], 0, 0); // copy lower part of RSQ to upper part
         // right-multiply second-column part with Dr^-1
-        jacobian.Pr_pre[k].apply_on_cols(rank, &hessian.RSQrqt[k+1].mat()); // TODO: figure out how to offset this with nu_next (top-left part should be spared)
+        jacobian.Pr_pre[k].apply_on_cols(rank, &hessian.RSQrqt[k+1].mat()); // TODO: figure out how to offset this
         gemm_nn(nx_next - rank, nu_next + nx_next, rank, 1.0, JBAbt_modified, rank, 0, hessian.RSQrqt[k+1], nu_next, 0, 1.0, 
                 hessian.RSQrqt[k+1], rank, 0, hessian.RSQrqt[k+1], rank, 0);
         // right-multiply S
-        jacobian.Pr_pre[k].apply_on_cols(rank, &hessian.RSQrqt[k+1].mat()); // TODO: figure out how to offset this with nu_next (top-left part should be spared)
+        jacobian.Pr_pre[k].apply_on_cols(rank, &hessian.RSQrqt[k+1].mat()); // TODO: figure out how to offset this
         gemm_nn(nx_next - rank, nu_next, rank, 1.0, JBAbt_modified, rank, 0, hessian.RSQrqt[k+1], 0, nu_next, 1.0, 
                 hessian.RSQrqt[k+1], rank, nu_next, hessian.RSQrqt[k+1], rank, nu_next);
         // left-multiply bottom part with Dl^-T
-        jacobian.Pr_pre[k].apply_on_rows(rank, &hessian.RSQrqt[k+1].mat()); // TODO: figure out how to offset this with nu_next (top-left part should be spared)
+        jacobian.Pr_pre[k].apply_on_rows(rank, &hessian.RSQrqt[k+1].mat()); // TODO: figure out how to offset this
         gemm_nt(nu_next + nx_next + 1, nx_next - rank, rank, 1.0, hessian.RSQrqt[k+1], 0, nu_next, JBAbt_modified, rank, 0, 1.0, 
-                hessian.RSQrqt[k+1], nu_next, rank, hessian.RSQrqt[k+1], nu_next, rank);
-        // left-multiply S^T
-        jacobian.Pr_pre[k].apply_on_rows(rank, &hessian.RSQrqt[k+1].mat()); // TODO: figure out how to offset this with nu_next (top-left part should be spared)
-        gemm_nt(nx_next, nx_next - rank, rank, 1.0, hessian.RSQrqt[k+1], nu_next, 0, JBAbt_modified, rank, 0, 1.0, 
                 hessian.RSQrqt[k+1], 0, nu_next + rank, hessian.RSQrqt[k+1], 0, nu_next + rank);
+        // left-multiply S^T
+        jacobian.Pr_pre[k].apply_on_rows(rank, &hessian.RSQrqt[k+1].mat()); // TODO: figure out how to offset this
+        gemm_nt(nx_next, nx_next - rank, rank, 1.0, hessian.RSQrqt[k+1], nu_next, 0, JBAbt_modified, rank, 0, 1.0, 
+                hessian.RSQrqt[k+1], nu_next, rank, hessian.RSQrqt[k+1], nu_next, rank);
 
         // hessian contribution of dynamics
         gecp(nx + nu, nx_next, hessian.FuFxt[k], 0, 0, hessian.GFt[k], 0, nu_next);
@@ -2487,11 +2466,9 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
         if (k < K - 2){
             int nx_next_next = number_of_states[k + 2];
             // right multiply with Dr^-1
-            std::cout << "[2] BAbt[" << k+1 << "] before: " << std::endl << jacobian.BAbt[k+1] << std::endl;
             jacobian.Pr_pre[k].apply_on_cols(rank, &jacobian.BAbt[k+1].mat()); // TODO: figure out how to offset this
             gemm_nn(nx_next - rank, nx_next_next, rank, 1.0, JBAbt_modified, rank, 0, jacobian.BAbt[k+1], 0, nu_next, 1.0, 
                     jacobian.BAbt[k+1], rank, nu_next, jacobian.BAbt[k+1], rank, nu_next);
-            std::cout << "[2] BAbt[" << k+1 << "] after: " << std::endl << jacobian.BAbt[k+1] << std::endl;
             jacobian.Pr_pre[k].apply_on_cols(rank, &hessian.FuFxt[k+1].mat()); // TODO: figure out how to offset this
             gemm_nn(nx_next - rank, nx_next_next, rank, 1.0, JBAbt_modified, rank, 0, hessian.FuFxt[k+1], 0, nu_next, 1.0, 
                     hessian.FuFxt[k+1], rank, nu_next, hessian.FuFxt[k+1], rank, nu_next);
@@ -2502,20 +2479,12 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
 
         // Move undefined states to controls
         if (rank < nx_next){
-            // std::cout << "GFt[" << k << "] before treating states as inputs:" << std::endl << hessian.GFt[k] << std::endl;
             TreatStatesAsInputs(nu_next, nx_next, rank, hessian.GFt[k]);
-            // std::cout << "GFt[" << k << "] after treating states as inputs:" << std::endl << hessian.GFt[k] << std::endl;
-            // std::cout << "RSQrqt[" << k+1 << "] before treating states as inputs:" << std::endl << hessian.RSQrqt[k+1] << std::endl;
             TreatStatesAsInputs(nu_next, nx_next, rank, hessian.RSQrqt[k+1], true);
-            // std::cout << "RSQrqt[" << k+1 << "] in between treating states as inputs:" << std::endl << hessian.RSQrqt[k+1] << std::endl;
             TreatStatesAsInputs(nu_next, nx_next, rank, hessian.RSQrqt[k+1]);
-            // std::cout << "RSQrqt[" << k+1 << "] after treating states as inputs:" << std::endl << hessian.RSQrqt[k+1] << std::endl;
-            // std::cout << "Gg_eqt[" << k+1 << "] before treating states as inputs:" << std::endl << jacobian.Gg_eqt[k+1] << std::endl;
             TreatStatesAsInputs(nu_next, nx_next, rank, jacobian.Gg_eqt[k+1], true);
-            // std::cout << "Gg_eqt[" << k+1 << "] after treating states as inputs:" << std::endl << jacobian.Gg_eqt[k+1] << std::endl;
-            std::cout << "[3] BAbt[" << k+1 << "] before treating states as inputs:" << std::endl << jacobian.BAbt[k+1] << std::endl;
+            TreatStatesAsInputs(nu_next, nx_next, rank, jacobian.Gg_ineqt[k+1], true);
             TreatStatesAsInputs(nu_next, nx_next, rank, jacobian.BAbt[k+1], true);
-            std::cout << "[3] BAbt[" << k+1 << "] after treating states as inputs:" << std::endl << jacobian.BAbt[k+1] << std::endl;
 
             // treat some of the dynamics constraints as path constraints
             gecp(nu + nx + 1, nx_next - rank, jacobian.BAbt[k], 0, rank, jacobian.Gg_eqt[k], 0, info.dims.number_of_eq_constraints[k]);
@@ -2561,16 +2530,6 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
                 g(modified_info.offsets_g_eq_dyn[k] + i) = jacobian.BAbt[k](nu + nx, i);
             }
         }
-    }
-
-    std::cout << "f (original - modified)" << std::endl;
-    for (int i = 0; i < f.m(); i++){
-        std::cout << f_original(i) << "\t-\t" << f(i) << std::endl;
-    }
-
-    std::cout << "g (original - modified)" << std::endl;
-    for (int i = 0; i < g.m(); i++){
-        std::cout << g_original(i) << "\t-\t" << g(i) << std::endl;
     }
 
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::PreProcess done" << std::endl;}
@@ -2631,10 +2590,12 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
     for (int i = 0; i < eq_mult.m(); i++){
         eq_mult_copy(i) = eq_mult(i);
     }
+
     for (int k = 0; k < info.dims.K; ++k){
         Index nu = info.dims.number_of_controls[k];
         Index nu_mod = modified_info.dims.number_of_controls[k];
         Index s = (k < info.dims.K - 1) ? info.dims.number_of_states[k + 1] - jacobian.J_ranks[k] : 0;
+        Index s_states = (k > 0) ? info.dims.number_of_states[k] - jacobian.J_ranks[k-1] : 0;
 
         // controls (plain copy)
         for (int i = 0; i < nu; i++){
@@ -2646,10 +2607,26 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
             for (int i = 0; i < jacobian.J_ranks[k-1]; i++){
                 x(info.offsets_primal_x[k] + i) = x_copy(modified_info.offsets_primal_x[k] + i);
             }
-            for (int i = 0; i < s; i++){
+            for (int i = 0; i < s_states; i++){
                 x(info.offsets_primal_x[k] + jacobian.J_ranks[k-1] + i) = x_copy(modified_info.offsets_primal_u[k] + nu + i);
             }
+        } else {
+            for (int i = 0; i < info.dims.number_of_states[k]; i++){
+                x(info.offsets_primal_x[k] + i) = x_copy(modified_info.offsets_primal_x[k] + i);
+            }
         }
+        // if (k < info.dims.K - 1){
+        //     for (int i = 0; i < jacobian.J_ranks[k]; i++){
+        //         x(info.offsets_primal_x[k] + i) = -2 + 0*x_copy(modified_info.offsets_primal_x[k] + i);
+        //     }
+        //     for (int i = 0; i < s; i++){
+        //         x(info.offsets_primal_x[k] + jacobian.J_ranks[k] + i) = x_copy(modified_info.offsets_primal_u[k] + nu + i);
+        //     }
+        // } else {
+        //     for (int i = 0; i < info.dims.number_of_states[k]; i++){
+        //         x(info.offsets_primal_x[k] + i) = x_copy(modified_info.offsets_primal_x[k] + i);
+        //     }
+        // }
         if (k < info.dims.K - 1){
             // dynamics (copy existing dynamics, and append additional path constraints)
             for (int i = 0; i < jacobian.J_ranks[k]; i++){

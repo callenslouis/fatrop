@@ -146,9 +146,12 @@ namespace fatrop
 
             // store eq constraint jacobian
             Gg_eqt_original.reserve(dims.K);
+            Gg_ineqt_original.reserve(dims.K);
             for (int k = 0; k < dims.K; ++k){
                 Gg_eqt_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1,
                                   dims.number_of_eq_constraints[k] + ((k < dims.K-1) ? dims.number_of_states[k + 1] : 0));
+                Gg_ineqt_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1,
+                                               dims.number_of_ineq_constraints[k]);
             }
         }
         
@@ -214,6 +217,7 @@ namespace fatrop
         std::vector<int> rho;
         std::vector<MatRealAllocated> BAbt_original;
         std::vector<MatRealAllocated> Gg_eqt_original;
+        std::vector<MatRealAllocated> Gg_ineqt_original;
 
         bool print_debug = false;
     };
