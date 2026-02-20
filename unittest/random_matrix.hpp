@@ -3,6 +3,7 @@
 #include "fatrop/context/context.hpp"
 #include "fatrop/linear_algebra/linear_algebra.hpp"
 #include <random>
+#include "fatrop/linear_algebra/lu_factorization.hpp"
 namespace fatrop
 {
     namespace test
@@ -61,6 +62,28 @@ namespace fatrop
                 }
             }
             return matrix;
+        }
+
+        MatRealAllocated random_degenerate_matrix(Index m, Index rank)
+        {
+            fatrop_dbg_assert(rank <= m && "Rank must be less than or equal to the number of rows");
+            MatRealAllocated matrix1 = random_matrix(m, rank);
+            MatRealAllocated matrix2 = random_matrix(rank, m);
+            MatRealAllocated ret(m, m);
+            // ret = matrix1 * matrix2, which has rank at most 'rank'
+            blasfeo_dgemm_nn(m, m, rank, 1.0, const_cast<MAT *>(&matrix1.mat()), 0, 0,
+                             const_cast<MAT *>(&matrix2.mat()), 0, 0, 0.0,
+                             const_cast<MAT *>(&ret.mat()), 0, 0, const_cast<MAT *>(&ret.mat()),
+                             0, 0);
+            // compute lu factorization of ret to check its rank
+            Index rank_found;
+            PermutationMatrix Pl(m);
+            PermutationMatrix Pr(m);
+            MatRealAllocated LU(m, m);
+            gecp(m, m, ret, 0, 0, LU, 0, 0);
+            fatrop_lu_fact_transposed(m, m, m, rank_found, &LU.mat(), Pl, Pr, 1e-5);
+            fatrop_dbg_assert(rank_found == rank && "Generated matrix does not have the desired rank");
+            return ret;
         }
 
         VecRealAllocated random_vector(Index rows, Scalar lower_bound = 0.0,

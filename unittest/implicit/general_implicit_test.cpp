@@ -22,12 +22,12 @@ public:
     bool no_second_order_effects = true;
 
     // Create OcpDims object
-    int K = 10;                                                   // Number of stages
-    std::vector<Index> nx = {20, 10, 10, 10, 10, 2, 0, 1, 10, 5}; // State dimensions for each stage
-    std::vector<Index> r =  {20, 5, 2, 10, 9, 1, 0, 1, 6, 5};
-    std::vector<Index> nu = {1, 4, 2, 10, 1, 30, 4, 5, 10, 5};    // Input dimensions for each stage
-    std::vector<Index> ng = {9, 3, 4, 3, 4, 2, 1, 0, 1, 5}; // Equality constraints for each stage
-    std::vector<Index> ng_ineq = {0, 5, 10, 4, 0, 0, 0, 0, 10, 0}; // Inequality constraints for each stage
+    // int K = 10;                                                   // Number of stages
+    // std::vector<Index> nx = {20, 10, 10, 10, 10, 2, 0, 1, 10, 5}; // State dimensions for each stage
+    // std::vector<Index> r =  {20, 5, 2, 10, 9, 1, 0, 1, 6, 0};
+    // std::vector<Index> nu = {1, 4, 2, 10, 1, 30, 4, 5, 10, 5};    // Input dimensions for each stage
+    // std::vector<Index> ng = {9, 3, 4, 3, 4, 2, 1, 0, 1, 5}; // Equality constraints for each stage
+    // std::vector<Index> ng_ineq = {0, 5, 10, 4, 0, 0, 0, 0, 10, 0}; // Inequality constraints for each stage
     // int K = 3;
     // std::vector<Index> nx = {2, 2, 2};
     // std::vector<Index> r =  {2, 0, 2};
@@ -40,12 +40,12 @@ public:
     // std::vector<Index> nu = {3, 4, 0};
     // std::vector<Index> ng = {2, 1, 1};
     // std::vector<Index> ng_ineq = {1, 2, 2};
-    // int K = 2;
-    // std::vector<Index> nx = {2, 2};
-    // std::vector<Index> r =  {2, 2};
-    // std::vector<Index> nu = {2, 0};
-    // std::vector<Index> ng = {1, 1};
-    // std::vector<Index> ng_ineq = {2, 2};
+    int K = 2;
+    std::vector<Index> nx = {2, 2};
+    std::vector<Index> r =  {2, 1};
+    std::vector<Index> nu = {4, 0};
+    std::vector<Index> ng = {1, 1};
+    std::vector<Index> ng_ineq = {3, 1};
 
     ProblemDims dims{K, nu, nx, ng, ng_ineq};
 
@@ -114,17 +114,12 @@ public:
                     ::test::random_matrix(nu + nx, nx_next);
 
                 if (J_matrix_is_idendity){
-                    if (k == 0){
-                        for (Index i = 0; i < r[k+1]; ++i){
-                            jacobian.Jt[k](r[k+1] - i - 1, i) = -1.0;
-                        }
-                    } else {
-                        jacobian.Jt[k].block(r[k+1], r[k+1], 0, 0) =
-                            ::test::identity_matrix(r[k+1], -1);
-                    }
+                    jacobian.Jt[k].block(r[k+1], r[k+1], 0, 0) =
+                        ::test::identity_matrix(r[k+1], -1);
                 } else {
-                    jacobian.Jt[k].block(nx_next, nx_next, 0, 0) =
-                        ::test::random_matrix(nx_next, nx_next);
+                    jacobian.Jt[k].block(r[k+1], r[k+1], 0, 0) =
+                        // ::test::random_matrix(r[k+1], r[k+1]);
+                        ::test::random_degenerate_matrix(nx_next, r[k+1]);
                 }
             }
             jacobian.Gg_eqt[k].block(nu + nx, info.dims.number_of_eq_constraints[k], 0, 0) =
@@ -479,9 +474,7 @@ TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
     VecRealAllocated grad(info.number_of_primal_variables);
     VecRealAllocated tmp(info.number_of_primal_variables);
     grad = 0;
-    std::cout << "calling hessian apply on right" << std::endl;
     hessian.apply_on_right(info, x, 0.0, tmp, tmp);
-    std::cout << "done " << std::endl;
     grad = grad + tmp + D_x * x;
     jacobian.transpose_apply_on_right(info, mult, 0.0, tmp, tmp);
     grad = grad + tmp;
