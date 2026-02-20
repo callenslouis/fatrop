@@ -110,6 +110,7 @@ void Hessian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
     }
     for (int k = 0; k < info.dims.K-1; ++k){
         FuFxt_original[k] = FuFxt[k];
+        GuGxt_original[k] = GuGxt[k];
     }
     return;
 
@@ -321,6 +322,10 @@ void Hessian<ImplicitOcpType>::ResetPreProcess(const ProblemInfo &info,
         // std::cout << "RSQrqt_original[" << k << "]:" << std::endl << RSQrqt_original[k] << std::endl;
         // if (k < info.dims.K-1){ std::cout << "FuFxt[" << k << "]:" << std::endl << FuFxt[k] << std::endl;}
         RSQrqt[k] = RSQrqt_original[k];
+        if (k < info.dims.K-1){
+            FuFxt[k] = FuFxt_original[k];
+            GuGxt[k] = GuGxt_original[k];
+        }
     }
 }
 
@@ -349,11 +354,12 @@ void Hessian<ImplicitOcpType>::apply_on_right(const OcpInfo& info,
         Index nx = info.dims.number_of_states[k];
         Index offset_ux = info.offsets_primal_u[k];
         Index nx_next = info.dims.number_of_states[k + 1];
-        gemv_t(nu + nx, nx_next, 1.0, FuFxt[k], 0, 0, 
+        gemv_n(nx_next, nu + nx, 1.0, FuFxt[k], 0, 0, 
                 x, info.offsets_primal_u[k], 1.0, out, info.offsets_primal_x[k + 1], 
                 out, info.offsets_primal_x[k + 1]);
-        gemv_n(nu + nx, nx_next, 1.0, FuFxt[k], 0, 0, x, info.offsets_primal_x[k + 1],
+        gemv_t(nx_next, nu + nx, 1.0, FuFxt[k], 0, 0, x, info.offsets_primal_x[k + 1],
                 1.0, out, info.offsets_primal_u[k], out, info.offsets_primal_u[k]);
+        
     }
     if (print_debug){ std::cout << "Hessian<ImplicitOcpType>::apply_on_right done" << std::endl;}
 }
