@@ -18,34 +18,34 @@ class GeneralImplicitAugSystemSolverTest : public ::testing::Test
 {
 // protected:
 public:
-    bool J_matrix_is_idendity = true;
+    bool J_matrix_is_idendity = false;
     bool no_second_order_effects = true;
 
     // Create OcpDims object
-    int K = 10;                                                   // Number of stages
-    std::vector<Index> nx = {20, 10, 10, 10, 10, 2, 0, 1, 10, 5}; // State dimensions for each stage
-    std::vector<Index> r =  {20, 5, 2, 10, 9, 1, 0, 1, 6, 0};
-    std::vector<Index> nu = {1, 4, 2, 10, 1, 30, 4, 5, 10, 2};    // Input dimensions for each stage
-    std::vector<Index> ng = {9, 3, 4, 3, 4, 2, 1, 0, 1, 5}; // Equality constraints for each stage
-    std::vector<Index> ng_ineq = {0, 5, 10, 4, 0, 0, 0, 0, 10, 0}; // Inequality constraints for each stage
+    // int K = 10;                                                   // Number of stages
+    // std::vector<Index> nx = {20, 10, 10, 10, 10, 2, 0, 1, 10, 5}; // State dimensions for each stage
+    // std::vector<Index> r =  {20, 5, 2, 10, 9, 1, 0, 1, 6, 0};
+    // std::vector<Index> nu = {1, 4, 2, 10, 1, 30, 4, 5, 10, 2};    // Input dimensions for each stage
+    // std::vector<Index> ng = {9, 3, 4, 3, 4, 2, 1, 0, 1, 5}; // Equality constraints for each stage
+    // std::vector<Index> ng_ineq = {0, 5, 10, 4, 0, 0, 0, 0, 10, 0}; // Inequality constraints for each stage
+    int K = 2;
+    std::vector<Index> nx = {1, 4};
+    std::vector<Index> r =  {1, 3};
+    std::vector<Index> nu = {3, 1};
+    std::vector<Index> ng = {0, 0};
+    std::vector<Index> ng_ineq = {0, 0};
     // int K = 3;
     // std::vector<Index> nx = {2, 2, 2};
-    // std::vector<Index> r =  {2, 0, 2};
-    // std::vector<Index> nu = {2, 1, 1};
-    // std::vector<Index> ng = {1, 1, 1};
-    // std::vector<Index> ng_ineq = {3, 0, 1};
-    // int K = 3;
-    // std::vector<Index> nx = {2, 2, 2};
-    // std::vector<Index> r =  {2, 0, 2};
-    // std::vector<Index> nu = {3, 4, 0};
+    // std::vector<Index> r =  {2, 0, 0};
+    // std::vector<Index> nu = {3, 4, 2};
     // std::vector<Index> ng = {2, 1, 1};
     // std::vector<Index> ng_ineq = {1, 2, 2};
     // int K = 2;
     // std::vector<Index> nx = {2, 2};
     // std::vector<Index> r =  {2, 1};
-    // std::vector<Index> nu = {4, 1};
-    // std::vector<Index> ng = {1, 1};
-    // std::vector<Index> ng_ineq = {3, 1};
+    // std::vector<Index> nu = {0, 0};
+    // std::vector<Index> ng = {0, 0};
+    // std::vector<Index> ng_ineq = {0, 0};
 
     ProblemDims dims{K, nu, nx, ng, ng_ineq};
 
@@ -114,10 +114,24 @@ public:
                     ::test::random_matrix(nu + nx, nx_next);
 
                 if (J_matrix_is_idendity){
-                    jacobian.Jt[k].block(r[k+1], r[k+1], 0, 0) =
-                        ::test::identity_matrix(r[k+1], -1);
+                    if (k == 0 && false){
+                        for (Index i = 0; i < r[k+1]; i++){
+                            jacobian.Jt[k](r[k+1] - 1 - i, i) = -1.0;
+                        }
+                        // jacobian.Jt[k](0, 0) = 0.482201;
+                        // jacobian.Jt[k](0, 1) = 0.482349;
+                        // jacobian.Jt[k](1, 0) = 0.127185;
+                        // jacobian.Jt[k](1, 1) = 0.169343;
+                        // jacobian.Jt[k](0, 0) = 1;
+                        // jacobian.Jt[k](0, 1) = 2;
+                        // jacobian.Jt[k](1, 0) = 0;
+                        // jacobian.Jt[k](1, 1) = 1;
+                    } else {
+                        jacobian.Jt[k].block(r[k+1], r[k+1], 0, 0) =
+                            ::test::identity_matrix(r[k+1], -1);
+                    }
                 } else {
-                    jacobian.Jt[k].block(r[k+1], r[k+1], 0, 0) =
+                    jacobian.Jt[k].block(nx_next, nx_next, 0, 0) =
                         // ::test::random_matrix(r[k+1], r[k+1]);
                         ::test::random_degenerate_matrix(nx_next, r[k+1]);
                 }
@@ -383,13 +397,13 @@ TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
     EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
 
     // print the full KKT matrix and rhs
-    bool print_full_kkt = false;
+    bool print_full_kkt = true;
     if (print_full_kkt){
     std::cout << "KKT = np.array([\n";
     for (Index i = 0; i < full_kkt_matrix.m(); i++){
         std::cout << "\t[";
         for (Index j = 0; j < full_kkt_matrix.n(); j++){
-            std::cout << full_kkt_matrix(i,j);
+            std::cout << std::setw(9) << std::setprecision(6) << full_kkt_matrix(i,j);
             if (j < full_kkt_matrix.n() - 1){
                 std::cout << ", ";
             }
@@ -483,6 +497,7 @@ TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
     {
         EXPECT_NEAR(rhs_gg(i), 0, 1e-5);
     }
+    std::cout << "Halfway through the tests" << std::endl;
     for (Index i = 0; i < info.number_of_primal_variables; ++i)
     {
         EXPECT_NEAR(grad(i), 0, 1e-5);

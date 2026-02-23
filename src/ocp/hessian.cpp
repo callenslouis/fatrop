@@ -318,8 +318,8 @@ void Hessian<ImplicitOcpType>::ResetPreProcess(const ProblemInfo &info,
                                                const Jacobian<ImplicitOcpType> &jacobian)
 {
     for (int k = 0; k < info.dims.K; ++k){
-        // std::cout << "RSQrqt[" << k << "]:" << std::endl << RSQrqt[k] << std::endl;
-        // std::cout << "RSQrqt_original[" << k << "]:" << std::endl << RSQrqt_original[k] << std::endl;
+        std::cout << "RSQrqt[" << k << "]:" << std::endl << RSQrqt[k] << std::endl;
+        std::cout << "RSQrqt_original[" << k << "]:" << std::endl << RSQrqt_original[k] << std::endl;
         // if (k < info.dims.K-1){ std::cout << "FuFxt[" << k << "]:" << std::endl << FuFxt[k] << std::endl;}
         RSQrqt[k] = RSQrqt_original[k];
         if (k < info.dims.K-1){
