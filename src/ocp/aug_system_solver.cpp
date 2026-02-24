@@ -2313,7 +2313,7 @@ AugSystemSolver<ImplicitOcpType>::AugSystemSolver(const ProblemInfo &info) : Mod
     int max_ng = *std::max_element(info.dims.number_of_eq_constraints.begin(), info.dims.number_of_eq_constraints.end());
     int dim = std::max(max_nu + max_nx + 1, max_ng);
 
-    scratch = std::make_unique<MatRealAllocated>(dim, dim);
+    scratch = std::make_unique<MatRealAllocated>(dim + 8, dim);
 };
 
 LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info,
@@ -2340,72 +2340,74 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
 
     start = std::chrono::high_resolution_clock::now();
     
-// TEMP // 
-    MatRealAllocated full_kkt_matrix = GetKKT(modified_info, jacobian, hessian, true);
-    std::cout << "KKT = np.array([\n";
-    for (Index i = 0; i < full_kkt_matrix.m(); i++){
-        std::cout << "\t[";
-        for (Index j = 0; j < full_kkt_matrix.n(); j++){
-            std::cout << std::setw(9) << std::setprecision(6) << full_kkt_matrix(i,j);
-            if (j < full_kkt_matrix.n() - 1){
-                std::cout << ", ";
-            }
-        }
-        std::cout << "]";
-        if (i < full_kkt_matrix.m() - 1){
-            std::cout << ",\n";
-        }
-    }
-    std::cout << "\n])" << std::endl;
-// END TEMP //
-
+// // TEMP // 
+//     MatRealAllocated full_kkt_matrix = GetKKT(modified_info, jacobian, hessian, true);
+//     std::cout << "KKT = np.array([\n";
+//     for (Index i = 0; i < full_kkt_matrix.m(); i++){
+//         std::cout << "\t[";
+//         for (Index j = 0; j < full_kkt_matrix.n(); j++){
+//             std::cout << std::setw(9) << std::setprecision(6) << full_kkt_matrix(i,j);
+//             if (j < full_kkt_matrix.n() - 1){
+//                 std::cout << ", ";
+//             }
+//         }
+//         std::cout << "]";
+//         if (i < full_kkt_matrix.m() - 1){
+//             std::cout << ",\n";
+//         }
+//     }
+//     std::cout << "\n])" << std::endl;
+// // END TEMP //
 
 
     LinsolReturnFlag flag = ModifiedAugSystemSolver::solve(modified_info, jacobian, hessian, D_x_copy, D_s_copy, f_copy, g_copy, x, eq_mult);
+    // std::cout << flag << std::endl;
+    // std::cout << "found solution\n" << x << std::endl;
+    // std::cout << "found solution\n" << eq_mult << std::endl;
 
 
 // TEMP //
 
-    VecRealAllocated full_rhs = VecRealAllocated(info.number_of_primal_variables + info.number_of_eq_constraints);
-    for (Index i = 0; i < info.number_of_primal_variables; ++i){full_rhs(i) = f(i) + D_x(i)*x(i);}
-    for (Index i = 0; i < info.number_of_eq_constraints; ++i){full_rhs(info.number_of_primal_variables + i) = g(i);}
-    for (Index i = 0; i < info.number_of_slack_variables; ++i){
-        full_rhs(info.number_of_primal_variables + info.offset_g_eq_slack + i) -= D_s(i) * eq_mult(info.offset_g_eq_slack + i);
-    }
+    // VecRealAllocated full_rhs = VecRealAllocated(info.number_of_primal_variables + info.number_of_eq_constraints);
+    // for (Index i = 0; i < info.number_of_primal_variables; ++i){full_rhs(i) = f(i) + D_x(i)*x(i);}
+    // for (Index i = 0; i < info.number_of_eq_constraints; ++i){full_rhs(info.number_of_primal_variables + i) = g(i);}
+    // for (Index i = 0; i < info.number_of_slack_variables; ++i){
+    //     full_rhs(info.number_of_primal_variables + info.offset_g_eq_slack + i) -= D_s(i) * eq_mult(info.offset_g_eq_slack + i);
+    // }
 
-    std::cout << "rhs = np.array([\n";
-    for (Index i = 0; i < full_rhs.m(); i++){
-        std::cout << "\t" << full_rhs(i);
-        if (i < full_rhs.m() - 1){
-            std::cout << ",";
-        }
-    }
-    std::cout << "\n])" << std::endl;
+    // std::cout << "rhs = np.array([\n";
+    // for (Index i = 0; i < full_rhs.m(); i++){
+    //     std::cout << "\t" << full_rhs(i);
+    //     if (i < full_rhs.m() - 1){
+    //         std::cout << ",";
+    //     }
+    // }
+    // std::cout << "\n])" << std::endl;
 
-    // check solution
-    VecRealAllocated jac_x(modified_info.number_of_eq_constraints);
-    jacobian.apply_on_right(modified_info, x, 0.0, jac_x, jac_x, true);
-    VecRealAllocated rhs_gg(modified_info.number_of_eq_constraints);
-    rhs_gg = 0.;
-    rhs_gg = rhs_gg + g_copy + jac_x;
-    rhs_gg.block(modified_info.number_of_slack_variables, modified_info.offset_g_eq_slack) =
-        rhs_gg.block(modified_info.number_of_slack_variables, modified_info.offset_g_eq_slack) -
-        D_s * eq_mult.block(modified_info.number_of_slack_variables, modified_info.offset_g_eq_slack);
-    VecRealAllocated grad(modified_info.number_of_primal_variables);
-    VecRealAllocated tmp(modified_info.number_of_primal_variables);
-    grad = 0;
-    hessian.apply_on_right(modified_info, x, 0.0, tmp, tmp);
-    grad = grad + tmp + D_x_copy * x;
-    jacobian.transpose_apply_on_right(modified_info, eq_mult, 0.0, tmp, tmp, true);
-    grad = grad + tmp;
-    grad = grad + f_copy;
-    std::cout << "rhs_gg: (should be zero): " << std::endl << rhs_gg << std::endl;
-    std::cout << "grad: (should be zero): " << std::endl << grad << std::endl;
+    // // check solution
+    // VecRealAllocated jac_x(modified_info.number_of_eq_constraints);
+    // jacobian.apply_on_right(modified_info, x, 0.0, jac_x, jac_x, true);
+    // VecRealAllocated rhs_gg(modified_info.number_of_eq_constraints);
+    // rhs_gg = 0.;
+    // rhs_gg = rhs_gg + g_copy + jac_x;
+    // rhs_gg.block(modified_info.number_of_slack_variables, modified_info.offset_g_eq_slack) =
+    //     rhs_gg.block(modified_info.number_of_slack_variables, modified_info.offset_g_eq_slack) -
+    //     D_s * eq_mult.block(modified_info.number_of_slack_variables, modified_info.offset_g_eq_slack);
+    // VecRealAllocated grad(modified_info.number_of_primal_variables);
+    // VecRealAllocated tmp(modified_info.number_of_primal_variables);
+    // grad = 0;
+    // hessian.apply_on_right(modified_info, x, 0.0, tmp, tmp);
+    // grad = grad + tmp + D_x_copy * x;
+    // jacobian.transpose_apply_on_right(modified_info, eq_mult, 0.0, tmp, tmp, true);
+    // grad = grad + tmp;
+    // grad = grad + f_copy;
+    // std::cout << "rhs_gg: (should be zero): " << std::endl << rhs_gg << std::endl;
+    // std::cout << "grad: (should be zero): " << std::endl << grad << std::endl;
 
 
-    std::cout << "found solution: " << std::endl;
-    std::cout << "x: " << x << std::endl;
-    std::cout << "eq_mult: " << eq_mult << std::endl;
+    // std::cout << "found solution: " << std::endl;
+    // std::cout << "x: " << x << std::endl;
+    // std::cout << "eq_mult: " << eq_mult << std::endl;
 // END TEMP // 
 
     auto end = std::chrono::high_resolution_clock::now();
@@ -2498,7 +2500,6 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve_rhs(const ProblemInfo &
     // return LinsolReturnFlag::SUCCESS;
     ProblemInfo modified_info = PreProcess(info, jacobian, hessian, f_copy, g_copy, nullptr, &D_eq_copy, &D_s_copy);
     start = std::chrono::high_resolution_clock::now();
-    // LinsolReturnFlag flag = AugSystemSolver<OcpType>::solve_rhs(info, jacobian, hessian, D_eq, D_s, f_copy, g_copy, x, eq_mult);
     LinsolReturnFlag flag = ModifiedAugSystemSolver::solve_rhs(modified_info, jacobian, hessian, D_eq_copy, D_s_copy, f_copy, g_copy, x, eq_mult);
     auto end = std::chrono::high_resolution_clock::now();
     duration_solve = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
@@ -2523,11 +2524,14 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
     hessian.PreProcess(info, jacobian, f, g);
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::hessian::PreProcess done" << std::endl;}
 
-    for (int k = 0; k < info.dims.K-1; ++k){
-        PrintNpArray(jacobian.BAbt[k], "BAbt");
-        PrintNpArray(hessian.RSQrqt[k], "RSQrqt");
-    }
-    PrintNpArray(hessian.RSQrqt[info.dims.K-1], "RSQrqt");
+    // for (int k = 0; k < info.dims.K - 1; k++){
+    //     PrintNpArray(jacobian.BAbt[k], "BAbt");
+    //     PrintNpArray(jacobian.Gg_eqt[k], "Gg_eqt");
+    // }
+    // PrintNpArray(jacobian.Gg_eqt[info.dims.K - 1], "Gg_eqt");
+    // for (int k = 0; k < info.dims.K; k++){
+    //     PrintNpArray(hessian.RSQrqt[k], "RSQrqt");
+    // }
 
     int K = info.dims.K;
     std::vector<Index> number_of_states = info.dims.number_of_states;
@@ -2551,6 +2555,7 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
         // decompose J matrix
         lu_fact_transposed(nx_next, nx_next + nu + nx + 1, nx_next, rank, JBAbt, jacobian.Pl_pre[k], jacobian.Pr_pre[k], lu_fact_tol);
         gecp(rank, rank, JBAbt, 0, 0, jacobian.U1t[k], 0, 0);
+        // PrintLuInfo(JBAbt, jacobian.Jt[k], jacobian.Pl_pre[k], jacobian.Pr_pre[k]);
 
         if (nu + nx < info.dims.number_of_eq_constraints[k] + nx_next - rank){
             // there will be more constraints at this stage than can be
@@ -2571,6 +2576,7 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
         trsm_runu(nx_next + nu + nx + 1, nx_next, 1.0, JBAbt, 0, 0, JBAbt_modified, 0, 0, JBAbt_modified, 0, 0);    // * L^-1
         trsm_rlnn(nx_next + nu + nx + 1, rank, -1.0, JBAbt, 0, 0, JBAbt_modified, 0, 0, JBAbt_modified, 0, 0);      // * U^-1
         gecp(nu + nx + 1, nx_next, JBAbt_modified, nx_next, 0, jacobian.BAbt[k], 0, 0);
+        jacobian.Pr_pre[k].apply_on_rows(rank, &JBAbt_modified.mat());                                              // * P_r
         gecp(nx_next-rank, rank, JBAbt_modified, rank, 0, jacobian.U1U2t[k], 0, 0);
 
         // other hessian contribution
@@ -2601,19 +2607,19 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
             int nx_next_next = number_of_states[k + 2];
             // dynamics jacobian
             Pr_extended.apply_on_rows(nu_next + rank, &jacobian.BAbt[k+1].mat());
-            gemm_nn(nx_next - rank, nx_next_next, rank, 1.0, jacobian.U1U2t[k], 0, 0, jacobian.BAbt[k+1], 0, nu_next, 1.0, 
-                    jacobian.BAbt[k+1], rank, nu_next, jacobian.BAbt[k+1], rank, nu_next);
+            gemm_nn(nx_next - rank, nx_next_next, rank, 1.0, jacobian.U1U2t[k], 0, 0, jacobian.BAbt[k+1], nu_next, 0, 1.0, 
+                    jacobian.BAbt[k+1], nu_next + rank, 0, jacobian.BAbt[k+1], nu_next + rank, 0);
             // dynamics hessian
             Pr_extended.apply_on_cols(nu_next + rank, &hessian.FuFxt[k+1].mat());
-            gemm_nn(nx_next - rank, nx_next_next, rank, 1.0, jacobian.U1U2t[k], 0, 0, hessian.FuFxt[k+1], 0, nu_next, 1.0, 
-                    hessian.FuFxt[k+1], rank, nu_next, hessian.FuFxt[k+1], rank, nu_next);
+            gemm_nn(nx_next - rank, nx_next_next, rank, 1.0, jacobian.U1U2t[k], 0, 0, hessian.FuFxt[k+1], nu_next, 0, 1.0, 
+                    hessian.FuFxt[k+1], nu_next + rank, 0, hessian.FuFxt[k+1], nu_next + rank, 0);
         }
         // equality constraints
         Pr_extended.apply_on_rows(nu_next + rank, &jacobian.Gg_eqt[k+1].mat());
-        gemm_nn(nx_next - rank, info.dims.number_of_eq_constraints[k+1], rank, 1.0, jacobian.U1U2t[k], 0, 0, jacobian.Gg_eqt[k+1], 0, nu_next, 1.0, jacobian.Gg_eqt[k+1], rank, nu_next, jacobian.Gg_eqt[k+1], rank, nu_next);
+        gemm_nn(nx_next - rank, info.dims.number_of_eq_constraints[k+1], rank, 1.0, jacobian.U1U2t[k], 0, 0, jacobian.Gg_eqt[k+1], nu_next, 0, 1.0, jacobian.Gg_eqt[k+1], nu_next + rank, 0, jacobian.Gg_eqt[k+1], nu_next + rank, 0);
         // inequality constraints
         Pr_extended.apply_on_rows(nu_next + rank, &jacobian.Gg_ineqt[k+1].mat());
-        gemm_nn(nx_next - rank, info.dims.number_of_ineq_constraints[k+1], rank, 1.0, jacobian.U1U2t[k], 0, 0, jacobian.Gg_ineqt[k+1], 0, nu_next, 1.0, jacobian.Gg_ineqt[k+1], rank, nu_next, jacobian.Gg_ineqt[k+1], rank, nu_next);
+        gemm_nn(nx_next - rank, info.dims.number_of_ineq_constraints[k+1], rank, 1.0, jacobian.U1U2t[k], 0, 0, jacobian.Gg_ineqt[k+1], nu_next, 0, 1.0, jacobian.Gg_ineqt[k+1], nu_next + rank, 0, jacobian.Gg_ineqt[k+1], nu_next + rank, 0);
 
 
         // Move undefined states to controls
@@ -2741,29 +2747,21 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
         // scale states and dynamics multipliers
         if (k > 0){
             if (k < info.dims.K){
-                std::cout << "[" << k << "] x before: " << x << std::endl;
-                std::cout << "U1U2t: " << jacobian.U1U2t[k-1] << std::endl;
                 gemv_t(info.dims.number_of_states[k] - jacobian.J_ranks[k-1], info.dims.number_of_states[k], 1.0, 
                     jacobian.U1U2t[k-1], 0, 0, 
                     x, info.offsets_primal_x[k] + jacobian.J_ranks[k-1], 1.0, 
                     x, info.offsets_primal_x[k], 
                     x, info.offsets_primal_x[k]);
-                std::cout << "[" << k << "] x intermediate: " << x << std::endl;
                 jacobian.Pr_pre[k-1].apply_inverse(jacobian.J_ranks[k-1], &x.vec(), info.offsets_primal_x[k]);
-                std::cout << "[" << k << "] x after: " << x << std::endl;
             } 
 
             // U^-T * 
-            std::cout << "eq_mult before: " << eq_mult << std::endl;
             trsv_lnn(jacobian.J_ranks[k-1], jacobian.U1t[k-1], 0, 0, eq_mult, info.offsets_g_eq_dyn[k-1], eq_mult, info.offsets_g_eq_dyn[k-1]);
             vecsc(jacobian.J_ranks[k-1], -1.0, eq_mult, info.offsets_g_eq_dyn[k-1]);
-            std::cout << "eq_mult after U^-T: " << eq_mult << std::endl;
             // L^-T *
             trsv_unu(info.dims.number_of_states[k], info.dims.number_of_states[k], jacobian.Jt_LU[k-1], 0, 0, eq_mult, info.offsets_g_eq_dyn[k-1], eq_mult, info.offsets_g_eq_dyn[k-1]);
-            std::cout << "eq_mult after L^-T: " << eq_mult << std::endl;
             // Pl * 
             jacobian.Pl_pre[k-1].apply_inverse(jacobian.J_ranks[k-1], &eq_mult.vec(), info.offsets_g_eq_dyn[k-1]);
-            std::cout << "eq_mult after Pl: " << eq_mult << std::endl;
         }
     }
 

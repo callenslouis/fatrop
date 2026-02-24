@@ -108,10 +108,14 @@ namespace fatrop
         Jacobian(const ProblemDims &dims)
             : Jacobian<OcpType>(dims)
         {
-            // store the original BAbt matrices
+            // store the original BAbt matrices (+ overwrite original ones)
+            BAbt = {};
+            BAbt.reserve(dims.K - 1);
             BAbt_original.reserve(dims.K);
             for (int k = 0; k < dims.K - 1; ++k){
-                BAbt_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1,
+                BAbt.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1 + 8,
+                                  dims.number_of_states[k + 1]);
+                BAbt_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1 + 8,
                                   dims.number_of_states[k + 1]);
             }
 
@@ -200,16 +204,16 @@ namespace fatrop
             {
                 os << mat << std::endl;
             }
-            // os << "Gg_eqt:" << std::endl;
-            // for (const auto &mat : jac.Gg_eqt)
-            // {
-            //     os << mat << std::endl;
-            // }
-            // os << "Gg_ineqt:" << std::endl;
-            // for (const auto &mat : jac.Gg_ineqt)
-            // {
-            //     os << mat << std::endl;
-            // }
+            os << "Gg_eqt:" << std::endl;
+            for (const auto &mat : jac.Gg_eqt)
+            {
+                os << mat << std::endl;
+            }
+            os << "Gg_ineqt:" << std::endl;
+            for (const auto &mat : jac.Gg_ineqt)
+            {
+                os << mat << std::endl;
+            }
             return os;
         }
         double dgemm_time = 0;

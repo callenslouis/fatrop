@@ -28,12 +28,18 @@ public:
     // std::vector<Index> nu = {1, 4, 2, 10, 1, 30, 4, 5, 10, 2};    // Input dimensions for each stage
     // std::vector<Index> ng = {9, 3, 4, 3, 4, 2, 1, 0, 1, 5}; // Equality constraints for each stage
     // std::vector<Index> ng_ineq = {0, 5, 10, 4, 0, 0, 0, 0, 10, 0}; // Inequality constraints for each stage
-    int K = 2;
-    std::vector<Index> nx = {1, 4};
-    std::vector<Index> r =  {1, 3};
-    std::vector<Index> nu = {3, 1};
-    std::vector<Index> ng = {0, 0};
-    std::vector<Index> ng_ineq = {0, 0};
+    int K = 3;
+    std::vector<Index> nx = {1, 2, 5};
+    std::vector<Index> r =  {1, 1, 2};
+    std::vector<Index> nu = {1, 4, 0};
+    std::vector<Index> ng = {0, 0, 0};
+    std::vector<Index> ng_ineq = {0, 0, 0};
+    // int K = 2;
+    // std::vector<Index> nx = {1, 3};
+    // std::vector<Index> r =  {1, 0};
+    // std::vector<Index> nu = {5, 2};
+    // std::vector<Index> ng = {2, 1};
+    // std::vector<Index> ng_ineq = {4, 2};
     // int K = 3;
     // std::vector<Index> nx = {2, 2, 2};
     // std::vector<Index> r =  {2, 0, 0};
@@ -219,7 +225,7 @@ public:
         for (Index i = 0; i < info.number_of_primal_variables; ++i)
         {
             rhs_x(i) = 1.0 * i;
-            D_x(i) = 1.0 * (i + 0.1);
+            D_x(i) = 0 * 1.0 * (i + 0.1);
         }
         // fill the mult vector with random values
         for (Index i = 0; i < info.number_of_eq_constraints; ++i)
@@ -233,12 +239,8 @@ public:
         }
         for (Index i = 0; i < info.number_of_slack_variables; ++i)
         {
-            D_s(i) = 0 * 1.0 * (i + 0.1);
+            D_s(i) =  0 * 1.0 * (i + 0.1);
         }
-        std::cout << "D_x: " << D_x << std::endl;
-
-
-
 
 
 
@@ -428,15 +430,6 @@ TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
     true_rhs.block(info.number_of_eq_constraints, info.number_of_primal_variables) = rhs_g;
     true_rhs.block(info.number_of_slack_variables, info.offset_g_eq_slack + info.number_of_primal_variables) =
         true_rhs.block(info.number_of_slack_variables, info.offset_g_eq_slack + info.number_of_primal_variables) - D_s * mult.block(info.offset_g_eq_slack, info.offset_g_eq_slack);
-    std::cout << "true_rhs = np.array([\n";
-    for (Index i = 0; i < true_rhs.m(); i++){
-        std::cout << "\t" << true_rhs(i);
-        if (i < true_rhs.m() - 1){
-            std::cout << ",";
-        }
-    }
-    std::cout << "\n])" << std::endl;    
-
     std::cout << "rhs = np.array([\n";
     for (Index i = 0; i < full_rhs.m(); i++){
         std::cout << "\t" << full_rhs(i);
@@ -520,4 +513,6 @@ TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
     {
         EXPECT_NEAR(grad(i), 0, 1e-5);
     }
+    std::cout << "rhs_gg: " << rhs_gg << std::endl;
+    std::cout << "grad:   " << grad << std::endl;
 }

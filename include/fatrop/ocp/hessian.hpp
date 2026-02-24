@@ -94,11 +94,15 @@ namespace fatrop
         Hessian(const ProblemDims &dims)
             : Hessian<OcpType>(dims)
         {
-            // store the original RSQrqt matrices
+            // store the original RSQrqt matrices (+ overwrite original ones)
+            RSQrqt = {};
+            RSQrqt.reserve(dims.K);
             RSQrqt_original.reserve(dims.K);
             for (int k = 0; k < dims.K; ++k)
             {
-                RSQrqt_original.emplace_back(1*(dims.number_of_controls[k] + dims.number_of_states[k] + 1),
+                RSQrqt.emplace_back(1*(dims.number_of_controls[k] + dims.number_of_states[k] + 1) + 8,
+                                    1*(dims.number_of_controls[k] + dims.number_of_states[k]));
+                RSQrqt_original.emplace_back(1*(dims.number_of_controls[k] + dims.number_of_states[k] + 1) + 8,
                                              1*(dims.number_of_controls[k] + dims.number_of_states[k]));
             }
 
@@ -109,9 +113,9 @@ namespace fatrop
             GuGxt_original.reserve(dims.K - 1);
             for (int k = 0; k < dims.K - 1; ++k)
             {
-                FuFxt.emplace_back(dims.number_of_states[k + 1],
+                FuFxt.emplace_back(dims.number_of_states[k + 1] + 8,
                                    dims.number_of_controls[k] + dims.number_of_states[k]);
-                FuFxt_original.emplace_back(dims.number_of_states[k + 1],
+                FuFxt_original.emplace_back(dims.number_of_states[k + 1] + 8,
                                             dims.number_of_controls[k] + dims.number_of_states[k]);
                 GuGxt.emplace_back(dims.number_of_controls[k + 1] + dims.number_of_states[k + 1],
                                    dims.number_of_controls[k] + dims.number_of_states[k]);
