@@ -22,18 +22,18 @@ public:
     bool no_second_order_effects = true;
 
     // Create OcpDims object
-    // int K = 10;                                                   // Number of stages
-    // std::vector<Index> nx = {20, 10, 10, 10, 10, 2, 0, 1, 10, 5}; // State dimensions for each stage
-    // std::vector<Index> r =  {20, 5, 2, 10, 9, 1, 0, 1, 6, 0};
-    // std::vector<Index> nu = {1, 4, 2, 10, 1, 30, 4, 5, 10, 2};    // Input dimensions for each stage
-    // std::vector<Index> ng = {9, 3, 4, 3, 4, 2, 1, 0, 1, 5}; // Equality constraints for each stage
-    // std::vector<Index> ng_ineq = {0, 5, 10, 4, 0, 0, 0, 0, 10, 0}; // Inequality constraints for each stage
-    int K = 3;
-    std::vector<Index> nx = {1, 2, 5};
-    std::vector<Index> r =  {1, 1, 2};
-    std::vector<Index> nu = {1, 4, 0};
-    std::vector<Index> ng = {0, 0, 0};
-    std::vector<Index> ng_ineq = {0, 0, 0};
+    int K = 10;                                                   // Number of stages
+    std::vector<Index> nx = {20, 10, 10, 10, 10, 2, 0, 1, 10, 5}; // State dimensions for each stage
+    std::vector<Index> r =  {20, 5, 2, 10, 9, 1, 0, 1, 6, 0};
+    std::vector<Index> nu = {1, 4, 2, 10, 1, 30, 4, 5, 10, 2};    // Input dimensions for each stage
+    std::vector<Index> ng = {9, 3, 4, 3, 4, 2, 1, 0, 1, 5}; // Equality constraints for each stage
+    std::vector<Index> ng_ineq = {0, 5, 10, 4, 0, 0, 0, 0, 10, 0}; // Inequality constraints for each stage
+    // int K = 3;
+    // std::vector<Index> nx = {1, 2, 5};
+    // std::vector<Index> r =  {1, 1, 2};
+    // std::vector<Index> nu = {1, 4, 0};
+    // std::vector<Index> ng = {0, 0, 2};
+    // std::vector<Index> ng_ineq = {0, 3, 4};
     // int K = 2;
     // std::vector<Index> nx = {1, 3};
     // std::vector<Index> r =  {1, 0};
@@ -225,7 +225,7 @@ public:
         for (Index i = 0; i < info.number_of_primal_variables; ++i)
         {
             rhs_x(i) = 1.0 * i;
-            D_x(i) = 0 * 1.0 * (i + 0.1);
+            D_x(i) = 1.0 * (i + 0.1);
         }
         // fill the mult vector with random values
         for (Index i = 0; i < info.number_of_eq_constraints; ++i)
@@ -235,11 +235,11 @@ public:
 
         for (Index i = 0; i < info.number_of_g_eq_path; ++i)
         {
-            D_eq(i) = 0 * 1.0 * (i + 1);
+            D_eq(i) = 1.0 * (i + 1);
         }
         for (Index i = 0; i < info.number_of_slack_variables; ++i)
         {
-            D_s(i) =  0 * 1.0 * (i + 0.1);
+            D_s(i) =  1.0 * (i + 0.1);
         }
 
 

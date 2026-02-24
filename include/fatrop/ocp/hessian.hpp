@@ -114,13 +114,13 @@ namespace fatrop
             for (int k = 0; k < dims.K - 1; ++k)
             {
                 FuFxt.emplace_back(dims.number_of_states[k + 1] + 8,
-                                   dims.number_of_controls[k] + dims.number_of_states[k]);
+                                   dims.number_of_controls[k] + dims.number_of_states[k] + 8);
                 FuFxt_original.emplace_back(dims.number_of_states[k + 1] + 8,
-                                            dims.number_of_controls[k] + dims.number_of_states[k]);
-                GuGxt.emplace_back(dims.number_of_controls[k + 1] + dims.number_of_states[k + 1],
-                                   dims.number_of_controls[k] + dims.number_of_states[k]);
-                GuGxt_original.emplace_back(dims.number_of_controls[k + 1] + dims.number_of_states[k + 1],
-                                            dims.number_of_controls[k] + dims.number_of_states[k]);
+                                            dims.number_of_controls[k] + dims.number_of_states[k] + 8);
+                GuGxt.emplace_back(dims.number_of_controls[k + 1] + dims.number_of_states[k + 1] + 8, 
+                                   dims.number_of_controls[k] + dims.number_of_states[k] + 8);
+                GuGxt_original.emplace_back(dims.number_of_controls[k + 1] + dims.number_of_states[k + 1] + 8,
+                                            dims.number_of_controls[k] + dims.number_of_states[k] + 8);
             }
         }
 

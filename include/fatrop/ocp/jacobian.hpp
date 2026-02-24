@@ -144,17 +144,21 @@ namespace fatrop
             Gg_eqt = {};
             Gg_eqt.reserve(dims.K);
             for (int k = 0; k < dims.K; ++k){
-                Gg_eqt.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1,
+                Gg_eqt.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1 + 8,
                                   dims.number_of_eq_constraints[k] + ((k < dims.K-1) ? dims.number_of_states[k + 1] : 0));
             }
 
             // store eq constraint jacobian
             Gg_eqt_original.reserve(dims.K);
+            Gg_ineqt = {};
+            Gg_ineqt.reserve(dims.K);
             Gg_ineqt_original.reserve(dims.K);
             for (int k = 0; k < dims.K; ++k){
-                Gg_eqt_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1,
+                Gg_eqt_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1 + 8,
                                   dims.number_of_eq_constraints[k] + ((k < dims.K-1) ? dims.number_of_states[k + 1] : 0));
-                Gg_ineqt_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1,
+                Gg_ineqt.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1 + 8,
+                                               dims.number_of_ineq_constraints[k]);
+                Gg_ineqt_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1 + 8,
                                                dims.number_of_ineq_constraints[k]);
             }
         }

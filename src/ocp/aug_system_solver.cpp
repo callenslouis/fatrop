@@ -2611,8 +2611,8 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
                     jacobian.BAbt[k+1], nu_next + rank, 0, jacobian.BAbt[k+1], nu_next + rank, 0);
             // dynamics hessian
             Pr_extended.apply_on_cols(nu_next + rank, &hessian.FuFxt[k+1].mat());
-            gemm_nn(nx_next - rank, nx_next_next, rank, 1.0, jacobian.U1U2t[k], 0, 0, hessian.FuFxt[k+1], nu_next, 0, 1.0, 
-                    hessian.FuFxt[k+1], nu_next + rank, 0, hessian.FuFxt[k+1], nu_next + rank, 0);
+            gemm_nn(nx_next - rank, nx_next_next, rank, 1.0, jacobian.U1U2t[k], 0, 0, hessian.FuFxt[k+1], 0, nu_next, 1.0, 
+                    hessian.FuFxt[k+1], rank, nu_next, hessian.FuFxt[k+1], rank, nu_next);
         }
         // equality constraints
         Pr_extended.apply_on_rows(nu_next + rank, &jacobian.Gg_eqt[k+1].mat());
@@ -2620,7 +2620,6 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
         // inequality constraints
         Pr_extended.apply_on_rows(nu_next + rank, &jacobian.Gg_ineqt[k+1].mat());
         gemm_nn(nx_next - rank, info.dims.number_of_ineq_constraints[k+1], rank, 1.0, jacobian.U1U2t[k], 0, 0, jacobian.Gg_ineqt[k+1], nu_next, 0, 1.0, jacobian.Gg_ineqt[k+1], nu_next + rank, 0, jacobian.Gg_ineqt[k+1], nu_next + rank, 0);
-
 
         // Move undefined states to controls
         if (rank < nx_next){
