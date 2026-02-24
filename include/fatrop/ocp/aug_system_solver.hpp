@@ -425,7 +425,8 @@ namespace fatrop
         ProblemInfo PreProcess(const ProblemInfo &info, 
                         Jacobian<ImplicitOcpType> &jacobian,
                         Hessian<ImplicitOcpType> &hessian,
-                        VecRealView &f, VecRealView &g);
+                        VecRealView &f, VecRealView &g,
+                        VecRealView* D_x, VecRealView* D_eq, VecRealView* D_s);
 
         void PostProcess(const ProblemInfo &info, 
                          const ProblemInfo &modified_info,

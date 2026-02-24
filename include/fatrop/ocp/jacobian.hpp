@@ -170,8 +170,8 @@ namespace fatrop
         void PrepareInverseOfJ(const ProblemInfo &info);
 
         // Overloading (to account for changed structure)
-        void apply_on_right(const OcpInfo& info, const VecRealView &x, Scalar alpha, const VecRealView& y, VecRealView &out) const;
-        void transpose_apply_on_right(const OcpInfo& info, const VecRealView &mult_eq, Scalar alpha, const VecRealView& y, VecRealView &out) const;
+        void apply_on_right(const OcpInfo& info, const VecRealView &x, Scalar alpha, const VecRealView& y, VecRealView &out, bool ignore_Jt=false) const;
+        void transpose_apply_on_right(const OcpInfo& info, const VecRealView &mult_eq, Scalar alpha, const VecRealView& y, VecRealView &out, bool ignore_Jt=false) const;
 
         /**
          * @brief Jacobian of the dynamics with respect to x[k+1].

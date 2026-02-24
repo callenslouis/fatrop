@@ -308,8 +308,8 @@ void Jacobian<ImplicitOcpType>::ResetPreProcess(const ProblemInfo &info){
         BAbt[k] = BAbt_original[k];
     }   
     for (int k = 0; k < info.dims.K; ++k){
-        // std::cout << "Gg_eqt[" << k << "]:" << std::endl << Gg_eqt[k] << std::endl;
-        // std::cout << "Gg_eqt_original[" << k << "]:" << std::endl << Gg_eqt_original[k] << std::endl;
+        std::cout << "Gg_eqt[" << k << "]:" << std::endl << Gg_eqt[k] << std::endl;
+        std::cout << "Gg_eqt_original[" << k << "]:" << std::endl << Gg_eqt_original[k] << std::endl;
         Gg_eqt[k] = Gg_eqt_original[k];
         Gg_ineqt[k] = Gg_ineqt_original[k];
     }
@@ -338,7 +338,7 @@ void Jacobian<ImplicitOcpType>::PrepareInverseOfJ(const ProblemInfo &info){
     }
 }
 
-void Jacobian<ImplicitOcpType>::apply_on_right(const OcpInfo& info, const VecRealView& x, Scalar alpha, const VecRealView& y, VecRealView& out) const{
+void Jacobian<ImplicitOcpType>::apply_on_right(const OcpInfo& info, const VecRealView& x, Scalar alpha, const VecRealView& y, VecRealView& out, bool ignore_Jt) const{
     if (print_debug){ std::cout << "Jacobian<ImplicitOcpType>::apply_on_right" << std::endl;}
     out = alpha * y;
     // dynamics constraints BA*ux - x_next
@@ -353,8 +353,20 @@ void Jacobian<ImplicitOcpType>::apply_on_right(const OcpInfo& info, const VecRea
         // apply out[offs:offs+nx] =  BAbt.T @ x[offs:offs+nu+nx] + Jt @ x_next[offs:offs+nx]
         gemv_t(nu + nx, nx_next, 1.0, BAbt[k], 0, 0, x, offset_ux, 1.0, out, offset_dyn_eq, out,
                offset_dyn_eq);
+        MatRealAllocated Jt_curr = Jt[k];
+        if (ignore_Jt){
+            for (int i = 0; i < nx_next; i++){
+                for (int j = 0; j < nx_next; j++){
+                    if (i != j || i > J_ranks[k] || j > J_ranks[k]){
+                        Jt_curr(i, j) = 0.0;
+                    } else {
+                        Jt_curr(i, j) = -1.0;
+                    }
+                }
+            }
+        }
         // axpy(nx_next, -1.0, x, offset_x_next, out, offset_dyn_eq, out, offset_dyn_eq);
-        gemv_t(nx_next, nx_next, 1.0, Jt[k], 0, 0, x, offset_x_next, 1.0, out,
+        gemv_t(nx_next, nx_next, 1.0, Jt_curr, 0, 0, x, offset_x_next, 1.0, out,
                offset_dyn_eq, out, offset_dyn_eq);
     }
     // equality path constraints
@@ -386,7 +398,7 @@ void Jacobian<ImplicitOcpType>::apply_on_right(const OcpInfo& info, const VecRea
 
 void Jacobian<ImplicitOcpType>::transpose_apply_on_right(const OcpInfo &info, const VecRealView &mult_eq,
                                                  Scalar alpha, const VecRealView &y,
-                                                 VecRealView &out) const
+                                                 VecRealView &out, bool ignore_Jt) const
 {
     if (print_debug){ std::cout << "Jacobian<ImplicitOcpType>::transpose_apply_on_right" << std::endl;}
     // set the output to zero, we will add the contributions
@@ -403,8 +415,20 @@ void Jacobian<ImplicitOcpType>::transpose_apply_on_right(const OcpInfo &info, co
         // apply out[offs_ux:offs_ux + nu + nx] +=  BAbt @ mult_eq[offs_g_dyn:offs_g_dyn + nx_next]
         gemv_n(nu + nx, nx_next, 1.0, BAbt[k], 0, 0, mult_eq, offset_g_dyn, 1.0, out, offs_ux, out,
                offs_ux);
+        MatRealAllocated Jt_curr = Jt[k];
+        if (ignore_Jt){
+            for (int i = 0; i < nx_next; i++){
+                for (int j = 0; j < nx_next; j++){
+                    if (i != j || i > J_ranks[k] || j > J_ranks[k]){
+                        Jt_curr(i, j) = 0.0;
+                    } else {
+                        Jt_curr(i, j) = -1.0;
+                    }
+                }
+            }
+        }
         // axpy(nx_next, -1.0, mult_eq, offset_g_dyn, out, offs_x_next, out, offs_x_next);
-        gemv_n(nx_next, nx_next, 1.0, Jt[k], 0, 0, mult_eq, offset_g_dyn, 1.0, out,
+        gemv_n(nx_next, nx_next, 1.0, Jt_curr, 0, 0, mult_eq, offset_g_dyn, 1.0, out,
                offs_x_next, out, offs_x_next);
     };
     // equality path constraints' contributions Gg_eqt @ mult_eq

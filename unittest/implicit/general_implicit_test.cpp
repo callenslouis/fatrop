@@ -219,7 +219,7 @@ public:
         for (Index i = 0; i < info.number_of_primal_variables; ++i)
         {
             rhs_x(i) = 1.0 * i;
-            D_x = 1.0 * (i + 0.1);
+            D_x(i) = 1.0 * (i + 0.1);
         }
         // fill the mult vector with random values
         for (Index i = 0; i < info.number_of_eq_constraints; ++i)
@@ -229,12 +229,13 @@ public:
 
         for (Index i = 0; i < info.number_of_g_eq_path; ++i)
         {
-            D_eq(i) = 1.0 * (i + 1);
+            D_eq(i) = 0 * 1.0 * (i + 1);
         }
         for (Index i = 0; i < info.number_of_slack_variables; ++i)
         {
-            D_s(i) = 1.0 * (i + 0.1);
+            D_s(i) = 0 * 1.0 * (i + 0.1);
         }
+        std::cout << "D_x: " << D_x << std::endl;
 
 
 
@@ -416,8 +417,25 @@ TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
     std::cout << "\n])" << std::endl;
 
     VecRealAllocated full_rhs = VecRealAllocated(info.number_of_primal_variables + info.number_of_eq_constraints);
-    for (Index i = 0; i < info.number_of_primal_variables; ++i){full_rhs(i) = rhs_x(i);}
+    for (Index i = 0; i < info.number_of_primal_variables; ++i){full_rhs(i) = rhs_x(i) + D_x(i)*x(i);}
     for (Index i = 0; i < info.number_of_eq_constraints; ++i){full_rhs(info.number_of_primal_variables + i) = rhs_g(i);}
+    for (Index i = 0; i < info.number_of_slack_variables; ++i){
+        full_rhs(info.number_of_primal_variables + info.offset_g_eq_slack + i) -= D_s(i) * mult(info.offset_g_eq_slack + i);
+    }
+
+    VecRealAllocated true_rhs(info.number_of_primal_variables + info.number_of_eq_constraints);
+    true_rhs.block(info.number_of_primal_variables, 0) = rhs_x + D_x * x;
+    true_rhs.block(info.number_of_eq_constraints, info.number_of_primal_variables) = rhs_g;
+    true_rhs.block(info.number_of_slack_variables, info.offset_g_eq_slack + info.number_of_primal_variables) =
+        true_rhs.block(info.number_of_slack_variables, info.offset_g_eq_slack + info.number_of_primal_variables) - D_s * mult.block(info.offset_g_eq_slack, info.offset_g_eq_slack);
+    std::cout << "true_rhs = np.array([\n";
+    for (Index i = 0; i < true_rhs.m(); i++){
+        std::cout << "\t" << true_rhs(i);
+        if (i < true_rhs.m() - 1){
+            std::cout << ",";
+        }
+    }
+    std::cout << "\n])" << std::endl;    
 
     std::cout << "rhs = np.array([\n";
     for (Index i = 0; i < full_rhs.m(); i++){
