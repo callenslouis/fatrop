@@ -1200,8 +1200,10 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             const Index offset_eq_dyn = info.offsets_g_eq_dyn[k];
             const Index nxp1 = info.dims.number_of_states[k + 1];
             const Index Hp1_size = gamma[k + 1] - rho[k + 1];
-            if (Hp1_size + ng > nu + nx)
+            if (Hp1_size + ng > nu + nx){
+                std::cout << __LINE__ << std::endl;
                 return LinsolReturnFlag::NOFULL_RANK;
+            }
             gamma_k = Hp1_size + ng;
             // AL <- [BAb]^T_k P_kp1
             rowin(nxp1, 1.0, g, offset_eq_dyn, jacobian.BAbt[k], nu + nx, 0);
@@ -1274,8 +1276,10 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             if (gamma_k - rank_k > 0)
             {
                 // transfer eq's to next stage
-                if (gamma_k - rank_k > nx)
+                if (gamma_k - rank_k > nx){
+                    std::cout << __LINE__ << std::endl;
                     return LinsolReturnFlag::NOFULL_RANK;
+                }
                 getr(nx + 1, gamma_k - rank_k, Ggt_stripe[0], nu, rank_k, Hh[k], 0, 0);
             }
             if (rank_k > 0)
@@ -1366,6 +1370,7 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
         Index gamma_I = gamma[0] - rho[0];
         if (gamma_I > nx)
         {
+            std::cout << __LINE__ << std::endl;
             return LinsolReturnFlag::NOFULL_RANK;
         }
         if (gamma_I > 0)
@@ -1373,8 +1378,10 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             getr(gamma_I, nx + 1, Hh[0], 0, 0, HhIt[0], 0, 0); // transposition may be avoided
             // HhIt[0].print();
             lu_fact_transposed(gamma_I, nx + 1, nx, rankI, HhIt[0], PlI[0], PrI[0], lu_fact_tol);
-            if (rankI < gamma_I)
+            if (rankI < gamma_I){
+                std::cout << __LINE__ << std::endl;
                 return LinsolReturnFlag::NOFULL_RANK;
+            }
             // PpIt_tilde <- Ggt[rankI:nx+1, :rankI] L-T (note that this is slightly different from
             // the implementation)
             trsm_rlnn(nx - rankI + 1, rankI, -1.0, HhIt[0], 0, 0, HhIt[0], rankI, 0, GgIt_tilde[0],
@@ -1463,6 +1470,7 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             // assume aliasing of last two eliments is allowed
             gemv_t(nx, numrho_k, -1.0, Llt[k], numrho_k, 0, x, offs_x, 1.0, x, offs + rho_k, x,
                    offs + rho_k);
+            // NOTE: if this executes for k == K - 1 and x has size different from a multiple of 4, valgrind can complain
             trsv_ltn(numrho_k, Llt[k], 0, 0, x, offs + rho_k, x, offs + rho_k);
         }
         /// calcualate uka_tilde
@@ -2612,11 +2620,8 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
                     jacobian.BAbt[k+1], nu_next + rank, 0, jacobian.BAbt[k+1], nu_next + rank, 0);
             // dynamics hessian
             Pr_extended.apply_on_cols(nu_next + rank, &hessian.FuFxt[k+1].mat());
-            std::cout << "a" << std::endl;
-            // TODO: valgrind seems to complain about this line
-            gemm_nn(nx_next - rank, nx_next_next, rank, 1.0, jacobian.U1U2t[k], 0, 0, hessian.FuFxt[k+1], 0, nu_next, 1.0, 
-                    hessian.FuFxt[k+1], rank, nu_next, hessian.FuFxt[k+1], rank, nu_next);
-            std::cout << "b" << std::endl;
+            gemm_nn(nx_next - rank, nx_next_next, rank, 1.0, jacobian.U1U2t[k], 0, 0, hessian.FuFxt[k], 0, nu_next, 1.0, 
+                    hessian.FuFxt[k], rank, nu_next, hessian.FuFxt[k], rank, nu_next);
         }
 
         // equality constraints
