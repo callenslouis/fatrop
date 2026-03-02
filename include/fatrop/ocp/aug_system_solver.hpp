@@ -440,7 +440,7 @@ namespace fatrop
         void TreatStatesAsInputs(Index nu_next, Index nx_next, Index rank, 
                                  MatRealAllocated& A, bool rows=false);
 
-        bool print_debug = true;
+        bool print_debug = false;
         
         double lu_fact_tol = 1e-5;
         

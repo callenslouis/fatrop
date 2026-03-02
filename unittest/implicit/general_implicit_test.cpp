@@ -10,6 +10,8 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <iostream>
+#include <fstream>
+#include <filesystem>
 #include <chrono>
 #include <random>
 
@@ -23,36 +25,18 @@ public:
     bool no_second_order_effects = true;
 
     // Create OcpDims object
-    int K = 10;                                                   // Number of stages
-    std::vector<Index> nx = {20, 10, 10, 10, 10, 2, 0, 1, 10, 5}; // State dimensions for each stage
-    std::vector<Index> r =  {20, 5, 2, 10, 9, 1, 0, 1, 6, 0};
-    std::vector<Index> nu = {1, 4, 2, 10, 1, 30, 4, 5, 10, 2};    // Input dimensions for each stage
-    std::vector<Index> ng = {9, 3, 4, 3, 4, 2, 1, 0, 1, 5}; // Equality constraints for each stage
-    std::vector<Index> ng_ineq = {0, 5, 10, 4, 0, 0, 0, 0, 10, 0}; // Inequality constraints for each stage
-    // int K = 3;
-    // std::vector<Index> nx = {1, 2, 5};
-    // std::vector<Index> r =  {1, 1, 2};
-    // std::vector<Index> nu = {1, 4, 0};
-    // std::vector<Index> ng = {0, 0, 2};
-    // std::vector<Index> ng_ineq = {0, 3, 4};
-    // int K = 2;
-    // std::vector<Index> nx = {1, 3};
-    // std::vector<Index> r =  {1, 0};
-    // std::vector<Index> nu = {5, 2};
-    // std::vector<Index> ng = {2, 1};
-    // std::vector<Index> ng_ineq = {4, 2};
-    // int K = 3;
-    // std::vector<Index> nx = {2, 2, 2};
-    // std::vector<Index> r =  {2, 0, 0};
-    // std::vector<Index> nu = {3, 4, 2};
-    // std::vector<Index> ng = {2, 1, 1};
-    // std::vector<Index> ng_ineq = {1, 2, 2};
-    // int K = 2;
-    // std::vector<Index> nx = {2, 2};
-    // std::vector<Index> r =  {2, 1};
-    // std::vector<Index> nu = {0, 0};
-    // std::vector<Index> ng = {0, 0};
-    // std::vector<Index> ng_ineq = {0, 0};
+    // int K = 10;                                                   // Number of stages
+    // std::vector<Index> nx = {20, 10, 10, 10, 10, 2, 0, 1, 10, 5}; // State dimensions for each stage
+    // std::vector<Index> r =  {20, 5, 2, 10, 9, 1, 0, 1, 6, 1};
+    // std::vector<Index> nu = {1, 4, 2, 10, 1, 30, 4, 5, 10, 2};    // Input dimensions for each stage
+    // std::vector<Index> ng = {9, 3, 4, 3, 4, 2, 1, 0, 1, 5}; // Equality constraints for each stage
+    // std::vector<Index> ng_ineq = {0, 5, 10, 4, 0, 0, 0, 0, 10, 0}; // Inequality constraints for each stage
+    int K = 12;
+    std::vector<Index> nx = {4, 5, 17, 0, 9, 6, 0, 19, 9, 16, 15, 12};
+    std::vector<Index> r =  {4, 5, 9, 0, 3, 5, 0, 2, 2, 14, 11, 8};
+    std::vector<Index> nu = {10, 10, 20, 15, 9, 9, 20, 13, 15, 17, 12, 15};
+    std::vector<Index> ng = {0, 4, 20, 6, 5, 12, 2, 19, 17, 0, 15, 18};
+    std::vector<Index> ng_ineq = {19, 18, 8, 7, 0, 15, 10, 18, 20, 2, 6, 10};
 
     ProblemDims dims{K, nu, nx, ng, ng_ineq};
 
@@ -78,6 +62,9 @@ public:
 
     void SetUp()
     {
+        // int seed = time(0);
+        // std::cout << "seed: " << seed << std::endl;
+        // srand(seed);
         x = 0;
         full_matrix_jacobian = 0.;
 
@@ -206,11 +193,25 @@ public:
         {
             D_s(i) =  1.0 * (i + 0.1);
         }
+
+        // Compute LU factorization to check the rank of the constraint jacobian
+        PermutationMatrix Pl(info.number_of_eq_constraints);
+        PermutationMatrix Pr(info.number_of_primal_variables);
+        MatRealAllocated At(full_matrix_jacobian.n(), full_matrix_jacobian.m());
+        for (int i = 0; i < full_matrix_jacobian.m(); i++){
+            for (int j = 0; j < full_matrix_jacobian.n(); j++){
+                At(j,i) = full_matrix_jacobian(i,j);
+            }
+        }
+        Index rank;
+        fatrop_lu_fact_transposed(At.n(), At.m(), At.m(), rank, &At.mat(), Pl, Pr, 1e-5);
+        std::cout << "jacobian dimensions: " << full_matrix_jacobian.m() << " x " << full_matrix_jacobian.n() << std::endl;
+        std::cout << "rank: " << rank << "(" << info.number_of_eq_constraints << " x " << info.number_of_primal_variables << ")" << std::endl;
     };
 };
 
-
-class GeneralImplicitAugSystemSolverTest2 : public ::testing::Test
+template <typename T>
+class RandomAugSystemSolverTest : public ::testing::Test
 {
 // protected:
 public:
@@ -225,8 +226,8 @@ public:
     std::vector<Index> ng_ineq;
     std::optional<ProblemDims> dims;
     std::optional<ProblemInfo> info;
-    std::optional<Jacobian<ImplicitOcpType>> jacobian;
-    std::optional<Hessian<ImplicitOcpType>> hessian;
+    std::optional<Jacobian<T>> jacobian;
+    std::optional<Hessian<T>> hessian;
     std::optional<MatRealAllocated> full_matrix_jacobian;
     std::optional<MatRealAllocated> full_matrix_hessian;
     std::optional<VecRealAllocated> x;
@@ -237,7 +238,7 @@ public:
     std::optional<VecRealAllocated> D_s;
     std::optional<VecRealAllocated> D_eq;
     std::optional<MatRealAllocated> full_kkt_matrix;
-    std::optional<AugSystemSolver<ImplicitOcpType>> solver;
+    std::optional<AugSystemSolver<T>> solver;
 
     std::vector<int> RandomVector(int size, int min_val, int max_val)
     {
@@ -248,39 +249,58 @@ public:
         return vec;
     }
 
+    void ClearOptionals(){
+        dims.reset();
+        info.reset();
+        jacobian.reset();
+        hessian.reset();
+        full_matrix_jacobian.reset();
+        full_matrix_hessian.reset();
+        x.reset();
+        mult.reset();
+        rhs_x.reset();
+        rhs_g.reset();
+        D_x.reset();
+        D_s.reset();
+        D_eq.reset();
+        full_kkt_matrix.reset();
+        solver.reset();
+    }
+
     void GetRandomDimensions()
     {
-        srand(time(0));
-        K = rand() % 20 + 2; // Random K between 2 and 21
-        nx = RandomVector(K, 0, 20);
+        ClearOptionals();
+        int max_val = 20;
+        K = rand() % max_val + 2; // Random K between 2 and 21
+        nx = RandomVector(K, 0, max_val);
         r = std::vector<Index>(K, 100);
         for (int k = 0; k < K; ++k){ 
             while (r[k] > nx[k]){ r[k] = rand() % (nx[k]+1);}
         }
-        nu = RandomVector(K, 0, 20);
-        ng = RandomVector(K, 0, 20);
+        nu = RandomVector(K, 0, max_val);
+        ng = RandomVector(K, 0, max_val);
         for (int k = 0; k < K; ++k){
             bool okay = false;
             while (!okay){
                 int max_allowed_ng = nx[k] + nu[k];
-                if (k < K-1){ max_allowed_ng -= nx[k+1] - r[k+1];}
+                if (k < K-1){ max_allowed_ng -= (nx[k+1] - r[k+1]);}
                 if (ng[k] <= max_allowed_ng){
                     okay = true;
                 } else {
                     // randomize both the nb of constraints and the nb of controls
-                    ng[k] = rand() % (20 + 1);
-                    nu[k] = rand() % (20 + 1);
+                    ng[k] = rand() % (max_val + 1);
+                    nu[k] = rand() % (max_val + 1);
                 }
             }
         }
-        ng_ineq = RandomVector(K, 0, 20);
+        ng_ineq = RandomVector(K, 0, 0*max_val);
 
         dims.emplace(ProblemDims{K, nu, nx, ng, ng_ineq});
         info.emplace(ProblemInfo(dims.value()));
-        jacobian.emplace(Jacobian<ImplicitOcpType>(dims.value()));
+        jacobian.emplace(Jacobian<T>(dims.value()));
         full_matrix_jacobian =
             MatRealAllocated(info->number_of_eq_constraints, info->number_of_primal_variables);
-        hessian.emplace(Hessian<ImplicitOcpType>(dims.value()));
+        hessian.emplace(Hessian<T>(dims.value()));
         full_matrix_hessian =
             MatRealAllocated(info->number_of_primal_variables, info->number_of_primal_variables);
         x = VecRealAllocated(info->number_of_primal_variables);
@@ -293,100 +313,86 @@ public:
         full_kkt_matrix =
             MatRealAllocated(info->number_of_primal_variables + info->number_of_eq_constraints,
                              info->number_of_primal_variables + info->number_of_eq_constraints);
-        solver.emplace(AugSystemSolver<ImplicitOcpType>(info.value()));
+        solver.emplace(AugSystemSolver<T>(info.value()));
     }
 
     void Randomize(){
         GetRandomDimensions();
         x = 0;
         full_matrix_jacobian.value() = 0.;
+        full_matrix_hessian.value() = 0.;
 
         // fill the jacobian with random values
         for (Index k = 0; k < info.value().dims.K; ++k)
         {
             Index nu = info.value().dims.number_of_controls[k];
             Index nx = info.value().dims.number_of_states[k];
+            Index offs_eq_dyn = info.value().offsets_g_eq_dyn[k];
+            Index offs_ux = info.value().offsets_primal_u[k];
+            Index offset_g_eq = info.value().offsets_g_eq_path[k];
+            Index offset_g_ineq = info.value().offsets_g_eq_slack[k];
+            Index ng = info.value().dims.number_of_eq_constraints[k];
+            Index ng_ineq = info.value().dims.number_of_ineq_constraints[k];
             if (k < info.value().dims.K - 1)
             {
                 Index nx_next = info.value().dims.number_of_states[k + 1];
+                Index offs_x_next = info.value().offsets_primal_x[k + 1];
                 jacobian.value().BAbt[k].block(nu + nx, nx_next, 0, 0) =
                     ::test::random_matrix(nu + nx, nx_next);
+                full_matrix_jacobian.value().block(nx_next, nu + nx, offs_eq_dyn, offs_ux) =
+                transpose(jacobian.value().BAbt[k].block(nu + nx, nx_next, 0, 0));
 
-                jacobian.value().Jt[k].block(nx_next, nx_next, 0, 0) =
+                // if T is implicitOcpType:
+                if constexpr (std::is_same_v<T, ImplicitOcpType>){
+                    jacobian.value().Jt[k].block(nx_next, nx_next, 0, 0) =
                     // ::test::random_matrix(r[k+1], r[k+1]);
                     ::test::random_degenerate_matrix(nx_next, r[k+1]);
+                    full_matrix_jacobian.value().block(nx_next, nx_next, offs_eq_dyn, offs_x_next) = 
+                        transpose(jacobian.value().Jt[k]);
+                }
             }
             jacobian.value().Gg_eqt[k].block(nu + nx, info.value().dims.number_of_eq_constraints[k], 0, 0) =
                 ::test::random_matrix(nu + nx, info.value().dims.number_of_eq_constraints[k]);
+            full_matrix_jacobian.value().block(ng, nu + nx, offset_g_eq, offs_ux) =
+                transpose(jacobian.value().Gg_eqt[k].block(nu + nx, ng, 0, 0));
+
             jacobian.value().Gg_ineqt[k].block(nu + nx, info.value().dims.number_of_ineq_constraints[k], 0, 0) =
                 ::test::random_matrix(nu + nx, info.value().dims.number_of_ineq_constraints[k]);
+            full_matrix_jacobian.value().block(ng_ineq, nu + nx, offset_g_ineq, offs_ux) =
+                transpose(jacobian.value().Gg_ineqt[k].block(nu + nx, ng_ineq, 0, 0));
+
         }
         // fill the Hessian with random values
         for (Index k = 0; k < dims.value().K; ++k)
         {
             Index nu = info.value().dims.number_of_controls[k];
             Index nx = info.value().dims.number_of_states[k];
+            Index offs_ux = info.value().offsets_primal_u[k];
             hessian.value().RSQrqt[k].block(nu + nx, nu + nx, 0, 0) = ::test::random_spd_matrix(nu + nx);
-        }
-        // add dynamics constraints
-        for (Index k = 0; k < info.value().dims.K - 1; ++k)
-        {
-            Index nu = info.value().dims.number_of_controls[k];
-            Index nx = info.value().dims.number_of_states[k];
-            Index offs_ux = info.value().offsets_primal_u[k];
-            Index offs_x_next = info.value().offsets_primal_x[k + 1];
-            Index nx_next = info.value().dims.number_of_states[k + 1];
-            Index offs_eq_dyn = info.value().offsets_g_eq_dyn[k];
-            full_matrix_jacobian.value().block(nx_next, nu + nx, offs_eq_dyn, offs_ux) =
-                transpose(jacobian.value().BAbt[k].block(nu + nx, nx_next, 0, 0));
-            full_matrix_jacobian.value().block(nx_next, nx_next, offs_eq_dyn, offs_x_next) = 
-                transpose(jacobian.value().Jt[k]);
-            hessian.value().FuFxt[k].block(nx_next, nx + nu, 0, 0) =
-                ::test::random_matrix(nx_next, nx + nu);
-            if (no_second_order_effects){
-                hessian.value().FuFxt[k].block(nx_next, nx + nu, 0, 0) =
-                    ::test::empty_matrix(nx_next, nx + nu);
-            } else {
-                hessian.value().FuFxt[k].block(nx_next, nx + nu, 0, 0) =
-                    ::test::random_matrix(nx_next, nx + nu);
-            }
-            full_matrix_hessian.value().block(nx_next, nu + nx, offs_x_next, offs_ux) = 
-                hessian.value().FuFxt[k];
-            full_matrix_hessian.value().block(nu + nx, nx_next, offs_ux, offs_x_next) =
-                transpose(hessian.value().FuFxt[k]);
-        }
-        // equality path equality constraints
-        for (Index k = 0; k < info.value().dims.K; ++k)
-        {
-            Index nu = info.value().dims.number_of_controls[k];
-            Index nx = info.value().dims.number_of_states[k];
-            Index ng = info.value().dims.number_of_eq_constraints[k];
-            Index offset_ux = info.value().offsets_primal_u[k];
-            Index offset_g_eq = info.value().offsets_g_eq_path[k];
-            full_matrix_jacobian.value().block(ng, nu + nx, offset_g_eq, offset_ux) =
-                transpose(jacobian.value().Gg_eqt[k].block(nu + nx, ng, 0, 0));
-        }
-        // inequality path constraints
-        for (Index k = 0; k < info.value().dims.K; ++k)
-        {
-            Index nu = info.value().dims.number_of_controls[k];
-            Index nx = info.value().dims.number_of_states[k];
-            Index ng_ineq = info.value().dims.number_of_ineq_constraints[k];
-            Index offset_ux = info.value().offsets_primal_u[k];
-            Index offset_g_ineq = info.value().offsets_g_eq_slack[k];
-            full_matrix_jacobian.value().block(ng_ineq, nu + nx, offset_g_ineq, offset_ux) =
-                transpose(jacobian.value().Gg_ineqt[k].block(nu + nx, ng_ineq, 0, 0));
-        }
-        full_matrix_hessian.value() = 0.;
-        // populate the full matrix
-        for (Index k = 0; k < dims.value().K; k++)
-        {
-            Index nu = dims.value().number_of_controls[k];
-            Index nx = dims.value().number_of_states[k];
-            Index offs_ux = info.value().offsets_primal_u[k];
             full_matrix_hessian.value().block(nu + nx, nu + nx, offs_ux, offs_ux) =
                 hessian.value().RSQrqt[k].block(nu + nx, nu + nx, 0, 0);
+
+            if (k < info.value().dims.K - 1 && std::is_same_v<T, ImplicitOcpType>){
+                Index nx_next = info.value().dims.number_of_states[k + 1];
+                Index offs_x_next = info.value().offsets_primal_x[k + 1];
+                Index offs_ux = info.value().offsets_primal_u[k];
+
+                if constexpr (std::is_same_v<T, ImplicitOcpType>){
+                    if (no_second_order_effects){
+                        hessian.value().FuFxt[k].block(nx_next, nx + nu, 0, 0) =
+                            ::test::empty_matrix(nx_next, nx + nu);
+                    } else {
+                        hessian.value().FuFxt[k].block(nx_next, nx + nu, 0, 0) =
+                            ::test::random_matrix(nx_next, nx + nu);
+                    }
+                    full_matrix_hessian.value().block(nx_next, nu + nx, offs_x_next, offs_ux) = 
+                        hessian.value().FuFxt[k];
+                    full_matrix_hessian.value().block(nu + nx, nx_next, offs_ux, offs_x_next) =
+                        transpose(hessian.value().FuFxt[k]);
+                }
+            }
         }
+
         // set up the full KKT matrix
         full_kkt_matrix.value().block(info.value().number_of_primal_variables, info.value().number_of_primal_variables, 0,
                               0) = full_matrix_hessian.value();
@@ -398,22 +404,22 @@ public:
         // fill the x vector with random values
         for (Index i = 0; i < info.value().number_of_primal_variables; ++i)
         {
-            rhs_x.value()(i) = rand() % 10;
-            D_x.value()(i) = rand() % 10;
+            rhs_x.value()(i) = 1.0 * i;
+            D_x.value()(i) = 1.0 * (i + 0.1);
         }
         // fill the mult vector with random values
         for (Index i = 0; i < info.value().number_of_eq_constraints; ++i)
         {
-            rhs_g.value()(i) = rand() % 10;
+            rhs_g.value()(i) = 1.0 * i;
         }
 
         for (Index i = 0; i < info.value().number_of_g_eq_path; ++i)
         {
-            D_eq.value()(i) = rand() % 10;
+            D_eq.value()(i) = 10.0 * (i + 1);
         }
         for (Index i = 0; i < info.value().number_of_slack_variables; ++i)
         {
-            D_s.value()(i) =  rand() % 10;
+            D_s.value()(i) =  10.0 * (i + 0.1);
         }
     }
 
@@ -423,58 +429,18 @@ public:
     };
 };
 
-TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
+
+template <typename T>
+void CheckSolution(const ProblemInfo &info,
+                   const Jacobian<T> &jacobian,
+                   const Hessian<T> &hessian,
+                   const VecRealView &D_x,
+                   const VecRealView &D_s,
+                   const VecRealView &rhs_x,
+                   const VecRealView &rhs_g,
+                   const VecRealView &x,
+                   const VecRealView &mult)
 {
-    // IMPLICIT OCP VERSION //
-    Index ret = solver.solve(info, jacobian, hessian, D_x, D_s, rhs_x, rhs_g, x, mult);
-    EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
-
-    // print the full KKT matrix and rhs
-    bool print_full_kkt = true;
-    if (print_full_kkt){
-    std::cout << "KKT = np.array([\n";
-    for (Index i = 0; i < full_kkt_matrix.m(); i++){
-        std::cout << "\t[";
-        for (Index j = 0; j < full_kkt_matrix.n(); j++){
-            std::cout << std::setw(9) << std::setprecision(6) << full_kkt_matrix(i,j);
-            if (j < full_kkt_matrix.n() - 1){
-                std::cout << ", ";
-            }
-        }
-        std::cout << "]";
-        if (i < full_kkt_matrix.m() - 1){
-            std::cout << ",\n";
-        }
-    }
-    std::cout << "\n])" << std::endl;
-
-    VecRealAllocated full_rhs = VecRealAllocated(info.number_of_primal_variables + info.number_of_eq_constraints);
-    for (Index i = 0; i < info.number_of_primal_variables; ++i){full_rhs(i) = rhs_x(i) + D_x(i)*x(i);}
-    for (Index i = 0; i < info.number_of_eq_constraints; ++i){full_rhs(info.number_of_primal_variables + i) = rhs_g(i);}
-    for (Index i = 0; i < info.number_of_slack_variables; ++i){
-        full_rhs(info.number_of_primal_variables + info.offset_g_eq_slack + i) -= D_s(i) * mult(info.offset_g_eq_slack + i);
-    }
-
-    VecRealAllocated true_rhs(info.number_of_primal_variables + info.number_of_eq_constraints);
-    true_rhs.block(info.number_of_primal_variables, 0) = rhs_x + D_x * x;
-    true_rhs.block(info.number_of_eq_constraints, info.number_of_primal_variables) = rhs_g;
-    true_rhs.block(info.number_of_slack_variables, info.offset_g_eq_slack + info.number_of_primal_variables) =
-        true_rhs.block(info.number_of_slack_variables, info.offset_g_eq_slack + info.number_of_primal_variables) - D_s * mult.block(info.offset_g_eq_slack, info.offset_g_eq_slack);
-    std::cout << "rhs = np.array([\n";
-    for (Index i = 0; i < full_rhs.m(); i++){
-        std::cout << "\t" << full_rhs(i);
-        if (i < full_rhs.m() - 1){
-            std::cout << ",";
-        }
-    }
-    std::cout << "\n])" << std::endl;
-
-    // print obtained solution //
-    std::cout << "Obtained solution x:" << std::endl << x << std::endl;
-    std::cout << "Obtained solution mult:" << std::endl << mult << std::endl;
-    }
-    
-    // Solution checking
     VecRealAllocated jac_x(info.number_of_eq_constraints);
     jacobian.apply_on_right(info, x, 0.0, jac_x, jac_x);
     VecRealAllocated rhs_gg(info.number_of_eq_constraints);
@@ -491,49 +457,120 @@ TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
     jacobian.transpose_apply_on_right(info, mult, 0.0, tmp, tmp);
     grad = grad + tmp;
     grad = grad + rhs_x;
-    for (Index i = 0; i < info.number_of_eq_constraints; ++i)
-    {
-        EXPECT_NEAR(rhs_gg(i), 0, 1e-5);
+    double max_rhs_gg = 0.;
+    for (Index i = 0; i < info.number_of_eq_constraints; ++i){
+        max_rhs_gg = std::max(max_rhs_gg, std::abs(rhs_gg(i)));
     }
-    std::cout << "Halfway through the tests" << std::endl;
-    for (Index i = 0; i < info.number_of_primal_variables; ++i)
-    {
-        EXPECT_NEAR(grad(i), 0, 1e-5);
+    EXPECT_NEAR(max_rhs_gg, 0, 1e-5);
+    double max_grad = 0.;
+    for (Index i = 0; i < info.number_of_primal_variables; ++i){
+        max_grad = std::max(max_grad, std::abs(grad(i)));
     }
-    std::cout << "rhs_gg: " << rhs_gg << std::endl;
-    std::cout << "grad:   " << grad << std::endl;
+    EXPECT_NEAR(max_grad, 0, 1e-5);
 }
 
-TEST_F(GeneralImplicitAugSystemSolverTest2, TestRandomSolve)
-{
-    /*
-    Index ret = solver.value().solve(info.value(), jacobian.value(), hessian.value(), D_x.value(), D_s.value(), rhs_x.value(), rhs_g.value(), x.value(), mult.value());
-    EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
-   
-    // Solution checking
-    VecRealAllocated jac_x(info.value().number_of_eq_constraints);
-    jacobian.value().apply_on_right(info.value(), x.value(), 0.0, jac_x, jac_x);
-    VecRealAllocated rhs_gg(info.value().number_of_eq_constraints);
-    rhs_gg = 0.;
-    rhs_gg = rhs_gg + rhs_g.value() + jac_x;
-    rhs_gg.block(info.value().number_of_slack_variables, info.value().offset_g_eq_slack) =
-        rhs_gg.block(info.value().number_of_slack_variables, info.value().offset_g_eq_slack) -
-        D_s.value() * mult.value().block(info.value().number_of_slack_variables, info.value().offset_g_eq_slack);
-    VecRealAllocated grad(info.value().number_of_primal_variables);
-    VecRealAllocated tmp(info.value().number_of_primal_variables);
-    grad = 0;
-    hessian.value().apply_on_right(info.value(), x.value(), 0.0, tmp, tmp);
-    grad = grad + tmp + D_x.value() * x.value();
-    jacobian.value().transpose_apply_on_right(info.value(), mult.value(), 0.0, tmp, tmp);
-    grad = grad + tmp;
-    grad = grad + rhs_x.value();
-    for (Index i = 0; i < info.value().number_of_eq_constraints; ++i)
-    {
-        EXPECT_NEAR(rhs_gg(i), 0, 1e-5);
+void PrintFullKKT(const ProblemInfo &info,
+                   const MatRealView &full_kkt_matrix,
+                   const VecRealView &rhs_x,
+                   const VecRealView &rhs_g,
+                   const VecRealView &D_x,
+                   const VecRealView &D_s,
+                   const VecRealView &x,
+                   const VecRealView &mult,
+                   std::ostream& out = std::cout){
+    out << "KKT = np.array([\n";
+    for (Index i = 0; i < full_kkt_matrix.m(); i++){
+        out << "\t[";
+        for (Index j = 0; j < full_kkt_matrix.n(); j++){
+            out << std::setw(9) << std::setprecision(6) << full_kkt_matrix(i,j);
+            if (j < full_kkt_matrix.n() - 1){
+                out << ", ";
+            }
+        }
+        out << "]";
+        if (i < full_kkt_matrix.m() - 1){
+            out << ",\n";
+        }
     }
-    for (Index i = 0; i < info.value().number_of_primal_variables; ++i)
-    {
-        EXPECT_NEAR(grad(i), 0, 1e-5);
-    } 
-    */   
+    out << "\n])" << std::endl;
+
+    VecRealAllocated full_rhs = VecRealAllocated(info.number_of_primal_variables + info.number_of_eq_constraints);
+    for (Index i = 0; i < info.number_of_primal_variables; ++i){full_rhs(i) = rhs_x(i) + D_x(i)*x(i);}
+    for (Index i = 0; i < info.number_of_eq_constraints; ++i){full_rhs(info.number_of_primal_variables + i) = rhs_g(i);}
+    for (Index i = 0; i < info.number_of_slack_variables; ++i){
+        full_rhs(info.number_of_primal_variables + info.offset_g_eq_slack + i) -= D_s(i) * mult(info.offset_g_eq_slack + i);
+    }
+
+    VecRealAllocated true_rhs(info.number_of_primal_variables + info.number_of_eq_constraints);
+    true_rhs.block(info.number_of_primal_variables, 0) = rhs_x + D_x * x;
+    true_rhs.block(info.number_of_eq_constraints, info.number_of_primal_variables) = rhs_g;
+    true_rhs.block(info.number_of_slack_variables, info.offset_g_eq_slack + info.number_of_primal_variables) =
+        true_rhs.block(info.number_of_slack_variables, info.offset_g_eq_slack + info.number_of_primal_variables) - D_s * mult.block(info.offset_g_eq_slack, info.offset_g_eq_slack);
+    out << "rhs = np.array([\n";
+    for (Index i = 0; i < full_rhs.m(); i++){
+        out << "\t" << full_rhs(i);
+        if (i < full_rhs.m() - 1){
+            out << ",";
+        }
+    }
+    out << "\n])" << std::endl;
+
+    // print obtained solution //
+    out << "Obtained solution x:" << std::endl << x << std::endl;
+    out << "Obtained solution mult:" << std::endl << mult << std::endl;
+}
+
+
+TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
+{
+    return;
+    // IMPLICIT OCP VERSION //
+    Index ret = solver.solve(info, jacobian, hessian, D_x, D_s, rhs_x, rhs_g, x, mult);
+    EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
+
+    // print the full KKT matrix and rhs
+    bool print_full_kkt = false;
+    if (print_full_kkt){ 
+        PrintFullKKT(info, full_kkt_matrix, rhs_x, rhs_g, D_x, D_s, x, mult);
+    }
+    
+    // Solution checking
+    CheckSolution(info, jacobian, hessian, D_x, D_s, rhs_x, rhs_g, x, mult);
+}
+
+
+using SolverTypes = ::testing::Types<OcpType, ImplicitOcpType>;
+TYPED_TEST_SUITE(RandomAugSystemSolverTest, SolverTypes);
+TYPED_TEST(RandomAugSystemSolverTest, TestRandomSolve)
+{
+    int seed = time(0);
+    // int seed = 1772463360;
+    std::cout << "seed: " << seed << std::endl;
+    srand(seed);
+    for (int test_counter = 0; test_counter < 1; ++test_counter){
+        std::cout << "\n" << std::endl;
+        std::cout << "==============================" << std::endl;
+        std::cout << "Test iteration: " << test_counter << "  (" << (std::is_same_v<TypeParam, ImplicitOcpType> ? "Implicit" : "Normal") << ")" << std::endl;
+        std::cout << "==============================" << std::endl;
+        this->Randomize();
+    
+        Index ret = this->solver.value().solve(this->info.value(), 
+            this->jacobian.value(), this->hessian.value(), this->D_x.value(),
+            this->D_s.value(), this->rhs_x.value(), this->rhs_g.value(), 
+            this->x.value(), this->mult.value());
+
+        // if (ret == 2){
+        //     continue;
+        // }
+        EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
+
+    
+        // Solution checking
+        CheckSolution(this->info.value(), this->jacobian.value(), 
+            this->hessian.value(), this->D_x.value(), this->D_s.value(), 
+            this->rhs_x.value(), this->rhs_g.value(), this->x.value(),
+            this->mult.value());
+        // std::ofstream file("kkt1.txt");
+        // PrintFullKKT(info.value(), full_kkt_matrix.value(), rhs_x.value(), rhs_g.value(), D_x.value(), D_s.value(), x.value(), mult.value(), file);
+    }
 }

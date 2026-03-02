@@ -136,7 +136,7 @@ namespace fatrop
                 Jt_inv.emplace_back(dims.number_of_states[k + 1], dims.number_of_states[k + 1]);
                 Pl_pre.emplace_back(dims.number_of_states[k + 1]);
                 Pr_pre.emplace_back(dims.number_of_states[k + 1]);
-                U1U2t.emplace_back(dims.number_of_states[k + 1], dims.number_of_states[k + 1]);
+                U1U2t.emplace_back(dims.number_of_states[k + 1] + 8, dims.number_of_states[k + 1] + 8);
                 U1t.emplace_back(dims.number_of_states[k + 1], dims.number_of_states[k + 1]);
             }
 

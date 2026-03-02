@@ -131,6 +131,8 @@ namespace fatrop
             : Hessian<OcpType>(std::move(other)),
               FuFxt(std::move(other.FuFxt)),
               FuFxt_original(std::move(other.FuFxt_original)),
+              GuGxt(std::move(other.GuGxt)),
+              GuGxt_original(std::move(other.GuGxt_original)),
               RSQrqt_original(std::move(other.RSQrqt_original)),
               duration_copy_RSQrqt(other.duration_copy_RSQrqt),
               duration_modifying_RSQrqt(other.duration_modifying_RSQrqt) {
