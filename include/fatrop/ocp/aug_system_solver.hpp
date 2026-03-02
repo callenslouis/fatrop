@@ -216,8 +216,8 @@ namespace fatrop
          * @param eq_mult [out] Solution vector for equality constraint multipliers.
          * @return Status flag indicating the outcome of the solve operation.
          */
-        virtual LinsolReturnFlag solve(const ProblemInfo &info, Jacobian<OcpType> &jacobian,
-                                       Hessian<OcpType> &hessian, const VecRealView &D_x,
+        virtual LinsolReturnFlag solve(const ProblemInfo &info, Jacobian<ImplicitOcpType> &jacobian,
+                                       Hessian<ImplicitOcpType> &hessian, const VecRealView &D_x,
                                        const VecRealView &D_s, const VecRealView &f, const VecRealView &g,
                                        VecRealView &x, VecRealView &eq_mult);
 
@@ -235,8 +235,8 @@ namespace fatrop
          * @param eq_mult [out] Solution vector for equality constraint multipliers.
          * @return Status flag indicating the outcome of the solve operation.
          */
-        virtual LinsolReturnFlag solve(const ProblemInfo &info, Jacobian<OcpType> &jacobian,
-                                       Hessian<OcpType> &hessian, const VecRealView &D_x,
+        virtual LinsolReturnFlag solve(const ProblemInfo &info, Jacobian<ImplicitOcpType> &jacobian,
+                                       Hessian<ImplicitOcpType> &hessian, const VecRealView &D_x,
                                        const VecRealView &D_eq, const VecRealView &D_s,
                                        const VecRealView &f, const VecRealView &g, VecRealView &x,
                                        VecRealView &eq_mult);
@@ -254,8 +254,8 @@ namespace fatrop
          * @return Status flag indicating the outcome of the solve operation.
          */
         virtual LinsolReturnFlag solve_rhs(const ProblemInfo &info,
-                                           const Jacobian<OcpType> &jacobian,
-                                           const Hessian<OcpType> &hessian, const VecRealView &D_s,
+                                           const Jacobian<ImplicitOcpType> &jacobian,
+                                           const Hessian<ImplicitOcpType> &hessian, const VecRealView &D_s,
                                            const VecRealView &f, const VecRealView &g, VecRealView &x,
                                            VecRealView &eq_mult);
 
@@ -273,14 +273,18 @@ namespace fatrop
          * @return Status flag indicating the outcome of the solve operation.
          */
         virtual LinsolReturnFlag solve_rhs(const ProblemInfo &info,
-                                           const Jacobian<OcpType> &jacobian,
-                                           const Hessian<OcpType> &hessian, const VecRealView &D_eq,
+                                           const Jacobian<ImplicitOcpType> &jacobian,
+                                           const Hessian<ImplicitOcpType> &hessian, const VecRealView &D_eq,
                                            const VecRealView &D_s, const VecRealView &f,
                                            const VecRealView &g, VecRealView &x, VecRealView &eq_mult);
 
     private:
         // temporaries, pre-allocated during construction to avoid allocation during
         // optimization
+        std::vector<MatRealAllocated> FuFxt_underbar;
+        std::vector<MatRealAllocated> GuGxt_tilde;
+        std::vector<MatRealAllocated> RSQrqt_underbar;
+
         std::vector<MatRealAllocated> Ppt;
         std::vector<MatRealAllocated> Hh;
         std::vector<MatRealAllocated> AL;

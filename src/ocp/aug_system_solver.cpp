@@ -1087,6 +1087,7 @@ ModifiedAugSystemSolver::ModifiedAugSystemSolver(const ProblemInfo &info)
     Index max_number_of_eq_consttraints = *std::max_element(
         new_info.dims.number_of_eq_constraints.begin(), new_info.dims.number_of_eq_constraints.end());
 
+    FuFxt_underbar.emplace_back(max_number_of_variables + 1, max_number_of_variables);
     AL.emplace_back(max_number_of_variables + 1, max_number_of_variables);
     Ggt_stripe.emplace_back(max_number_of_variables + 1, max_number_of_variables);
     GgLt.emplace_back(max_number_of_variables + 1, max_number_of_variables);
@@ -1099,6 +1100,8 @@ ModifiedAugSystemSolver::ModifiedAugSystemSolver(const ProblemInfo &info)
     LlIt.emplace_back(new_info.dims.number_of_states[0] + 1, new_info.dims.number_of_states[0]);
     Ggt_ineq_temp.emplace_back(max_number_of_variables + 1, max_number_of_ineq_constraints);
 
+    GuGxt_tilde.reserve(new_info.dims.K-1);
+    RSQrqt_underbar.reserve(new_info.dims.K);
     Ppt.reserve(new_info.dims.K);
     Hh.reserve(new_info.dims.K);
     RSQrqt_tilde.reserve(new_info.dims.K);
@@ -1115,6 +1118,9 @@ ModifiedAugSystemSolver::ModifiedAugSystemSolver(const ProblemInfo &info)
         RSQrqt_tilde.emplace_back(nu + nx + 1, nx + nu);
         Ggt_tilde.emplace_back(nu + nx + 1, nx + nu);
         Llt.emplace_back(nu + nx + 1, nu);
+        if (k < new_info.dims.K - 1){
+            GuGxt_tilde.emplace_back(nu + nx + 1, nu + nx);
+        }
     }
 
     v_AL.emplace_back(max_number_of_variables);
@@ -1166,7 +1172,7 @@ ModifiedAugSystemSolver::ModifiedAugSystemSolver(const ProblemInfo &info)
 };
 
 LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
-                                           Jacobian<OcpType> &jacobian, Hessian<OcpType> &hessian,
+                                           Jacobian<ImplicitOcpType> &jacobian, Hessian<ImplicitOcpType> &hessian,
                                            const VecRealView &D_x, const VecRealView &D_s,
                                            const VecRealView &f, const VecRealView &g,
                                            VecRealView &x, VecRealView &eq_mult)
@@ -1194,6 +1200,10 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             gecp(nx + nu + 1, ng, jacobian.Gg_eqt[k], 0, 0, Ggt_stripe[0], 0, 0);
             rowin(nu + nx, 1.0, f, offset_u, hessian.RSQrqt[k], nu + nx, 0);
             gecp(nx + nu + 1, nu + nx, hessian.RSQrqt[k], 0, 0, RSQrqt_tilde[k], 0, 0);
+            if (k > 0){
+                Index nunxm1 = info.dims.number_of_controls[k-1] + info.dims.number_of_states[k-1];
+                gecp(nunxm1, nx, hessian.FuFxt[k-1], 0, 0, FuFxt_underbar[0], 0, 0);
+            }
         }
         else
         {
@@ -1215,6 +1225,13 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             rowin(nu + nx, 1.0, f, offset_u, hessian.RSQrqt[k], nu + nx, 0);
             syrk_ln_mn(nu + nx + 1, nu + nx, nxp1, 1.0, AL[0], 0, 0, jacobian.BAbt[k], 0, 0, 1.0,
                        hessian.RSQrqt[k], 0, 0, RSQrqt_tilde[k], 0, 0);
+
+            // Add second order dynamics contribution
+            syrk_ln_mn(nx + nu + 1, nx + nu, nxp1, 1.0, jacobian.BAbt[k], 0, 0, FuFxt_underbar[0], 0, 0, 1.0,
+                       RSQrqt_tilde[k], 0, 0, RSQrqt_tilde[k], 0, 0);
+            syrk_ln_mn(nu + nx, nu + nx, nxp1, 1.0, FuFxt_underbar[0], 0, 0, jacobian.BAbt[k], 0, 0, 1.0,
+                       RSQrqt_tilde[k], 0, 0, RSQrqt_tilde[k], 0, 0);
+
             //// inequalities
             gamma[k] = gamma_k;
             // if ng[k]>0
@@ -1528,7 +1545,7 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
     return LinsolReturnFlag::SUCCESS;
 }
 LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
-                                           Jacobian<OcpType> &jacobian, Hessian<OcpType> &hessian,
+                                           Jacobian<ImplicitOcpType> &jacobian, Hessian<ImplicitOcpType> &hessian,
                                            const VecRealView &D_x, const VecRealView &D_eq,
                                            const VecRealView &D_s, const VecRealView &f,
                                            const VecRealView &g, VecRealView &x,
@@ -1690,8 +1707,8 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
 }
 
 LinsolReturnFlag ModifiedAugSystemSolver::solve_rhs(const ProblemInfo &info,
-                                               const Jacobian<OcpType> &jacobian,
-                                               const Hessian<OcpType> &hessian,
+                                               const Jacobian<ImplicitOcpType> &jacobian,
+                                               const Hessian<ImplicitOcpType> &hessian,
                                                const VecRealView &D_s, const VecRealView &f,
                                                const VecRealView &g, VecRealView &x,
                                                VecRealView &eq_mult)
@@ -1927,8 +1944,8 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve_rhs(const ProblemInfo &info,
     return LinsolReturnFlag::SUCCESS;
 }
 LinsolReturnFlag ModifiedAugSystemSolver::solve_rhs(const ProblemInfo &info,
-                                               const Jacobian<OcpType> &jacobian,
-                                               const Hessian<OcpType> &hessian,
+                                               const Jacobian<ImplicitOcpType> &jacobian,
+                                               const Hessian<ImplicitOcpType> &hessian,
                                                const VecRealView &D_eq, const VecRealView &D_s,
                                                const VecRealView &f, const VecRealView &g,
                                                VecRealView &x, VecRealView &eq_mult)
