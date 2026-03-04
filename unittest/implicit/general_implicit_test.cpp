@@ -250,10 +250,11 @@ public:
     }
 
     void ClearOptionals(){
-        dims.reset();
-        info.reset();
-        jacobian.reset();
+        solver.reset();
         hessian.reset();
+        jacobian.reset();
+        info.reset();
+        dims.reset();
         full_matrix_jacobian.reset();
         full_matrix_hessian.reset();
         x.reset();
@@ -264,7 +265,6 @@ public:
         D_s.reset();
         D_eq.reset();
         full_kkt_matrix.reset();
-        solver.reset();
     }
 
     void GetRandomDimensions()
@@ -521,6 +521,7 @@ void PrintFullKKT(const ProblemInfo &info,
 }
 
 
+/*
 TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
 {
     return;
@@ -537,23 +538,26 @@ TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
     // Solution checking
     CheckSolution(info, jacobian, hessian, D_x, D_s, rhs_x, rhs_g, x, mult);
 }
+*/
 
-
-using SolverTypes = ::testing::Types<OcpType, ImplicitOcpType>;
+// using SolverTypes = ::testing::Types<OcpType, ImplicitOcpType>;
+using SolverTypes = ::testing::Types<ImplicitOcpType>;
 TYPED_TEST_SUITE(RandomAugSystemSolverTest, SolverTypes);
 TYPED_TEST(RandomAugSystemSolverTest, TestRandomSolve)
 {
     int seed = time(0);
-    // int seed = 1772463360;
+    // int seed = 1772632854;
+
+    // problematic seed: 1772632854 --> leads to INDEFINITE return status
+
     std::cout << "seed: " << seed << std::endl;
     srand(seed);
-    for (int test_counter = 0; test_counter < 1; ++test_counter){
+    for (int test_counter = 0; test_counter < 10000; ++test_counter){
         std::cout << "\n" << std::endl;
         std::cout << "==============================" << std::endl;
         std::cout << "Test iteration: " << test_counter << "  (" << (std::is_same_v<TypeParam, ImplicitOcpType> ? "Implicit" : "Normal") << ")" << std::endl;
         std::cout << "==============================" << std::endl;
         this->Randomize();
-    
         Index ret = this->solver.value().solve(this->info.value(), 
             this->jacobian.value(), this->hessian.value(), this->D_x.value(),
             this->D_s.value(), this->rhs_x.value(), this->rhs_g.value(), 

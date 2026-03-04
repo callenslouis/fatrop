@@ -332,6 +332,8 @@ namespace fatrop
         Scalar lu_fact_tol = 1e-5;
         bool diagnostic = false;
         bool increased_accuracy = true;
+
+        bool print_debug_lines = false;
     };
 
     // define ImplicitOcpType augmented system solver

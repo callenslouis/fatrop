@@ -1115,11 +1115,13 @@ ModifiedAugSystemSolver::ModifiedAugSystemSolver(const ProblemInfo &info)
         Index ng_eq = new_info.dims.number_of_eq_constraints[k];
         Ppt.emplace_back(nx + 1, nx);
         Hh.emplace_back(nx, nx + 1);
+        RSQrqt_underbar.emplace_back(nu + nx + 1, nx + nu);
         RSQrqt_tilde.emplace_back(nu + nx + 1, nx + nu);
         Ggt_tilde.emplace_back(nu + nx + 1, nx + nu);
         Llt.emplace_back(nu + nx + 1, nu);
         if (k < new_info.dims.K - 1){
-            GuGxt_tilde.emplace_back(nu + nx + 1, nu + nx);
+            Index nu_next = new_info.dims.number_of_controls[k+1];
+            GuGxt_tilde.emplace_back(nu_next, nu + nx);
         }
     }
 
@@ -1190,6 +1192,18 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
         const Index offset_u = info.offsets_primal_u[k];
         const Index offset_eq_path = info.offsets_g_eq_path[k];
         const Index offset_eq_slack = info.offsets_g_eq_slack[k];
+
+        if (k == info.dims.K - 1){
+            if (print_debug_lines) {std::cout << __LINE__ << std::endl;}
+            gecp(nx + nu + 1, nu + nx, hessian.RSQrqt[k], 0, 0, RSQrqt_underbar[k], 0, 0);
+        }
+        if (k > 0){
+            Index nunxm1 = info.dims.number_of_controls[k-1] + info.dims.number_of_states[k-1];
+            if (print_debug_lines) {std::cout << __LINE__ << std::endl;}
+            gecp(nx, nunxm1, hessian.FuFxt[k-1], 0, 0, FuFxt_underbar[0], 0, 0);
+            gecp(nunxm1 + 1, nunxm1, hessian.RSQrqt[k-1], 0, 0, RSQrqt_underbar[k-1], 0, 0);
+        }
+
         //////// SUBSDYN
         Index gamma_k;
         if (k == info.dims.K - 1)
@@ -1199,11 +1213,8 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             rowin(ng, 1.0, g, offset_eq_path, jacobian.Gg_eqt[k], nu + nx, 0);
             gecp(nx + nu + 1, ng, jacobian.Gg_eqt[k], 0, 0, Ggt_stripe[0], 0, 0);
             rowin(nu + nx, 1.0, f, offset_u, hessian.RSQrqt[k], nu + nx, 0);
-            gecp(nx + nu + 1, nu + nx, hessian.RSQrqt[k], 0, 0, RSQrqt_tilde[k], 0, 0);
-            if (k > 0){
-                Index nunxm1 = info.dims.number_of_controls[k-1] + info.dims.number_of_states[k-1];
-                gecp(nunxm1, nx, hessian.FuFxt[k-1], 0, 0, FuFxt_underbar[0], 0, 0);
-            }
+            if (print_debug_lines) {std::cout << __LINE__ << std::endl;}
+            gecp(nx + nu + 1, nu + nx, RSQrqt_underbar[k], 0, 0, RSQrqt_tilde[k], 0, 0);
         }
         else
         {
@@ -1211,7 +1222,7 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             const Index nxp1 = info.dims.number_of_states[k + 1];
             const Index Hp1_size = gamma[k + 1] - rho[k + 1];
             if (Hp1_size + ng > nu + nx){
-                std::cout << __LINE__ << std::endl;
+                if (print_debug_lines) {std::cout << __LINE__ << std::endl;}
                 return LinsolReturnFlag::NOFULL_RANK;
             }
             gamma_k = Hp1_size + ng;
@@ -1222,9 +1233,9 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             // AL[-1,:] <- AL[-1,:] + p_kp1^T
             gead(1, nxp1, 1.0, Ppt[k + 1], nxp1, 0, AL[0], nx + nu, 0);
             // RSQrqt_stripe <- AL[BA] + RSQrqt
-            rowin(nu + nx, 1.0, f, offset_u, hessian.RSQrqt[k], nu + nx, 0);
+            rowin(nu + nx, 1.0, f, offset_u, RSQrqt_underbar[k], nu + nx, 0);
             syrk_ln_mn(nu + nx + 1, nu + nx, nxp1, 1.0, AL[0], 0, 0, jacobian.BAbt[k], 0, 0, 1.0,
-                       hessian.RSQrqt[k], 0, 0, RSQrqt_tilde[k], 0, 0);
+                       RSQrqt_underbar[k], 0, 0, RSQrqt_tilde[k], 0, 0);
 
             // Add second order dynamics contribution
             syrk_ln_mn(nx + nu + 1, nx + nu, nxp1, 1.0, jacobian.BAbt[k], 0, 0, FuFxt_underbar[0], 0, 0, 1.0,
@@ -1294,7 +1305,7 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             {
                 // transfer eq's to next stage
                 if (gamma_k - rank_k > nx){
-                    std::cout << __LINE__ << std::endl;
+                    if (print_debug_lines) {std::cout << __LINE__ << std::endl;}
                     return LinsolReturnFlag::NOFULL_RANK;
                 }
                 getr(nx + 1, gamma_k - rank_k, Ggt_stripe[0], nu, rank_k, Hh[k], 0, 0);
@@ -1332,6 +1343,28 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             else
             {
                 RSQrq_hat_curr_p = &RSQrqt_tilde[k];
+            }
+
+            if (k > 0){
+                // GuGxt_tilde = T_r^-T * GuGxt
+                Index nunxm1 = info.dims.number_of_controls[k-1] + info.dims.number_of_states[k-1];
+                gecp(nu, nunxm1, hessian.GuGxt[k-1], 0, 0, GuGxt_tilde[k-1], 0, 0);
+                Pr[k].apply_on_rows(rank_k, &GuGxt_tilde[k-1].mat());
+                // TODO: check if we really need Ggt_tilde[k], 0, 0 to obtain -U1^-1 U2
+                if (print_debug_lines) {std::cout << __LINE__ << std::endl;}
+                gemm_nn(nu - rank_k, nunxm1, rank_k, 1.0, Ggt_tilde[k], 0, 0, GuGxt_tilde[k-1], 0, 0,
+                        1.0, GuGxt_tilde[k-1], rank_k, 0, GuGxt_tilde[k-1], 0, 0);
+                
+                // FuFx = FuFx + GuGx * [Hx_tilde; 0]
+                // FuFxt = FuFxt + [Hxt_tilde, 0] * GuGxt_tilde
+                if (print_debug_lines) {std::cout << __LINE__ << std::endl;}
+                gemm_nn(nx, nunxm1, rank_k, 1.0, Ggt_tilde[k], nu - rank_k, 0,
+                        GuGxt_tilde[k-1], 0, 0, 1.0, FuFxt_underbar[0], 0, 0, FuFxt_underbar[0], 0, 0);               
+
+                // [r^T q^T] = [r^T q^T] + [h_tilde, 0] * GuGxt_tilde
+                if (print_debug_lines) {std::cout << __LINE__ << std::endl;}
+                gemm_nn(1, nunxm1, rank_k, 1.0, Ggt_tilde[k], nu - rank_k + nx, 0, 
+                        GuGxt_tilde[k-1], rank_k, 0, 1.0, RSQrqt_underbar[k-1], nunxm1, 0, RSQrqt_underbar[k-1], nunxm1, 0);
             }
         }
         //////// SCHUR
@@ -1378,6 +1411,28 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
                 gecp(nx + 1, nx, RSQrq_hat_curr_p[0], 0, 0, Ppt[k], 0, 0);
             }
             trtr_l(nx, Ppt[k], 0, 0, Ppt[k], 0, 0);
+            
+            if (k > 0 && nu - rank_k > 0){
+                
+                // GuGxt = L^-T * GuGxt
+                Index nunxm1 = info.dims.number_of_controls[k-1] + info.dims.number_of_states[k-1];
+                if (print_debug_lines) {std::cout << __LINE__ << std::endl;}
+                trsm_llnu(nu - rank_k, nunxm1, 1.0, Llt[k], 0, 0, GuGxt_tilde[k-1], rank_k, 0, GuGxt_tilde[k-1], rank_k, 0);
+
+                // RSQrqt = RSQrqt - GuGxt^T L^-T L^-1 GuGxt
+                if (print_debug_lines) {std::cout << __LINE__ << std::endl;}
+                gemm_tn(nunxm1, nunxm1, nu - rank_k, -1.0, GuGxt_tilde[k-1], rank_k, 0, GuGxt_tilde[k-1], rank_k, 0, 
+                        1.0, RSQrqt_underbar[k-1], 0, 0, RSQrqt_underbar[k-1], 0, 0);
+                if (print_debug_lines) {std::cout << __LINE__ << std::endl;}
+                gemm_nn(1, nunxm1, nu - rank_k, -1.0, RSQrq_hat_curr_p[0], nx + nu - rank_k, 0, GuGxt_tilde[k-1], rank_k, 0, 
+                        1.0, RSQrqt_underbar[k-1], nunxm1, 0, RSQrqt_underbar[k-1], nunxm1, 0);
+
+                // FuFxt = FuFxt - GuGxt L^-T S_hat
+                if (print_debug_lines) {std::cout << __LINE__ << std::endl;}
+                gemm_nn(nx, nunxm1, nu - rank_k, -1.0, GuGxt_tilde[k-1], rank_k, 0, RSQrq_hat_curr_p[0], 0, nu - rank_k, 
+                        1.0, FuFxt_underbar[0], 0, 0, FuFxt_underbar[0], 0, 0);
+                
+            }
         }
     }
     rankI = 0;
@@ -1387,7 +1442,7 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
         Index gamma_I = gamma[0] - rho[0];
         if (gamma_I > nx)
         {
-            std::cout << __LINE__ << std::endl;
+            if (print_debug_lines) {std::cout << __LINE__ << std::endl;}
             return LinsolReturnFlag::NOFULL_RANK;
         }
         if (gamma_I > 0)
@@ -1396,7 +1451,7 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             // HhIt[0].print();
             lu_fact_transposed(gamma_I, nx + 1, nx, rankI, HhIt[0], PlI[0], PrI[0], lu_fact_tol);
             if (rankI < gamma_I){
-                std::cout << __LINE__ << std::endl;
+                if (print_debug_lines) {std::cout << __LINE__ << std::endl;}
                 return LinsolReturnFlag::NOFULL_RANK;
             }
             // PpIt_tilde <- Ggt[rankI:nx+1, :rankI] L-T (note that this is slightly different from
@@ -2549,15 +2604,6 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
     hessian.PreProcess(info, jacobian, f, g);
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::hessian::PreProcess done" << std::endl;}
 
-    // for (int k = 0; k < info.dims.K - 1; k++){
-    //     PrintNpArray(jacobian.BAbt[k], "BAbt");
-    //     PrintNpArray(jacobian.Gg_eqt[k], "Gg_eqt");
-    // }
-    // PrintNpArray(jacobian.Gg_eqt[info.dims.K - 1], "Gg_eqt");
-    // for (int k = 0; k < info.dims.K; k++){
-    //     PrintNpArray(hessian.RSQrqt[k], "RSQrqt");
-    // }
-
     int K = info.dims.K;
     std::vector<Index> number_of_states = info.dims.number_of_states;
     std::vector<Index> number_of_controls = info.dims.number_of_controls;
@@ -2625,7 +2671,7 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
 
 
         // hessian contribution of dynamics
-        jacobian.Pr_pre[k].apply_on_cols(rank, &hessian.FuFxt[k].mat());
+        jacobian.Pr_pre[k].apply_on_rows(rank, &hessian.FuFxt[k].mat());
         gemm_nn(nx_next - rank, nx, rank, 1.0, jacobian.U1U2t[k], 0, 0, hessian.FuFxt[k], 0, 0, 1.0, hessian.FuFxt[k], rank, 0, hessian.FuFxt[k], rank, 0);
             
         // right multiply with Dr^-1
