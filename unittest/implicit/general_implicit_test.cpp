@@ -21,8 +21,9 @@ class GeneralImplicitAugSystemSolverTest : public ::testing::Test
 {
 // protected:
 public:
-    bool J_matrix_is_idendity = false;
-    bool no_second_order_effects = true;
+    bool J_matrix_is_idendity = true;
+    bool J_matrix_full_rank = true;
+    bool no_second_order_effects = false;
 
     // Create OcpDims object
     // int K = 10;                                                   // Number of stages
@@ -31,12 +32,18 @@ public:
     // std::vector<Index> nu = {1, 4, 2, 10, 1, 30, 4, 5, 10, 2};    // Input dimensions for each stage
     // std::vector<Index> ng = {9, 3, 4, 3, 4, 2, 1, 0, 1, 5}; // Equality constraints for each stage
     // std::vector<Index> ng_ineq = {0, 5, 10, 4, 0, 0, 0, 0, 10, 0}; // Inequality constraints for each stage
-    int K = 12;
-    std::vector<Index> nx = {4, 5, 17, 0, 9, 6, 0, 19, 9, 16, 15, 12};
-    std::vector<Index> r =  {4, 5, 9, 0, 3, 5, 0, 2, 2, 14, 11, 8};
-    std::vector<Index> nu = {10, 10, 20, 15, 9, 9, 20, 13, 15, 17, 12, 15};
-    std::vector<Index> ng = {0, 4, 20, 6, 5, 12, 2, 19, 17, 0, 15, 18};
-    std::vector<Index> ng_ineq = {19, 18, 8, 7, 0, 15, 10, 18, 20, 2, 6, 10};
+    // int K = 12;
+    // std::vector<Index> nx = {4, 5, 17, 0, 9, 6, 0, 19, 9, 16, 15, 12};
+    // std::vector<Index> r =  {4, 5, 9, 0, 3, 5, 0, 2, 2, 14, 11, 8};
+    // std::vector<Index> nu = {10, 10, 20, 15, 9, 9, 20, 13, 15, 17, 12, 15};
+    // std::vector<Index> ng = {0, 4, 20, 6, 5, 12, 2, 19, 17, 0, 15, 18};
+    // std::vector<Index> ng_ineq = {19, 18, 8, 7, 0, 15, 10, 18, 20, 2, 6, 10};
+    int K = 2;
+    std::vector<Index> nx = {2, 2};
+    std::vector<Index> r =  {2, 1};
+    std::vector<Index> nu = {1, 1};
+    std::vector<Index> ng = {0, 0};
+    std::vector<Index> ng_ineq = {0, 0};
 
     ProblemDims dims{K, nu, nx, ng, ng_ineq};
 
@@ -67,6 +74,9 @@ public:
         // srand(seed);
         x = 0;
         full_matrix_jacobian = 0.;
+        full_matrix_hessian = 0.;
+
+        if (J_matrix_full_rank){ r = nx;}
 
         // fill the jacobian with random values
         for (Index k = 0; k < info.dims.K; ++k)
@@ -80,18 +90,13 @@ public:
                     ::test::random_matrix(nu + nx, nx_next);
 
                 if (J_matrix_is_idendity){
-                    if (k == 0 && false){
-                        for (Index i = 0; i < r[k+1]; i++){
-                            jacobian.Jt[k](r[k+1] - 1 - i, i) = -1.0;
-                        }
-                    } else {
-                        jacobian.Jt[k].block(r[k+1], r[k+1], 0, 0) =
-                            ::test::identity_matrix(r[k+1], -1);
-                    }
+                    jacobian.Jt[k].block(r[k+1], r[k+1], 0, 0) =
+                        ::test::identity_matrix(r[k+1], -1);
                 } else {
                     jacobian.Jt[k].block(nx_next, nx_next, 0, 0) =
-                        // ::test::random_matrix(r[k+1], r[k+1]);
                         ::test::random_degenerate_matrix(nx_next, r[k+1]);
+                    std::cout << "Jt:\n" << jacobian.Jt[k] << std::endl;
+                    std::cout << "rank:\n" << r[k+1] << std::endl;
                 }
             }
             jacobian.Gg_eqt[k].block(nu + nx, info.dims.number_of_eq_constraints[k], 0, 0) =
@@ -126,7 +131,7 @@ public:
                     ::test::empty_matrix(nx_next, nx + nu);
             } else {
                 hessian.FuFxt[k].block(nx_next, nx + nu, 0, 0) =
-                    ::test::random_matrix(nx_next, nx + nu);
+                    ::test::random_matrix(nx_next, nx + nu, 0.0, 0.1);
             }
             full_matrix_hessian.block(nx_next, nu + nx, offs_x_next, offs_ux) = 
                 hessian.FuFxt[k];
@@ -155,7 +160,6 @@ public:
             full_matrix_jacobian.block(ng_ineq, nu + nx, offset_g_ineq, offset_ux) =
                 transpose(jacobian.Gg_ineqt[k].block(nu + nx, ng_ineq, 0, 0));
         }
-        full_matrix_hessian = 0.;
         // populate the full matrix
         for (Index k = 0; k < dims.K; k++)
         {
@@ -177,21 +181,21 @@ public:
         for (Index i = 0; i < info.number_of_primal_variables; ++i)
         {
             rhs_x(i) = 1.0 * i;
-            D_x(i) = 1.0 * (i + 0.1);
+            D_x(i) = 0 * 1.0 * (i + 0.1);
         }
         // fill the mult vector with random values
         for (Index i = 0; i < info.number_of_eq_constraints; ++i)
         {
-            rhs_g(i) = 1.0 * i;
+            rhs_g(i) = 0 * 1.0 * i;
         }
 
         for (Index i = 0; i < info.number_of_g_eq_path; ++i)
         {
-            D_eq(i) = 1.0 * (i + 1);
+            D_eq(i) = 0 * 1.0 * (i + 1);
         }
         for (Index i = 0; i < info.number_of_slack_variables; ++i)
         {
-            D_s(i) =  1.0 * (i + 0.1);
+            D_s(i) =  1.0 + 0 * 1.0 * (i + 0.1);
         }
 
         // Compute LU factorization to check the rank of the constraint jacobian
@@ -215,7 +219,8 @@ class RandomAugSystemSolverTest : public ::testing::Test
 {
 // protected:
 public:
-    bool no_second_order_effects = true;
+    bool full_rank = true;
+    bool no_second_order_effects = false;
 
     // Create OcpDims object
     int K;
@@ -270,12 +275,16 @@ public:
     void GetRandomDimensions()
     {
         ClearOptionals();
-        int max_val = 20;
+        int max_val = 5;
         K = rand() % max_val + 2; // Random K between 2 and 21
         nx = RandomVector(K, 0, max_val);
-        r = std::vector<Index>(K, 100);
-        for (int k = 0; k < K; ++k){ 
-            while (r[k] > nx[k]){ r[k] = rand() % (nx[k]+1);}
+        if (full_rank){
+            r = nx;
+        } else {
+            r = std::vector<Index>(K, 100);
+            for (int k = 0; k < K; ++k){ 
+                while (r[k] > nx[k]){ r[k] = rand() % (nx[k]+1);}
+            }
         }
         nu = RandomVector(K, 0, max_val);
         ng = RandomVector(K, 0, max_val);
@@ -519,18 +528,28 @@ void PrintFullKKT(const ProblemInfo &info,
     out << "Obtained solution x:" << std::endl << x << std::endl;
     out << "Obtained solution mult:" << std::endl << mult << std::endl;
 }
+void PrintKKTSparsity(const MatRealView &full_kkt_matrix, std::ostream& out = std::cout){
+    for (Index i = 0; i < full_kkt_matrix.m(); i++){
+        for (Index j = 0; j < full_kkt_matrix.n(); j++){
+            if (std::abs(full_kkt_matrix(i,j)) > 1e-8){
+                out << "X";
+            } else {
+                out << ".";
+            }
+        }
+        out << "\n";
+    }
+    out << std::endl;
+}
 
-
-/*
 TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
 {
-    return;
     // IMPLICIT OCP VERSION //
     Index ret = solver.solve(info, jacobian, hessian, D_x, D_s, rhs_x, rhs_g, x, mult);
     EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
 
     // print the full KKT matrix and rhs
-    bool print_full_kkt = false;
+    bool print_full_kkt = true;
     if (print_full_kkt){ 
         PrintFullKKT(info, full_kkt_matrix, rhs_x, rhs_g, D_x, D_s, x, mult);
     }
@@ -538,21 +557,21 @@ TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
     // Solution checking
     CheckSolution(info, jacobian, hessian, D_x, D_s, rhs_x, rhs_g, x, mult);
 }
-*/
 
+/*
 // using SolverTypes = ::testing::Types<OcpType, ImplicitOcpType>;
 using SolverTypes = ::testing::Types<ImplicitOcpType>;
 TYPED_TEST_SUITE(RandomAugSystemSolverTest, SolverTypes);
 TYPED_TEST(RandomAugSystemSolverTest, TestRandomSolve)
 {
     int seed = time(0);
-    // int seed = 1772632854;
+    // int seed = 1772704401;
 
     // problematic seed: 1772632854 --> leads to INDEFINITE return status
 
     std::cout << "seed: " << seed << std::endl;
     srand(seed);
-    for (int test_counter = 0; test_counter < 10000; ++test_counter){
+    for (int test_counter = 0; test_counter < 1; ++test_counter){
         std::cout << "\n" << std::endl;
         std::cout << "==============================" << std::endl;
         std::cout << "Test iteration: " << test_counter << "  (" << (std::is_same_v<TypeParam, ImplicitOcpType> ? "Implicit" : "Normal") << ")" << std::endl;
@@ -575,6 +594,11 @@ TYPED_TEST(RandomAugSystemSolverTest, TestRandomSolve)
             this->rhs_x.value(), this->rhs_g.value(), this->x.value(),
             this->mult.value());
         // std::ofstream file("kkt1.txt");
-        // PrintFullKKT(info.value(), full_kkt_matrix.value(), rhs_x.value(), rhs_g.value(), D_x.value(), D_s.value(), x.value(), mult.value(), file);
+        // PrintFullKKT(this->info.value(), this->full_kkt_matrix.value(), this->rhs_x.value(), 
+        //              this->rhs_g.value(), this->D_x.value(), this->D_s.value(), 
+        //              this->x.value(), this->mult.value());
+        // std::cout << "Jacobian dimensions: " << this->full_matrix_jacobian.value().m() << " x " << this->full_matrix_jacobian.value().n() << std::endl;
+        // PrintKKTSparsity(this->full_kkt_matrix.value());
     }
 }
+*/

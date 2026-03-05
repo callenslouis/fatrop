@@ -283,6 +283,7 @@ namespace fatrop
         // optimization
         std::vector<MatRealAllocated> FuFxt_underbar;
         std::vector<MatRealAllocated> GuGxt_tilde;
+        std::vector<MatRealAllocated> GuGxt_hat;
         std::vector<MatRealAllocated> RSQrqt_underbar;
 
         std::vector<MatRealAllocated> Ppt;

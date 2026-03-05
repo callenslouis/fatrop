@@ -53,6 +53,7 @@ namespace fatrop
 #define GEMM_NT blasfeo_dgemm_nt
 #define GEMM_NN blasfeo_dgemm_nn
 #define GEMM_TN blasfeo_dgemm_tn
+#define GEMM_TT blasfeo_dgemm_tt
 #define GEAD blasfeo_dgead
 #define SYRK_LN_MN blasfeo_dsyrk_ln_mn
 #define SYRK_LN blasfeo_dsyrk_ln
