@@ -21,7 +21,7 @@ class GeneralImplicitAugSystemSolverTest : public ::testing::Test
 {
 // protected:
 public:
-    bool J_matrix_is_idendity = true;
+    bool J_matrix_is_idendity = false;
     bool J_matrix_full_rank = true;
     bool no_second_order_effects = false;
 
@@ -38,12 +38,12 @@ public:
     // std::vector<Index> nu = {10, 10, 20, 15, 9, 9, 20, 13, 15, 17, 12, 15};
     // std::vector<Index> ng = {0, 4, 20, 6, 5, 12, 2, 19, 17, 0, 15, 18};
     // std::vector<Index> ng_ineq = {19, 18, 8, 7, 0, 15, 10, 18, 20, 2, 6, 10};
-    int K = 2;
-    std::vector<Index> nx = {2, 2};
-    std::vector<Index> r =  {2, 1};
-    std::vector<Index> nu = {1, 1};
-    std::vector<Index> ng = {0, 0};
-    std::vector<Index> ng_ineq = {0, 0};
+    int K = 12;
+    std::vector<Index> nx = {4, 5, 17, 0, 9, 6, 0, 19, 9, 16, 15, 12};
+    std::vector<Index> r =  {4, 5, 9, 0, 3, 5, 0, 2, 2, 14, 11, 8};
+    std::vector<Index> nu = {10, 10, 20, 15, 9, 9, 20, 13, 15, 17, 12, 15};
+    std::vector<Index> ng = {0, 4, 20, 6, 5, 12, 2, 19, 17, 0, 15, 18};
+    std::vector<Index> ng_ineq = {19, 18, 8, 7, 0, 15, 10, 18, 20, 2, 6, 10};
 
     ProblemDims dims{K, nu, nx, ng, ng_ineq};
 
@@ -95,8 +95,6 @@ public:
                 } else {
                     jacobian.Jt[k].block(nx_next, nx_next, 0, 0) =
                         ::test::random_degenerate_matrix(nx_next, r[k+1]);
-                    std::cout << "Jt:\n" << jacobian.Jt[k] << std::endl;
-                    std::cout << "rank:\n" << r[k+1] << std::endl;
                 }
             }
             jacobian.Gg_eqt[k].block(nu + nx, info.dims.number_of_eq_constraints[k], 0, 0) =
@@ -542,6 +540,7 @@ void PrintKKTSparsity(const MatRealView &full_kkt_matrix, std::ostream& out = st
     out << std::endl;
 }
 
+
 TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
 {
     // IMPLICIT OCP VERSION //
@@ -549,7 +548,7 @@ TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
     EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
 
     // print the full KKT matrix and rhs
-    bool print_full_kkt = true;
+    bool print_full_kkt = false;
     if (print_full_kkt){ 
         PrintFullKKT(info, full_kkt_matrix, rhs_x, rhs_g, D_x, D_s, x, mult);
     }
@@ -558,14 +557,15 @@ TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
     CheckSolution(info, jacobian, hessian, D_x, D_s, rhs_x, rhs_g, x, mult);
 }
 
-/*
+
+
 // using SolverTypes = ::testing::Types<OcpType, ImplicitOcpType>;
 using SolverTypes = ::testing::Types<ImplicitOcpType>;
 TYPED_TEST_SUITE(RandomAugSystemSolverTest, SolverTypes);
 TYPED_TEST(RandomAugSystemSolverTest, TestRandomSolve)
 {
     int seed = time(0);
-    // int seed = 1772704401;
+    // int seed = 1772727309; //--> problematic seed
 
     // problematic seed: 1772632854 --> leads to INDEFINITE return status
 
@@ -601,4 +601,3 @@ TYPED_TEST(RandomAugSystemSolverTest, TestRandomSolve)
         // PrintKKTSparsity(this->full_kkt_matrix.value());
     }
 }
-*/
