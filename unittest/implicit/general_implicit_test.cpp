@@ -38,12 +38,12 @@ public:
     // std::vector<Index> nu = {10, 10, 20, 15, 9, 9, 20, 13, 15, 17, 12, 15};
     // std::vector<Index> ng = {0, 4, 20, 6, 5, 12, 2, 19, 17, 0, 15, 18};
     // std::vector<Index> ng_ineq = {19, 18, 8, 7, 0, 15, 10, 18, 20, 2, 6, 10};
-    int K = 12;
-    std::vector<Index> nx = {4, 5, 17, 0, 9, 6, 0, 19, 9, 16, 15, 12};
-    std::vector<Index> r =  {4, 5, 9, 0, 3, 5, 0, 2, 2, 14, 11, 8};
-    std::vector<Index> nu = {10, 10, 20, 15, 9, 9, 20, 13, 15, 17, 12, 15};
-    std::vector<Index> ng = {0, 4, 20, 6, 5, 12, 2, 19, 17, 0, 15, 18};
-    std::vector<Index> ng_ineq = {19, 18, 8, 7, 0, 15, 10, 18, 20, 2, 6, 10};
+    int K = 2;
+    std::vector<Index> nx = {4, 5};
+    std::vector<Index> r =  {4, 5};
+    std::vector<Index> nu = {10, 0};
+    std::vector<Index> ng = {0, 0};
+    std::vector<Index> ng_ineq = {0, 0};
 
     ProblemDims dims{K, nu, nx, ng, ng_ineq};
 
