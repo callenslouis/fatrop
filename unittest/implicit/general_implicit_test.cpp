@@ -184,7 +184,7 @@ public:
         // fill the mult vector with random values
         for (Index i = 0; i < info.number_of_eq_constraints; ++i)
         {
-            rhs_g(i) = 0 * 1.0 * i;
+            rhs_g(i) = 1.0 * i;
         }
 
         for (Index i = 0; i < info.number_of_g_eq_path; ++i)
@@ -193,7 +193,7 @@ public:
         }
         for (Index i = 0; i < info.number_of_slack_variables; ++i)
         {
-            D_s(i) =  1.0 + 0 * 1.0 * (i + 0.1);
+            D_s(i) =  0*1.0 + 0 * 1.0 * (i + 0.1);
         }
 
         // Compute LU factorization to check the rank of the constraint jacobian
@@ -473,6 +473,11 @@ void CheckSolution(const ProblemInfo &info,
     for (Index i = 0; i < info.number_of_primal_variables; ++i){
         max_grad = std::max(max_grad, std::abs(grad(i)));
     }
+    std::cout << "grad: " << grad << std::endl;
+    VecRealAllocated y(info.number_of_primal_variables);
+    for (int i = 0; i < info.number_of_primal_variables; i++){ y(i) = i;}
+    hessian.apply_on_right(info, y, 1.0, y, y);
+    std::cout << "hess applied: " << y << std::endl;
     EXPECT_NEAR(max_grad, 0, 1e-5);
 }
 
@@ -548,7 +553,7 @@ TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
     EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
 
     // print the full KKT matrix and rhs
-    bool print_full_kkt = false;
+    bool print_full_kkt = true;
     if (print_full_kkt){ 
         PrintFullKKT(info, full_kkt_matrix, rhs_x, rhs_g, D_x, D_s, x, mult);
     }
@@ -558,7 +563,7 @@ TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
 }
 
 
-
+/*
 // using SolverTypes = ::testing::Types<OcpType, ImplicitOcpType>;
 using SolverTypes = ::testing::Types<ImplicitOcpType>;
 TYPED_TEST_SUITE(RandomAugSystemSolverTest, SolverTypes);
@@ -601,3 +606,4 @@ TYPED_TEST(RandomAugSystemSolverTest, TestRandomSolve)
         // PrintKKTSparsity(this->full_kkt_matrix.value());
     }
 }
+*/

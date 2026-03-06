@@ -1045,13 +1045,20 @@ LinsolReturnFlag AugSystemSolver<OcpType>::solve_rhs(const ProblemInfo &info,
 
 
 
-void PrintNpArray(MatRealAllocated const &A, std::string name){
-    std::cout << name << " = np.array([\n\t";
-    for (int i = 0; i < A.m(); i++){
+void PrintNpArray(MatRealAllocated const &A, std::string name, int m=-1, int n=-1, bool with_name=true){
+    if (m < 0){m = A.m();}
+    if (n < 0){n = A.n();}
+
+    if (with_name){
+        std::cout << name << " = np.array([\n\t";
+    } else {
+        std::cout << "np.array([\n\t";
+    }
+    for (int i = 0; i < m; i++){
         std::cout << "[";
-        for (int j = 0; j < A.n(); j++){
+        for (int j = 0; j < n; j++){
             std::cout << A(i,j);
-            if (j < A.n() - 1){ std::cout << ",";}
+            if (j < n - 1){ std::cout << ",";}
             std::cout << " ";
         }
         std::cout << "],\n\t";        
@@ -1079,6 +1086,287 @@ void PrintNpArray(VecRealAllocated const &v, int offset, int length, std::string
     std::cout << "]]))" << std::endl;
 }
 
+MatRealAllocated PermutationVectorToMatrix(PermutationMatrix &P){
+    MatRealAllocated result(P.size(), P.size());
+    for (int i = 0; i < P.size(); i++){
+        result(i, i) = 1.0;
+    }
+    P.apply_on_cols(P.size(), &result.mat());
+    return result;
+}
+
+void PrintPreProcessNpInfo(const ProblemInfo &info, 
+                           const ProblemInfo & modified_info,
+                           const Hessian<ImplicitOcpType> &hess, 
+                           const Jacobian<ImplicitOcpType> &jacobian,
+                           const VecRealView &x, const VecRealView &eq_mult){
+    // Print dimensions
+    std::ostream& o = std::cout;
+
+    o << "K = " << info.dims.K << "\n";
+    o << "nu = [";
+    std::vector<int> nu = {};
+    for (int k = 0; k < info.dims.K; k++){
+        o << info.dims.number_of_controls[k];
+        if (k < info.dims.K - 1){ o << ", ";}
+        nu.push_back(info.dims.number_of_controls[k]);
+    }
+    o << "]\n";
+    o << "nx = [";
+    std::vector<int> nx = {};
+    for (int k = 0; k < info.dims.K; k++){
+        o << info.dims.number_of_states[k];
+        if (k < info.dims.K - 1){ o << ", ";}
+        nx.push_back(info.dims.number_of_states[k]);
+    }
+    o << "]\n";
+    o << "ng_ineq = [";
+    std::vector<int> ng_ineq = {};
+    for (int k = 0; k < info.dims.K; k++){
+        o << info.dims.number_of_ineq_constraints[k];
+        if (k < info.dims.K - 1){ o << ", ";}
+        ng_ineq.push_back(info.dims.number_of_ineq_constraints[k]);
+    }
+    o << "]\n";
+    o << "ng_eq = [";
+    std::vector<int> ng_eq = {};
+    for (int k = 0; k < info.dims.K; k++){
+        o << info.dims.number_of_eq_constraints[k];
+        if (k < info.dims.K - 1){ o << ", ";}
+        ng_eq.push_back(info.dims.number_of_eq_constraints[k]);
+    }
+    o << "]\n";
+    o << "r = [";
+    std::vector<int> r = {};
+    for (int k = 0; k < info.dims.K - 1; k++){
+        o << jacobian.J_ranks[k];
+        if (k < info.dims.K - 2){ o << ", ";}
+        r.push_back(jacobian.J_ranks[k]);
+    }
+    o << "]\n";
+
+    // modified info
+    o << "modified_K = " << modified_info.dims.K << "\n";
+    o << "modified_nu = [";
+    std::vector<int> modified_nu = {};
+    for (int k = 0; k < modified_info.dims.K; k++){
+        o << modified_info.dims.number_of_controls[k];
+        if (k < modified_info.dims.K - 1){ o << ", ";}
+        modified_nu.push_back(modified_info.dims.number_of_controls[k]);
+    }
+    o << "]\n";
+    o << "modified_nx = [";
+    std::vector<int> modified_nx = {};
+    for (int k = 0; k < modified_info.dims.K; k++){
+        o << modified_info.dims.number_of_states[k];
+        if (k < modified_info.dims.K - 1){ o << ", ";}
+        modified_nx.push_back(modified_info.dims.number_of_states[k]);
+    }
+    o << "]\n";
+    o << "modified_ng_ineq = [";
+    std::vector<int> modified_ng_ineq = {};
+    for (int k = 0; k < modified_info.dims.K; k++){
+        o << modified_info.dims.number_of_ineq_constraints[k];
+        if (k < modified_info.dims.K - 1){ o << ", ";}
+        modified_ng_ineq.push_back(modified_info.dims.number_of_ineq_constraints[k]);
+    }
+    o << "]\n";
+    o << "modified_ng_eq = [";
+    std::vector<int> modified_ng_eq = {};
+    for (int k = 0; k < modified_info.dims.K; k++){
+        o << modified_info.dims.number_of_eq_constraints[k];
+        if (k < modified_info.dims.K - 1){ o << ", ";}
+        modified_ng_eq.push_back(modified_info.dims.number_of_eq_constraints[k]);
+    }
+    o << "]\n";
+
+    // hessian attributes
+    o << "RSQrqt = [\n";
+    for (int k = 0; k < info.dims.K; k++){
+        PrintNpArray(hess.RSQrqt[k], "", modified_nu[k] + modified_nx[k] + 1, modified_nu[k] + modified_nx[k], false);
+        if (k < info.dims.K - 1){ o << ",\n";}
+    }
+    o << "]\n";
+    o << "RSQrqt_original = [\n";
+    for (int k = 0; k < info.dims.K; k++){
+        PrintNpArray(hess.RSQrqt_original[k], "", nu[k] + nx[k] + 1, nu[k] + nx[k], false);
+        if (k < info.dims.K - 1){ o << ",\n";}
+    }
+    o << "]\n";
+    o << "FuFxt" << " = [\n";
+    for (int k = 0; k < info.dims.K - 1; k++){
+        PrintNpArray(hess.FuFxt[k], "", modified_nx[k+1], modified_nu[k] + nx[k], false);
+        if (k < info.dims.K - 2){ o << ",\n";}
+    }
+    o << "]\n";
+    o << "FuFxt_original" << " = [\n";
+    for (int k = 0; k < info.dims.K - 1; k++){
+        PrintNpArray(hess.FuFxt_original[k], "", nx[k+1], nu[k] + nx[k], false);
+        if (k < info.dims.K - 2){ o << ",\n";}
+    }
+    o << "]\n";
+    o << "GuGxt" << " = [\n";
+    for (int k = 0; k < info.dims.K - 1; k++){
+        PrintNpArray(hess.GuGxt[k], "", modified_nu[k+1], modified_nu[k] + modified_nx[k], false);
+        if (k < info.dims.K - 2){ o << ",\n";}
+    }
+    o << "]\n";
+    o << "GuGxt_original" << " = [\n";
+    for (int k = 0; k < info.dims.K - 1; k++){
+        PrintNpArray(hess.GuGxt_original[k], "", nu[k+1], nu[k] + nx[k], false);
+        if (k < info.dims.K - 2){ o << ",\n";}
+    }
+    o << "]\n";
+
+    // jacobian attributes
+    o << "Gg_eqt = [\n";
+    for (int k = 0; k < info.dims.K; k++){
+        PrintNpArray(jacobian.Gg_eqt[k], "",  modified_nu[k] + modified_nx[k] + 1, modified_ng_eq[k], false);
+        if (k < info.dims.K - 1){ o << ",\n";}
+    }
+    o << "]\n";
+    o << "Gg_eqt_original = [\n";
+    for (int k = 0; k < info.dims.K; k++){
+        PrintNpArray(jacobian.Gg_eqt_original[k], "", nu[k] + nx[k] + 1, ng_eq[k], false);
+        if (k < info.dims.K - 1){ o << ",\n";}
+    }
+    o << "]\n";
+    o << "Gg_ineqt = [\n";
+    for (int k = 0; k < info.dims.K; k++){
+        PrintNpArray(jacobian.Gg_ineqt[k], "", modified_nu[k] + modified_nx[k] + 1, modified_ng_ineq[k], false);
+        if (k < info.dims.K - 1){ o << ",\n";}
+    }
+    o << "]\n";
+    o << "Gg_ineqt_original = [\n";
+    for (int k = 0; k < info.dims.K; k++){
+        PrintNpArray(jacobian.Gg_ineqt_original[k], "", nu[k] + nx[k] + 1, ng_ineq[k], false);
+        if (k < info.dims.K - 1){ o << ",\n";}
+    }
+    o << "]\n";
+    o << "BAbt = [\n";
+    for (int k = 0; k < info.dims.K - 1; k++){
+        PrintNpArray(jacobian.BAbt[k], "", modified_nu[k] + modified_nx[k] + 1, modified_nx[k+1], false);
+        if (k < info.dims.K - 2){ o << ",\n";}
+    }
+    o << "]\n";
+    o << "BAbt_original = [\n";
+    for (int k = 0; k < info.dims.K - 1; k++){
+        PrintNpArray(jacobian.BAbt_original[k], "", nu[k] + nx[k] + 1, nx[k+1], false);
+        if (k < info.dims.K - 2){ o << ",\n";}
+    }
+    o << "]\n";
+
+    std::vector<MatRealAllocated> Jt_LU;
+    Jt_LU.reserve(info.dims.K - 1);
+    std::vector<PermutationMatrix> Pl;
+    Pl.reserve(info.dims.K - 1);
+    std::vector<PermutationMatrix> Pr;
+    Pr.reserve(info.dims.K - 1);
+    
+    o << "Jt = [\n";
+    for (int k = 0; k < info.dims.K - 1; k++){
+        PrintNpArray(jacobian.Jt[k], "", nx[k+1], nx[k+1], false);
+        if (k < info.dims.K - 2){ o << ",\n";}
+        Jt_LU.push_back(jacobian.Jt[k]);
+        Pl.push_back(PermutationMatrix(nx[k+1]));
+        Pr.push_back(PermutationMatrix(nx[k+1]));
+        int rho;
+        lu_fact_transposed(nx[k+1], nx[k+1], nx[k+1], rho, Jt_LU[k], Pl[k], Pr[k]);
+        if (rho != jacobian.J_ranks[k]){
+            std::cerr << "Error: LU factorization rank does not match J_ranks." << std::endl;
+        }
+    }
+    o << "]\n";
+
+    // LU info
+    o << "L = [\n";
+    for (int k = 0; k < info.dims.K - 1; k++){
+        o << "np.array([";
+        int nx_next = info.dims.number_of_states[k+1];
+        for (int i = 0; i < nx_next; i++){
+            o << "[";
+            for (int j = 0; j < nx_next; j++){
+                if (i > j){
+                    // o << jacobian.Jt_LU[k](j,i);
+                    o << Jt_LU[k](j,i);
+                } else if (i == j){
+                    o << 1.0;
+                } else {
+                    o << 0.0;
+                }
+                if (j < nx_next - 1){
+                    std::cout << ", ";
+                }
+            }
+            o << "]";
+            if (i < nx_next){
+                o << ",\n";
+            }
+        }
+        o << "])\n";
+        if (k < info.dims.K - 2){ o << ",\n";}
+    }
+    o << "]\n";
+
+    o << "U = [\n";
+    for (int k = 0; k < info.dims.K - 1; k++){
+        o << "np.array([";
+        int nx_next = info.dims.number_of_states[k+1];
+        for (int i = 0; i < nx_next; i++){
+            o << "[";
+            for (int j = 0; j < nx_next; j++){
+                if (i <= j){
+                    // o << jacobian.Jt_LU[k](j,i);
+                    o << Jt_LU[k](j,i);
+                } else {
+                    o << 0.0;
+                }
+                if (j < nx_next - 1){
+                    std::cout << ", ";
+                }
+            }
+            o << "]";
+            if (i < nx_next){
+                o << ",\n";
+            }
+        }
+        o << "])\n";
+        if (k < info.dims.K - 2){ o << ",\n";}
+    }
+    o << "]\n";
+
+    o << "Pl = [\n";
+    for (int k = 0; k < info.dims.K - 1; k++){
+        PermutationMatrix Pl_copy = jacobian.Pl_pre[k];
+        PrintNpArray(PermutationVectorToMatrix(Pl_copy), "", nx[k+1], nx[k+1], false);
+        if (k < info.dims.K - 2){ o << ",\n";}
+    }
+    o << "]\n";
+    o << "Pr = [\n";
+    for (int k = 0; k < info.dims.K - 1; k++){
+        PermutationMatrix Pr_copy = jacobian.Pr_pre[k];
+        PrintNpArray(PermutationVectorToMatrix(Pr_copy), "", nx[k+1], nx[k+1], false);
+        if (k < info.dims.K - 2){ o << ",\n";}
+    }
+    o << "]\n";
+
+    o << "x = np.array([";
+    for (int i = 0; i < info.number_of_primal_variables; i++){
+        o << x(i);
+        if (i < info.number_of_primal_variables - 1){
+            o << ", ";
+        }
+    }
+    o << "])\n";
+    o << "eq_mult = np.array([";
+    for (int i = 0; i < info.number_of_eq_constraints; i++){
+        o << eq_mult(i);
+        if (i < info.number_of_eq_constraints - 1){
+            o << ", ";
+        }
+    }
+    o << "])\n";
+}
 
 
 
@@ -2733,6 +3021,8 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
                                                    Jacobian<ImplicitOcpType> &jacobian,
                                                    Hessian<ImplicitOcpType> &hessian,
                                                    VecRealView &x, VecRealView &eq_mult){
+    PrintPreProcessNpInfo(info, modified_info, hessian, jacobian, x, eq_mult);
+    
     // GENERAL VERSION
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::PostProcess start" << std::endl;}
     VecRealAllocated x_copy(x.m());
@@ -2791,14 +3081,14 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
         
         // scale states and dynamics multipliers
         if (k > 0){
-            if (k < info.dims.K){
-                gemv_t(info.dims.number_of_states[k] - jacobian.J_ranks[k-1], info.dims.number_of_states[k], 1.0, 
-                    jacobian.U1U2t[k-1], 0, 0, 
-                    x, info.offsets_primal_x[k] + jacobian.J_ranks[k-1], 1.0, 
-                    x, info.offsets_primal_x[k], 
-                    x, info.offsets_primal_x[k]);
-                jacobian.Pr_pre[k-1].apply_inverse(jacobian.J_ranks[k-1], &x.vec(), info.offsets_primal_x[k]);
-            } 
+            // if (k < info.dims.K){
+            gemv_t(info.dims.number_of_states[k] - jacobian.J_ranks[k-1], info.dims.number_of_states[k], 1.0, 
+                jacobian.U1U2t[k-1], 0, 0, 
+                x, info.offsets_primal_x[k] + jacobian.J_ranks[k-1], 1.0, 
+                x, info.offsets_primal_x[k], 
+                x, info.offsets_primal_x[k]);
+            jacobian.Pr_pre[k-1].apply_inverse(jacobian.J_ranks[k-1], &x.vec(), info.offsets_primal_x[k]);
+            // } 
 
             // U^-T * 
             trsv_lnn(jacobian.J_ranks[k-1], jacobian.U1t[k-1], 0, 0, eq_mult, info.offsets_g_eq_dyn[k-1], eq_mult, info.offsets_g_eq_dyn[k-1]);
@@ -2809,52 +3099,6 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
             jacobian.Pl_pre[k-1].apply_inverse(jacobian.J_ranks[k-1], &eq_mult.vec(), info.offsets_g_eq_dyn[k-1]);
         }
     }
-
-    for (int k = 0; k < info.dims.K; k++){
-        // std::cout << "inputs original: ";
-        // for (int i = 0; i < info.dims.number_of_controls[k]; i++){
-        //     std::cout << x(info.offsets_primal_u[k] + i) << "\t";
-        // }
-        // std::cout << "\ninputs modified: ";
-        // for (int i = 0; i < modified_info.dims.number_of_controls[k]; i++){
-        //     std::cout << x_copy(modified_info.offsets_primal_u[k] + i) << "\t";
-        // }
-        // std::cout << std::endl;
-        // std::cout << "\nstates original: ";
-        // for (int i = 0; i < info.dims.number_of_states[k]; i++){
-        //     std::cout << x(info.offsets_primal_x[k] + i) << "\t";
-        // }
-        // std::cout << "\nstates modified: ";
-        // for (int i = 0; i < modified_info.dims.number_of_states[k]; i++){
-        //     std::cout << x_copy(modified_info.offsets_primal_x[k] + i) << "\t";
-        // }
-        // std::cout << std::endl;
-        // std::cout << std::endl;
-
-        // if (k < info.dims.K - 1){
-        //     std::cout << "[" << k << "] dynamics constraint:       " << std::endl;
-        //     for (int i = 0; i < info.dims.number_of_states[k+1]; i++){
-        //         std::cout << eq_mult(info.offsets_g_eq_dyn[k] + i) << "\n";
-        //     }
-        //     std::cout << "\n[" << k << "] dynamics constraint (mod): " << std::endl;
-        //     for (int i = 0; i < modified_info.dims.number_of_states[k+1]; i++){
-        //         std::cout << eq_mult_copy(modified_info.offsets_g_eq_dyn[k] + i) << "\n";
-        //     }
-        // }
-        // std::cout << "\n[" << k << "] eq path constraint:       " << std::endl;
-        // for (int i = 0; i < info.dims.number_of_eq_constraints[k]; i++){
-        //     std::cout << eq_mult(info.offsets_g_eq_path[k] + i) << "\n";
-        // }
-        // std::cout << "\n[" << k << "] eq path constraint (mod): " << std::endl;
-        // for (int i = 0; i < modified_info.dims.number_of_eq_constraints[k]; i++){
-        //     std::cout << eq_mult_copy(modified_info.offsets_g_eq_path[k] + i) << "\n";
-        // }
-        // std::cout << std::endl;
-        
-    }
-    // for (int k = 0; k < x.m(); k++){
-    //     std::cout << x(k) << "\t" << x_copy(k) << std::endl;
-    // }
 
     jacobian.ResetPreProcess(info);
     hessian.ResetPreProcess(info, jacobian);

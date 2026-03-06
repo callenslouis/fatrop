@@ -221,11 +221,11 @@ namespace fatrop
             return os;
         }
         double dgemm_time = 0;
-    private:
         std::vector<int> rho;
         std::vector<MatRealAllocated> BAbt_original;
         std::vector<MatRealAllocated> Gg_eqt_original;
         std::vector<MatRealAllocated> Gg_ineqt_original;
+    private:
 
         bool print_debug = false;
     };
