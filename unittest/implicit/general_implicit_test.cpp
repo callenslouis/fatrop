@@ -512,12 +512,6 @@ void PrintFullKKT(const ProblemInfo &info,
     for (Index i = 0; i < info.number_of_slack_variables; ++i){
         full_rhs(info.number_of_primal_variables + info.offset_g_eq_slack + i) -= D_s(i) * mult(info.offset_g_eq_slack + i);
     }
-
-    VecRealAllocated true_rhs(info.number_of_primal_variables + info.number_of_eq_constraints);
-    true_rhs.block(info.number_of_primal_variables, 0) = rhs_x + D_x * x;
-    true_rhs.block(info.number_of_eq_constraints, info.number_of_primal_variables) = rhs_g;
-    true_rhs.block(info.number_of_slack_variables, info.offset_g_eq_slack + info.number_of_primal_variables) =
-        true_rhs.block(info.number_of_slack_variables, info.offset_g_eq_slack + info.number_of_primal_variables) - D_s * mult.block(info.offset_g_eq_slack, info.offset_g_eq_slack);
     out << "rhs = np.array([\n";
     for (Index i = 0; i < full_rhs.m(); i++){
         out << "\t" << full_rhs(i);

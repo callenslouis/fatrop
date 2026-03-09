@@ -1562,18 +1562,24 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
                        RSQrqt_underbar[k], 0, 0, RSQrqt_tilde[k], 0, 0);
 
             // Add second order dynamics contribution
-            // PrintNpArray(jacobian.BAbt[k], "BAbt");
-            // PrintNpArray(FuFxt_underbar[0], "FuFxt");
-            // PrintNpArray(hessian.FuFxt[k], "FuFxt_hessian");
-            // PrintNpArray(RSQrqt_tilde[k], "RSQrqt");
-            // std::cout << "nu = " << nu << std::endl;
-            // std::cout << "nx = " << nx << std::endl;
-            // std::cout << "nx_next = " << nxp1 << std::endl;
+            PrintNpArray(jacobian.BAbt[k], "BAbt");
+            PrintNpArray(FuFxt_underbar[0], "FuFxt");
+            PrintNpArray(hessian.FuFxt[k], "FuFxt_hessian");
+            PrintNpArray(RSQrqt_tilde[k], "RSQrqt");
+            std::cout << "nu = " << nu << std::endl;
+            std::cout << "nx = " << nx << std::endl;
+            std::cout << "nx_next = " << nxp1 << std::endl;
             gemm_nn(nu + nx + 1, nu + nx, nxp1, 1.0, jacobian.BAbt[k], 0, 0, FuFxt_underbar[0], 0, 0, 1.0,
                     RSQrqt_tilde[k], 0, 0, RSQrqt_tilde[k], 0, 0);
-            gemm_tt(nu + nx, nu + nx, nxp1, 1.0, FuFxt_underbar[0], 0, 0, jacobian.BAbt[k], 0, 0, 1.0,
+            PrintNpArray(RSQrqt_tilde[k], "RSQrqt_intermediate");
+            // gemm_tt(nu + nx, nu + nx, nxp1, 1.0, FuFxt_underbar[0], 0, 0, jacobian.BAbt[k], 0, 0, 1.0,
+            //         RSQrqt_tilde[k], 0, 0, RSQrqt_tilde[k], 0, 0);
+            MatRealAllocated FuFx(nu + nx, nxp1);
+            getr(nxp1, nu + nx, FuFxt_underbar[0], 0, 0, FuFx, 0, 0);
+            PrintNpArray(FuFx, "FuFx");
+            gemm_nt(nu + nx, nu + nx, nxp1, 1.0, FuFx, 0, 0, jacobian.BAbt[k], 0, 0, 1.0,
                     RSQrqt_tilde[k], 0, 0, RSQrqt_tilde[k], 0, 0);
-            // std::cout << "RSQrqt after:\n" << RSQrqt_tilde[k] << std::endl;
+            PrintNpArray(RSQrqt_tilde[k], "RSQrqt_after");
 
             //// inequalities
             gamma[k] = gamma_k;
@@ -2697,9 +2703,9 @@ void VerifyIntermediateSolution(const ProblemInfo &info,
     VecRealAllocated solution_g = VecRealAllocated(info.number_of_eq_constraints);
 
     hessian.apply_on_right(info, x, 0.0, solution_grad, solution_grad);
-    jacobian.transpose_apply_on_right(info, mult, 1.0, solution_grad, solution_grad);
+    jacobian.transpose_apply_on_right(info, mult, 1.0, solution_grad, solution_grad, true);
 
-    jacobian.apply_on_right(info, x, 0.0, solution_g, solution_g);
+    jacobian.apply_on_right(info, x, 0.0, solution_g, solution_g, true);
 
     for (int i = 0; i < info.number_of_primal_variables; i++){
         std::cout << solution_grad(i) << "\t-\t" << f(i) << std::endl;
@@ -2749,6 +2755,8 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
 
     start = std::chrono::high_resolution_clock::now();
     LinsolReturnFlag flag = ModifiedAugSystemSolver::solve(modified_info, jacobian, hessian, D_x_copy, D_s_copy, f_copy, g_copy, x, eq_mult);
+
+    VerifyIntermediateSolution(modified_info, jacobian, hessian, x, eq_mult, f_copy, g_copy);    
     
     auto end = std::chrono::high_resolution_clock::now();
     duration_solve = std::chrono::duration_cast<std::chrono::microseconds>(end - start);

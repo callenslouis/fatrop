@@ -1,98 +1,149 @@
-#include "fatrop/linear_algebra/matrix.hpp"
-#include "fatrop/linear_algebra/blasfeo_operations.hpp"
-#include "../random_matrix.hpp"
-
-#include <gtest/gtest.h>
 #include <iostream>
 #include <cassert>
 #include <random>
+#include <blasfeo.h>
 
-void perform_dgemm_nn(int m, int n, int k, int row_offset, bool ceil_4, bool ceil_8, bool block){
-    std::string name = "\n\nComputing blasfeo_dgemm_nn";
-    int nb_rows = m + row_offset;
-    int nb_cols = k;
-    if (ceil_4){ nb_rows += 4;} else if (ceil_8){ nb_rows += 8;}
-    if (ceil_4){ nb_cols += 4;} else if (ceil_8){ nb_cols += 8;}
-    name += " (" + std::to_string(nb_rows) + ")";
-    name += " row offset = " + std::to_string(row_offset);
-
-    fatrop::MatRealAllocated A = fatrop::test::random_matrix(nb_rows, nb_cols);
-    fatrop::MatRealAllocated B(k, n);
-    fatrop::MatRealAllocated C(m, n);
-    fatrop::MatRealAllocated D(m, n);
-
-    std::cout << name << std::endl;
-    std::cout << "--------------------------------------" << std::endl;
-    if (block){
-        blasfeo_dgemm_nn(m, n, k, 1.0, &A.block(m, k, row_offset, 0).mat(), 0, 0, &B.mat(), 0, 0, 1.0, &C.mat(), 0, 0, &D.mat(), 0, 0);
-    } else {
-        blasfeo_dgemm_nn(m, n, k, 1.0, &A.mat(), row_offset, 0, &B.mat(), 0, 0, 1.0, &C.mat(), 0, 0, &D.mat(), 0, 0);
+void fill_randomly(int m, int n, blasfeo_dmat *sM){
+    for (int i = 0; i < m; ++i){
+        for (int j = 0; j < n; ++j){
+            double value = static_cast<double>(rand()) / RAND_MAX;
+            blasfeo_dgein1(value, sM, i, j);
+        }
     }
-    std::cout << "Done" << std::endl;
 }
 
-void perform_dgemm_nt(int m, int n, int k, int row_offset, bool ceil_4, bool ceil_8, bool block){
-    std::string name = "\nComputing blasfeo_dgemm_nt";
-    int nb_rows = m + row_offset;
-    int nb_cols = k;
-    if (ceil_4){ nb_rows += 4;} else if (ceil_8){ nb_rows += 8;}
-    if (ceil_4){ nb_cols += 4;} else if (ceil_8){ nb_cols += 8;}
-    name += " (" + std::to_string(nb_rows) + ")";
-    name += " row offset = " + std::to_string(row_offset);
+int main(int argc, char** argv){
+    srand(0);
 
-    fatrop::MatRealAllocated A = fatrop::test::random_matrix(nb_rows, nb_cols);
-    fatrop::MatRealAllocated B(n, k);
-    fatrop::MatRealAllocated C(m, n);
-    fatrop::MatRealAllocated D(m, n);
-
-    std::cout << name << std::endl;
-    std::cout << "--------------------------------------" << std::endl;
-    if (block){
-        blasfeo_dgemm_nt(m, n, k, 1.0, &A.block(m, k, row_offset, 0).mat(), 0, 0, &B.mat(), 0, 0, 1.0, &C.mat(), 0, 0, &D.mat(), 0, 0);
-    } else {
-        blasfeo_dgemm_nt(m, n, k, 1.0, &A.mat(), row_offset, 0, &B.mat(), 0, 0, 1.0, &C.mat(), 0, 0, &D.mat(), 0, 0);
-    }
-    std::cout << "Done" << std::endl;
-}
-
-int main(){
-    int m = 3;
-    int n = 2;
+    int m = 14;
+    int n = 14;
     int k = 5;
-    int row_offset = 3;
 
-    // randomize dimensions
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dis(1, 3);
-    m = dis(gen);
-    n = dis(gen);
-    k = dis(gen);
-    row_offset = dis(gen);
+    // check if args contain "m=..." and "n=..."
+    for (int i = 1; i < argc; ++i){
+        std::string arg = argv[i];
+        if (arg.find("m=") == 0){
+            m = std::stoi(arg.substr(2));
+        } else if (arg.find("n=") == 0){
+            n = std::stoi(arg.substr(2));
+        } else if (arg.find("k=") == 0){
+            k = std::stoi(arg.substr(2));
+        }
+    }
 
-    std::cout << "Without row offset" << std::endl;
-    perform_dgemm_nn(m, n, k, 0, false, false, false);
+    int m_padded = m;
+    int n_padded = n;
+    int k_padded = k;
+    bool ceil_4 = false;
+    bool ceil_8 = false;
+    if (ceil_4){
+        m_padded += 4 - (m % 4);
+        n_padded += 4 - (n % 4);
+        k_padded += 4 - (k % 4);
+    }
+    if (ceil_8){
+        m_padded += 8 - (m % 8);
+        n_padded += 8 - (n % 8);
+        k_padded += 8 - (k % 8);
+    }
+    std::cout << "m: " << m << ", n: " << n << ", k: " << k << std::endl;
+    std::cout << "m_padded: " << m_padded << ", n_padded: " << n_padded << ", k_padded: " << k_padded << std::endl;
 
-    std::cout << "With row offset" << std::endl;
-    perform_dgemm_nn(m, n, k, row_offset, false, false, false);
-    perform_dgemm_nn(m, n, k, row_offset, true, false, false);
-    perform_dgemm_nn(m, n, k, row_offset, false, true, false);
+    struct blasfeo_dmat sA, sB, sAt, sBt, sM_ref, sM1, sM2, sM3, sM4;
+    blasfeo_allocate_dmat(k_padded, m_padded, &sA);
+    blasfeo_allocate_dmat(n_padded, k_padded, &sB);
+    blasfeo_allocate_dmat(m_padded, k_padded, &sAt);
+    blasfeo_allocate_dmat(k_padded, n_padded, &sBt);
+    blasfeo_allocate_dmat(m_padded, n_padded, &sM_ref);
+    blasfeo_allocate_dmat(m_padded, n_padded, &sM1);
+    blasfeo_allocate_dmat(m_padded, n_padded, &sM2);
+    blasfeo_allocate_dmat(m_padded, n_padded, &sM3);
+    blasfeo_allocate_dmat(m_padded, n_padded, &sM4);
 
-    std::cout << "With blocking" << std::endl;
-    perform_dgemm_nn(m, n, k, row_offset, false, false, true);
+    blasfeo_dgese(k_padded, m_padded, 0, &sA, 0, 0);
+    blasfeo_dgese(n_padded, k_padded, 0, &sB, 0, 0);
+    blasfeo_dgese(m_padded, k_padded, 0, &sAt, 0, 0);
+    blasfeo_dgese(k_padded, n_padded, 0, &sBt, 0, 0);
+    blasfeo_dgese(m_padded, n_padded, 0, &sM_ref, 0, 0);
+    blasfeo_dgese(m_padded, n_padded, 0, &sM1, 0, 0);
+    blasfeo_dgese(m_padded, n_padded, 0, &sM2, 0, 0);
+    blasfeo_dgese(m_padded, n_padded, 0, &sM3, 0, 0);
+    blasfeo_dgese(m_padded, n_padded, 0, &sM4, 0, 0);
 
-    
-    std::cout << "Without row offset" << std::endl;
-    perform_dgemm_nt(m, n, k, 0, false, false, false);
+    // fill randomly
+    fill_randomly(k, m, &sA);
+    fill_randomly(n, k, &sB);
 
-    std::cout << "With row offset" << std::endl;
-    perform_dgemm_nt(m, n, k, row_offset, false, false, false);
-    perform_dgemm_nt(m, n, k, row_offset, true, false, false);
-    perform_dgemm_nt(m, n, k, row_offset, false, true, false);
+    // construct transposes
+    blasfeo_dgetr(k, m, &sA, 0, 0, &sAt, 0, 0);
+    blasfeo_dgetr(n, k, &sB, 0, 0, &sBt, 0, 0);    
 
-    std::cout << "With blocking" << std::endl;
-    perform_dgemm_nt(m, n, k, row_offset, false, false, true);
+    // manual multiplication
+    for (int i = 0; i < m; ++i){
+        for (int j = 0; j < n; ++j){
+            double sum = 0.0;
+            for (int p = 0; p < k; ++p){
+                double sa = blasfeo_dgeex1(&sA, p, i);
+                double sb = blasfeo_dgeex1(&sB, j, p);
+                sum += sa * sb;
+            }
+            blasfeo_dgein1(sum, &sM_ref, i, j);
+        }
+    }
 
+    // blasfeo calls
+    blasfeo_dgemm_tt(m, n, k, 1.0, &sA, 0, 0, &sB, 0, 0, 1.0, &sM1, 0, 0, &sM1, 0, 0);
+    blasfeo_dgemm_nt(m, n, k, 1.0, &sAt, 0, 0, &sB, 0, 0, 1.0, &sM2, 0, 0, &sM2, 0, 0);
+    blasfeo_dgemm_nn(m, n, k, 1.0, &sAt, 0, 0, &sBt, 0, 0, 1.0, &sM3, 0, 0, &sM3, 0, 0);
+    blasfeo_dgemm_tn(m, n, k, 1.0, &sA, 0, 0, &sBt, 0, 0, 1.0, &sM4, 0, 0, &sM4, 0, 0);
+
+    // compare results
+    std::cout << "reference:\n" << std::endl;
+    blasfeo_print_dmat(m, n, &sM_ref, 0, 0);
+    std::cout << "blasfeo_calls:\n" << std::endl;
+    std::cout << "blasfeo call 1 (tt):\n" << std::endl; blasfeo_print_dmat(m, n, &sM1, 0, 0);
+    std::cout << "blasfeo call 2 (nt):\n" << std::endl; blasfeo_print_dmat(m, n, &sM2, 0, 0);
+    std::cout << "blasfeo call 3 (nn):\n" << std::endl; blasfeo_print_dmat(m, n, &sM3, 0, 0);
+    std::cout << "blasfeo call 4 (tn):\n" << std::endl; blasfeo_print_dmat(m, n, &sM4, 0, 0);
+
+    // compute error norms
+    double err1, err2, err3, err4;
+    err1 = err2 = err3 = err4 = 0.0;
+
+    for (int i = 0; i < m; ++i){
+        for (int j = 0; j < n; ++j){
+            double ref = blasfeo_dgeex1(&sM_ref, i, j);
+            double val1 = blasfeo_dgeex1(&sM1, i, j);
+            double val2 = blasfeo_dgeex1(&sM2, i, j);
+            double val3 = blasfeo_dgeex1(&sM3, i, j);
+            double val4 = blasfeo_dgeex1(&sM4, i, j);
+            err1 += (ref - val1) * (ref - val1);
+            err2 += (ref - val2) * (ref - val2);
+            err3 += (ref - val3) * (ref - val3);
+            err4 += (ref - val4) * (ref - val4);
+        }
+    }
+
+    err1 = sqrt(err1);
+    err2 = sqrt(err2);
+    err3 = sqrt(err3);
+    err4 = sqrt(err4);
+
+    std::cout << "Error norms:\n";
+    std::cout << "Error norm for blasfeo call 1 (tt): " << err1 << std::endl;
+    std::cout << "Error norm for blasfeo call 2 (nt): " << err2 << std::endl;
+    std::cout << "Error norm for blasfeo call 3 (nn): " << err3 << std::endl;
+    std::cout << "Error norm for blasfeo call 4 (tn): " << err4 << std::endl;
+
+    blasfeo_free_dmat(&sA);
+    blasfeo_free_dmat(&sB);
+    blasfeo_free_dmat(&sAt);
+    blasfeo_free_dmat(&sBt);
+    blasfeo_free_dmat(&sM_ref);
+    blasfeo_free_dmat(&sM1);
+    blasfeo_free_dmat(&sM2);
+    blasfeo_free_dmat(&sM3);
+    blasfeo_free_dmat(&sM4);
 
     return 0;
 }
