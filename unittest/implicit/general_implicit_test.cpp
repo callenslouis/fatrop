@@ -22,7 +22,7 @@ class GeneralImplicitAugSystemSolverTest : public ::testing::Test
 // protected:
 public:
     bool J_matrix_is_idendity = false;
-    bool J_matrix_full_rank = true;
+    bool J_matrix_full_rank = false;
     bool no_second_order_effects = false;
 
     // Create OcpDims object
@@ -39,9 +39,9 @@ public:
     // std::vector<Index> ng = {0, 4, 20, 6, 5, 12, 2, 19, 17, 0, 15, 18};
     // std::vector<Index> ng_ineq = {19, 18, 8, 7, 0, 15, 10, 18, 20, 2, 6, 10};
     int K = 2;
-    std::vector<Index> nx = {4, 5};
-    std::vector<Index> r =  {4, 5};
-    std::vector<Index> nu = {10, 0};
+    std::vector<Index> nx = {1, 1};
+    std::vector<Index> r =  {0, 0};
+    std::vector<Index> nu = {0, 0};
     std::vector<Index> ng = {0, 0};
     std::vector<Index> ng_ineq = {0, 0};
 
@@ -122,19 +122,19 @@ public:
                 transpose(jacobian.BAbt[k].block(nu + nx, nx_next, 0, 0));
             full_matrix_jacobian.block(nx_next, nx_next, offs_eq_dyn, offs_x_next) = 
                 transpose(jacobian.Jt[k]);
-            hessian.FuFxt[k].block(nx_next, nx + nu, 0, 0) =
-                ::test::random_matrix(nx_next, nx + nu);
+            hessian.FuFx[k].block(nx + nu, nx_next, 0, 0) =
+                ::test::random_matrix(nx + nu, nx_next);
             if (no_second_order_effects){
-                hessian.FuFxt[k].block(nx_next, nx + nu, 0, 0) =
-                    ::test::empty_matrix(nx_next, nx + nu);
+                hessian.FuFx[k].block(nx + nu, nx_next, 0, 0) =
+                    ::test::empty_matrix(nx + nu, nx_next);
             } else {
-                hessian.FuFxt[k].block(nx_next, nx + nu, 0, 0) =
-                    ::test::random_matrix(nx_next, nx + nu, 0.0, 0.1);
+                hessian.FuFx[k].block(nx + nu, nx_next, 0, 0) =
+                    ::test::random_matrix(nx + nu, nx_next, 0.0, 0.1);
             }
             full_matrix_hessian.block(nx_next, nu + nx, offs_x_next, offs_ux) = 
-                hessian.FuFxt[k];
+                transpose(hessian.FuFx[k]);
             full_matrix_hessian.block(nu + nx, nx_next, offs_ux, offs_x_next) =
-                transpose(hessian.FuFxt[k]);
+                hessian.FuFx[k];
         }
         // equality path equality constraints
         for (Index k = 0; k < info.dims.K; ++k)
@@ -217,7 +217,7 @@ class RandomAugSystemSolverTest : public ::testing::Test
 {
 // protected:
 public:
-    bool full_rank = true;
+    bool full_rank = false;
     bool no_second_order_effects = false;
 
     // Create OcpDims object
@@ -386,16 +386,16 @@ public:
 
                 if constexpr (std::is_same_v<T, ImplicitOcpType>){
                     if (no_second_order_effects){
-                        hessian.value().FuFxt[k].block(nx_next, nx + nu, 0, 0) =
-                            ::test::empty_matrix(nx_next, nx + nu);
+                        hessian.value().FuFx[k].block(nx + nu, nx_next, 0, 0) =
+                            ::test::empty_matrix(nx + nu, nx_next);
                     } else {
-                        hessian.value().FuFxt[k].block(nx_next, nx + nu, 0, 0) =
-                            ::test::random_matrix(nx_next, nx + nu);
+                        hessian.value().FuFx[k].block(nx + nu, nx_next, 0, 0) =
+                            ::test::random_matrix(nx + nu, nx_next);
                     }
                     full_matrix_hessian.value().block(nx_next, nu + nx, offs_x_next, offs_ux) = 
-                        hessian.value().FuFxt[k];
+                        transpose(hessian.value().FuFx[k]);
                     full_matrix_hessian.value().block(nu + nx, nx_next, offs_ux, offs_x_next) =
-                        transpose(hessian.value().FuFxt[k]);
+                        hessian.value().FuFx[k];
                 }
             }
         }
@@ -473,12 +473,8 @@ void CheckSolution(const ProblemInfo &info,
     for (Index i = 0; i < info.number_of_primal_variables; ++i){
         max_grad = std::max(max_grad, std::abs(grad(i)));
     }
-    std::cout << "grad: " << grad << std::endl;
-    VecRealAllocated y(info.number_of_primal_variables);
-    for (int i = 0; i < info.number_of_primal_variables; i++){ y(i) = i;}
-    hessian.apply_on_right(info, y, 1.0, y, y);
-    std::cout << "hess applied: " << y << std::endl;
     EXPECT_NEAR(max_grad, 0, 1e-5);
+    std::cout << "grad: " << grad << std::endl;
 }
 
 void PrintFullKKT(const ProblemInfo &info,
@@ -556,8 +552,6 @@ TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
     CheckSolution(info, jacobian, hessian, D_x, D_s, rhs_x, rhs_g, x, mult);
 }
 
-
-/*
 // using SolverTypes = ::testing::Types<OcpType, ImplicitOcpType>;
 using SolverTypes = ::testing::Types<ImplicitOcpType>;
 TYPED_TEST_SUITE(RandomAugSystemSolverTest, SolverTypes);
@@ -600,4 +594,3 @@ TYPED_TEST(RandomAugSystemSolverTest, TestRandomSolve)
         // PrintKKTSparsity(this->full_kkt_matrix.value());
     }
 }
-*/

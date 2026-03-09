@@ -112,7 +112,7 @@ namespace fatrop
                                   lam_dyn_k, lam_eq_k, lam_eq_ineq_k,
                                   &hess.RSQrqt[k].mat(), 
                                   (k < info.dims.K - 1) ? &hess.RSQrqt[k+1].mat() : nullptr,
-                                  (k < info.dims.K - 1) ? &hess.FuFxt[k].mat() : nullptr,
+                                  (k < info.dims.K - 1) ? &hess.FuFx[k].mat() : nullptr,
                                   k);
             } else {
                 ocp_->eval_RSQrqt(&objective_scale, inputs_k, states_k, lam_dyn_k, lam_eq_k,

@@ -281,10 +281,11 @@ namespace fatrop
     private:
         // temporaries, pre-allocated during construction to avoid allocation during
         // optimization
-        std::vector<MatRealAllocated> FuFxt_underbar;
-        std::vector<MatRealAllocated> GuGxt_tilde;
-        std::vector<MatRealAllocated> GuGxt_hat;
+        std::vector<MatRealAllocated> FuFx_underbar;
+        std::vector<MatRealAllocated> GuGx_tilde;
+        std::vector<MatRealAllocated> GuGx_hat;
         std::vector<MatRealAllocated> RSQrqt_underbar;
+        std::vector<MatRealAllocated> v_r_tilde;
 
         std::vector<MatRealAllocated> Ppt;
         std::vector<MatRealAllocated> Hh;

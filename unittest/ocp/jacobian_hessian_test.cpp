@@ -506,9 +506,9 @@ protected:
             hessian.RSQrqt[k].diagonal() = 2.0 * (k + 1);
             hessian.RSQrqt[k](0, 1) = 1e-2;
             hessian.RSQrqt[k](1, 0) = 1e-2;
-            hessian.FuFxt[k] = ::test::random_matrix(
-                dims.number_of_states[k] + dims.number_of_controls[k],
-                dims.number_of_states[k + 1]);
+            hessian.FuFx[k] = ::test::random_matrix(
+                dims.number_of_states[k + 1],
+                dims.number_of_states[k] + dims.number_of_controls[k]);
         }
         hessian.RSQrqt[dims.K-1].diagonal() = 2.0 * (dims.K);
             hessian.RSQrqt[dims.K-1](0, 1) = 1e-2;
@@ -530,9 +530,9 @@ protected:
             full_matrix.block(nu + nx, nu + nx, offs_ux, offs_ux) =
                 hessian.RSQrqt[k].block(nu + nx, nu + nx, 0, 0);
             full_matrix.block(nx_next, nu + nx, offs_x_next, offs_ux) =
-                transpose(hessian.FuFxt[k]);
+                hessian.FuFx[k];
             full_matrix.block(nu + nx, nx_next, offs_ux, offs_x_next) =
-                hessian.FuFxt[k];
+                transpose(hessian.FuFx[k]);
         }
         Index nu = dims.number_of_controls[dims.K - 1];
         Index nx = dims.number_of_states[dims.K - 1];

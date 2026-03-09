@@ -251,19 +251,19 @@ public:
                 transpose(jacobian.BAbt[k].block(nu + nx, nx_next, 0, 0));
             full_matrix_jacobian.block(nx_next, nx_next, offs_eq_dyn, offs_x_next) = 
                 transpose(jacobian.Jt[k]);
-            hessian.FuFxt[k].block(nx + nu, nx_next, 0, 0) =
-                ::test::random_matrix(nx + nu, nx_next);
+            hessian.FuFx[k].block(nx_next, nx + nu, 0, 0) =
+                ::test::random_matrix(nx_next, nx + nu);
             if (CREATE_EXPLICIT_EQUIVALENT){
-                hessian.FuFxt[k].block(nx + nu, nx_next, 0, 0) =
-                    ::test::empty_matrix(nx + nu, nx_next);
+                hessian.FuFx[k].block(nx_next, nx + nu, 0, 0) =
+                    ::test::empty_matrix(nx_next, nx + nu);
             } else {
-                hessian.FuFxt[k].block(nx + nu, nx_next, 0, 0) =
-                    ::test::random_matrix(nx + nu, nx_next);
+                hessian.FuFx[k].block(nx_next, nx + nu, 0, 0) =
+                    ::test::random_matrix(nx_next, nx + nu);
             }
             full_matrix_hessian.block(nx_next, nu + nx, offs_x_next, offs_ux) = 
-                transpose(hessian.FuFxt[k]);
+                hessian.FuFx[k];
             full_matrix_hessian.block(nu + nx, nx_next, offs_ux, offs_x_next) =
-                hessian.FuFxt[k];
+                transpose(hessian.FuFx[k]);
         }
         // equality path equality constraints
         for (Index k = 0; k < info.dims.K; ++k)
@@ -434,17 +434,17 @@ public:
                 transpose(jacobian.Jt[k]);
 
             if (USE_ZERO_F){
-                hessian.FuFxt[k].block(nx + nu, nx_next, 0, 0) =
-                    ::test::empty_matrix(nx + nu, nx_next);    
+                hessian.FuFx[k].block(nx_next, nx + nu, 0, 0) =
+                    ::test::empty_matrix(nx_next, nx + nu);    
             } else {
-                hessian.FuFxt[k].block(nx + nu, nx_next, 0, 0) =
-                    ::test::random_matrix(nx + nu, nx_next);
+                hessian.FuFx[k].block(nx_next, nx + nu, 0, 0) =
+                    ::test::random_matrix(nx_next, nx + nu);
             }
 
             full_matrix_hessian.block(nx_next, nu + nx, offs_x_next, offs_ux) = 
-                transpose(hessian.FuFxt[k]);
+                hessian.FuFx[k];
             full_matrix_hessian.block(nu + nx, nx_next, offs_ux, offs_x_next) =
-                hessian.FuFxt[k];
+                transpose(hessian.FuFx[k]);
         }
         // equality path equality constraints
         for (Index k = 0; k < info.dims.K; ++k)
@@ -688,8 +688,8 @@ class ImplicitVsReformulationTester
                 Index nx_next = info_i.value().dims.number_of_states[k + 1];
                 Index offs_eq_dyn = info_i.value().offsets_g_eq_dyn[k];
                 
-                hessian_i.value().FuFxt[k].block(nx + nu, nx_next, 0, 0) =
-                    ::test::random_matrix(nx + nu, nx_next);
+                hessian_i.value().FuFx[k].block(nx_next, nx + nu, 0, 0) =
+                    ::test::random_matrix(nx_next, nx + nu);
             }
 
             // Implicit OCP

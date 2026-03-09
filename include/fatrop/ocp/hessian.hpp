@@ -107,20 +107,20 @@ namespace fatrop
             }
 
             // store additional dynamics hessians
-            FuFxt.reserve(dims.K - 1);
-            GuGxt.reserve(dims.K - 1);
-            FuFxt_original.reserve(dims.K - 1);
-            GuGxt_original.reserve(dims.K - 1);
+            FuFx.reserve(dims.K - 1);
+            GuGx.reserve(dims.K - 1);
+            FuFx_original.reserve(dims.K - 1);
+            GuGx_original.reserve(dims.K - 1);
             for (int k = 0; k < dims.K - 1; ++k)
             {
-                FuFxt.emplace_back(dims.number_of_states[k + 1] + 8,
-                                   dims.number_of_controls[k] + dims.number_of_states[k] + 8);
-                FuFxt_original.emplace_back(dims.number_of_states[k + 1] + 8,
-                                            dims.number_of_controls[k] + dims.number_of_states[k] + 8);
-                GuGxt.emplace_back(dims.number_of_controls[k + 1] + dims.number_of_states[k + 1] + 8, 
-                                   dims.number_of_controls[k] + dims.number_of_states[k] + 8);
-                GuGxt_original.emplace_back(dims.number_of_controls[k + 1] + dims.number_of_states[k + 1] + 8,
-                                            dims.number_of_controls[k] + dims.number_of_states[k] + 8);
+                FuFx.emplace_back( dims.number_of_controls[k] + dims.number_of_states[k] + 8,
+                                  dims.number_of_states[k + 1] + 8);
+                FuFx_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 8,
+                                           dims.number_of_states[k + 1] + 8);
+                GuGx.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 8,
+                                  dims.number_of_controls[k + 1] + dims.number_of_states[k + 1] + 8);
+                GuGx_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 8,
+                                           dims.number_of_controls[k + 1] + dims.number_of_states[k + 1] + 8);
             }
         }
 
@@ -129,10 +129,10 @@ namespace fatrop
 
         Hessian(Hessian<ImplicitOcpType> &&other)
             : Hessian<OcpType>(std::move(other)),
-              FuFxt(std::move(other.FuFxt)),
-              FuFxt_original(std::move(other.FuFxt_original)),
-              GuGxt(std::move(other.GuGxt)),
-              GuGxt_original(std::move(other.GuGxt_original)),
+              FuFx(std::move(other.FuFx)),
+              FuFx_original(std::move(other.FuFx_original)),
+              GuGx(std::move(other.GuGx)),
+              GuGx_original(std::move(other.GuGx_original)),
               RSQrqt_original(std::move(other.RSQrqt_original)),
               duration_copy_RSQrqt(other.duration_copy_RSQrqt),
               duration_modifying_RSQrqt(other.duration_modifying_RSQrqt) {
@@ -143,10 +143,10 @@ namespace fatrop
         Hessian &operator=(Hessian &&other){
             if (this != &other){
                 Hessian<OcpType>::operator=(std::move(other));
-                FuFxt = std::move(other.FuFxt);
-                FuFxt_original = std::move(other.FuFxt_original);
-                GuGxt = std::move(other.GuGxt);
-                GuGxt_original = std::move(other.GuGxt_original);
+                FuFx = std::move(other.FuFx);
+                FuFx_original = std::move(other.FuFx_original);
+                GuGx = std::move(other.GuGx);
+                GuGx_original = std::move(other.GuGx_original);
                 RSQrqt_original = std::move(other.RSQrqt_original);
                 duration_copy_RSQrqt = other.duration_copy_RSQrqt;
                 duration_modifying_RSQrqt = other.duration_modifying_RSQrqt;
@@ -159,21 +159,17 @@ namespace fatrop
 
         void PreProcess(const ProblemInfo &info, Jacobian<ImplicitOcpType> &jacobian,
                         VecRealView &f, VecRealView &g);
-        std::map<std::string, double> TestPreProcessImplementation(
-                                                const ProblemInfo &info,
-                                                Jacobian<ImplicitOcpType> &jacobian,
-                                                VecRealView &f, VecRealView &g);
         void ResetPreProcess(const ProblemInfo &info, const Jacobian<ImplicitOcpType> &jacobian);
 
         // Overloading (to account for changed structure)
         void apply_on_right(const OcpInfo& info, const VecRealView& x, Scalar alpha, const VecRealView& y, VecRealView& out) const;
 
         // dimensions nu[k] + nx[k] x nx[k+1]
-        std::vector<MatRealAllocated> FuFxt;
-        std::vector<MatRealAllocated> GuGxt; // contains preprocessed info
+        std::vector<MatRealAllocated> FuFx;
+        std::vector<MatRealAllocated> GuGx; // contains preprocessed info
         std::vector<MatRealAllocated> RSQrqt_original;
-        std::vector<MatRealAllocated> FuFxt_original;
-        std::vector<MatRealAllocated> GuGxt_original;
+        std::vector<MatRealAllocated> FuFx_original;
+        std::vector<MatRealAllocated> GuGx_original;
 
         // printing
         friend std::ostream& operator<<(std::ostream& os, const Hessian<ImplicitOcpType>& hess)
@@ -185,7 +181,7 @@ namespace fatrop
                 os << mat << std::endl;
             }
             os << "FuFxt:" << std::endl;
-            for (const auto &mat : hess.FuFxt)
+            for (const auto &mat : hess.FuFx)
             {
                 os << mat << std::endl;
             }

@@ -259,8 +259,8 @@ protected:
                 Index nx_next = info.dims.number_of_states[k + 1];
                 Index offs_eq_dyn = info.offsets_g_eq_dyn[k];
                 
-                hessian.FuFxt[k].block(nx + nu, nx_next, 0, 0) =
-                    ::test::random_matrix(nx + nu, nx_next);
+                hessian.FuFx[k].block(nx_next, nx + nu, 0, 0) =
+                    ::test::random_matrix(nx_next, nx + nu);
             }
         // fill the x vector with random values
         for (Index i = 0; i < info.number_of_primal_variables; ++i)
