@@ -39,7 +39,7 @@ public:
     // std::vector<Index> ng = {0, 4, 20, 6, 5, 12, 2, 19, 17, 0, 15, 18};
     // std::vector<Index> ng_ineq = {19, 18, 8, 7, 0, 15, 10, 18, 20, 2, 6, 10};
     int K = 2;
-    std::vector<Index> nx = {1, 1};
+    std::vector<Index> nx = {2, 1};
     std::vector<Index> r =  {0, 0};
     std::vector<Index> nu = {0, 0};
     std::vector<Index> ng = {0, 0};
@@ -129,7 +129,7 @@ public:
                     ::test::empty_matrix(nx + nu, nx_next);
             } else {
                 hessian.FuFx[k].block(nx + nu, nx_next, 0, 0) =
-                    ::test::random_matrix(nx + nu, nx_next, 0.0, 0.1);
+                    ::test::random_matrix(nx + nu, nx_next, 0.0, 0.5);
             }
             full_matrix_hessian.block(nx_next, nu + nx, offs_x_next, offs_ux) = 
                 transpose(hessian.FuFx[k]);

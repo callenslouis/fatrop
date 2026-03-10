@@ -2,60 +2,67 @@ import numpy as np
 
 K = 2
 nu = [0, 0]
-nx = [1, 1]
+nx = [2, 1]
 ng_ineq = [0, 0]
 ng_eq = [0, 0]
 r = [0]
 modified_K = 2
 modified_nu = [0, 1]
-modified_nx = [1, 0]
+modified_nx = [2, 0]
 modified_ng_ineq = [0, 0]
 modified_ng_eq = [1, 0]
 RSQrqt = [
 np.array([
-	[0.712785 ],
-	[0 ],
+	[1.45391, 0.860652 ],
+	[0.860652, 0.536581 ],
+	[0, 1 ],
 	])
 ,
 np.array([
-	[1.83607 ],
-	[1 ],
+	[0.0885268 ],
+	[2 ],
 	])
 ]
 RSQrqt_original = [
 np.array([
-	[0.712785 ],
-	[0 ],
+	[1.45391, 0.860652 ],
+	[0.860652, 0.536581 ],
+	[0, 1 ],
 	])
 ,
 np.array([
-	[0.736071 ],
-	[1 ],
+	[0.0885268 ],
+	[2 ],
 	])
 ]
 FuFx = [
 np.array([
 	[],
+	[],
 	])
 ]
 FuFx_original = [
 np.array([
-	[0.0623564 ],
+	[0.0477665 ],
+	[0.0812169 ],
 	])
 ]
 GuGx = [
 np.array([
-	[0.0623564 ],
+	[0.0477665 ],
+	[0.0812169 ],
 	])
 ]
 GuGx_original = [
 np.array([
+	[],
 	[],
 	])
 ]
 Gg_eqt = [
 np.array([
 	[0.592845 ],
+	[0.844266 ],
 	[0 ],
 	])
 ,
@@ -66,6 +73,7 @@ np.array([
 ]
 Gg_eqt_original = [
 np.array([
+	[],
 	[],
 	[],
 	])
@@ -79,6 +87,7 @@ Gg_ineqt = [
 np.array([
 	[],
 	[],
+	[],
 	])
 ,
 np.array([
@@ -88,6 +97,7 @@ np.array([
 ]
 Gg_ineqt_original = [
 np.array([
+	[],
 	[],
 	[],
 	])
@@ -101,11 +111,13 @@ BAbt = [
 np.array([
 	[],
 	[],
+	[],
 	])
 ]
 BAbt_original = [
 np.array([
 	[0.592845 ],
+	[0.844266 ],
 	[0 ],
 	])
 ]
@@ -132,8 +144,8 @@ np.array([
 	[1 ],
 	])
 ]
-x = np.array([0, -0.544641])
-eq_mult = np.array([0])
+x = np.array([3.50096, -2.45838, -22.5596])
+eq_mult = np.array([-3.22617])
 
 BAbt_expected = BAbt_original.copy()
 GuGx_expected = GuGx_original.copy()
@@ -211,14 +223,12 @@ for k in range(K):
 primal_x_offset = 0
 for k in range(K):
     if k > 0:
-        print(x[primal_x_offset:primal_x_offset+nx[k]+nu[k]])
         ukxk = x[primal_x_offset:primal_x_offset+nu[k]+nx[k]]
         uk = ukxk[:nu[k]]
         sk = ukxk[nu[k]:modified_nu[k]]
         xk = ukxk[modified_nu[k]:]
         x[primal_x_offset+nu[k]:primal_x_offset + nu[k] + r[k-1]] = ukxk[modified_nu[k]:]
         x[primal_x_offset+nu[k]+r[k-1]:primal_x_offset+nu[k]+nx[k]] = ukxk[:modified_nu[k]]
-        print(x[primal_x_offset:primal_x_offset+nx[k]+nu[k]])
 
         x[primal_x_offset:primal_x_offset+nx[k]+nu[k]] = Dr_inv_list[k-1] @ x[primal_x_offset:primal_x_offset+nx[k]+nu[k]] 
 
