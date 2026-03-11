@@ -21,7 +21,7 @@ class GeneralImplicitAugSystemSolverTest : public ::testing::Test
 {
 // protected:
 public:
-    bool J_matrix_is_idendity = true;
+    bool J_matrix_is_idendity = false;
     bool J_matrix_full_rank = false;
     bool no_second_order_effects = false;
 
@@ -129,9 +129,8 @@ public:
                     ::test::empty_matrix(nx + nu, nx_next);
             } else {
                 hessian.FuFx[k].block(nx + nu, nx_next, 0, 0) =
-                    ::test::random_matrix(nx + nu, nx_next, 0.0, 0.5);
+                    ::test::random_matrix(nx + nu, nx_next, 0.0, 0.1);
             }
-            hessian.FuFx[k].block(nx + nu, 1, 0, 0) = 0;
             full_matrix_hessian.block(nx_next, nu + nx, offs_x_next, offs_ux) = 
                 transpose(hessian.FuFx[k]);
             full_matrix_hessian.block(nu + nx, nx_next, offs_ux, offs_x_next) =
