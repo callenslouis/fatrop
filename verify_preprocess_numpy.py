@@ -191,6 +191,7 @@ for k in range(K-1):
                    [np.zeros((1, W.shape[1])), 1]])
     
     BAbt_expected[k] = BAbt_expected[k] @ Dl_inv.T
+    BAbt_expected[k] = BAbt_expected[k][:, :modified_nx[k+1]]
     
     temp = np.zeros((nu[k+1] + nx[k+1], nu[k] + nx[k]))
     temp[nu[k+1]:, :] = Dr_inv.T @ FuFx_expected[k].T
@@ -198,6 +199,7 @@ for k in range(K-1):
     temp = temp.T
     GuGx_expected[k] = temp[:, :nu[k+1]]
     FuFx_expected[k] = temp[:, nu[k+1]:]
+    FuFx_expected[k] = FuFx_expected[k][:, :modified_nx[k+1]]
 
     RSQrqt_expected[k+1][nu[k+1]:nu[k+1]+nx[k+1], :] = np.linalg.inv(Dr).T @ RSQrqt_expected[k+1][nu[k+1]:nu[k+1]+nx[k+1], :]
     RSQrqt_expected[k+1][:,nu[k+1]:] = RSQrqt_expected[k+1][:,nu[k+1]:] @ np.linalg.inv(Dr)
