@@ -39,8 +39,8 @@ public:
     // std::vector<Index> ng = {0, 4, 20, 6, 5, 12, 2, 19, 17, 0, 15, 18};
     // std::vector<Index> ng_ineq = {19, 18, 8, 7, 0, 15, 10, 18, 20, 2, 6, 10};
     int K = 2;
-    std::vector<Index> nx = {1, 1};
-    std::vector<Index> r =  {0, 0};
+    std::vector<Index> nx = {1, 2};
+    std::vector<Index> r =  {0, 1};
     std::vector<Index> nu = {1, 0};
     std::vector<Index> ng = {0, 0};
     std::vector<Index> ng_ineq = {0, 0};
