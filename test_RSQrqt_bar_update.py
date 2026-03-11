@@ -10,8 +10,8 @@ Llt = np.array([
 	[0.000000 ],
 	])
 GuGx_tilde = np.array([
-	[0.047767 ],
-	[0.081217 ],
+	[0.238833 ],
+	[0.406084 ],
 	])
 #-----------------------------------
 #testing RSQrqt_bar update (also copy RSQrqt_hat, Llt and GuGxtilde definition)
@@ -33,24 +33,25 @@ v_r_tilde = np.array([
 	[6.721907, 0.000000 ],
 	])
 GuGx_hat = np.array([
-	[0.160541 ],
-	[0.272966 ],
+	[0.802705 ],
+	[1.364831 ],
 	])
 RSQrqt_underbar_intermediate = np.array([
-	[1.428133, 0.816830 ],
-	[0.816830, 0.462070 ],
+	[0.809571, -0.234905 ],
+	[-0.234905, -1.326182 ],
 	[0.000000, 1.000000 ],
 	])
 temp = np.array([
-	[-1.079142, -1.834853 ],
+	[-5.395709, -9.174265 ],
 	])
 RSQrqt_underbar_after = np.array([
-	[1.428133, 0.816830 ],
-	[0.816830, 0.462070 ],
-	[-1.079142, -0.834853 ],
+	[0.809571, -0.234905 ],
+	[-0.234905, -1.326182 ],
+	[-5.395709, -8.174265 ],
 	])
 
 lmbd = Llt[:nu, :nu]
+print(f"Lambda should be \n{lmbd}")
 for i in range(nu):
     for j in range(i+1,nu):
         lmbd[i,j] = 0
