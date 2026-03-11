@@ -1407,7 +1407,6 @@ ModifiedAugSystemSolver::ModifiedAugSystemSolver(const ProblemInfo &info)
     Index max_number_of_eq_consttraints = *std::max_element(
         new_info.dims.number_of_eq_constraints.begin(), new_info.dims.number_of_eq_constraints.end());
 
-    FuFx_underbar.emplace_back(max_number_of_variables + 1, max_number_of_variables);
     AL.emplace_back(max_number_of_variables + 1, max_number_of_variables);
     Ggt_stripe.emplace_back(max_number_of_variables + 1, max_number_of_variables);
     GgLt.emplace_back(max_number_of_variables + 1, max_number_of_variables);
@@ -1420,6 +1419,7 @@ ModifiedAugSystemSolver::ModifiedAugSystemSolver(const ProblemInfo &info)
     LlIt.emplace_back(new_info.dims.number_of_states[0] + 1, new_info.dims.number_of_states[0]);
     Ggt_ineq_temp.emplace_back(max_number_of_variables + 1, max_number_of_ineq_constraints);
 
+    FuFx_underbar.reserve(new_info.dims.K-1);
     GuGx_tilde.reserve(new_info.dims.K-1);
     GuGx_hat.reserve(new_info.dims.K-1);
     RSQrqt_underbar.reserve(new_info.dims.K);
@@ -1442,6 +1442,8 @@ ModifiedAugSystemSolver::ModifiedAugSystemSolver(const ProblemInfo &info)
         Llt.emplace_back(nu + nx + 1, nu);
         if (k < new_info.dims.K - 1){
             Index nu_next = new_info.dims.number_of_controls[k+1];
+            Index nx_next = new_info.dims.number_of_states[k+1];
+            FuFx_underbar.emplace_back(nu + nx, nx_next);
             GuGx_tilde.emplace_back(nu + nx, nu_next);
             GuGx_hat.emplace_back(nu + nx, nu_next);
         }
@@ -1522,7 +1524,7 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             rowin(nu + nx, 1.0, f, offset_u, hessian.RSQrqt[k], nu + nx, 0);
             gecp(nx + nu + 1, nu + nx, hessian.RSQrqt[k], 0, 0, RSQrqt_underbar[k], 0, 0);
             if (k > 0){
-                gecp(nunxm1, nx, hessian.FuFx[k-1], 0, 0, FuFx_underbar[0], 0, 0);
+                gecp(nunxm1, nx, hessian.FuFx[k-1], 0, 0, FuFx_underbar[k-1], 0, 0);
             }
         }
         if (k > 0){
@@ -1566,16 +1568,16 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             // std::cout << "--------------------------------------------" << std::endl;
             // std::cout << "test FuFx addition to RSQrqt" << std::endl;
             // PrintNpArray(jacobian.BAbt[k], "BAbt");
-            // PrintNpArray(FuFx_underbar[0], "FuFx");
+            // PrintNpArray(FuFx_underbar[k], "FuFx");
             // PrintNpArray(hessian.FuFx[k], "FuFx_hessian");
             // PrintNpArray(RSQrqt_tilde[k], "RSQrqt");
             // std::cout << "nu = " << nu << std::endl;
             // std::cout << "nx = " << nx << std::endl;
             // std::cout << "nx_next = " << nxp1 << std::endl;
-            gemm_nt(nu + nx + 1, nu + nx, nxp1, 1.0, jacobian.BAbt[k], 0, 0, FuFx_underbar[0], 0, 0, 1.0,
+            gemm_nt(nu + nx + 1, nu + nx, nxp1, 1.0, jacobian.BAbt[k], 0, 0, FuFx_underbar[k], 0, 0, 1.0,
                     RSQrqt_tilde[k], 0, 0, RSQrqt_tilde[k], 0, 0);
             // PrintNpArray(RSQrqt_tilde[k], "RSQrqt_intermediate");
-            gemm_nt(nu + nx, nu + nx, nxp1, 1.0, FuFx_underbar[0], 0, 0, jacobian.BAbt[k], 0, 0, 1.0,
+            gemm_nt(nu + nx, nu + nx, nxp1, 1.0, FuFx_underbar[k], 0, 0, jacobian.BAbt[k], 0, 0, 1.0,
                     RSQrqt_tilde[k], 0, 0, RSQrqt_tilde[k], 0, 0);
             // PrintNpArray(RSQrqt_tilde[k], "RSQrqt_after");
             // std::cout << "--------------------------------------------" << std::endl;
@@ -1699,12 +1701,12 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
                 // PrintNpArray(GuGx_tilde[k-1], "GuGx_tilde after permutation");
                 
                 // FuFx = FuFx + GuGx * [Hx_tilde; 0]
-                gecp(nunxm1, nx, hessian.FuFx[k-1], 0, 0, FuFx_underbar[0], 0, 0);
-                // PrintNpArray(FuFx_underbar[0], "FuFx_underbar before update");
+                gecp(nunxm1, nx, hessian.FuFx[k-1], 0, 0, FuFx_underbar[k-1], 0, 0);
+                // PrintNpArray(FuFx_underbar[k-1], "FuFx_underbar before update");
                 if (print_debug_lines) {std::cout << __LINE__ << std::endl;}
                 gemm_tn(nunxm1, nx, rank_k, 1.0, GuGx_tilde[k-1], 0, 0, 
-                        Ggt_tilde[k], nu - rank_k, 0, 1.0, FuFx_underbar[0], 0, 0, FuFx_underbar[0], 0, 0);               
-                // PrintNpArray(FuFx_underbar[0], "FuFx_underbar before update");
+                        Ggt_tilde[k], nu - rank_k, 0, 1.0, FuFx_underbar[k-1], 0, 0, FuFx_underbar[k-1], 0, 0);               
+                // PrintNpArray(FuFx_underbar[k-1], "FuFx_underbar before update");
 
                 // [r^T q^T] = [r^T q^T] + [h_tilde, 0] * GuGxt_tilde
                 if (print_debug_lines) {std::cout << __LINE__ << std::endl;}
@@ -1788,9 +1790,12 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
                     // PrintNpArray(RSQrqt_underbar[k-1], "RSQrqt_underbar_after");
 
                     // FuFx = FuFx - S_hat^T * L^-1 GuGx
+                    // PrintNpArray(FuFx_underbar[k-1], "FuFx_underbar_before");
+                    // PrintNpArray(RSQrq_hat_curr_p[0], "RSQrq_hat_curr_p");
                     if (print_debug_lines) {std::cout << __LINE__ << std::endl;}
-                    gemm_nn(nunxm1, nx, nu - rank_k, -1.0, RSQrq_hat_curr_p[0], nu - rank_k, 0, GuGx_hat[k-1], 0, rank_k,
-                            1.0, FuFx_underbar[0], 0, 0, FuFx_underbar[0], 0, 0);
+                    gemm_nn(nunxm1, nx, nu - rank_k, -1.0, Llt[k], nu - rank_k, 0, GuGx_hat[k-1], 0, rank_k,
+                            1.0, FuFx_underbar[k-1], 0, 0, FuFx_underbar[k-1], 0, 0);
+                    // PrintNpArray(FuFx_underbar[k-1], "FuFx_underbar_after");
                     // std::cout << "-----------------------------------" << std::endl;
                 }
             }
@@ -1885,6 +1890,8 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
         PrI[0].apply_inverse(rankI, &x.vec(), offs_x);
     }
     // other stages
+    // std::cout << "x initial solution:\n" << x << std::endl;
+    // std::cout << "eq_mult initial solution:\n" << eq_mult << std::endl;
     // std::cout << " === FORWARD OTHER STAGES === " << std::endl;
     for (Index k = 0; k < info.dims.K; k++)
     {
@@ -1921,12 +1928,13 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
                 // std::cout << "----------------------------------------" << std::endl;
                 // std::cout << "test ukb_tilde update" << std::endl;
                 // PrintNpArray(GuGx_hat[k-1], "GuGx_hat");
+                // PrintNpArray(Llt[k], "Llt");
                 // std::cout << "nunxm1 = " << nunxm1 << std::endl;
                 // std::cout << "nu = " << nu << std::endl;
                 // std::cout << "rho_k = " << rho_k << std::endl;
                 // PrintNpArray(x, info.offsets_primal_u[k-1], nunxm1, "ukxk");
                 // PrintNpArray(x, info.offsets_primal_u[k], nu, "uk_before");
-                trsm_rltn(nunxm1, numrho_k, 1.0, Llt[k], 0, 0, GuGx_hat[k-1], 0, rank_k, GuGx_hat[k-1], 0, rank_k);
+                trsm_rlnn(nunxm1, numrho_k, 1.0, Llt[k], 0, 0, GuGx_hat[k-1], 0, rank_k, GuGx_hat[k-1], 0, rank_k);
                 gemv_t(nunxm1, nu - rho_k, -1.0, GuGx_hat[k-1], 0, rho[k-1], x, info.offsets_primal_u[k-1], 
                        1.0, x, offs + rho_k, x, offs + rho_k);
                 // PrintNpArray(x, info.offsets_primal_u[k], nu, "uk_after");
@@ -1997,8 +2005,10 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             // PrintNpArray(eq_mult, offs_dyn_eq_k, nxp1, "eq_mult");
             // PrintNpArray(hessian.FuFx[k], "FuFx");
             // PrintNpArray(x, offs, nu + nx, "x");
-            gemv_t(nu + nx, nxp1, 1.0, hessian.FuFx[k], 0, 0, x, offs, 1.0, 
+            gemv_t(nu + nx, nxp1, 1.0, FuFx_underbar[k], 0, 0, x, offs, 1.0, 
                    eq_mult, offs_dyn_eq_k, eq_mult, offs_dyn_eq_k);
+            // gemv_t(nu + nx, nxp1, 1.0, hessian.FuFx[k], 0, 0, x, offs, 1.0, 
+            //        eq_mult, offs_dyn_eq_k, eq_mult, offs_dyn_eq_k);
             // PrintNpArray(eq_mult, offs_dyn_eq_k, nxp1, "eq_mult");
             // std::cout << "----------------------------------------" << std::endl;
         }
