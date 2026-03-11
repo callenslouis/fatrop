@@ -1925,20 +1925,22 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             // + GuGxt [uk-1, xk-1]
             if (k > 0){
                 const Index nunxm1 = info.dims.number_of_controls[k-1] + info.dims.number_of_states[k-1];
-                // std::cout << "----------------------------------------" << std::endl;
-                // std::cout << "test ukb_tilde update" << std::endl;
-                // PrintNpArray(GuGx_hat[k-1], "GuGx_hat");
-                // PrintNpArray(Llt[k], "Llt");
-                // std::cout << "nunxm1 = " << nunxm1 << std::endl;
-                // std::cout << "nu = " << nu << std::endl;
-                // std::cout << "rho_k = " << rho_k << std::endl;
-                // PrintNpArray(x, info.offsets_primal_u[k-1], nunxm1, "ukxk");
-                // PrintNpArray(x, info.offsets_primal_u[k], nu, "uk_before");
-                trsm_rlnn(nunxm1, numrho_k, 1.0, Llt[k], 0, 0, GuGx_hat[k-1], 0, rank_k, GuGx_hat[k-1], 0, rank_k);
-                gemv_t(nunxm1, nu - rho_k, -1.0, GuGx_hat[k-1], 0, rho[k-1], x, info.offsets_primal_u[k-1], 
+                std::cout << "----------------------------------------" << std::endl;
+                std::cout << "test ukb_tilde update" << std::endl;
+                PrintNpArray(hessian.GuGx[k-1], "GuGx");
+                PrintNpArray(GuGx_hat[k-1], "GuGx_hat");
+                PrintNpArray(Llt[k], "Llt");
+                std::cout << "nunxm1 = " << nunxm1 << std::endl;
+                std::cout << "nu = " << nu << std::endl;
+                std::cout << "rho_k = " << rho_k << std::endl;
+                PrintNpArray(x, info.offsets_primal_u[k-1], nunxm1, "ukxk");
+                PrintNpArray(x, info.offsets_primal_u[k], nu, "uk_before");
+                trsm_rlnn(nunxm1, numrho_k, 1.0, Llt[k], 0, 0, GuGx_hat[k-1], 0, rho_k, GuGx_hat[k-1], 0, rho_k);
+                PrintNpArray(GuGx_hat[k-1], "GuGx_hat_intermediate");
+                gemv_t(nunxm1, nu - rho_k, -1.0, GuGx_hat[k-1], 0, rho_k, x, info.offsets_primal_u[k-1], 
                        1.0, x, offs + rho_k, x, offs + rho_k);
-                // PrintNpArray(x, info.offsets_primal_u[k], nu, "uk_after");
-                // std::cout << "----------------------------------------" << std::endl;
+                PrintNpArray(x, info.offsets_primal_u[k], nu, "uk_after");
+                std::cout << "----------------------------------------" << std::endl;
             }
         }
         /// calcualate uka_tilde
