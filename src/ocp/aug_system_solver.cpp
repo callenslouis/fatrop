@@ -1959,10 +1959,12 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
                    eq_mult, offs_g_k);
             if (k > 0){
                 const Index nunxm1 = info.dims.number_of_controls[k-1] + info.dims.number_of_states[k-1];
-                // std::cout << "eq_mult before:\n" << eq_mult << std::endl;
+                std::cout << "eq_mult before:\n" << eq_mult << std::endl;
+                PrintNpArray(GuGx_tilde[k-1], "GuGx_tilde");
+                PrintNpArray(x, info.offsets_primal_u[k-1], nunxm1, "ukxk");
                 gemv_t(nunxm1, nu, 1.0, GuGx_tilde[k-1], 0, 0, x, info.offsets_primal_u[k-1], 1.0, 
                        eq_mult, offs_g_k, eq_mult, offs_g_k);
-                // std::cout << "eq_mult after:\n" << eq_mult << std::endl;
+                std::cout << "eq_mult after:\n" << eq_mult << std::endl;
             }
 
             // nu-rank_k+nx,0
@@ -2821,18 +2823,18 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
     start = std::chrono::high_resolution_clock::now();
     LinsolReturnFlag flag = ModifiedAugSystemSolver::solve(modified_info, jacobian, hessian, D_x_copy, D_s_copy, f_copy, g_copy, x, eq_mult);
 
-    // std::cout << "KKT matrix:" << std::endl;
-    // PrintNpArray(GetKKT(modified_info, jacobian, hessian, true), "KKT");
-    // VecRealAllocated full_rhs = VecRealAllocated(modified_info.number_of_primal_variables + modified_info.number_of_eq_constraints);
-    // for (Index i = 0; i < info.number_of_primal_variables; ++i){full_rhs(i) = f_copy(i) + D_x_copy(i)*x(i);}
-    // for (Index i = 0; i < info.number_of_eq_constraints; ++i){full_rhs(info.number_of_primal_variables + i) = g_copy(i);}
-    // for (Index i = 0; i < info.number_of_slack_variables; ++i){
-    //     full_rhs(info.number_of_primal_variables + info.offset_g_eq_slack + i) -= D_s(i) * eq_mult(info.offset_g_eq_slack + i);
-    // }
-    // PrintNpArray(full_rhs, "rhs");
-    // VerifyIntermediateSolution(modified_info, jacobian, hessian, x, eq_mult, f_copy, g_copy);    
-    // std::cout << "obtained x:" << std::endl << x << std::endl;
-    // std::cout << "obtained eq_mult:" << std::endl << eq_mult << std::endl;
+    std::cout << "KKT matrix:" << std::endl;
+    PrintNpArray(GetKKT(modified_info, jacobian, hessian, true), "KKT");
+    VecRealAllocated full_rhs = VecRealAllocated(modified_info.number_of_primal_variables + modified_info.number_of_eq_constraints);
+    for (Index i = 0; i < info.number_of_primal_variables; ++i){full_rhs(i) = f_copy(i) + D_x_copy(i)*x(i);}
+    for (Index i = 0; i < info.number_of_eq_constraints; ++i){full_rhs(info.number_of_primal_variables + i) = g_copy(i);}
+    for (Index i = 0; i < info.number_of_slack_variables; ++i){
+        full_rhs(info.number_of_primal_variables + info.offset_g_eq_slack + i) -= D_s(i) * eq_mult(info.offset_g_eq_slack + i);
+    }
+    PrintNpArray(full_rhs, "rhs");
+    VerifyIntermediateSolution(modified_info, jacobian, hessian, x, eq_mult, f_copy, g_copy);    
+    std::cout << "obtained x:" << std::endl << x << std::endl;
+    std::cout << "obtained eq_mult:" << std::endl << eq_mult << std::endl;
     
     auto end = std::chrono::high_resolution_clock::now();
     duration_solve = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
@@ -3176,12 +3178,14 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
             // } 
 
             // U^-T * 
+            std::cout << "eq_mult before:\n" << eq_mult << std::endl;
             trsv_lnn(jacobian.J_ranks[k-1], jacobian.U1t[k-1], 0, 0, eq_mult, info.offsets_g_eq_dyn[k-1], eq_mult, info.offsets_g_eq_dyn[k-1]);
             vecsc(jacobian.J_ranks[k-1], -1.0, eq_mult, info.offsets_g_eq_dyn[k-1]);
             // L^-T *
             trsv_unu(info.dims.number_of_states[k], info.dims.number_of_states[k], jacobian.Jt_LU[k-1], 0, 0, eq_mult, info.offsets_g_eq_dyn[k-1], eq_mult, info.offsets_g_eq_dyn[k-1]);
             // Pl * 
             jacobian.Pl_pre[k-1].apply_inverse(jacobian.J_ranks[k-1], &eq_mult.vec(), info.offsets_g_eq_dyn[k-1]);
+            std::cout << "eq_mult after:\n" << eq_mult << std::endl;
         }
     }
 
