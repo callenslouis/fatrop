@@ -159,12 +159,20 @@ void Hessian<ImplicitOcpType>::apply_on_right(const OcpInfo& info,
         Index nx = info.dims.number_of_states[k];
         Index offset_ux = info.offsets_primal_u[k];
         Index nx_next = info.dims.number_of_states[k + 1];
+        Index nu_next = info.dims.number_of_controls[k + 1];
         gemv_t(nu + nx, nx_next, 1.0, FuFx[k], 0, 0, 
                x, info.offsets_primal_u[k], 1.0, out, info.offsets_primal_x[k + 1], 
                out, info.offsets_primal_x[k + 1]);
         gemv_n(nu + nx, nx_next, 1.0, FuFx[k], 0, 0, 
                x, info.offsets_primal_x[k + 1], 1.0, out, info.offsets_primal_u[k], 
                out, info.offsets_primal_u[k]);
+        gemv_t(nu + nx, nu_next, 1.0, GuGx[k], 0, 0, 
+               x, info.offsets_primal_u[k], 1.0, out, info.offsets_primal_u[k + 1], 
+               out, info.offsets_primal_u[k + 1]);
+        gemv_n(nu + nx, nu_next, 1.0, GuGx[k], 0, 0, 
+               x, info.offsets_primal_u[k + 1], 1.0, out, info.offsets_primal_u[k], 
+               out, info.offsets_primal_u[k]);
+
     }
     if (print_debug){ std::cout << "Hessian<ImplicitOcpType>::apply_on_right done" << std::endl;}
 }
