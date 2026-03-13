@@ -41,7 +41,7 @@ public:
     int K = 2;
     std::vector<Index> nx = {1, 1};
     std::vector<Index> r =  {0, 0};
-    std::vector<Index> nu = {0, 0};
+    std::vector<Index> nu = {0, 1};
     std::vector<Index> ng = {0, 1};
     std::vector<Index> ng_ineq = {0, 0};
 
