@@ -1,77 +1,122 @@
 import numpy as np
-
-K = 2
-nu = [1, 1]
-nx = [1, 1]
-ng_ineq = [0, 0]
-ng_eq = [0, 1]
-r = [0]
-modified_K = 2
-modified_nu = [1, 2]
-modified_nx = [1, 0]
-modified_ng_ineq = [0, 0]
-modified_ng_eq = [1, 1]
-RSQrqt = [
+from test_debug_helper import *
+rank_k_values = [1, 2]
+Pl_r = [
 np.array([
-	[0.536581, 0.207331 ],
-	[0.207331, 0.0917432 ],
-	[0, 1 ],
+	[         1 ],
 	])
 ,
 np.array([
-	[0.302505, 0.450711 ],
-	[0.450711, 0.889996 ],
-	[2, 3 ],
+	[         1,          0 ],
+	[         0,          1 ],
+	])
+]
+Pr_r = [
+np.array([
+	[         1 ],
+	])
+,
+np.array([
+	[         0,          1,          0 ],
+	[         1,          0,          0 ],
+	[         0,          0,          1 ],
+	])
+]
+L_r = [
+np.array([[1],
+])
+,
+np.array([[1, 0],
+[0.590982, 1],
+])
+]
+U_r = [
+np.array([[0.731264],
+])
+,
+np.array([[0.812169, 0.272656, 0.0952729],
+[0, 0.31653, 0.0764855],
+])
+]
+
+K = 2
+nu = [1, 2]
+nx = [1, 2]
+ng_ineq = [0, 0]
+ng_eq = [0, 2]
+r = [1]
+modified_K = 2
+modified_nu = [1, 3]
+modified_nx = [1, 1]
+modified_ng_ineq = [0, 0]
+modified_ng_eq = [1, 2]
+RSQrqt = [
+np.array([
+	[   1.05175,   0.884491 ],
+	[  0.884491,    0.77675 ],
+	[         0,          1 ],
+	])
+,
+np.array([
+	[   1.59754,    1.60214,  -0.151728,    1.02673 ],
+	[   1.60214,    1.72233,  -0.100807,    1.01113 ],
+	[ -0.151728,  -0.100807,   0.184012,  -0.243659 ],
+	[   1.02673,    1.01113,  -0.243659,   0.813282 ],
+	[         2,          3,    2.53429,          4 ],
 	])
 ]
 RSQrqt_original = [
 np.array([
-	[0.536581, 0.207331 ],
-	[0.207331, 0.0917432 ],
-	[0, 1 ],
+	[   1.05175,   0.884491 ],
+	[  0.884491,    0.77675 ],
+	[         0,          1 ],
 	])
 ,
 np.array([
-	[0.302505, 0.450711 ],
-	[0.450711, 0.889996 ],
-	[2, 3 ],
+	[   1.59754,    1.60214,    1.02673,   0.481177 ],
+	[   1.60214,    1.72233,    1.01113,   0.522483 ],
+	[   1.02673,    1.01113,   0.813282,    0.25767 ],
+	[  0.481177,   0.522483,    0.25767,   0.192648 ],
+	[         2,          3,          4,          5 ],
 	])
 ]
 FuFx = [
 np.array([
-	[],
-	[],
+	[ 0.0613063 ],
+	[0.00992804 ],
 	])
 ]
 FuFx_original = [
 np.array([
-	[0.0337396 ],
-	[0.0648172 ],
+	[ 0.0613063,  0.0902349 ],
+	[0.00992804,  0.0969809 ],
 	])
 ]
 GuGx = [
 np.array([
-	[0, 0.0337396 ],
-	[0, 0.0648172 ],
+	[         0,          0,   0.052444 ],
+	[         0,          0,   0.090861 ],
 	])
 ]
 GuGx_original = [
 np.array([
-	[0 ],
-	[0 ],
+	[         0,          0 ],
+	[         0,          0 ],
 	])
 ]
 Gg_eqt = [
 np.array([
-	[0.592845 ],
-	[0.844266 ],
-	[1 ],
+	[  0.731264 ],
+	[  0.683719 ],
+	[   2.61878 ],
 	])
 ,
 np.array([
-	[0.857946 ],
-	[0.847252 ],
-	[0 ],
+	[  0.272656,   0.477665 ],
+	[  0.812169,   0.479977 ],
+	[ 0.0952729,    0.13279 ],
+	[  0.392785,   0.836079 ],
+	[         0,          1 ],
 	])
 ]
 Gg_eqt_original = [
@@ -82,9 +127,11 @@ np.array([
 	])
 ,
 np.array([
-	[0.857946 ],
-	[0.847252 ],
-	[0 ],
+	[  0.272656,   0.477665 ],
+	[  0.812169,   0.479977 ],
+	[  0.392785,   0.836079 ],
+	[  0.337396,   0.648172 ],
+	[         0,          1 ],
 	])
 ]
 Gg_ineqt = [
@@ -95,6 +142,8 @@ np.array([
 	])
 ,
 np.array([
+	[],
+	[],
 	[],
 	[],
 	[],
@@ -111,83 +160,105 @@ np.array([
 	[],
 	[],
 	[],
+	[],
+	[],
 	])
 ]
 BAbt = [
 np.array([
-	[],
-	[],
-	[],
+	[  -3.19538 ],
+	[  -4.62425 ],
+	[  -10.7798 ],
 	])
 ]
 BAbt_original = [
 np.array([
-	[0.592845 ],
-	[0.844266 ],
-	[1 ],
+	[  0.592845,   0.844266 ],
+	[  0.857946,   0.847252 ],
+	[         2,          3 ],
 	])
 ]
 Jt = [
 np.array([
-	[0 ],
+	[  0.185532,  0.0353642 ],
+	[  0.114367,  0.0217994 ],
 	])
 ]
 L = [
-np.array([[1],
+np.array([[1, 0],
+[0.19061, 1],
 ])
 ]
 U = [
-np.array([[0],
+np.array([[0.185532, 0.114367],
+[0, 0],
 ])
 ]
 Pl = [
 np.array([
-	[1 ],
+	[         1,          0 ],
+	[         0,          1 ],
 	])
 ]
 Pr = [
 np.array([
-	[1 ],
+	[         1,          0 ],
+	[         0,          1 ],
 	])
 ]
 
 
-R1 = RSQrqt[1][:modified_nu[1], :modified_nu[1]]
-G0u = GuGx[0][:modified_nu[0], :]
-G0x = GuGx[0][modified_nu[0]:modified_nu[0]+modified_nx[0], :]
-H1u = Gg_eqt[1][:modified_nu[1], :].T
-R0 = RSQrqt[0][:modified_nu[0], :modified_nu[0]]
-S0 = RSQrqt[0][:modified_nu[0], modified_nu[0]:modified_nu[0]+modified_nx[0]].T
-Q0 = RSQrqt[0][modified_nu[0]:modified_nu[0]+modified_nx[0], modified_nu[0]:modified_nu[0]+modified_nx[0]]
-H0u = Gg_eqt[0][:modified_nu[0],:].T
-H0x = Gg_eqt[0][modified_nu[0]:modified_nu[0]+modified_nx[0],:].T
-
-r1 = RSQrqt[1][modified_nu[1]+modified_nx[1]:, :modified_nu[1]].T
-h1 = Gg_eqt[1][modified_nu[1]+modified_nx[1]:, :].T
-r0 = RSQrqt[0][modified_nu[0]+modified_nx[0]:, :modified_nu[0]].T
-q0 = RSQrqt[0][modified_nu[0]+modified_nx[0]:, modified_nu[0]:modified_nu[0]+modified_nx[0]].T
-h0 = Gg_eqt[0][modified_nu[0]+modified_nx[0]:, :].T
+### STORE BLOCK MATRICES ###
+R = []
+S = []
+Q = []
+Gu = []
+Gx = []
+Fu = []
+Fx = []
+Hu = []
+Hx = []
+B = []
+A = []
+r = []
+q = []
+h = []
+b = []
+for k in range(K):
+    R.append(RSQrqt[k][:modified_nu[k], :modified_nu[k]])
+    S.append(RSQrqt[k][:modified_nu[k], modified_nu[k]:modified_nu[k]+modified_nx[k]].T)
+    Q.append(RSQrqt[k][modified_nu[k]:modified_nu[k]+modified_nx[k], modified_nu[k]:modified_nu[k]+modified_nx[k]])
+    if k < K-1:
+        print(f"GuGx[{k}]:\n{GuGx[k]}\n")
+        Gu.append(GuGx[k][:modified_nu[k], :])
+        Gx.append(GuGx[k][modified_nu[k]:modified_nu[k]+modified_nx[k], :])
+        print(f"Gu:\n{Gu[k]}\n")
+        print(f"Gx:\n{Gx[k]}\n")
+        Fu.append(FuFx[k][:modified_nu[k], :])
+        Fx.append(FuFx[k][modified_nu[k]:modified_nu[k]+modified_nx[k], :])
+        B.append(BAbt[k][:modified_nu[k], :modified_nx[k+1]].T)
+        A.append(BAbt[k][modified_nu[k]:modified_nu[k]+modified_nx[k], :modified_nx[k+1]].T)
+        b.append(BAbt[k][modified_nu[k]+modified_nx[k]:, :modified_nx[k+1]].T)
+    Hu.append(Gg_eqt[k][:modified_nu[k], :].T)
+    Hx.append(Gg_eqt[k][modified_nu[k]:modified_nu[k]+modified_nx[k], :].T)
+    
+    r.append(RSQrqt[k][modified_nu[k]+modified_nx[k]:, :modified_nu[k]].T)
+    q.append(RSQrqt[k][modified_nu[k]+modified_nx[k]:, modified_nu[k]:modified_nu[k]+modified_nx[k]].T)
+    h.append(Gg_eqt[k][modified_nu[k]+modified_nx[k]:, :modified_ng_eq[k]].T)
 
 ### Original problem ###
-KKT = np.block([
-	[R1, H1u.T, G0u.T, G0x.T, np.zeros((modified_nu[1], modified_ng_eq[0]))],
-    [H1u, np.zeros((modified_ng_eq[1], modified_ng_eq[1] + modified_nu[0] + modified_nx[0] + modified_ng_eq[0]))],
-	[G0u, np.zeros((modified_nu[0], modified_ng_eq[1])), R0, S0.T, H0u.T],
-	[G0x, np.zeros((modified_nx[0], modified_ng_eq[1])), S0, Q0, H0x.T],
-    [np.zeros((modified_ng_eq[0], modified_nu[1]+modified_ng_eq[1])), H0u, H0x, np.zeros((modified_ng_eq[0], modified_ng_eq[0]))],
-])
-rhs = np.block([[r1], [h1], [r0], [q0], [h0]])
+KKT, rhs = GetKKT(K, modified_nu, modified_nx, modified_ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b)
+print_KKT(KKT, rhs)
 
 solution = np.linalg.solve(KKT, -rhs)
-ptr = 0
-u1 = solution[ptr:ptr+modified_nu[1]]; ptr += modified_nu[1]
-lmbd1 = solution[ptr:ptr+modified_ng_eq[1]]; ptr += modified_ng_eq[1]
-u0 = solution[ptr:ptr+modified_nu[0]]; ptr += modified_nu[0]
-x0 = solution[ptr:ptr+modified_nx[0]]; ptr += modified_nx[0]
-lmbd0 = solution[ptr:ptr+modified_ng_eq[0]]; ptr += modified_ng_eq[0]
+extracted_solution = extract_solultion(K, modified_nu, modified_nx, modified_ng_eq, solution)
+print_solution(extracted_solution)
 
-print(f"original solution:\nu1 = \n{u1}\nlmbd1 = \n{lmbd1}\nu0 = \n{u0}\nx0 = \n{x0}\nlmbd0 = \n{lmbd0}")
-print(f"=============================================================")
+solution2 = Solve(K, modified_nu, modified_nx, modified_ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b, Pl_r, Pr_r, L_r, U_r, [], rank_k_values)
+print_solution(solution2)
+
+
+exit()
 print(H1u)
 ### Factorization of H1u ###
 L = np.array([[1]])
@@ -213,10 +284,10 @@ print(f"G0u_tilde:\n{G0u_tilde}\n")
 h1_tilde = Tli @ h1
 
 KKT = np.block([
-	[R1_tilde, np.array([[-1],[0]]), G0u_tilde.T, G0x_tilde.T, np.zeros((modified_nu[1], modified_ng_eq[0]))],
+    [R1_tilde, np.array([[-1],[0]]), G0u_tilde.T, G0x_tilde.T, np.zeros((modified_nu[1], modified_ng_eq[0]))],
     [np.array([-1,0]), np.zeros((modified_ng_eq[1], modified_ng_eq[1] + modified_nu[0] + modified_nx[0] + modified_ng_eq[0]))],
-	[G0u_tilde, np.zeros((modified_nu[0], modified_ng_eq[1])), R0, S0.T, H0u.T],
-	[G0x_tilde, np.zeros((modified_nx[0], modified_ng_eq[1])), S0, Q0, H0x.T],
+    [G0u_tilde, np.zeros((modified_nu[0], modified_ng_eq[1])), R0, S0.T, H0u.T],
+    [G0x_tilde, np.zeros((modified_nx[0], modified_ng_eq[1])), S0, Q0, H0x.T],
     [np.zeros((modified_ng_eq[0], modified_nu[1]+modified_ng_eq[1])), H0u, H0x, np.zeros((modified_ng_eq[0], modified_ng_eq[0]))],
 ])
 rhs = np.block([[r1_tilde], [h1_tilde], [r0], [q0], [h0]])
@@ -243,9 +314,9 @@ G0x_hat = G0x_tilde[:, 1:]
 G0u_hat = G0u_tilde[:, 1:]
 
 KKT = np.block([
-	[R1_hat, G0u_hat.T, G0x_hat.T, np.zeros((modified_nu[1]-1, modified_ng_eq[0]))],
+    [R1_hat, G0u_hat.T, G0x_hat.T, np.zeros((modified_nu[1]-1, modified_ng_eq[0]))],
     [G0u_hat, R0, S0.T, H0u.T],
-	[G0x_hat, S0, Q0, H0x.T],
+    [G0x_hat, S0, Q0, H0x.T],
     [np.zeros((modified_ng_eq[0], modified_nu[1]-1)), H0u, H0x, np.zeros((modified_ng_eq[0], modified_ng_eq[0]))],
 ])
 rhs = np.block([[r1_hat], [r0], [q0], [h0]])
@@ -274,10 +345,10 @@ G0x_prime = G0x_hat @ Li.T
 r1_prime = Li @ r1_hat
 
 KKT = np.block([
-	[np.eye(modified_nu[1]-1), G0u_prime.T, G0x_prime.T, np.zeros((modified_nu[1]-1, modified_ng_eq[0]))],
+    [np.eye(modified_nu[1]-1), G0u_prime.T, G0x_prime.T, np.zeros((modified_nu[1]-1, modified_ng_eq[0]))],
     [G0u_prime, R0, S0.T, H0u.T],
-	[G0x_prime, S0, Q0, H0x.T],
-	[np.zeros((modified_ng_eq[0], modified_nu[1]-1)), H0u, H0x, np.zeros((modified_ng_eq[0], modified_ng_eq[0]))],
+    [G0x_prime, S0, Q0, H0x.T],
+    [np.zeros((modified_ng_eq[0], modified_nu[1]-1)), H0u, H0x, np.zeros((modified_ng_eq[0], modified_ng_eq[0]))],
 ])
 rhs = np.block([[r1_prime], [r0], [q0], [h0]])
 solution = np.linalg.solve(KKT, -rhs)
@@ -305,9 +376,9 @@ r0_tilde = r0 - G0u_prime.T @ r1_prime
 q0_tilde = q0 - G0x_prime.T @ r1_prime
 
 KKT = np.block([
-	[R0_tilde, S0_tilde.T, H0u.T],
-	[S0_tilde, Q0_tilde, H0x.T],
-	[H0u, H0x, np.zeros((modified_ng_eq[0], modified_ng_eq[0]))],
+    [R0_tilde, S0_tilde.T, H0u.T],
+    [S0_tilde, Q0_tilde, H0x.T],
+    [H0u, H0x, np.zeros((modified_ng_eq[0], modified_ng_eq[0]))],
 ])
 rhs = np.block([[r0_tilde], [q0_tilde], [h0]])
 print("stage at tilde:")
@@ -350,8 +421,8 @@ h0_hat = Tl0i @ h0
 
 KKT = np.block([
     [R0_hat, S0_hat.T, -1],
-	[S0_hat, Q0_tilde, H0x_hat.T],
-	[-1, H0x_hat, np.zeros((modified_ng_eq[0], modified_ng_eq[0]))],
+    [S0_hat, Q0_tilde, H0x_hat.T],
+    [-1, H0x_hat, np.zeros((modified_ng_eq[0], modified_ng_eq[0]))],
 ])
 rhs = np.block([[r0_tilde], [q0_tilde], [h0_hat]])
 
@@ -375,7 +446,7 @@ P0 = Q0_tilde + H0x_hat.T @ S0_hat.T + S0_hat @ H0x_hat + H0x_hat.T @ R0_hat @ H
 p0 = q0_tilde + S0_hat.T @ h0_hat + H0x_hat.T @ R0_hat @ h0_hat + H0x_hat.T @ r0_tilde
 
 KKT = np.block([
-	[P0],
+    [P0],
 ])
 rhs = np.block([[p0]])
 solution = np.linalg.solve(KKT, -rhs)
