@@ -298,12 +298,12 @@ def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
         ng_eq_c[K-1] = 0
         ng_eq_c[K-2] = h_bar.shape[0]
         
-        # solution = Solve(K - 1, nu_c, nx_c, ng_eq_c, R_c, S_c, Q_c, Gu_c, Gx_c, Fu_c, Fx_c,
-        #       Hu_c, Hx_c, B_c, A_c, r_c, q_c, h_c, b_c, Pl, Pr, L, U,
-        #       Lmbd, rank_k_values)
-        KKT, rhs = GetKKT(K-1, nu_c, nx_c, ng_eq_c, R_c, S_c, Q_c, Gu_c, Gx_c, Fu_c, Fx_c, Hu_c, Hx_c, B_c, A_c, r_c, q_c, h_c, b_c)
-        solution_vector = np.linalg.solve(KKT, -rhs)
-        solution = extract_solultion(K-1, nu_c, nx_c, ng_eq_c, solution_vector)
+        solution = Solve(K - 1, nu_c, nx_c, ng_eq_c, R_c, S_c, Q_c, Gu_c, Gx_c, Fu_c, Fx_c,
+              Hu_c, Hx_c, B_c, A_c, r_c, q_c, h_c, b_c, Pl, Pr, L, U,
+              Lmbd, rank_k_values)
+        # KKT, rhs = GetKKT(K-1, nu_c, nx_c, ng_eq_c, R_c, S_c, Q_c, Gu_c, Gx_c, Fu_c, Fx_c, Hu_c, Hx_c, B_c, A_c, r_c, q_c, h_c, b_c)
+        # solution_vector = np.linalg.solve(KKT, -rhs)
+        # solution = extract_solultion(K-1, nu_c, nx_c, ng_eq_c, solution_vector)
         
         # recover full solution
         x = B[K-2] @ solution["u"][K-2] + A[K-2] @ solution["x"][K-2] + b[K-2]
@@ -319,8 +319,12 @@ def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
 
     else:
         KKT, rhs = GetKKT(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b)
+        print(f"Initial stage:")
+        print_KKT(KKT, rhs)
         solution_vector = np.linalg.solve(KKT, -rhs)
         solution = extract_solultion(K, nu, nx, ng_eq, solution_vector)
+        print(f"solution first stage:")
+        print_solution(solution)
 
     return solution
 

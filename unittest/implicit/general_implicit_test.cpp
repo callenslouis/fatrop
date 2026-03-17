@@ -26,24 +26,30 @@ public:
     bool no_second_order_effects = false;
 
     // Create OcpDims object
-    // int K = 10;                                                   // Number of stages
-    // std::vector<Index> nx = {20, 10, 10, 10, 10, 2, 0, 1, 10, 5}; // State dimensions for each stage
-    // std::vector<Index> r =  {20, 5, 2, 10, 9, 1, 0, 1, 6, 1};
-    // std::vector<Index> nu = {1, 4, 2, 10, 1, 30, 4, 5, 10, 2};    // Input dimensions for each stage
-    // std::vector<Index> ng = {9, 3, 4, 3, 4, 2, 1, 0, 1, 5}; // Equality constraints for each stage
-    // std::vector<Index> ng_ineq = {0, 5, 10, 4, 0, 0, 0, 0, 10, 0}; // Inequality constraints for each stage
+    int K = 10;                                                   // Number of stages
+    std::vector<Index> nx = {20, 10, 10, 10, 10, 2, 0, 1, 10, 5}; // State dimensions for each stage
+    std::vector<Index> r =  {20, 5, 2, 10, 9, 1, 0, 1, 6, 1};
+    std::vector<Index> nu = {1, 4, 2, 10, 1, 30, 4, 5, 10, 2};    // Input dimensions for each stage
+    std::vector<Index> ng = {9, 3, 4, 3, 4, 2, 1, 0, 1, 5}; // Equality constraints for each stage
+    std::vector<Index> ng_ineq = {0, 0*5, 0*10, 0*4, 0, 0, 0, 0, 0*10, 0}; // Inequality constraints for each stage
     // int K = 12;
     // std::vector<Index> nx = {4, 5, 17, 0, 9, 6, 0, 19, 9, 16, 15, 12};
     // std::vector<Index> r =  {4, 5, 9, 0, 3, 5, 0, 2, 2, 14, 11, 8};
     // std::vector<Index> nu = {10, 10, 20, 15, 9, 9, 20, 13, 15, 17, 12, 15};
     // std::vector<Index> ng = {0, 4, 20, 6, 5, 12, 2, 19, 17, 0, 15, 18};
     // std::vector<Index> ng_ineq = {19, 18, 8, 7, 0, 15, 10, 18, 20, 2, 6, 10};
-    int K = 2;
-    std::vector<Index> nx = {1, 2};
-    std::vector<Index> r =  {0, 1};
-    std::vector<Index> nu = {1, 2};
-    std::vector<Index> ng = {0, 2};
-    std::vector<Index> ng_ineq = {0, 0};
+    // int K = 3;
+    // std::vector<Index> nx = {2, 3, 2};
+    // std::vector<Index> r =  {0, 2, 1};
+    // std::vector<Index> nu = {2, 2, 1};
+    // std::vector<Index> ng = {2, 2, 1};
+    // std::vector<Index> ng_ineq = {0, 0, 0};
+    // int K = 2;
+    // std::vector<Index> nx = {2, 3};
+    // std::vector<Index> r =  {0, 2};
+    // std::vector<Index> nu = {2, 2};
+    // std::vector<Index> ng = {2, 2};
+    // std::vector<Index> ng_ineq = {0, 0};
 
     ProblemDims dims{K, nu, nx, ng, ng_ineq};
 
@@ -551,6 +557,18 @@ TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
     
     // Solution checking
     CheckSolution(info, jacobian, hessian, D_x, D_s, rhs_x, rhs_g, x, mult);
+
+    // print eq_mult offsets
+    std::cout << "eq_mult offsets: ";
+    for (Index k = 0; k < info.dims.K; ++k){
+        std::cout << info.offsets_g_eq_path[k] << " (" << info.dims.number_of_eq_constraints[k] << ") - ";
+    }
+    std::cout << std::endl;
+    std::cout << "dynamics constraints offsets:";
+    for (Index k = 0; k < info.dims.K; ++k){
+        std::cout << info.offsets_g_eq_dyn[k] << " (" << info.dims.number_of_states[k+1] << ") - ";
+    }
+    std::cout << std::endl;
 }
 
 // using SolverTypes = ::testing::Types<OcpType, ImplicitOcpType>;
