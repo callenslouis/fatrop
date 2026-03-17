@@ -336,6 +336,8 @@ namespace fatrop
         bool increased_accuracy = true;
 
         bool print_debug_lines = false;
+        bool print_initial_stage = true;
+        bool write_factorization_file = true;
     };
 
     // define ImplicitOcpType augmented system solver
@@ -449,7 +451,9 @@ namespace fatrop
                                  MatRealAllocated& A, bool rows=false);
 
         bool print_debug = false;
-        
+        bool write_preprocessing_file = true;
+        bool print_preprocessed_system = false;
+
         double lu_fact_tol = 1e-5;
         
         std::unique_ptr<MatRealAllocated> scratch = std::make_unique<MatRealAllocated>(0,0);

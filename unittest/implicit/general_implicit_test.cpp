@@ -26,12 +26,12 @@ public:
     bool no_second_order_effects = false;
 
     // Create OcpDims object
-    int K = 10;                                                   // Number of stages
-    std::vector<Index> nx = {20, 10, 10, 10, 10, 2, 0, 1, 10, 5}; // State dimensions for each stage
-    std::vector<Index> r =  {20, 5, 2, 10, 9, 1, 0, 1, 6, 1};
-    std::vector<Index> nu = {1, 4, 2, 10, 1, 30, 4, 5, 10, 2};    // Input dimensions for each stage
-    std::vector<Index> ng = {9, 3, 4, 3, 4, 2, 1, 0, 1, 5}; // Equality constraints for each stage
-    std::vector<Index> ng_ineq = {0, 0*5, 0*10, 0*4, 0, 0, 0, 0, 0*10, 0}; // Inequality constraints for each stage
+    // int K = 10;                                                   // Number of stages
+    // std::vector<Index> nx = {20, 10, 10, 10, 10, 2, 0, 1, 10, 5}; // State dimensions for each stage
+    // std::vector<Index> r =  {20, 5, 2, 10, 9, 1, 0, 1, 6, 1};
+    // std::vector<Index> nu = {1, 4, 2, 10, 1, 30, 4, 5, 10, 2};    // Input dimensions for each stage
+    // std::vector<Index> ng = {9, 3, 4, 3, 4, 2, 1, 0, 1, 5}; // Equality constraints for each stage
+    // std::vector<Index> ng_ineq = {0, 0*5, 0*10, 0*4, 0, 0, 0, 0, 0*10, 0}; // Inequality constraints for each stage
     // int K = 12;
     // std::vector<Index> nx = {4, 5, 17, 0, 9, 6, 0, 19, 9, 16, 15, 12};
     // std::vector<Index> r =  {4, 5, 9, 0, 3, 5, 0, 2, 2, 14, 11, 8};
@@ -50,6 +50,12 @@ public:
     // std::vector<Index> nu = {2, 2};
     // std::vector<Index> ng = {2, 2};
     // std::vector<Index> ng_ineq = {0, 0};
+    int K = 6;
+    std::vector<Index> nx = {3, 10, 3, 6, 6, 3};
+    std::vector<Index> r = {0, 5, 3, 3, 1, 2};
+    std::vector<Index> nu = {7, 3, 0, 10, 6, 9};
+    std::vector<Index> ng = {4, 6, 0, 5, 4, 5};
+    std::vector<Index> ng_ineq = {0, 0, 0, 0, 0, 0};
 
     ProblemDims dims{K, nu, nx, ng, ng_ineq};
 
@@ -75,9 +81,9 @@ public:
 
     void SetUp()
     {
-        // int seed = time(0);
-        // std::cout << "seed: " << seed << std::endl;
-        // srand(seed);
+        int seed = time(0);
+        std::cout << "seed: " << seed << std::endl;
+        srand(seed);
         x = 0;
         full_matrix_jacobian = 0.;
         full_matrix_hessian = 0.;
@@ -185,7 +191,7 @@ public:
         for (Index i = 0; i < info.number_of_primal_variables; ++i)
         {
             rhs_x(i) = 1.0 * i;
-            D_x(i) = 0 * 1.0 * (i + 0.1);
+            D_x(i) = 1.0 * (i + 0.1);
         }
         // fill the mult vector with random values
         for (Index i = 0; i < info.number_of_eq_constraints; ++i)
@@ -195,11 +201,11 @@ public:
 
         for (Index i = 0; i < info.number_of_g_eq_path; ++i)
         {
-            D_eq(i) = 0 * 1.0 * (i + 1);
+            D_eq(i) = 10.0 * (i + 1);
         }
         for (Index i = 0; i < info.number_of_slack_variables; ++i)
         {
-            D_s(i) =  0 * 1.0 * (i + 0.1);
+            D_s(i) =  10.0 * (i + 0.1);
         }
 
         // Compute LU factorization to check the rank of the constraint jacobian
@@ -279,7 +285,7 @@ public:
     void GetRandomDimensions()
     {
         ClearOptionals();
-        int max_val = 5;
+        int max_val = 10;
         K = rand() % max_val + 2; // Random K between 2 and 21
         nx = RandomVector(K, 0, max_val);
         if (full_rank){
@@ -307,6 +313,19 @@ public:
             }
         }
         ng_ineq = RandomVector(K, 0, 0*max_val);
+
+        // print dimensions
+        std::cout << "int K = " << K << std::endl;
+        std::cout << "std::vector<Index> nx = {"; 
+        for (int i = 0; i < K; ++i){ std::cout << nx[i] << (i < K-1 ? ", " : "};\n");} 
+        std::cout << "std::vector<Index> r = {";
+        for (int i = 0; i < K; ++i){ std::cout << r[i] << (i < K-1 ? ", " : "};\n");}
+        std::cout << "std::vector<Index> nu = {";
+        for (int i = 0; i < K; ++i){ std::cout << nu[i] << (i < K-1 ? ", " : "};\n");}
+        std::cout << "std::vector<Index> ng = {";
+        for (int i = 0; i < K; ++i){ std::cout << ng[i] << (i < K-1 ? ", " : "};\n");}
+        std::cout << "std::vector<Index> ng_ineq = {";
+        for (int i = 0; i < K; ++i){ std::cout << ng_ineq[i] << (i < K-1 ? ", " : "};\n");}
 
         dims.emplace(ProblemDims{K, nu, nx, ng, ng_ineq});
         info.emplace(ProblemInfo(dims.value()));
@@ -480,7 +499,7 @@ void CheckSolution(const ProblemInfo &info,
         max_grad = std::max(max_grad, std::abs(grad(i)));
     }
     EXPECT_NEAR(max_grad, 0, 1e-5);
-    std::cout << "grad: " << grad << std::endl;
+    // std::cout << "grad: " << grad << std::endl;
 }
 
 void PrintFullKKT(const ProblemInfo &info,
@@ -576,8 +595,9 @@ using SolverTypes = ::testing::Types<ImplicitOcpType>;
 TYPED_TEST_SUITE(RandomAugSystemSolverTest, SolverTypes);
 TYPED_TEST(RandomAugSystemSolverTest, TestRandomSolve)
 {
-    int seed = time(0);
-    // int seed = 1772727309; //--> problematic seed
+    // int seed = time(0);
+    int seed = 1773762058; // TODO: fix this case
+    // int seed = 1773762291; // TODO: fix this case
 
     // problematic seed: 1772632854 --> leads to INDEFINITE return status
 

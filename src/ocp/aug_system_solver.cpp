@@ -9,6 +9,7 @@
 #include "fatrop/ocp/problem_info.hpp"
 #include <algorithm>
 #include <chrono>
+#include <fstream>
 using namespace fatrop;
 
 bool check_reg(const Index m, MAT *sA, const Index ai, const Index aj)
@@ -1045,25 +1046,25 @@ LinsolReturnFlag AugSystemSolver<OcpType>::solve_rhs(const ProblemInfo &info,
 
 
 
-void PrintNpArray(MatRealAllocated const &A, std::string name, int m=-1, int n=-1, bool with_name=true){
+void PrintNpArray(MatRealAllocated const &A, std::string name, int m=-1, int n=-1, bool with_name=true, std::ostream& o = std::cout){
     if (m < 0){m = A.m();}
     if (n < 0){n = A.n();}
 
     if (with_name){
-        std::cout << name << " = np.array([\n\t";
+        o << name << " = np.array([\n\t";
     } else {
-        std::cout << "np.array([\n\t";
+        o << "np.array([\n\t";
     }
     for (int i = 0; i < m; i++){
-        std::cout << "[";
+        o << "[";
         for (int j = 0; j < n; j++){
-            std::cout << std::setw(10) << std::setprecision(6) << A(i,j);
-            if (j < n - 1){ std::cout << ",";}
-            std::cout << " ";
+            o << std::setw(10) << std::setprecision(6) << A(i,j);
+            if (j < n - 1){ o << ",";}
+            o << " ";
         }
-        std::cout << "],\n\t";        
+        o << "],\n\t";        
     }
-    std::cout << "])" << std::endl;
+    o << "])" << std::endl;
 }
 
 void PrintNpArray(VecRealAllocated const &v, std::string name){
@@ -1101,8 +1102,12 @@ void PrintPreProcessNpInfo(const ProblemInfo &info,
                            const Jacobian<ImplicitOcpType> &jacobian,
                            const VecRealView &x, const VecRealView &eq_mult){
     // Print dimensions
-    std::ostream& o = std::cout;
-    o << "==============================================================\n";
+    // std::ostream& o = std::cout;
+    std::string filename = "preprocess_info.py";
+    std::ofstream o(filename);
+    o << "import numpy as np\n";
+
+    // o << "==============================================================\n";
     o << "K = " << info.dims.K << "\n";
     o << "nu = [";
     std::vector<int> nu = {};
@@ -1183,37 +1188,37 @@ void PrintPreProcessNpInfo(const ProblemInfo &info,
     // hessian attributes
     o << "RSQrqt = [\n";
     for (int k = 0; k < info.dims.K; k++){
-        PrintNpArray(hess.RSQrqt[k], "", modified_nu[k] + modified_nx[k] + 1, modified_nu[k] + modified_nx[k], false);
+        PrintNpArray(hess.RSQrqt[k], "", modified_nu[k] + modified_nx[k] + 1, modified_nu[k] + modified_nx[k], false, o);
         if (k < info.dims.K - 1){ o << ",\n";}
     }
     o << "]\n";
     o << "RSQrqt_original = [\n";
     for (int k = 0; k < info.dims.K; k++){
-        PrintNpArray(hess.RSQrqt_original[k], "", nu[k] + nx[k] + 1, nu[k] + nx[k], false);
+        PrintNpArray(hess.RSQrqt_original[k], "", nu[k] + nx[k] + 1, nu[k] + nx[k], false, o);
         if (k < info.dims.K - 1){ o << ",\n";}
     }
     o << "]\n";
     o << "FuFx" << " = [\n";
     for (int k = 0; k < info.dims.K - 1; k++){
-        PrintNpArray(hess.FuFx[k], "", modified_nu[k] + modified_nx[k], modified_nx[k+1], false);
+        PrintNpArray(hess.FuFx[k], "", modified_nu[k] + modified_nx[k], modified_nx[k+1], false, o);
         if (k < info.dims.K - 2){ o << ",\n";}
     }
     o << "]\n";
     o << "FuFx_original" << " = [\n";
     for (int k = 0; k < info.dims.K - 1; k++){
-        PrintNpArray(hess.FuFx_original[k], "", nu[k] + nx[k], nx[k+1], false);
+        PrintNpArray(hess.FuFx_original[k], "", nu[k] + nx[k], nx[k+1], false, o);
         if (k < info.dims.K - 2){ o << ",\n";}
     }
     o << "]\n";
     o << "GuGx" << " = [\n";
     for (int k = 0; k < info.dims.K - 1; k++){
-        PrintNpArray(hess.GuGx[k], "", modified_nu[k] + modified_nx[k], modified_nu[k+1], false);
+        PrintNpArray(hess.GuGx[k], "", modified_nu[k] + modified_nx[k], modified_nu[k+1], false, o);
         if (k < info.dims.K - 2){ o << ",\n";}
     }
     o << "]\n";
     o << "GuGx_original" << " = [\n";
     for (int k = 0; k < info.dims.K - 1; k++){
-        PrintNpArray(hess.GuGx_original[k], "", nu[k] + nx[k], nu[k+1], false);
+        PrintNpArray(hess.GuGx_original[k], "", nu[k] + nx[k], nu[k+1], false, o);
         if (k < info.dims.K - 2){ o << ",\n";}
     }
     o << "]\n";
@@ -1221,37 +1226,37 @@ void PrintPreProcessNpInfo(const ProblemInfo &info,
     // jacobian attributes
     o << "Gg_eqt = [\n";
     for (int k = 0; k < info.dims.K; k++){
-        PrintNpArray(jacobian.Gg_eqt[k], "",  modified_nu[k] + modified_nx[k] + 1, modified_ng_eq[k], false);
+        PrintNpArray(jacobian.Gg_eqt[k], "",  modified_nu[k] + modified_nx[k] + 1, modified_ng_eq[k], false, o);
         if (k < info.dims.K - 1){ o << ",\n";}
     }
     o << "]\n";
     o << "Gg_eqt_original = [\n";
     for (int k = 0; k < info.dims.K; k++){
-        PrintNpArray(jacobian.Gg_eqt_original[k], "", nu[k] + nx[k] + 1, ng_eq[k], false);
+        PrintNpArray(jacobian.Gg_eqt_original[k], "", nu[k] + nx[k] + 1, ng_eq[k], false, o);
         if (k < info.dims.K - 1){ o << ",\n";}
     }
     o << "]\n";
     o << "Gg_ineqt = [\n";
     for (int k = 0; k < info.dims.K; k++){
-        PrintNpArray(jacobian.Gg_ineqt[k], "", modified_nu[k] + modified_nx[k] + 1, modified_ng_ineq[k], false);
+        PrintNpArray(jacobian.Gg_ineqt[k], "", modified_nu[k] + modified_nx[k] + 1, modified_ng_ineq[k], false, o);
         if (k < info.dims.K - 1){ o << ",\n";}
     }
     o << "]\n";
     o << "Gg_ineqt_original = [\n";
     for (int k = 0; k < info.dims.K; k++){
-        PrintNpArray(jacobian.Gg_ineqt_original[k], "", nu[k] + nx[k] + 1, ng_ineq[k], false);
+        PrintNpArray(jacobian.Gg_ineqt_original[k], "", nu[k] + nx[k] + 1, ng_ineq[k], false, o);
         if (k < info.dims.K - 1){ o << ",\n";}
     }
     o << "]\n";
     o << "BAbt = [\n";
     for (int k = 0; k < info.dims.K - 1; k++){
-        PrintNpArray(jacobian.BAbt[k], "", modified_nu[k] + modified_nx[k] + 1, modified_nx[k+1], false);
+        PrintNpArray(jacobian.BAbt[k], "", modified_nu[k] + modified_nx[k] + 1, modified_nx[k+1], false, o);
         if (k < info.dims.K - 2){ o << ",\n";}
     }
     o << "]\n";
     o << "BAbt_original = [\n";
     for (int k = 0; k < info.dims.K - 1; k++){
-        PrintNpArray(jacobian.BAbt_original[k], "", nu[k] + nx[k] + 1, nx[k+1], false);
+        PrintNpArray(jacobian.BAbt_original[k], "", nu[k] + nx[k] + 1, nx[k+1], false, o);
         if (k < info.dims.K - 2){ o << ",\n";}
     }
     o << "]\n";
@@ -1265,7 +1270,7 @@ void PrintPreProcessNpInfo(const ProblemInfo &info,
     
     o << "Jt = [\n";
     for (int k = 0; k < info.dims.K - 1; k++){
-        PrintNpArray(jacobian.Jt[k], "", nx[k+1], nx[k+1], false);
+        PrintNpArray(jacobian.Jt[k], "", nx[k+1], nx[k+1], false, o);
         if (k < info.dims.K - 2){ o << ",\n";}
         Jt_LU.push_back(jacobian.Jt[k]);
         Pl.push_back(PermutationMatrix(nx[k+1]));
@@ -1295,7 +1300,7 @@ void PrintPreProcessNpInfo(const ProblemInfo &info,
                     o << 0.0;
                 }
                 if (j < nx_next - 1){
-                    std::cout << ", ";
+                    o << ", ";
                 }
             }
             o << "]";
@@ -1322,7 +1327,7 @@ void PrintPreProcessNpInfo(const ProblemInfo &info,
                     o << 0.0;
                 }
                 if (j < nx_next - 1){
-                    std::cout << ", ";
+                    o << ", ";
                 }
             }
             o << "]";
@@ -1338,14 +1343,14 @@ void PrintPreProcessNpInfo(const ProblemInfo &info,
     o << "Pl = [\n";
     for (int k = 0; k < info.dims.K - 1; k++){
         PermutationMatrix Pl_copy = jacobian.Pl_pre[k];
-        PrintNpArray(PermutationVectorToMatrix(Pl_copy), "", nx[k+1], nx[k+1], false);
+        PrintNpArray(PermutationVectorToMatrix(Pl_copy), "", nx[k+1], nx[k+1], false, o);
         if (k < info.dims.K - 2){ o << ",\n";}
     }
     o << "]\n";
     o << "Pr = [\n";
     for (int k = 0; k < info.dims.K - 1; k++){
         PermutationMatrix Pr_copy = jacobian.Pr_pre[k];
-        PrintNpArray(PermutationVectorToMatrix(Pr_copy), "", nx[k+1], nx[k+1], false);
+        PrintNpArray(PermutationVectorToMatrix(Pr_copy), "", nx[k+1], nx[k+1], false, o);
         if (k < info.dims.K - 2){ o << ",\n";}
     }
     o << "]\n";
@@ -1366,18 +1371,24 @@ void PrintPreProcessNpInfo(const ProblemInfo &info,
         }
     }
     o << "])\n";
-    o << "==============================================================\n";
+    // o << "==============================================================\n";
+    o.close();
 }
 
 void PrintFactorizationInfo(const ProblemInfo &info,
                             const std::vector<Index>& rank_k_values,
                             std::vector<PermutationMatrix>& Pl,
                             std::vector<PermutationMatrix>& Pr,
-                            std::vector<MatRealAllocated>& Ggt_stripe,
+                            std::vector<MatRealAllocated>& LU,
+                            std::vector<MatRealAllocated>& Gg_eqt,
                             std::vector<MatRealAllocated>& Llt){
-    
-    std::ostream& o = std::cout;
-    o << "==============================================================\n";
+    std::string filename = "factorization_info.py";
+
+    // std::ostream& o = std::cout;
+    std::ofstream o(filename);
+    o << "import numpy as np\n";
+
+    // o << "==============================================================\n";
 
     o << "rank_k_values = [";
     for (size_t i = 0; i < rank_k_values.size(); i++){
@@ -1392,7 +1403,7 @@ void PrintFactorizationInfo(const ProblemInfo &info,
     for (size_t i = 0; i < Pl.size(); i++){
         PermutationMatrix Pl_copy = Pl[i];
         PrintNpArray(PermutationVectorToMatrix(Pl_copy), "", info.dims.number_of_eq_constraints[i], 
-            info.dims.number_of_eq_constraints[i], false);
+            info.dims.number_of_eq_constraints[i], false, o);
         if (i < Pl.size() - 1){ o << ",\n";}
     }
     o << "]\n";
@@ -1400,14 +1411,14 @@ void PrintFactorizationInfo(const ProblemInfo &info,
     o << "Pr_r = [\n";
     for (size_t i = 0; i < Pr.size(); i++){
         PermutationMatrix Pr_copy = Pr[i];
-        PrintNpArray(PermutationVectorToMatrix(Pr_copy), "", info.dims.number_of_controls[i], info.dims.number_of_controls[i], false);
+        PrintNpArray(PermutationVectorToMatrix(Pr_copy), "", info.dims.number_of_controls[i], info.dims.number_of_controls[i], false, o);
         if (i < Pr.size() - 1){ o << ",\n";}
     }
     o << "]\n";
 
     // LU factorization
     o << "L_r = [\n";
-    for (int k = 0; k < Ggt_stripe.size(); k++){
+    for (int k = 0; k < LU.size(); k++){
         int m = info.dims.number_of_eq_constraints[k];
         o << "np.array([";
         int n = info.dims.number_of_controls[k];
@@ -1415,14 +1426,14 @@ void PrintFactorizationInfo(const ProblemInfo &info,
             o << "[";
             for (int j = 0; j < m; j++){
                 if (i > j){
-                    o << Ggt_stripe[k](j,i);
+                    o << LU[k](j,i);
                 } else if (i == j){
                     o << 1.0;
                 } else {
                     o << 0.0;
                 }
                 if (j < m - 1){
-                    std::cout << ", ";
+                    o << ", ";
                 }
             }
             o << "]";
@@ -1431,12 +1442,12 @@ void PrintFactorizationInfo(const ProblemInfo &info,
             }
         }
         o << "])\n";
-        if (k < Ggt_stripe.size() - 1){ o << ",\n";}
+        if (k < LU.size() - 1){ o << ",\n";}
     }
     o << "]\n";
 
     o << "U_r = [\n";
-    for (int k = 0; k < Ggt_stripe.size(); k++){
+    for (int k = 0; k < LU.size(); k++){
         int m = info.dims.number_of_eq_constraints[k];
         o << "np.array([";
         int n = info.dims.number_of_controls[k];
@@ -1444,12 +1455,12 @@ void PrintFactorizationInfo(const ProblemInfo &info,
             o << "[";
             for (int j = 0; j < n; j++){
                 if (i <= j){
-                    o << Ggt_stripe[k](j,i);
+                    o << LU[k](j,i);
                 } else {
                     o << 0.0;
                 }
                 if (j < n - 1){
-                    std::cout << ", ";
+                    o << ", ";
                 }
             }
             o << "]";
@@ -1458,7 +1469,14 @@ void PrintFactorizationInfo(const ProblemInfo &info,
             }
         }
         o << "])\n";
-        if (k < Ggt_stripe.size() - 1){ o << ",\n";}
+        if (k < LU.size() - 1){ o << ",\n";}
+    }
+    o << "]\n";
+
+    o << "Hut = [\n";
+    for (size_t i = 0; i < Gg_eqt.size(); i++){
+        PrintNpArray(Gg_eqt[i], "", info.dims.number_of_controls[i], info.dims.number_of_eq_constraints[i], false, o);
+        if (i < Gg_eqt.size() - 1){ o << ",\n";}
     }
     o << "]\n";
 
@@ -1469,7 +1487,8 @@ void PrintFactorizationInfo(const ProblemInfo &info,
     //     if (i < Llt.size() - 1){ o << ",\n";}
     // }
     // o << "]\n";
-    o << "==============================================================\n";
+    // o << "==============================================================\n";
+    o.close();
 }
 
 
@@ -1750,14 +1769,15 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             // std::cout << "computing factorization" << std::endl;
             // PrintNpArray(Ggt_stripe[0], "Ggt_stripe before factorization");
             // std::cout << "(gamma_k = " << gamma_k << ")" << std::endl;
-            lu_fact_transposed(gamma_k, nu + nx + 1, nu, rank_k, Ggt_stripe[0], Pl[k], Pr[k],
-                               lu_fact_tol);
+            lu_fact_transposed(gamma_k, nu + nx + 1, nu, rank_k, Ggt_stripe[0], Pl[k], Pr[k], lu_fact_tol);
             rank_k_values[k] = rank_k;
-            // std::cout << "here" << std::endl;
             // LU[k] = Ggt_stripe[0];
             gecp(nu, gamma_k, Ggt_stripe[0], 0, 0, LU[k], 0, 0);
-            // std::cout << "here?" << std::endl;
-
+            // std::cout << "Pl:\n" << PermutationVectorToMatrix(jacobian.Pl_pre[k]) << std::endl;
+            // std::cout << "Pr:\n" << PermutationVectorToMatrix(jacobian.Pr_pre[k]) << std::endl;
+            std::cout << "Pl: "; for (int i = 0; i < rank_k; i++){ std::cout << Pl[k][i] << " ";}std::cout << std::endl;
+            std::cout << "Pr: "; for (int i = 0; i < rank_k; i++){ std::cout << Pr[k][i] << " ";}std::cout << std::endl;
+            
             rho[k] = rank_k;
             if (gamma_k - rank_k > 0)
             {
@@ -1936,8 +1956,10 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
         // PrintNpArray(RSQrqt_underbar[1], "RSQrqt_underbar[1]");
     }
     // std::cout << " === FIRST STAGE === " << std::endl;
-    // PrintNpArray(Ppt[0], "Ppt");
-    // PrintNpArray(Hh[0], "Hh");
+    if (print_initial_stage){
+        PrintNpArray(Ppt[0], "Ppt");
+        PrintNpArray(Hh[0], "Hh");
+    }
     rankI = 0;
     //////// FIRST_STAGE
     {
@@ -2019,8 +2041,10 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
         PrI[0].apply_inverse(rankI, &x.vec(), offs_x);
     }
     // other stages
-    // PrintNpArray(x, "x_first_stage");
-    // PrintNpArray(eq_mult, "eq_mult_first_stage");
+    if (print_initial_stage){
+        PrintNpArray(x, "x_first_stage");
+        PrintNpArray(eq_mult, "eq_mult_first_stage");
+    }
     // std::cout << "x initial solution:\n" << x << std::endl;
     // std::cout << "eq_mult initial solution:\n" << eq_mult << std::endl;
     // std::cout << " === FORWARD OTHER STAGES === " << std::endl;
@@ -2148,7 +2172,9 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
         }
     }
 
-    // PrintFactorizationInfo(info, rank_k_values, Pl, Pr, LU, Llt);
+    if (write_factorization_file){
+        PrintFactorizationInfo(info, rank_k_values, Pl, Pr, LU, jacobian.Gg_eqt, Llt);
+    }
 
     return LinsolReturnFlag::SUCCESS;
 }
@@ -2956,18 +2982,20 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
     start = std::chrono::high_resolution_clock::now();
     LinsolReturnFlag flag = ModifiedAugSystemSolver::solve(modified_info, jacobian, hessian, D_x_copy, D_s_copy, f_copy, g_copy, x, eq_mult);
 
-    std::cout << "KKT matrix:" << std::endl;
-    PrintNpArray(GetKKT(modified_info, jacobian, hessian, true), "KKT");
-    VecRealAllocated full_rhs = VecRealAllocated(modified_info.number_of_primal_variables + modified_info.number_of_eq_constraints);
-    for (Index i = 0; i < info.number_of_primal_variables; ++i){full_rhs(i) = f_copy(i) + D_x_copy(i)*x(i);}
-    for (Index i = 0; i < info.number_of_eq_constraints; ++i){full_rhs(info.number_of_primal_variables + i) = g_copy(i);}
-    for (Index i = 0; i < info.number_of_slack_variables; ++i){
-        full_rhs(info.number_of_primal_variables + info.offset_g_eq_slack + i) -= D_s(i) * eq_mult(info.offset_g_eq_slack + i);
+    if (print_preprocessed_system){
+        std::cout << "KKT matrix:" << std::endl;
+        PrintNpArray(GetKKT(modified_info, jacobian, hessian, true), "KKT");
+        VecRealAllocated full_rhs = VecRealAllocated(modified_info.number_of_primal_variables + modified_info.number_of_eq_constraints);
+        for (Index i = 0; i < info.number_of_primal_variables; ++i){full_rhs(i) = f_copy(i) + D_x_copy(i)*x(i);}
+        for (Index i = 0; i < info.number_of_eq_constraints; ++i){full_rhs(info.number_of_primal_variables + i) = g_copy(i);}
+        for (Index i = 0; i < info.number_of_slack_variables; ++i){
+            full_rhs(info.number_of_primal_variables + info.offset_g_eq_slack + i) -= D_s(i) * eq_mult(info.offset_g_eq_slack + i);
+        }
+        PrintNpArray(full_rhs, "rhs");
+        VerifyIntermediateSolution(modified_info, jacobian, hessian, x, eq_mult, f_copy, g_copy);    
+        std::cout << "obtained x:" << std::endl << x << std::endl;
+        std::cout << "obtained eq_mult:" << std::endl << eq_mult << std::endl;
     }
-    PrintNpArray(full_rhs, "rhs");
-    VerifyIntermediateSolution(modified_info, jacobian, hessian, x, eq_mult, f_copy, g_copy);    
-    std::cout << "obtained x:" << std::endl << x << std::endl;
-    std::cout << "obtained eq_mult:" << std::endl << eq_mult << std::endl;
     
     auto end = std::chrono::high_resolution_clock::now();
     duration_solve = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
@@ -3240,7 +3268,9 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
                                                    Jacobian<ImplicitOcpType> &jacobian,
                                                    Hessian<ImplicitOcpType> &hessian,
                                                    VecRealView &x, VecRealView &eq_mult){
-    // PrintPreProcessNpInfo(info, modified_info, hessian, jacobian, x, eq_mult);
+    if (write_preprocessing_file){
+        PrintPreProcessNpInfo(info, modified_info, hessian, jacobian, x, eq_mult);
+    }
     
     // GENERAL VERSION
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::PostProcess start" << std::endl;}
@@ -3310,14 +3340,14 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
             // } 
 
             // U^-T * 
-            std::cout << "eq_mult before:\n" << eq_mult << std::endl;
+            // std::cout << "eq_mult before:\n" << eq_mult << std::endl;
             trsv_lnn(jacobian.J_ranks[k-1], jacobian.U1t[k-1], 0, 0, eq_mult, info.offsets_g_eq_dyn[k-1], eq_mult, info.offsets_g_eq_dyn[k-1]);
             vecsc(jacobian.J_ranks[k-1], -1.0, eq_mult, info.offsets_g_eq_dyn[k-1]);
             // L^-T *
             trsv_unu(info.dims.number_of_states[k], info.dims.number_of_states[k], jacobian.Jt_LU[k-1], 0, 0, eq_mult, info.offsets_g_eq_dyn[k-1], eq_mult, info.offsets_g_eq_dyn[k-1]);
             // Pl * 
             jacobian.Pl_pre[k-1].apply_inverse(jacobian.J_ranks[k-1], &eq_mult.vec(), info.offsets_g_eq_dyn[k-1]);
-            std::cout << "eq_mult after:\n" << eq_mult << std::endl;
+            // std::cout << "eq_mult after:\n" << eq_mult << std::endl;
         }
     }
 

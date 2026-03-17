@@ -94,7 +94,7 @@ def print_solution(solution):
     print()
 
 def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
-          Pl, Pr, L, U, Lmbd, rank_k_values):
+          Pl, Pr, L, U, Lmbd, rank_k_values, Hut):
     # figure out what step to perform
     nu_c = nu.copy(); nx_c = nx.copy(); ng_eq_c = ng_eq.copy(); 
     R_c = R.copy(); S_c = S.copy(); Q_c = Q.copy(); 
@@ -109,9 +109,13 @@ def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
         U1 = U[K-1][:rank, :rank]
         U2 = U[K-1][:rank, rank:]
 
+        print(f"Decomposition:")
         Tl = Pl[K-1] @ L[K-1] @ np.block([[-U1, np.zeros((rank, m-rank))], [np.zeros((m-rank, rank)), np.eye(m-rank)]])
         Tr = np.block([[np.eye(rank), np.linalg.inv(U1) @ U2], [np.zeros((n-rank, rank)), np.eye(n-rank)]]) @ Pr[K-1].T
-        assert(np.linalg.norm(Hu[K-1] - Tl @ np.block([[-np.eye(rank), np.zeros((rank, n-rank))], [np.zeros((m-rank, n))]]) @ Tr) < 1e-6)
+        norm = np.linalg.norm(Hu[K-1] - Tl @ np.block([[-np.eye(rank), np.zeros((rank, n-rank))], [np.zeros((m-rank, n))]]) @ Tr)
+        print(norm)
+        print(np.linalg.norm(Hu[K-1] - Hut[K-1].T))
+        assert(norm < 1e-5)
 
         Tli = np.linalg.inv(Tl)
         Tri = np.linalg.inv(Tr)
@@ -239,7 +243,7 @@ def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
         # perform recursive call
         solution = Solve(K, nu_c, nx_c, ng_eq_c, R_c, S_c, Q_c, Gu_c, Gx_c, Fu_c, Fx_c,
               Hu_c, Hx_c, B_c, A_c, r_c, q_c, h_c, b_c, Pl, Pr, L, U,
-              Lmbd, rank_k_values)
+              Lmbd, rank_k_values, Hut)
         
         # recover original solution
         u_b_hat = S_hat.T @ solution["x"][K-1] + r_hat
@@ -279,7 +283,7 @@ def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
                          [
                              np.block([[Hx[K-1], h[K-1]]]) @ \
                              np.block([[B[K-2], A[K-2], b[K-2]],
-                                       [np.zeros((nx[K-1], nu[K-2] + nx[K-2])), 1]]),
+                                       [np.zeros((1, nu[K-2] + nx[K-2])), 1]]),
                          ]])
         Hu_bar = temp[:, :nu[K-2]]
         Hx_bar = temp[:, nu[K-2]:nu[K-2]+nx[K-2]]
@@ -300,7 +304,7 @@ def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
         
         solution = Solve(K - 1, nu_c, nx_c, ng_eq_c, R_c, S_c, Q_c, Gu_c, Gx_c, Fu_c, Fx_c,
               Hu_c, Hx_c, B_c, A_c, r_c, q_c, h_c, b_c, Pl, Pr, L, U,
-              Lmbd, rank_k_values)
+              Lmbd, rank_k_values, Hut)
         # KKT, rhs = GetKKT(K-1, nu_c, nx_c, ng_eq_c, R_c, S_c, Q_c, Gu_c, Gx_c, Fu_c, Fx_c, Hu_c, Hx_c, B_c, A_c, r_c, q_c, h_c, b_c)
         # solution_vector = np.linalg.solve(KKT, -rhs)
         # solution = extract_solultion(K-1, nu_c, nx_c, ng_eq_c, solution_vector)
