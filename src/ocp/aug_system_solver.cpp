@@ -1771,12 +1771,10 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             // std::cout << "(gamma_k = " << gamma_k << ")" << std::endl;
             lu_fact_transposed(gamma_k, nu + nx + 1, nu, rank_k, Ggt_stripe[0], Pl[k], Pr[k], lu_fact_tol);
             rank_k_values[k] = rank_k;
-            // LU[k] = Ggt_stripe[0];
             gecp(nu, gamma_k, Ggt_stripe[0], 0, 0, LU[k], 0, 0);
-            // std::cout << "Pl:\n" << PermutationVectorToMatrix(jacobian.Pl_pre[k]) << std::endl;
-            // std::cout << "Pr:\n" << PermutationVectorToMatrix(jacobian.Pr_pre[k]) << std::endl;
-            std::cout << "Pl: "; for (int i = 0; i < rank_k; i++){ std::cout << Pl[k][i] << " ";}std::cout << std::endl;
-            std::cout << "Pr: "; for (int i = 0; i < rank_k; i++){ std::cout << Pr[k][i] << " ";}std::cout << std::endl;
+            // std::cout << "Pl: "; for (int i = 0; i < rank_k; i++){ std::cout << Pl[k][i] << " ";}std::cout << std::endl;
+            // std::cout << "Pr: "; for (int i = 0; i < rank_k; i++){ std::cout << Pr[k][i] << " ";}std::cout << std::endl;
+            std::cout << "rank_" << k << " = " << rank_k << std::endl;
             
             rho[k] = rank_k;
             if (gamma_k - rank_k > 0)

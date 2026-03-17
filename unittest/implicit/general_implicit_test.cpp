@@ -50,12 +50,18 @@ public:
     // std::vector<Index> nu = {2, 2};
     // std::vector<Index> ng = {2, 2};
     // std::vector<Index> ng_ineq = {0, 0};
-    int K = 6;
-    std::vector<Index> nx = {3, 10, 3, 6, 6, 3};
-    std::vector<Index> r = {0, 5, 3, 3, 1, 2};
-    std::vector<Index> nu = {7, 3, 0, 10, 6, 9};
-    std::vector<Index> ng = {4, 6, 0, 5, 4, 5};
-    std::vector<Index> ng_ineq = {0, 0, 0, 0, 0, 0};
+    // int K = 6;
+    // std::vector<Index> nx = {3, 10, 3, 6, 6, 3};
+    // std::vector<Index> r = {0, 5, 3, 3, 1, 2};
+    // std::vector<Index> nu = {7, 3, 0, 10, 6, 9};
+    // std::vector<Index> ng = {4, 6, 0, 5, 4, 5};
+    // std::vector<Index> ng_ineq = {0, 0, 0, 0, 0, 0};
+    int K = 11;
+    std::vector<Index> nx = {6, 0, 2, 2, 5, 6, 7, 10, 2, 7, 5};
+    std::vector<Index> r = {6, 0, 1, 1, 2, 2, 7, 1, 2, 7, 0};
+    std::vector<Index> nu = {4, 5, 7, 7, 8, 1, 4, 10, 4, 8, 9};
+    std::vector<Index> ng = {4, 0, 1, 5, 5, 1, 1, 1, 4, 3, 6};
+    std::vector<Index> ng_ineq = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
     ProblemDims dims{K, nu, nx, ng, ng_ineq};
 
@@ -315,7 +321,7 @@ public:
         ng_ineq = RandomVector(K, 0, 0*max_val);
 
         // print dimensions
-        std::cout << "int K = " << K << std::endl;
+        std::cout << "int K = " << K << ";" << std::endl;
         std::cout << "std::vector<Index> nx = {"; 
         for (int i = 0; i < K; ++i){ std::cout << nx[i] << (i < K-1 ? ", " : "};\n");} 
         std::cout << "std::vector<Index> r = {";
@@ -569,7 +575,7 @@ TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
     EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
 
     // print the full KKT matrix and rhs
-    bool print_full_kkt = true;
+    bool print_full_kkt = false;
     if (print_full_kkt){ 
         PrintFullKKT(info, full_kkt_matrix, rhs_x, rhs_g, D_x, D_s, x, mult);
     }
@@ -596,8 +602,8 @@ TYPED_TEST_SUITE(RandomAugSystemSolverTest, SolverTypes);
 TYPED_TEST(RandomAugSystemSolverTest, TestRandomSolve)
 {
     // int seed = time(0);
-    int seed = 1773762058; // TODO: fix this case
-    // int seed = 1773762291; // TODO: fix this case
+    // int seed = 1773762058; // TODO: fix this case
+    int seed = 1773762291; // TODO: fix this case
 
     // problematic seed: 1772632854 --> leads to INDEFINITE return status
 
