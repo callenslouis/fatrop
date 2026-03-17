@@ -229,11 +229,8 @@ for k in range(K):
     S.append(RSQrqt[k][:modified_nu[k], modified_nu[k]:modified_nu[k]+modified_nx[k]].T)
     Q.append(RSQrqt[k][modified_nu[k]:modified_nu[k]+modified_nx[k], modified_nu[k]:modified_nu[k]+modified_nx[k]])
     if k < K-1:
-        print(f"GuGx[{k}]:\n{GuGx[k]}\n")
         Gu.append(GuGx[k][:modified_nu[k], :])
         Gx.append(GuGx[k][modified_nu[k]:modified_nu[k]+modified_nx[k], :])
-        print(f"Gu:\n{Gu[k]}\n")
-        print(f"Gx:\n{Gx[k]}\n")
         Fu.append(FuFx[k][:modified_nu[k], :])
         Fx.append(FuFx[k][modified_nu[k]:modified_nu[k]+modified_nx[k], :])
         B.append(BAbt[k][:modified_nu[k], :modified_nx[k+1]].T)

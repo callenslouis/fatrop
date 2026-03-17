@@ -58,7 +58,7 @@ def print_KKT(KKT, rhs):
             else:
                 print(f"{elem:10.6f} ", end="")
         print()
-    print(rhs)
+    print(rhs.T)
 
 def extract_solultion(K, nu, nx, ng_eq, sol):
     extracted_solution = {"u": [], "x": [], "lambda": [], "pi": []}
@@ -91,6 +91,7 @@ def print_solution(solution):
     print(f"pi:")
     for k in range(len(solution["pi"])):
         print(f"\t{solution['pi'][k].T}")
+    print()
 
 def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
           Pl, Pr, L, U, Lmbd, rank_k_values):
@@ -102,7 +103,7 @@ def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
     B_c = B.copy(); A_c = A.copy(); r_c = r.copy(); 
     q_c = q.copy(); h_c = h.copy(); b_c = b.copy()
 
-    if nu[K-1] != 0 and ng_eq[K-1] != 0:
+    if nu[K-1] != 0:
         # decompose Hku and eliminate constraints partially
         rank = rank_k_values[K-1]; m = ng_eq[K-1]; n = nu[K-1]
         U1 = U[K-1][:rank, :rank]
@@ -122,19 +123,42 @@ def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
         Hx_tilde = Tli @ Hx[K-1]
         h0_tilde = Tli @ h[K-1]
 
-        # eliminate u1a and lambda
-        Sa = S_tilde[:, :rank]; Sb = S_tilde[:, rank:]
-        Ra = R_tilde[:rank, :rank]; Rb = R_tilde[rank:, rank:]
-        ra = r_tilde[:rank]; rb = r_tilde[rank:]
-        Ha = Hx_tilde[:rank, :]; Hb = Hx_tilde[rank:, :]
-        ha = h0_tilde[:rank]; hb = h0_tilde[rank:]
-
-        Q_tilde = Q[K-1] + Hx_tilde.T @ Sa.T + Sa @ Hx_tilde + Hx_tilde.T @ Ra @ Hx_tilde
-        q_tilde = q[K-1] + Hx_tilde.T @ ra + Sa @ ha
-
+        Hu_c[K-1] = np.block([[-np.eye(rank), np.zeros((rank, n-rank))], [np.zeros((m-rank, n))]])
+        R_c[K-1] = R_tilde
+        S_c[K-1] = S_tilde
+        Q_c[K-1] = Q[K-1]
+        Hx_c[K-1] = Hx_tilde
+        r_c[K-1] = r_tilde
+        h_c[K-1] = h0_tilde
         if K > 1:
             Gu_c[K-2] = Gu[K-2] @ Tri
             Gx_c[K-2] = Gx[K-2] @ Tri
+
+        ### intermediate check ###
+        # Hu_c[K-1] = np.block([[-np.eye(rank), np.zeros((rank, n-rank))], [np.zeros((m-rank, n))]])
+        # KKT, rhs = GetKKT(K, nu_c, nx_c, ng_eq_c, R_c, S_c, Q_c, Gu_c, Gx_c, Fu_c, Fx_c, Hu_c, Hx_c, B_c, A_c, r_c, q_c, h_c, b_c)
+        # solution_vector = np.linalg.solve(KKT, -rhs)
+        # solution = extract_solultion(K, nu_c, nx_c, ng_eq_c, solution_vector)
+        # u_tilde = solution["u"][K-1]
+        # u = Tri @ u_tilde
+        # lmbd_tilde = solution["lambda"][K-1]
+        # lmbd = Tli.T @ lmbd_tilde
+        # solution["u"][K-1] = u
+        # solution["lambda"][K-1] = lmbd
+        # return solution
+        ######
+
+        # eliminate u1a and lambda
+        Sa = S_tilde[:, :rank]; Sb = S_tilde[:, rank:]
+        Ra = R_tilde[:rank, :rank]; Rb = R_tilde[rank:, rank:]
+        ra = r_tilde[:rank,:]; rb = r_tilde[rank:,:]
+        Ha = Hx_tilde[:rank, :]; Hb = Hx_tilde[rank:, :]
+        ha = h0_tilde[:rank,:]; hb = h0_tilde[rank:,:]
+
+        Q_tilde = Q[K-1] + Hx_tilde.T @ Sa.T + Sa @ Hx_tilde + Hx_tilde.T @ Ra @ Hx_tilde
+        q_tilde = q[K-1] + Hx_tilde.T @ ra + Sa @ h0_tilde + Hx_tilde.T @ Ra @ h0_tilde
+
+        if K > 1:
             Gua = Gu_c[K-2][:, :rank]; Gub = Gu_c[K-2][:, rank:]
             Gxa = Gx_c[K-2][:, :rank]; Gxb = Gx_c[K-2][:, rank:]
             Fu_c[K-2] = Fu[K-2] + Gua @ Hx_tilde
@@ -142,15 +166,50 @@ def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
             r_c[K-2] = r[K-2] + Gua @ ha
             q_c[K-2] = q[K-2] + Gxa @ ha
 
-        # eliminate remaining controls
+            Gu_c[K-2] = Gub
+            Gx_c[K-2] = Gxb
+        
+        Sb_prime = Sb + Ha.T @ R_tilde[:rank, rank:]
+        rb_prime = rb + R_tilde[rank:, :rank] @ h0_tilde
+        
+        R_c[K-1] = Rb
+        S_c[K-1] = Sb_prime
+        Q_c[K-1] = Q_tilde
+        Hu_c[K-1] = np.zeros((m-rank, n))
+        Hx_c[K-1] = Hb
+        r_c[K-1] = rb_prime
+        q_c[K-1] = q_tilde
+        h_c[K-1] = hb  
+        nu_c[K-1] = n - rank
+        ng_eq_c[K-1] = m - rank
+
+        ### intermediate check ###
+        # KKT, rhs = GetKKT(K, nu_c, nx_c, ng_eq_c, R_c, S_c, Q_c, Gu_c, Gx_c, Fu_c, Fx_c, Hu_c, Hx_c, B_c, A_c, r_c, q_c, h_c, b_c)
+        # solution_vector = np.linalg.solve(KKT, -rhs)
+        # solution = extract_solultion(K, nu_c, nx_c, ng_eq_c, solution_vector)
+        # # recover solution
+        # ub_tilde = solution["u"][K-1]
+        # ua_tilde = Ha @ solution["x"][K-1] + ha
+        # u_tilde = np.block([[ua_tilde], [ub_tilde]])
+        # u = Tri @ u_tilde
+        # lmbd_tilde = (R_tilde @ u_tilde + S_tilde.T @ solution["x"][K-1] + r_tilde)[:rank]
+        # if K > 1:
+        #     lmbd_tilde += Gua.T @ solution["u"][K-2] + Gxa.T @ solution["x"][K-2]
+        # lmbd = Tli.T @ lmbd_tilde
+        # solution["u"][K-1] = u
+        # solution["lambda"][K-1] = lmbd
+        # return solution
+        ######
+
+        # # eliminate remaining controls
         Lmbd = np.linalg.cholesky(Rb)
         assert np.linalg.norm(Rb - Lmbd @ Lmbd.T) < 1e-8
         # TODO: check if this matches the Llt result
 
         Lmbdi = np.linalg.inv(Lmbd)
         
-        S_hat = Sb @ Lmbdi.T
-        r_hat = Lmbdi @ rb
+        S_hat = Sb_prime @ Lmbdi.T
+        r_hat = Lmbdi @ rb_prime
 
         Q_hat = Q_tilde - S_hat @ S_hat.T
         q_hat = q_tilde - S_hat @ r_hat
@@ -189,14 +248,74 @@ def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
         u_b_tilde = - Lmbdi.T  @ u_b_hat
         u_tilde = np.block([[Ha @ solution["x"][K-1] + ha], [u_b_tilde]])
         u = Tri @ u_tilde
-        lmbd_hat = R_tilde @ u_tilde + S_tilde.T @ solution["x"][K-1] + r_tilde
+        lmbd_tilde = (R_tilde @ u_tilde + S_tilde.T @ solution["x"][K-1] + r_tilde)[:rank]
         if K > 1:
-            lmbd_hat += Gu_hat.T @ solution["u"][K-2] + Gx_hat.T @ solution["x"][K-2]
-        lmbd_tilde = lmbd_hat[:rank]
+            lmbd_tilde += Gua.T @ solution["u"][K-2] + Gxa.T @ solution["x"][K-2]
         lmbd = Tli.T @ lmbd_tilde
 
         solution["u"][K-1] = u
         solution["lambda"][K-1] = lmbd
+
+    elif K > 1:
+        # eliminate states
+        temp = np.block([[np.block([[B[K-2], A[K-2]]]).T, np.eye(nu[K-2]+nx[K-2])]]) @ \
+            np.block([[Q[K-1], np.zeros((nx[K-1], nu[K-2] + nx[K-2])), q[K-1]],
+                      [np.zeros((nu[K-2], nx[K-1])), R[K-2], S[K-2].T, r[K-2]],
+                      [np.zeros((nx[K-2], nx[K-1])), S[K-2], Q[K-2], q[K-2]]]) @ \
+            np.block([[B[K-2], A[K-2], b[K-2]],
+                      [np.eye(nu[K-2] + nx[K-2] + 1)]])
+        temp = temp + \
+            np.block([[Fu[K-2], B[K-2].T],
+                      [Fx[K-2], A[K-2].T]]) @ \
+            np.block([[B[K-2], A[K-2], b[K-2]],
+                      [Fu[K-2].T, Fx[K-2].T, np.zeros((nx[K-1], 1))]])
+        R_bar = temp[:nu[K-2], :nu[K-2]]
+        S_bar = temp[:nu[K-2], nu[K-2]:nu[K-2]+nx[K-2]]
+        Q_bar = temp[nu[K-2]:nu[K-2]+nx[K-2], nu[K-2]:nu[K-2]+nx[K-2]]
+        r_bar = temp[:nu[K-2], -1:]
+        q_bar = temp[nu[K-2]:, -1:]
+
+        temp = np.block([[Hu[K-2], Hx[K-2], h[K-2]],
+                         [
+                             np.block([[Hx[K-1], h[K-1]]]) @ \
+                             np.block([[B[K-2], A[K-2], b[K-2]],
+                                       [np.zeros((nx[K-1], nu[K-2] + nx[K-2])), 1]]),
+                         ]])
+        Hu_bar = temp[:, :nu[K-2]]
+        Hx_bar = temp[:, nu[K-2]:nu[K-2]+nx[K-2]]
+        h_bar = temp[:, -1:]
+
+        R_c[K-2] = R_bar
+        S_c[K-2] = S_bar
+        Q_c[K-2] = Q_bar
+        r_c[K-2] = r_bar
+        q_c[K-2] = q_bar
+        Hu_c[K-2] = Hu_bar
+        Hx_c[K-2] = Hx_bar
+        h_c[K-2] = h_bar
+        nx_c[K-1] = 0
+        nu_c[K-1] = 0
+        ng_eq_c[K-1] = 0
+        ng_eq_c[K-2] = h_bar.shape[0]
+        
+        # solution = Solve(K - 1, nu_c, nx_c, ng_eq_c, R_c, S_c, Q_c, Gu_c, Gx_c, Fu_c, Fx_c,
+        #       Hu_c, Hx_c, B_c, A_c, r_c, q_c, h_c, b_c, Pl, Pr, L, U,
+        #       Lmbd, rank_k_values)
+        KKT, rhs = GetKKT(K-1, nu_c, nx_c, ng_eq_c, R_c, S_c, Q_c, Gu_c, Gx_c, Fu_c, Fx_c, Hu_c, Hx_c, B_c, A_c, r_c, q_c, h_c, b_c)
+        solution_vector = np.linalg.solve(KKT, -rhs)
+        solution = extract_solultion(K-1, nu_c, nx_c, ng_eq_c, solution_vector)
+        
+        # recover full solution
+        x = B[K-2] @ solution["u"][K-2] + A[K-2] @ solution["x"][K-2] + b[K-2]
+        solution["x"].append(x)
+        lmbd = solution["lambda"][K-2]
+        lmbd_true = lmbd[:ng_eq[K-2]]
+        mu = lmbd[ng_eq[K-2]:]
+        solution["lambda"][K-2] = lmbd_true
+        solution["lambda"].append(mu)
+        pi = Q[K-1] @ x + Hx[K-1].T @ solution["lambda"][K-1] + q[K-1] + Fu[K-2].T @ solution["u"][K-2] + Fx[K-2].T @ solution["x"][K-2]
+        solution["pi"].append(pi)
+        solution["u"].append(np.zeros((nu[K-1], 1)))
 
     else:
         KKT, rhs = GetKKT(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b)
