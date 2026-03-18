@@ -336,8 +336,8 @@ namespace fatrop
         bool increased_accuracy = true;
 
         bool print_debug_lines = false;
-        bool print_initial_stage = true;
-        bool write_factorization_file = true;
+        bool print_initial_stage = false;
+        bool write_factorization_file = false;
     };
 
     // define ImplicitOcpType augmented system solver
@@ -451,8 +451,10 @@ namespace fatrop
                                  MatRealAllocated& A, bool rows=false);
 
         bool print_debug = false;
-        bool write_preprocessing_file = true;
         bool print_preprocessed_system = false;
+        bool write_preprocessing_file = false;
+        bool verify_preprocessed_solution = false;
+        bool print_final_solution = false;
 
         double lu_fact_tol = 1e-5;
         

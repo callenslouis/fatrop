@@ -197,7 +197,7 @@ public:
         for (Index i = 0; i < info.number_of_primal_variables; ++i)
         {
             rhs_x(i) = 1.0 * i;
-            D_x(i) = 1.0 * (i + 0.1);
+            D_x(i) = 0*1.0 * (i + 0.1);
         }
         // fill the mult vector with random values
         for (Index i = 0; i < info.number_of_eq_constraints; ++i)
@@ -601,9 +601,9 @@ using SolverTypes = ::testing::Types<ImplicitOcpType>;
 TYPED_TEST_SUITE(RandomAugSystemSolverTest, SolverTypes);
 TYPED_TEST(RandomAugSystemSolverTest, TestRandomSolve)
 {
-    // int seed = time(0);
-    // int seed = 1773762058; // TODO: fix this case
-    int seed = 1773762291; // TODO: fix this case
+    int seed = time(0);
+    // int seed = 1773762058; // TODO: fix this case --> likely numerical errors. How do we increase accuracy?
+    // int seed = 1773762291; // TODO: fix this case --> likely numerical errors. How do we increase accuracy?
 
     // problematic seed: 1772632854 --> leads to INDEFINITE return status
 

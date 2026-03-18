@@ -1055,14 +1055,18 @@ void PrintNpArray(MatRealAllocated const &A, std::string name, int m=-1, int n=-
     } else {
         o << "np.array([\n\t";
     }
-    for (int i = 0; i < m; i++){
-        o << "[";
-        for (int j = 0; j < n; j++){
-            o << std::setw(10) << std::setprecision(6) << A(i,j);
-            if (j < n - 1){ o << ",";}
-            o << " ";
+
+    if (m == 0){ o << "[]";}
+    else{
+        for (int i = 0; i < m; i++){
+            o << "[";
+            for (int j = 0; j < n; j++){
+                o << std::setw(10) << std::setprecision(10) << A(i,j);
+                if (j < n - 1){ o << ",";}
+                o << " ";
+            }
+            o << "],\n\t";        
         }
-        o << "],\n\t";        
     }
     o << "])" << std::endl;
 }
@@ -1100,7 +1104,8 @@ void PrintPreProcessNpInfo(const ProblemInfo &info,
                            const ProblemInfo & modified_info,
                            const Hessian<ImplicitOcpType> &hess, 
                            const Jacobian<ImplicitOcpType> &jacobian,
-                           const VecRealView &x, const VecRealView &eq_mult){
+                           const VecRealView &x, const VecRealView &eq_mult,
+                           const VecRealView &D_x){
     // Print dimensions
     // std::ostream& o = std::cout;
     std::string filename = "preprocess_info.py";
@@ -1147,6 +1152,19 @@ void PrintPreProcessNpInfo(const ProblemInfo &info,
         o << jacobian.J_ranks[k];
         if (k < info.dims.K - 2){ o << ", ";}
         r.push_back(jacobian.J_ranks[k]);
+    }
+    o << "]\n";
+    
+    o << "D_x = [";
+    for (int k = 0; k < info.dims.K; k++){
+        o << "[";
+        int n = info.dims.number_of_controls[k] + info.dims.number_of_states[k];
+        for (int i = 0; i < n; i++){
+            o << D_x(info.offsets_primal_u[k] + i);
+            if (i < n - 1){ o << ", ";}
+        }
+        o << "]";
+        if (k < info.dims.K - 1){ o << ",\n";}
     }
     o << "]\n";
 
@@ -1288,12 +1306,13 @@ void PrintPreProcessNpInfo(const ProblemInfo &info,
     for (int k = 0; k < info.dims.K - 1; k++){
         o << "np.array([";
         int nx_next = info.dims.number_of_states[k+1];
+        if (nx_next == 0){ o << "[]";}
         for (int i = 0; i < nx_next; i++){
             o << "[";
             for (int j = 0; j < nx_next; j++){
                 if (i > j){
                     // o << jacobian.Jt_LU[k](j,i);
-                    o << Jt_LU[k](j,i);
+                    o << std::setw(10) << std::setprecision(10) << Jt_LU[k](j,i);
                 } else if (i == j){
                     o << 1.0;
                 } else {
@@ -1317,12 +1336,13 @@ void PrintPreProcessNpInfo(const ProblemInfo &info,
     for (int k = 0; k < info.dims.K - 1; k++){
         o << "np.array([";
         int nx_next = info.dims.number_of_states[k+1];
+        if (nx_next == 0){ o << "[]";}
         for (int i = 0; i < nx_next; i++){
             o << "[";
             for (int j = 0; j < nx_next; j++){
                 if (i <= j){
                     // o << jacobian.Jt_LU[k](j,i);
-                    o << Jt_LU[k](j,i);
+                    o << std::setw(10) << std::setprecision(10) << Jt_LU[k](j,i);
                 } else {
                     o << 0.0;
                 }
@@ -1357,7 +1377,7 @@ void PrintPreProcessNpInfo(const ProblemInfo &info,
 
     o << "x = np.array([";
     for (int i = 0; i < info.number_of_primal_variables; i++){
-        o << x(i);
+        o << std::setw(10) << std::setprecision(10) << x(i);
         if (i < info.number_of_primal_variables - 1){
             o << ", ";
         }
@@ -1365,7 +1385,7 @@ void PrintPreProcessNpInfo(const ProblemInfo &info,
     o << "])\n";
     o << "eq_mult = np.array([";
     for (int i = 0; i < info.number_of_eq_constraints; i++){
-        o << eq_mult(i);
+        o << std::setw(10) << std::setprecision(10) << eq_mult(i);
         if (i < info.number_of_eq_constraints - 1){
             o << ", ";
         }
@@ -1380,8 +1400,10 @@ void PrintFactorizationInfo(const ProblemInfo &info,
                             std::vector<PermutationMatrix>& Pl,
                             std::vector<PermutationMatrix>& Pr,
                             std::vector<MatRealAllocated>& LU,
+                            std::vector<Index>& gamma_k_values,
                             std::vector<MatRealAllocated>& Gg_eqt,
-                            std::vector<MatRealAllocated>& Llt){
+                            std::vector<MatRealAllocated>& Llt,
+                            std::vector<MatRealAllocated>& R_shur){
     std::string filename = "factorization_info.py";
 
     // std::ostream& o = std::cout;
@@ -1402,8 +1424,8 @@ void PrintFactorizationInfo(const ProblemInfo &info,
     o << "Pl_r = [\n";
     for (size_t i = 0; i < Pl.size(); i++){
         PermutationMatrix Pl_copy = Pl[i];
-        PrintNpArray(PermutationVectorToMatrix(Pl_copy), "", info.dims.number_of_eq_constraints[i], 
-            info.dims.number_of_eq_constraints[i], false, o);
+        PrintNpArray(PermutationVectorToMatrix(Pl_copy), "", gamma_k_values[i], 
+            gamma_k_values[i], false, o);
         if (i < Pl.size() - 1){ o << ",\n";}
     }
     o << "]\n";
@@ -1419,14 +1441,15 @@ void PrintFactorizationInfo(const ProblemInfo &info,
     // LU factorization
     o << "L_r = [\n";
     for (int k = 0; k < LU.size(); k++){
-        int m = info.dims.number_of_eq_constraints[k];
+        int m = gamma_k_values[k];
         o << "np.array([";
         int n = info.dims.number_of_controls[k];
+        if (m == 0){ o << "[]";}
         for (int i = 0; i < m; i++){
             o << "[";
             for (int j = 0; j < m; j++){
                 if (i > j){
-                    o << LU[k](j,i);
+                    o << std::setw(10) << std::setprecision(10) << LU[k](j,i);
                 } else if (i == j){
                     o << 1.0;
                 } else {
@@ -1448,14 +1471,15 @@ void PrintFactorizationInfo(const ProblemInfo &info,
 
     o << "U_r = [\n";
     for (int k = 0; k < LU.size(); k++){
-        int m = info.dims.number_of_eq_constraints[k];
+        int m = gamma_k_values[k];
         o << "np.array([";
         int n = info.dims.number_of_controls[k];
+        if (m == 0){ o << "[]";}
         for (int i = 0; i < m; i++){
             o << "[";
             for (int j = 0; j < n; j++){
                 if (i <= j){
-                    o << LU[k](j,i);
+                    o << std::setw(10) << std::setprecision(10) << LU[k](j,i);
                 } else {
                     o << 0.0;
                 }
@@ -1475,18 +1499,28 @@ void PrintFactorizationInfo(const ProblemInfo &info,
 
     o << "Hut = [\n";
     for (size_t i = 0; i < Gg_eqt.size(); i++){
-        PrintNpArray(Gg_eqt[i], "", info.dims.number_of_controls[i], info.dims.number_of_eq_constraints[i], false, o);
+        PrintNpArray(Gg_eqt[i], "", info.dims.number_of_controls[i], gamma_k_values[i], false, o);
         if (i < Gg_eqt.size() - 1){ o << ",\n";}
     }
     o << "]\n";
 
     // shur step
-    // o << "Lmbd = [\n";
-    // for (size_t i = 0; i < Llt.size(); i++){
-    //     PrintNpArray(Llt[i], "", Llt[i].m(), Llt[i].n(), false);
-    //     if (i < Llt.size() - 1){ o << ",\n";}
-    // }
-    // o << "]\n";
+    o << "Lmbd = [\n";
+    for (size_t i = 0; i < Llt.size(); i++){
+        int n = info.dims.number_of_controls[i] - rank_k_values[i];
+        PrintNpArray(Llt[i], "", n, n, false, o);
+        if (i < Llt.size() - 1){ o << ",\n";}
+    }
+    o << "]\n";
+
+    o << "R_shur = [\n";
+    for (size_t i = 0; i < R_shur.size(); i++){
+        int m = info.dims.number_of_controls[i] - rank_k_values[i];
+        int n = info.dims.number_of_controls[i] - rank_k_values[i];
+        PrintNpArray(R_shur[i], "", m, n, false, o);
+        if (i < R_shur.size() - 1){ o << ",\n";}
+    }
+    o << "]\n";
     // o << "==============================================================\n";
     o.close();
 }
@@ -1630,7 +1664,13 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
     Index rank_k;
     std::vector<Index> rank_k_values(info.dims.K);
     std::vector<MatRealAllocated> LU;
-    LU.reserve(info.dims.K); for (Index k = 0; k < info.dims.K; k++){ LU.emplace_back(10, 10);}
+    LU.reserve(info.dims.K); for (Index k = 0; k < info.dims.K; k++){ LU.emplace_back(20, 20);}
+    std::vector<Index> gamma_k_values(info.dims.K);
+    std::vector<MatRealAllocated> Ggt_eq;
+    Ggt_eq.reserve(info.dims.K); for (Index k = 0; k < info.dims.K; k++){ Ggt_eq.emplace_back(20, 20);}
+    std::vector<MatRealAllocated> R_shur;
+    R_shur.reserve(info.dims.K); for (Index k = 0; k < info.dims.K; k++){ R_shur.emplace_back(20, 20);}
+
     /////////////// recursion ///////////////
     for (Index k = info.dims.K - 1; k >= 0; --k)
     {
@@ -1769,12 +1809,14 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             // std::cout << "computing factorization" << std::endl;
             // PrintNpArray(Ggt_stripe[0], "Ggt_stripe before factorization");
             // std::cout << "(gamma_k = " << gamma_k << ")" << std::endl;
+            gamma_k_values[k] = gamma_k;
+            gecp(nu, gamma_k, Ggt_stripe[0], 0, 0, Ggt_eq[k], 0, 0);
             lu_fact_transposed(gamma_k, nu + nx + 1, nu, rank_k, Ggt_stripe[0], Pl[k], Pr[k], lu_fact_tol);
             rank_k_values[k] = rank_k;
             gecp(nu, gamma_k, Ggt_stripe[0], 0, 0, LU[k], 0, 0);
             // std::cout << "Pl: "; for (int i = 0; i < rank_k; i++){ std::cout << Pl[k][i] << " ";}std::cout << std::endl;
             // std::cout << "Pr: "; for (int i = 0; i < rank_k; i++){ std::cout << Pr[k][i] << " ";}std::cout << std::endl;
-            std::cout << "rank_" << k << " = " << rank_k << std::endl;
+            // std::cout << "rank_" << k << " = " << rank_k << std::endl;
             
             rho[k] = rank_k;
             if (gamma_k - rank_k > 0)
@@ -1864,6 +1906,7 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             {
                 // DLlt_k = [chol(R_hatk); Llk@chol(R_hatk)^-T]
                 // PrintNpArray(RSQrq_hat_curr_p[0], "RSQrq_hat");
+                gecp(nu-rank_k, nu-rank_k, RSQrq_hat_curr_p[0], 0, 0, R_shur[k], 0, 0);
                 potrf_l_mn(nu - rank_k + nx + 1, nu - rank_k, RSQrq_hat_curr_p[0], 0, 0, Llt[k], 0,
                            0);
                 // PrintNpArray(Llt[k], "shur[" + std::to_string(k) + "]");
@@ -2171,7 +2214,7 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
     }
 
     if (write_factorization_file){
-        PrintFactorizationInfo(info, rank_k_values, Pl, Pr, LU, jacobian.Gg_eqt, Llt);
+        PrintFactorizationInfo(info, rank_k_values, Pl, Pr, LU, gamma_k_values, Ggt_eq, Llt, R_shur);
     }
 
     return LinsolReturnFlag::SUCCESS;
@@ -2931,14 +2974,20 @@ void VerifyIntermediateSolution(const ProblemInfo &info,
 
     jacobian.apply_on_right(info, x, 0.0, solution_g, solution_g, true);
 
+    double max_diff_grad = 0.0;
     for (int i = 0; i < info.number_of_primal_variables; i++){
-        std::cout << solution_grad(i) << "\t-\t" << -f(i) << std::endl;
+        std::cout << std::setw(10) << std::setprecision(5) << solution_grad(i) << "\t-\t" << -f(i) << std::endl;
+        max_diff_grad = std::max(max_diff_grad, std::abs(solution_grad(i) + f(i)));
     }
+    std::cout << "MAX DIFF GRAD: " << max_diff_grad << std::endl;
 
     std::cout << "------------" << std::endl;
+    double max_diff_g = 0.0;
     for (int i = 0; i < info.number_of_eq_constraints; i++){
-        std::cout << solution_g(i) << "\t-\t" << -g(i) << std::endl;
+        std::cout << std::setw(10) << std::setprecision(5) << solution_g(i) << "\t-\t" << -g(i) << std::endl;
+        max_diff_g = std::max(max_diff_g, std::abs(solution_g(i) + g(i)));
     }
+    std::cout << "MAX DIFF G: " << max_diff_g << std::endl;
 }
 
 
@@ -2980,6 +3029,10 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
     start = std::chrono::high_resolution_clock::now();
     LinsolReturnFlag flag = ModifiedAugSystemSolver::solve(modified_info, jacobian, hessian, D_x_copy, D_s_copy, f_copy, g_copy, x, eq_mult);
 
+    if (write_preprocessing_file){
+        PrintPreProcessNpInfo(info, modified_info, hessian, jacobian, x, eq_mult, D_x);
+    }
+
     if (print_preprocessed_system){
         std::cout << "KKT matrix:" << std::endl;
         PrintNpArray(GetKKT(modified_info, jacobian, hessian, true), "KKT");
@@ -2990,14 +3043,31 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
             full_rhs(info.number_of_primal_variables + info.offset_g_eq_slack + i) -= D_s(i) * eq_mult(info.offset_g_eq_slack + i);
         }
         PrintNpArray(full_rhs, "rhs");
-        VerifyIntermediateSolution(modified_info, jacobian, hessian, x, eq_mult, f_copy, g_copy);    
         std::cout << "obtained x:" << std::endl << x << std::endl;
         std::cout << "obtained eq_mult:" << std::endl << eq_mult << std::endl;
+    }
+    if (verify_preprocessed_solution){
+        VerifyIntermediateSolution(modified_info, jacobian, hessian, x, eq_mult, f_copy, g_copy);    
     }
     
     auto end = std::chrono::high_resolution_clock::now();
     duration_solve = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     PostProcess(info, modified_info, jacobian, hessian, x, eq_mult);
+    if (print_final_solution){
+        std::string file = "final_solution.py";
+        std::ofstream o(file);
+        o << "import numpy as np\n\n";
+        MatRealAllocated x_mat(info.number_of_primal_variables, 1);
+        for (int i = 0; i < info.number_of_primal_variables; i++){
+            x_mat(i,0) = x(i);
+        }
+        PrintNpArray(x_mat, "x", info.number_of_primal_variables, 1, true, o);
+        MatRealAllocated eq_mult_mat(info.number_of_eq_constraints, 1);
+        for (int i = 0; i < info.number_of_eq_constraints; i++){
+            eq_mult_mat(i,0) = eq_mult(i);
+        }
+        PrintNpArray(eq_mult_mat, "eq_mult", info.number_of_eq_constraints, 1, true, o);
+    }
     if (print_debug) {std::cout << "AugSystemSolver<ImplicitOcpType> solve end" << std::endl;}
     return flag;
 }
@@ -3160,17 +3230,21 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
         if (D_x != nullptr){
             // consider regularization already here
             diaad(nu_next + nx_next, 1.0, *D_x, info.offsets_primal_u[k+1], hessian.RSQrqt[k+1], 0, 0);
-            
             // make sure to not consider them later on again
             vecsc(nu_next + nx_next, 0.0, *D_x, info.offsets_primal_u[k+1]);
+
+            // don't skip k == 0
+            if (k == 0){
+                diaad(nu + nx, 1.0, *D_x, info.offsets_primal_u[k], hessian.RSQrqt[k], 0, 0);
+                vecsc(nu + nx, 0.0, *D_x, info.offsets_primal_u[k]);
+            }
         }
-        // right-multiply second-column part with Dr^-1
-        Pr_extended.apply_on_rows(nu_next + rank, &hessian.RSQrqt[k+1].mat());
-        Pr_extended.apply_on_cols(nu_next + rank, &hessian.RSQrqt[k+1].mat());
         // right-multiply right part with Dr^-1
+        Pr_extended.apply_on_rows(nu_next + rank, &hessian.RSQrqt[k+1].mat());
         gemm_nn(nx_next - rank, nu_next + nx_next, rank, 1.0, jacobian.U1U2t[k], 0, 0, hessian.RSQrqt[k+1], nu_next, 0, 1.0, 
                 hessian.RSQrqt[k+1], nu_next + rank, 0, hessian.RSQrqt[k+1], nu_next + rank, 0);
         // left-multiply bottom part with Dr^-T
+        Pr_extended.apply_on_cols(nu_next + rank, &hessian.RSQrqt[k+1].mat());
         gemm_nt(nu_next + nx_next + 1, nx_next - rank, rank, 1.0, hessian.RSQrqt[k+1], 0, nu_next, jacobian.U1U2t[k], 0, 0, 1.0, 
                 hessian.RSQrqt[k+1], 0, nu_next + rank, hessian.RSQrqt[k+1], 0, nu_next + rank);
 
@@ -3265,11 +3339,7 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
                                                    const ProblemInfo &modified_info,
                                                    Jacobian<ImplicitOcpType> &jacobian,
                                                    Hessian<ImplicitOcpType> &hessian,
-                                                   VecRealView &x, VecRealView &eq_mult){
-    if (write_preprocessing_file){
-        PrintPreProcessNpInfo(info, modified_info, hessian, jacobian, x, eq_mult);
-    }
-    
+                                                   VecRealView &x, VecRealView &eq_mult){   
     // GENERAL VERSION
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::PostProcess start" << std::endl;}
     VecRealAllocated x_copy(x.m());
@@ -3338,7 +3408,7 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
             // } 
 
             // U^-T * 
-            // std::cout << "eq_mult before:\n" << eq_mult << std::endl;
+            // PrintNpArray(eq_mult, info.offsets_g_eq_dyn[k-1], info.dims.number_of_states[k], "\n[" + std::to_string(k) + "] eq_mult before");
             trsv_lnn(jacobian.J_ranks[k-1], jacobian.U1t[k-1], 0, 0, eq_mult, info.offsets_g_eq_dyn[k-1], eq_mult, info.offsets_g_eq_dyn[k-1]);
             vecsc(jacobian.J_ranks[k-1], -1.0, eq_mult, info.offsets_g_eq_dyn[k-1]);
             // L^-T *
@@ -3346,6 +3416,7 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
             // Pl * 
             jacobian.Pl_pre[k-1].apply_inverse(jacobian.J_ranks[k-1], &eq_mult.vec(), info.offsets_g_eq_dyn[k-1]);
             // std::cout << "eq_mult after:\n" << eq_mult << std::endl;
+            // PrintNpArray(eq_mult, info.offsets_g_eq_dyn[k-1], info.dims.number_of_states[k], "[" + std::to_string(k) + "] eq_mult after");
         }
     }
 

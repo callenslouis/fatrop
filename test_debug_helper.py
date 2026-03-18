@@ -1,6 +1,47 @@
 import numpy as np
 
-def GetKKT(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b):
+def GetBlockMatrices(K, modified_nu, modified_nx, modified_ng_eq, RSQrqt, GuGx, FuFx, Gg_eqt, BAbt):
+    R = []
+    S = []
+    Q = []
+    Gu = []
+    Gx = []
+    Fu = []
+    Fx = []
+    Hu = []
+    Hx = []
+    B = []
+    A = []
+    r = []
+    q = []
+    h = []
+    b = []
+    for k in range(K):
+        R.append(RSQrqt[k][:modified_nu[k], :modified_nu[k]])
+        S.append(RSQrqt[k][:modified_nu[k], modified_nu[k]:modified_nu[k]+modified_nx[k]].T)
+        Q.append(RSQrqt[k][modified_nu[k]:modified_nu[k]+modified_nx[k], modified_nu[k]:modified_nu[k]+modified_nx[k]])
+        if k < K-1:
+            Gu.append(GuGx[k][:modified_nu[k], :])
+            Gx.append(GuGx[k][modified_nu[k]:modified_nu[k]+modified_nx[k], :])
+            Fu.append(FuFx[k][:modified_nu[k], :])
+            Fx.append(FuFx[k][modified_nu[k]:modified_nu[k]+modified_nx[k], :])
+            B.append(BAbt[k][:modified_nu[k], :modified_nx[k+1]].T)
+            A.append(BAbt[k][modified_nu[k]:modified_nu[k]+modified_nx[k], :modified_nx[k+1]].T)
+            b.append(BAbt[k][modified_nu[k]+modified_nx[k]:, :modified_nx[k+1]].T)
+        Hu.append(Gg_eqt[k][:modified_nu[k], :].T)
+        Hx.append(Gg_eqt[k][modified_nu[k]:modified_nu[k]+modified_nx[k], :].T)
+        
+        r.append(RSQrqt[k][modified_nu[k]+modified_nx[k]:, :modified_nu[k]].T)
+        q.append(RSQrqt[k][modified_nu[k]+modified_nx[k]:, modified_nu[k]:modified_nu[k]+modified_nx[k]].T)
+        h.append(Gg_eqt[k][modified_nu[k]+modified_nx[k]:, :modified_ng_eq[k]].T)
+
+    blocks = {
+        "R": R, "S": S, "Q": Q, "Gu": Gu, "Gx": Gx, "Fu": Fu, "Fx": Fx,
+        "Hu": Hu, "Hx": Hx, "B": B, "A": A, "r": r, "q": q, "h": h, "b": b
+    }
+    return blocks
+
+def GetKKT(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b, Jt=None):
     number_of_primal_vars = sum(nu) + sum(nx)
     number_of_eqs = sum(ng_eq) + sum(nx[1:])
     KKT = np.zeros((number_of_primal_vars + number_of_eqs, number_of_primal_vars + number_of_eqs))
@@ -25,10 +66,16 @@ def GetKKT(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b):
             rhs[ptr+nu[k]+nx[k]+ng_eq[k]:ptr+nu[k]+nx[k]+ng_eq[k]+nx[k]] = b[k-1]
 
             # J
-            KKT[ptr+nu[k]+nx[k]+ng_eq[k]:ptr+nu[k]+nx[k]+ng_eq[k]+nx[k],
-                ptr+nu[k]:ptr+nu[k]+nx[k]] = -np.eye(nx[k])
-            KKT[ptr+nu[k]:ptr+nu[k]+nx[k],
-                ptr+nu[k]+nx[k]+ng_eq[k]:ptr+nu[k]+nx[k]+ng_eq[k]+nx[k]] = -np.eye(nx[k])
+            if Jt is None:
+                KKT[ptr+nu[k]+nx[k]+ng_eq[k]:ptr+nu[k]+nx[k]+ng_eq[k]+nx[k],
+                    ptr+nu[k]:ptr+nu[k]+nx[k]] = -np.eye(nx[k])
+                KKT[ptr+nu[k]:ptr+nu[k]+nx[k],
+                    ptr+nu[k]+nx[k]+ng_eq[k]:ptr+nu[k]+nx[k]+ng_eq[k]+nx[k]] = -np.eye(nx[k])
+            else:
+                KKT[ptr+nu[k]+nx[k]+ng_eq[k]:ptr+nu[k]+nx[k]+ng_eq[k]+nx[k],
+                    ptr+nu[k]:ptr+nu[k]+nx[k]] = Jt[k-1]
+                KKT[ptr+nu[k]:ptr+nu[k]+nx[k],
+                    ptr+nu[k]+nx[k]+ng_eq[k]:ptr+nu[k]+nx[k]+ng_eq[k]+nx[k]] = Jt[k-1].T
             
             # FuFx
             FuFx = np.block([[Fu[k-1]], [Fx[k-1]]])
@@ -68,8 +115,8 @@ def extract_solultion(K, nu, nx, ng_eq, sol):
         extracted_solution["u"].append(sol[ptr:ptr+nu[k], :])
         extracted_solution["x"].append(sol[ptr+nu[k]:ptr+nu[k]+nx[k], :])
         extracted_solution["lambda"].append(sol[ptr+nu[k]+nx[k]:ptr+nu[k]+nx[k]+ng_eq[k], :])
-        extracted_solution["pi"].append(sol[ptr+nu[k]+nx[k]+ng_eq[k]:ptr+nu[k]+nx[k]+ng_eq[k]+(nx[k-1] if k > 0 else 0), :])
-        ptr += nu[k] + nx[k] + ng_eq[k] + (nx[k-1] if k > 0 else 0)
+        extracted_solution["pi"].append(sol[ptr+nu[k]+nx[k]+ng_eq[k]:ptr+nu[k]+nx[k]+ng_eq[k]+(nx[k] if k > 0 else 0), :])
+        ptr += nu[k] + nx[k] + ng_eq[k] + (nx[k] if k > 0 else 0)
 
     extracted_solution["u"] = extracted_solution["u"][::-1]
     extracted_solution["x"] = extracted_solution["x"][::-1]
@@ -94,7 +141,14 @@ def print_solution(solution):
     print()
 
 def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
-          Pl, Pr, L, U, Lmbd, rank_k_values, Hut):
+          Pl, Pr, L, U, Lmbds, rank_k_values, Hut, max_recursion_depth=-1):
+    if max_recursion_depth == 0:
+        print("Maximum recursion depth reached. Solving linear system.")
+        KKT, rhs = GetKKT(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b)
+        solution_vector = np.linalg.solve(KKT, -rhs)
+        solution = extract_solultion(K, nu, nx, ng_eq, solution_vector)
+        return solution
+
     # figure out what step to perform
     nu_c = nu.copy(); nx_c = nx.copy(); ng_eq_c = ng_eq.copy(); 
     R_c = R.copy(); S_c = S.copy(); Q_c = Q.copy(); 
@@ -104,12 +158,15 @@ def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
     q_c = q.copy(); h_c = h.copy(); b_c = b.copy()
 
     if nu[K-1] != 0:
+        print(f"\n\nStage {K-1}: eliminating controls")
+        # print(f"checking Hu dimension")
+        # for k in range(K):
+        #     assert Hu[k].shape == Hut[k].T.shape, f"Hu[{k}] shape {Hu[k].shape} does not match Hut[{k}].T shape {Hut[k].T.shape}"
         # decompose Hku and eliminate constraints partially
         rank = rank_k_values[K-1]; m = ng_eq[K-1]; n = nu[K-1]
         U1 = U[K-1][:rank, :rank]
         U2 = U[K-1][:rank, rank:]
 
-        print(f"Decomposition:")
         Tl = Pl[K-1] @ L[K-1] @ np.block([[-U1, np.zeros((rank, m-rank))], [np.zeros((m-rank, rank)), np.eye(m-rank)]])
         Tr = np.block([[np.eye(rank), np.linalg.inv(U1) @ U2], [np.zeros((n-rank, rank)), np.eye(n-rank)]]) @ Pr[K-1].T
         norm = np.linalg.norm(Hu[K-1] - Tl @ np.block([[-np.eye(rank), np.zeros((rank, n-rank))], [np.zeros((m-rank, n))]]) @ Tr)
@@ -159,14 +216,14 @@ def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
         Ha = Hx_tilde[:rank, :]; Hb = Hx_tilde[rank:, :]
         ha = h0_tilde[:rank,:]; hb = h0_tilde[rank:,:]
 
-        Q_tilde = Q[K-1] + Hx_tilde.T @ Sa.T + Sa @ Hx_tilde + Hx_tilde.T @ Ra @ Hx_tilde
-        q_tilde = q[K-1] + Hx_tilde.T @ ra + Sa @ h0_tilde + Hx_tilde.T @ Ra @ h0_tilde
+        Q_tilde = Q[K-1] + Ha.T @ Sa.T + Sa @ Ha + Ha.T @ Ra @ Ha
+        q_tilde = q[K-1] + Ha.T @ ra + Sa @ ha + Ha.T @ Ra @ ha
 
         if K > 1:
             Gua = Gu_c[K-2][:, :rank]; Gub = Gu_c[K-2][:, rank:]
             Gxa = Gx_c[K-2][:, :rank]; Gxb = Gx_c[K-2][:, rank:]
-            Fu_c[K-2] = Fu[K-2] + Gua @ Hx_tilde
-            Fx_c[K-2] = Fx[K-2] + Gxa @ Hx_tilde
+            Fu_c[K-2] = Fu[K-2] + Gua @ Ha
+            Fx_c[K-2] = Fx[K-2] + Gxa @ Ha
             r_c[K-2] = r[K-2] + Gua @ ha
             q_c[K-2] = q[K-2] + Gxa @ ha
 
@@ -174,7 +231,7 @@ def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
             Gx_c[K-2] = Gxb
         
         Sb_prime = Sb + Ha.T @ R_tilde[:rank, rank:]
-        rb_prime = rb + R_tilde[rank:, :rank] @ h0_tilde
+        rb_prime = rb + R_tilde[rank:, :rank] @ ha
         
         R_c[K-1] = Rb
         S_c[K-1] = Sb_prime
@@ -183,9 +240,13 @@ def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
         Hx_c[K-1] = Hb
         r_c[K-1] = rb_prime
         q_c[K-1] = q_tilde
-        h_c[K-1] = hb  
+        h_c[K-1] = hb
         nu_c[K-1] = n - rank
         ng_eq_c[K-1] = m - rank
+        if ng_eq_c[K-1] < 0:
+            print(f"Error: negative number of equality constraints at stage {K-1}")
+            print(f"m: {m}, rank: {rank}")
+            raise ValueError("Negative number of equality constraints")
 
         ### intermediate check ###
         # KKT, rhs = GetKKT(K, nu_c, nx_c, ng_eq_c, R_c, S_c, Q_c, Gu_c, Gx_c, Fu_c, Fx_c, Hu_c, Hx_c, B_c, A_c, r_c, q_c, h_c, b_c)
@@ -207,7 +268,15 @@ def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
 
         # # eliminate remaining controls
         Lmbd = np.linalg.cholesky(Rb)
-        assert np.linalg.norm(Rb - Lmbd @ Lmbd.T) < 1e-8
+        norm = np.linalg.norm(Lmbd - Lmbds[K-1])
+        print(norm)
+        print(np.linalg.norm(Rb - Lmbds[K-1] @ Lmbds[K-1].T))
+        # print(f"Lmbd:\n{Lmbd}")
+        # print(f"Lmbds[K-1]:\n{Lmbds[K-1]}")
+        # assert norm < 1e-5
+        norm = np.linalg.norm(Rb - Lmbd @ Lmbd.T)
+        print(norm)
+        assert norm < 1e-4
         # TODO: check if this matches the Llt result
 
         Lmbdi = np.linalg.inv(Lmbd)
@@ -232,7 +301,6 @@ def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
             Gu_c[K-2] = np.zeros((nu[K-2],0))
 
         nu_c[K-1] = 0
-        ng_eq[K-1] = ng_eq_c[K-1] - rank
 
         R_c[K-1] = np.zeros((0,0))
         S_c[K-1] = np.zeros((nx[K-1],0))
@@ -243,24 +311,31 @@ def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
         # perform recursive call
         solution = Solve(K, nu_c, nx_c, ng_eq_c, R_c, S_c, Q_c, Gu_c, Gx_c, Fu_c, Fx_c,
               Hu_c, Hx_c, B_c, A_c, r_c, q_c, h_c, b_c, Pl, Pr, L, U,
-              Lmbd, rank_k_values, Hut)
+              Lmbds, rank_k_values, Hut)
+        # verify solution dimensions
+        for k in range(K-1):
+            assert solution["u"][k].shape == (nu_c[k], 1), f"solution['u'][{k}] has shape {solution['u'][k].shape}, expected {(nu_c[k], 1)}"
+            assert solution["x"][k].shape == (nx_c[k], 1), f"solution['x'][{k}] has shape {solution['x'][k].shape}, expected {(nx_c[k], 1)}"
+            assert solution["lambda"][k].shape == (ng_eq_c[k], 1), f"solution['lambda'][{k}] has shape {solution['lambda'][k].shape}, expected {(ng_eq_c[k], 1)}"
         
         # recover original solution
         u_b_hat = S_hat.T @ solution["x"][K-1] + r_hat
         if K > 1:
-            u_b_hat += Gu_hat @ solution["u"][K-2] + Gx_hat @ solution["x"][K-2]
+            u_b_hat += Gu_hat.T @ solution["u"][K-2] + Gx_hat.T @ solution["x"][K-2]
         u_b_tilde = - Lmbdi.T  @ u_b_hat
         u_tilde = np.block([[Ha @ solution["x"][K-1] + ha], [u_b_tilde]])
         u = Tri @ u_tilde
         lmbd_tilde = (R_tilde @ u_tilde + S_tilde.T @ solution["x"][K-1] + r_tilde)[:rank]
         if K > 1:
             lmbd_tilde += Gua.T @ solution["u"][K-2] + Gxa.T @ solution["x"][K-2]
+        lmbd_tilde = np.block([[lmbd_tilde], [solution["lambda"][K-1]]])
         lmbd = Tli.T @ lmbd_tilde
 
         solution["u"][K-1] = u
-        solution["lambda"][K-1] = lmbd
+        solution["lambda"][K-1] = lmbd[:ng_eq[K-1], :]
 
     elif K > 1:
+        print(f"\n\nStage {K-1}: eliminating states")
         # eliminate states
         temp = np.block([[np.block([[B[K-2], A[K-2]]]).T, np.eye(nu[K-2]+nx[K-2])]]) @ \
             np.block([[Q[K-1], np.zeros((nx[K-1], nu[K-2] + nx[K-2])), q[K-1]],
@@ -274,7 +349,7 @@ def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
             np.block([[B[K-2], A[K-2], b[K-2]],
                       [Fu[K-2].T, Fx[K-2].T, np.zeros((nx[K-1], 1))]])
         R_bar = temp[:nu[K-2], :nu[K-2]]
-        S_bar = temp[:nu[K-2], nu[K-2]:nu[K-2]+nx[K-2]]
+        S_bar = temp[:nu[K-2], nu[K-2]:nu[K-2]+nx[K-2]].T
         Q_bar = temp[nu[K-2]:nu[K-2]+nx[K-2], nu[K-2]:nu[K-2]+nx[K-2]]
         r_bar = temp[:nu[K-2], -1:]
         q_bar = temp[nu[K-2]:, -1:]
@@ -304,10 +379,15 @@ def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
         
         solution = Solve(K - 1, nu_c, nx_c, ng_eq_c, R_c, S_c, Q_c, Gu_c, Gx_c, Fu_c, Fx_c,
               Hu_c, Hx_c, B_c, A_c, r_c, q_c, h_c, b_c, Pl, Pr, L, U,
-              Lmbd, rank_k_values, Hut)
+              Lmbds, rank_k_values, Hut)
         # KKT, rhs = GetKKT(K-1, nu_c, nx_c, ng_eq_c, R_c, S_c, Q_c, Gu_c, Gx_c, Fu_c, Fx_c, Hu_c, Hx_c, B_c, A_c, r_c, q_c, h_c, b_c)
         # solution_vector = np.linalg.solve(KKT, -rhs)
         # solution = extract_solultion(K-1, nu_c, nx_c, ng_eq_c, solution_vector)
+        for k in range(K-1):
+            assert solution["u"][k].shape == (nu_c[k], 1)
+            assert solution["x"][k].shape == (nx_c[k], 1)
+            assert solution["lambda"][k].shape == (ng_eq_c[k], 1)
+            assert solution["pi"][k].shape == (nx_c[k] if k > 0 else 0, 1)
         
         # recover full solution
         x = B[K-2] @ solution["u"][K-2] + A[K-2] @ solution["x"][K-2] + b[K-2]
@@ -330,6 +410,8 @@ def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
         print(f"solution first stage:")
         print_solution(solution)
 
+    print(f"\n\nStage {K-1} complete. returning")
+    max_recursion_depth -= 1
     return solution
 
         
