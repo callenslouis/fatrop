@@ -446,13 +446,18 @@ def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
 def get_expected_matrices(K, nu, nx, r, ng_eq, ng_ineq, modified_nu, modified_nx, modified_ng_eq, modified_ng_ineq, 
                           RSQrqt_original, GuGx_original, FuFx_original, Gg_eqt_original, Gg_ineqt_original, BAbt_original, D_x,
                           Pl, Pr, L, U, 
-                          RSQrqt, GuGx, FuFx, Gg_eqt, Gg_ineqt, BAbt, Jt):
+                          RSQrqt, GuGx, FuFx, Gg_eqt, Gg_ineqt, BAbt, Jt, **kwargs):
     BAbt_expected = [m.copy() for m in BAbt_original]
     GuGx_expected = [m.copy() for m in GuGx_original]
     FuFx_expected = [m.copy() for m in FuFx_original]
     RSQrqt_expected = [m.copy() for m in RSQrqt_original]
     Gg_eqt_expected = [m.copy() for m in Gg_eqt_original]
     Gg_ineqt_expected = [m.copy() for m in Gg_ineqt_original]
+
+    if kwargs.get("store_linear_systems", False):
+        linear_systems = []
+        blocks = GetBlockMatrices(K, modified_nu, modified_nx, modified_ng_eq, RSQrqt, GuGx, FuFx, Gg_eqt, BAbt)
+        # TODO
 
     # add regularization to hessian
     for k in range(K):
