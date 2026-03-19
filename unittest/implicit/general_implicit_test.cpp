@@ -453,11 +453,11 @@ public:
 
         for (Index i = 0; i < info.value().number_of_g_eq_path; ++i)
         {
-            D_eq.value()(i) = 10.0 * (i + 1);
+            D_eq.value()(i) = 1 + 0 * 10.0 * (i + 1);
         }
         for (Index i = 0; i < info.value().number_of_slack_variables; ++i)
         {
-            D_s.value()(i) =  10.0 * (i + 0.1);
+            D_s.value()(i) =  1 + 0 * 10.0 * (i + 0.1);
         }
     }
 
@@ -605,8 +605,6 @@ TYPED_TEST(RandomAugSystemSolverTest, TestRandomSolve)
     // int seed = 1773762058; // TODO: fix this case --> likely numerical errors. How do we increase accuracy?
     // int seed = 1773762291; // TODO: fix this case --> likely numerical errors. How do we increase accuracy?
 
-    // problematic seed: 1772632854 --> leads to INDEFINITE return status
-
     std::cout << "seed: " << seed << std::endl;
     srand(seed);
     for (int test_counter = 0; test_counter < 1; ++test_counter){
@@ -624,7 +622,6 @@ TYPED_TEST(RandomAugSystemSolverTest, TestRandomSolve)
         //     continue;
         // }
         EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
-
     
         // Solution checking
         CheckSolution(this->info.value(), this->jacobian.value(), 

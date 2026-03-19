@@ -3184,6 +3184,67 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
     std::vector<Index> number_of_controls = info.dims.number_of_controls;
     std::vector<Index> number_of_eq_constraints = info.dims.number_of_eq_constraints;
     std::vector<Index> number_of_ineq_constraints = info.dims.number_of_ineq_constraints;
+
+    bool USE_NEW_REGULARIZATION_TREATMENT = true;
+
+    if (USE_NEW_REGULARIZATION_TREATMENT){
+    // Deal with regularization terms
+    for (int k = 0; k < K; ++k){
+        const Index nx = number_of_states[k];
+        const Index nx_next = number_of_states[k + 1];
+        const Index nu = number_of_controls[k];
+        const Index nu_next = number_of_controls[k + 1];
+        const Index ng = number_of_eq_constraints[k];
+        const Index ng_ineq = number_of_ineq_constraints[k];
+        const Index offset_eq_k = info.offsets_g_eq_path[k];
+        const Index offs_ineq_k = info.offsets_slack[k];
+        const Index offset_g_ineq_k = info.offsets_g_eq_slack[k];
+        const Index offset_u = info.offsets_primal_u[k];
+
+        trtr_l(nu + nx, hessian.RSQrqt[k], 0, 0, hessian.RSQrqt[k], 0, 0); // copy lower part of RSQ to upper part
+        if (D_eq != nullptr)
+        // equality penalty
+        {
+            for (Index i = 0; i < ng; i++)
+            {
+                Scalar scaling_factor = 1.0 / (*D_eq)(offset_eq_k + i);
+                colsc(nu + nx + 1, scaling_factor, jacobian.Gg_eqt[k], 0, i);
+            }
+            // add the penalty
+            syrk_ln_mn(nu + nx + 1, nu + nx, ng, 1.0, jacobian.Gg_eqt[k], 0, 0, jacobian.Gg_eqt_original[k], 0, 0,
+                       1.0, hessian.RSQrqt[k], 0, 0, hessian.RSQrqt[k], 0, 0);
+
+            vecsc(ng, 0.0, *D_eq, offset_eq_k);
+        }
+        if (D_s != nullptr)
+        // inequalities + inertia correction
+        {
+            if (ng_ineq > 0)
+            {
+                for (Index i = 0; i < ng_ineq; i++)
+                {
+                    Scalar scaling_factor = 1.0 / (*D_s)(offs_ineq_k + i);
+                    colsc(nu + nx + 1, scaling_factor, jacobian.Gg_ineqt[k], 0, i);
+                }
+                // add the penalty
+                syrk_ln_mn(nu + nx + 1, nu + nx, ng_ineq, 1.0, jacobian.Gg_ineqt[k], 0, 0,
+                           jacobian.Gg_ineqt[k], 0, 0, 1.0, hessian.RSQrqt[k], 0, 0, hessian.RSQrqt[k],
+                           0, 0);
+
+                vecsc(ng_ineq, 0.0, *D_s, offs_ineq_k);
+            }
+        }
+        if (D_x != nullptr)
+        {
+        // inertia correction
+        diaad(nu + nx, 1.0, *D_x, offset_u, hessian.RSQrqt[k], 0, 0);
+        vecsc(nu + nx, 0.0, *D_x, offset_u);
+        }
+    }
+    }
+
+
+    // Pre-process 
     for (int k = 0; k < K-1; ++k){
         int nx = number_of_states[k];
         int nx_next = number_of_states[k + 1];
@@ -3226,6 +3287,7 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
         gecp(nx_next-rank, rank, JBAbt_modified, rank, 0, jacobian.U1U2t[k], 0, 0);
 
         // other hessian contribution
+        if (!USE_NEW_REGULARIZATION_TREATMENT){
         trtr_l(nu_next + nx_next, hessian.RSQrqt[k+1], 0, 0, hessian.RSQrqt[k+1], 0, 0); // copy lower part of RSQ to upper part
         if (D_x != nullptr){
             // consider regularization already here
@@ -3238,6 +3300,7 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
                 diaad(nu + nx, 1.0, *D_x, info.offsets_primal_u[k], hessian.RSQrqt[k], 0, 0);
                 vecsc(nu + nx, 0.0, *D_x, info.offsets_primal_u[k]);
             }
+        }
         }
         // right-multiply right part with Dr^-1
         Pr_extended.apply_on_rows(nu_next + rank, &hessian.RSQrqt[k+1].mat());
