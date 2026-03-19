@@ -2277,39 +2277,46 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             rowin(nu + nx, 1.0, f, offset_u, hessian.RSQrqt[k], nu + nx, 0);
             syrk_ln_mn(nu + nx + 1, nu + nx, nxp1, 1.0, AL[0], 0, 0, jacobian.BAbt[k], 0, 0, 1.0,
                        hessian.RSQrqt[k], 0, 0, RSQrqt_tilde[k], 0, 0);
+
+            // Add second order dynamics contribution                
+            gemm_nt(nu + nx + 1, nu + nx, nxp1, 1.0, jacobian.BAbt[k], 0, 0, FuFx_underbar[k], 0, 0, 1.0,
+                    RSQrqt_tilde[k], 0, 0, RSQrqt_tilde[k], 0, 0);
+            gemm_nt(nu + nx, nu + nx, nxp1, 1.0, FuFx_underbar[k], 0, 0, jacobian.BAbt[k], 0, 0, 1.0,
+                    RSQrqt_tilde[k], 0, 0, RSQrqt_tilde[k], 0, 0);
         }
-        // equality penalty
-        {
-            rowin(ng, 1.0, g, offset_g_eq_k, jacobian.Gg_eqt[k], nu + nx, 0);
-            gecp(nu + nx + 1, ng, jacobian.Gg_eqt[k], 0, 0, Ggt_stripe[0], 0, 0);
-            for (Index i = 0; i < ng; i++)
-            {
-                Scalar scaling_factor = 1.0 / D_eq(offset_eq_k + i);
-                colsc(nu + nx + 1, scaling_factor, Ggt_stripe[0], 0, i);
-            }
-            // add the penalty
-            syrk_ln_mn(nu + nx + 1, nu + nx, ng, 1.0, Ggt_stripe[0], 0, 0, jacobian.Gg_eqt[k], 0, 0,
-                       1.0, RSQrqt_tilde[k], 0, 0, RSQrqt_tilde[k], 0, 0);
-        }
-        // inequalities + inertia correction
-        {
-            if (ng_ineq > 0)
-            {
-                rowin(ng_ineq, 1.0, g, offset_g_ineq_k, jacobian.Gg_ineqt[k], nu + nx, 0);
-                gecp(nu + nx + 1, ng_ineq, jacobian.Gg_ineqt[k], 0, 0, Ggt_ineq_temp[0], 0, 0);
-                for (Index i = 0; i < ng_ineq; i++)
-                {
-                    Scalar scaling_factor = 1.0 / D_s(offs_ineq_k + i);
-                    colsc(nu + nx + 1, scaling_factor, Ggt_ineq_temp[0], 0, i);
-                }
-                // add the penalty
-                syrk_ln_mn(nu + nx + 1, nu + nx, ng_ineq, 1.0, Ggt_ineq_temp[0], 0, 0,
-                           jacobian.Gg_ineqt[k], 0, 0, 1.0, RSQrqt_tilde[k], 0, 0, RSQrqt_tilde[k],
-                           0, 0);
-            }
-            // inertia correction
-            diaad(nu + nx, 1.0, D_x, offset_u, RSQrqt_tilde[k], 0, 0);
-        }
+        // Covered in pre-processing
+        // // equality penalty
+        // {
+        //     rowin(ng, 1.0, g, offset_g_eq_k, jacobian.Gg_eqt[k], nu + nx, 0);
+        //     gecp(nu + nx + 1, ng, jacobian.Gg_eqt[k], 0, 0, Ggt_stripe[0], 0, 0);
+        //     for (Index i = 0; i < ng; i++)
+        //     {
+        //         Scalar scaling_factor = 1.0 / D_eq(offset_eq_k + i);
+        //         colsc(nu + nx + 1, scaling_factor, Ggt_stripe[0], 0, i);
+        //     }
+        //     // add the penalty
+        //     syrk_ln_mn(nu + nx + 1, nu + nx, ng, 1.0, Ggt_stripe[0], 0, 0, jacobian.Gg_eqt[k], 0, 0,
+        //                1.0, RSQrqt_tilde[k], 0, 0, RSQrqt_tilde[k], 0, 0);
+        // }
+        // // inequalities + inertia correction
+        // {
+        //     if (ng_ineq > 0)
+        //     {
+        //         rowin(ng_ineq, 1.0, g, offset_g_ineq_k, jacobian.Gg_ineqt[k], nu + nx, 0);
+        //         gecp(nu + nx + 1, ng_ineq, jacobian.Gg_ineqt[k], 0, 0, Ggt_ineq_temp[0], 0, 0);
+        //         for (Index i = 0; i < ng_ineq; i++)
+        //         {
+        //             Scalar scaling_factor = 1.0 / D_s(offs_ineq_k + i);
+        //             colsc(nu + nx + 1, scaling_factor, Ggt_ineq_temp[0], 0, i);
+        //         }
+        //         // add the penalty
+        //         syrk_ln_mn(nu + nx + 1, nu + nx, ng_ineq, 1.0, Ggt_ineq_temp[0], 0, 0,
+        //                    jacobian.Gg_ineqt[k], 0, 0, 1.0, RSQrqt_tilde[k], 0, 0, RSQrqt_tilde[k],
+        //                    0, 0);
+        //     }
+        //     // inertia correction
+        //     diaad(nu + nx, 1.0, D_x, offset_u, RSQrqt_tilde[k], 0, 0);
+        // }
 
         //////// TRANSFORM_AND_SUBSEQ
         {
@@ -2328,6 +2335,29 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
                  0); // needless operation because feature not implemented yet
             syrk_ln_mn(nx + 1, nx, nu, -1.0, Llt_shift[0], 0, 0, Llt_shift[0], 0, 0, 1.0,
                        *RSQrq_hat_curr_p, nu, nu, Ppt[k], 0, 0);
+
+            if (k > 0){
+                // GuGx_hat = GuGx * L^-1
+                if (print_debug_lines) {std::cout << __LINE__ << std::endl;}
+                const Index nunxm1 = info.dims.number_of_controls[k-1] + info.dims.number_of_states[k-1];
+                gecp(nunxm1, nu, hessian.GuGx[k-1], 0, 0, GuGx_hat[k-1], 0, 0);
+                trsm_rltn(nunxm1, nu, 1.0, Llt[k], 0, 0, GuGx_hat[k-1], 0, 0, GuGx_hat[k-1], 0, 0);
+
+                // RSQrqt = RSQrqt - GuGx^T L^-T L^-1 GuGx
+                if (print_debug_lines) {std::cout << __LINE__ << std::endl;}
+                gemm_nt(nunxm1, nunxm1, nu, -1.0, GuGx_hat[k-1], 0, 0, GuGx_hat[k-1], 0, 0, 
+                        1.0, RSQrqt_underbar[k-1], 0, 0, RSQrqt_underbar[k-1], 0, 0);
+                if (print_debug_lines) {std::cout << __LINE__ << std::endl;}
+                trsm_rltn(1, nu, 1.0, Llt[k], 0, 0, RSQrq_hat_curr_p[0], nu + nx, 0, v_r_tilde[0], 0, 0);
+                gemm_nt(1, nunxm1, nu, -1.0, v_r_tilde[0], 0, 0, GuGx_hat[k-1], 0, 0,
+                        1.0, RSQrqt_underbar[k-1], nunxm1, 0, RSQrqt_underbar[k-1], nunxm1, 0);
+
+                // FuFx = FuFx - GuGx_hat * L
+                if (print_debug_lines) {std::cout << __LINE__ << std::endl;}
+                gemm_nt(nunxm1, nx, nu, -1.0, GuGx_hat[k-1], 0, 0, Llt[k], nu, 0,
+                        1.0, FuFx_underbar[k-1], 0, 0, FuFx_underbar[k-1], 0, 0);
+            }
+
         }
         trtr_l(nx, Ppt[k], 0, 0, Ppt[k], 0, 0);
     }
@@ -2360,6 +2390,13 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
         rowex(nu, -1.0, Llt[k], nu + nx, 0, x, offs);
         gemv_t(nx, nu, -1.0, Llt[k], nu, 0, x, offs_x, 1.0, x, offs, x, offs);
         trsv_ltn(nu, Llt[k], 0, 0, x, offs, x, offs);
+        // + GuGxt [uk-1, xk-1]
+        if (k > 0){
+            const Index nunxm1 = info.dims.number_of_controls[k-1] + info.dims.number_of_states[k-1];
+            trsm_rlnn(nunxm1, nu, 1.0, Llt[k], 0, 0, GuGx_hat[k-1], 0, 0, GuGx_hat[k-1], 0, 0);
+            gemv_t(nunxm1, nu, -1.0, GuGx_hat[k-1], 0, 0, x, info.offsets_primal_u[k-1], 
+                    1.0, x, offs, x, offs);
+        }
         if (k != info.dims.K - 1)
         {
             const Index nxp1 = info.dims.number_of_states[k + 1];
@@ -2374,27 +2411,31 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             rowex(nxp1, 1.0, Ppt[k + 1], nxp1, 0, eq_mult, offs_dyn_eq_k);
             gemv_t(nxp1, nxp1, 1.0, Ppt[k + 1], 0, 0, x, offs_x_p1, 1.0, eq_mult, offs_dyn_eq_k,
                    eq_mult, offs_dyn_eq_k);
+            
+            gemv_t(nu + nx, nxp1, 1.0, FuFx_underbar[k], 0, 0, x, offs, 1.0, 
+                   eq_mult, offs_dyn_eq_k, eq_mult, offs_dyn_eq_k);
         }
-        const Index ng = info.dims.number_of_eq_constraints[k];
-        const Index offs_g_eq_k = info.offsets_g_eq_path[k];
-        const Index offs_eq_k = info.offsets_eq[k];
-        if (ng > 0)
-        {
-            gemv_t(nu + nx, ng, 1.0, jacobian.Gg_eqt[k], 0, 0, x, offs, 1.0, g, offs_g_eq_k,
-                   eq_mult, offs_g_eq_k);
-            eq_mult.block(ng, offs_g_eq_k) =
-                eq_mult.block(ng, offs_g_eq_k) / D_eq.block(ng, offs_eq_k);
-        }
-        const Index ng_ineq = info.dims.number_of_ineq_constraints[k];
-        const Index offs_slack = info.offsets_slack[k];
-        const Index offs_eq_ineq = info.offsets_g_eq_slack[k];
-        if (ng_ineq > 0)
-        {
-            gemv_t(nu + nx, ng_ineq, 1.0, jacobian.Gg_ineqt[k], 0, 0, x, offs, 1.0, g, offs_eq_ineq,
-                   eq_mult, offs_eq_ineq);
-            eq_mult.block(ng_ineq, offs_eq_ineq) =
-                eq_mult.block(ng_ineq, offs_eq_ineq) / D_s.block(ng_ineq, offs_slack);
-        }
+        // Covered in post-processing
+        // const Index ng = info.dims.number_of_eq_constraints[k];
+        // const Index offs_g_eq_k = info.offsets_g_eq_path[k];
+        // const Index offs_eq_k = info.offsets_eq[k];
+        // if (ng > 0)
+        // {
+        //     gemv_t(nu + nx, ng, 1.0, jacobian.Gg_eqt[k], 0, 0, x, offs, 1.0, g, offs_g_eq_k,
+        //            eq_mult, offs_g_eq_k);
+        //     eq_mult.block(ng, offs_g_eq_k) =
+        //         eq_mult.block(ng, offs_g_eq_k) / D_eq.block(ng, offs_eq_k);
+        // }
+        // const Index ng_ineq = info.dims.number_of_ineq_constraints[k];
+        // const Index offs_slack = info.offsets_slack[k];
+        // const Index offs_eq_ineq = info.offsets_g_eq_slack[k];
+        // if (ng_ineq > 0)
+        // {
+        //     gemv_t(nu + nx, ng_ineq, 1.0, jacobian.Gg_ineqt[k], 0, 0, x, offs, 1.0, g, offs_eq_ineq,
+        //            eq_mult, offs_eq_ineq);
+        //     eq_mult.block(ng_ineq, offs_eq_ineq) =
+        //         eq_mult.block(ng_ineq, offs_eq_ineq) / D_s.block(ng_ineq, offs_slack);
+        // }
     }
     return LinsolReturnFlag::SUCCESS;
 }
@@ -3532,6 +3573,23 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
             eq_mult.block(ng_ineq, offs_eq_ineq) =
                 eq_mult.block(ng_ineq, offs_eq_ineq) / (*D_s).block(ng_ineq, offs_slack);
             // PrintNpArray(eq_mult, offs_eq_ineq, ng_ineq, "[" + std::to_string(k) + "] eq_mult after ineq regularization");
+        }
+    }
+    if (D_eq != nullptr){
+        for (int k = 0; k < info.dims.K; ++k){
+            const Index nu = info.dims.number_of_controls[k];
+            const Index nx = info.dims.number_of_states[k];
+            const Index offs = info.offsets_primal_u[k];
+            const Index ng = info.dims.number_of_eq_constraints[k];
+            const Index offs_g_eq_k = info.offsets_g_eq_path[k];
+            const Index offs_eq_k = info.offsets_eq[k];            
+            if (ng > 0)
+            {
+                gemv_t(nu + nx, ng, 1.0, jacobian.Gg_eqt[k], 0, 0, x, offs, 1.0, g, offs_g_eq_k,
+                    eq_mult, offs_g_eq_k);
+                eq_mult.block(ng, offs_g_eq_k) =
+                    eq_mult.block(ng, offs_g_eq_k) / (*D_eq).block(ng, offs_eq_k);
+            }
         }
     }
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::PostProcess done" << std::endl;}
