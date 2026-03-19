@@ -56,12 +56,18 @@ public:
     // std::vector<Index> nu = {7, 3, 0, 10, 6, 9};
     // std::vector<Index> ng = {4, 6, 0, 5, 4, 5};
     // std::vector<Index> ng_ineq = {0, 0, 0, 0, 0, 0};
-    int K = 11;
-    std::vector<Index> nx = {6, 0, 2, 2, 5, 6, 7, 10, 2, 7, 5};
-    std::vector<Index> r = {6, 0, 1, 1, 2, 2, 7, 1, 2, 7, 0};
-    std::vector<Index> nu = {4, 5, 7, 7, 8, 1, 4, 10, 4, 8, 9};
-    std::vector<Index> ng = {4, 0, 1, 5, 5, 1, 1, 1, 4, 3, 6};
-    std::vector<Index> ng_ineq = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    // int K = 11;
+    // std::vector<Index> nx = {6, 0, 2, 2, 5, 6, 7, 10, 2, 7, 5};
+    // std::vector<Index> r = {6, 0, 1, 1, 2, 2, 7, 1, 2, 7, 0};
+    // std::vector<Index> nu = {4, 5, 7, 7, 8, 1, 4, 10, 4, 8, 9};
+    // std::vector<Index> ng = {4, 0, 1, 5, 5, 1, 1, 1, 4, 3, 6};
+    // std::vector<Index> ng_ineq = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    int K = 2;
+    std::vector<Index> nx = {1, 2};
+    std::vector<Index> r = {0, 1};
+    std::vector<Index> nu = {0, 0};
+    std::vector<Index> ng = {0, 0};
+    std::vector<Index> ng_ineq = {0, 1};
 
     ProblemDims dims{K, nu, nx, ng, ng_ineq};
 
@@ -207,11 +213,11 @@ public:
 
         for (Index i = 0; i < info.number_of_g_eq_path; ++i)
         {
-            D_eq(i) = 10.0 * (i + 1);
+            D_eq(i) = 0 * 10.0 * (i + 1);
         }
         for (Index i = 0; i < info.number_of_slack_variables; ++i)
         {
-            D_s(i) =  10.0 * (i + 0.1);
+            D_s(i) =  2 + 0*10.0 * (i + 0.1);
         }
 
         // Compute LU factorization to check the rank of the constraint jacobian
@@ -318,7 +324,7 @@ public:
                 }
             }
         }
-        ng_ineq = RandomVector(K, 0, 0*max_val);
+        ng_ineq = RandomVector(K, 0, max_val);
 
         // print dimensions
         std::cout << "int K = " << K << ";" << std::endl;
@@ -453,11 +459,11 @@ public:
 
         for (Index i = 0; i < info.value().number_of_g_eq_path; ++i)
         {
-            D_eq.value()(i) = 1 + 0 * 10.0 * (i + 1);
+            D_eq.value()(i) = 10.0 * (i + 1);
         }
         for (Index i = 0; i < info.value().number_of_slack_variables; ++i)
         {
-            D_s.value()(i) =  1 + 0 * 10.0 * (i + 0.1);
+            D_s.value()(i) =  1.0 + 0*10.0 * (i + 0.1);
         }
     }
 
@@ -575,7 +581,7 @@ TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
     EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
 
     // print the full KKT matrix and rhs
-    bool print_full_kkt = false;
+    bool print_full_kkt = true;
     if (print_full_kkt){ 
         PrintFullKKT(info, full_kkt_matrix, rhs_x, rhs_g, D_x, D_s, x, mult);
     }
@@ -596,16 +602,19 @@ TEST_F(GeneralImplicitAugSystemSolverTest, TestSolve)
     std::cout << std::endl;
 }
 
-// using SolverTypes = ::testing::Types<OcpType, ImplicitOcpType>;
-using SolverTypes = ::testing::Types<ImplicitOcpType>;
+using SolverTypes = ::testing::Types<OcpType, ImplicitOcpType>;
+// using SolverTypes = ::testing::Types<ImplicitOcpType>;
 TYPED_TEST_SUITE(RandomAugSystemSolverTest, SolverTypes);
 TYPED_TEST(RandomAugSystemSolverTest, TestRandomSolve)
 {
     int seed = time(0);
     // int seed = 1773762058; // TODO: fix this case --> likely numerical errors. How do we increase accuracy?
     // int seed = 1773762291; // TODO: fix this case --> likely numerical errors. How do we increase accuracy?
+    
+    // int seed = 1773933266; // TODO: fix this case
+    // int seed = 1773933481; // TODO: fix this case
 
-    std::cout << "seed: " << seed << std::endl;
+    std::cout << "int seed = " << seed << ";" << std::endl;
     srand(seed);
     for (int test_counter = 0; test_counter < 1; ++test_counter){
         std::cout << "\n" << std::endl;

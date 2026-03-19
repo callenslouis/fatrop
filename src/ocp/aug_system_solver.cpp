@@ -1781,22 +1781,23 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
         }
         // inequalities + inertia correction
         {
-            if (ng_ineq > 0)
-            {
-                rowin(ng_ineq, 1.0, g, offset_eq_slack, jacobian.Gg_ineqt[k], nu + nx, 0);
-                gecp(nu + nx + 1, ng_ineq, jacobian.Gg_ineqt[k], 0, 0, Ggt_ineq_temp[0], 0, 0);
-                for (Index i = 0; i < ng_ineq; i++)
-                {
-                    Scalar scaling_factor = 1.0 / D_s(offset_ineq_k + i);
-                    colsc(nu + nx + 1, scaling_factor, Ggt_ineq_temp[0], 0, i);
-                }
-                // add the penalty
-                syrk_ln_mn(nu + nx + 1, nu + nx, ng_ineq, 1.0, Ggt_ineq_temp[0], 0, 0,
-                           jacobian.Gg_ineqt[k], 0, 0, 1.0, RSQrqt_tilde[k], 0, 0, RSQrqt_tilde[k],
-                           0, 0);
-            }
-            // inertia correction
-            diaad(nu + nx, 1.0, D_x, offset_u, RSQrqt_tilde[k], 0, 0);
+            // We've already covered this in pre-processing
+            // if (ng_ineq > 0)
+            // {
+            //     rowin(ng_ineq, 1.0, g, offset_eq_slack, jacobian.Gg_ineqt[k], nu + nx, 0);
+            //     gecp(nu + nx + 1, ng_ineq, jacobian.Gg_ineqt[k], 0, 0, Ggt_ineq_temp[0], 0, 0);
+            //     for (Index i = 0; i < ng_ineq; i++)
+            //     {
+            //         Scalar scaling_factor = 1.0 / D_s(offset_ineq_k + i);
+            //         colsc(nu + nx + 1, scaling_factor, Ggt_ineq_temp[0], 0, i);
+            //     }
+            //     // add the penalty
+            //     syrk_ln_mn(nu + nx + 1, nu + nx, ng_ineq, 1.0, Ggt_ineq_temp[0], 0, 0,
+            //                jacobian.Gg_ineqt[k], 0, 0, 1.0, RSQrqt_tilde[k], 0, 0, RSQrqt_tilde[k],
+            //                0, 0);
+            // }
+            // // inertia correction
+            // diaad(nu + nx, 1.0, D_x, offset_u, RSQrqt_tilde[k], 0, 0);
         }
         // PrintNpArray(RSQrqt_underbar[0], "RSQrqt_underbar[0]");
         // PrintNpArray(RSQrqt_underbar[1], "RSQrqt_underbar[1]");
@@ -2174,13 +2175,30 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             Pr[k].apply_inverse(rho_k, &x.vec(), offs);
             // std::cout << "eq_mult after after:\n" << eq_mult << std::endl;
         }
-        if (ng_ineq > 0)
-        {
-            gemv_t(nu + nx, ng_ineq, 1.0, jacobian.Gg_ineqt[k], 0, 0, x, offs, 1.0, g, offs_eq_ineq,
-                   eq_mult, offs_eq_ineq);
-            eq_mult.block(ng_ineq, offs_eq_ineq) =
-                eq_mult.block(ng_ineq, offs_eq_ineq) / D_s.block(ng_ineq, offs_slack);
-        }
+        // we've already covered this in pre-processing
+        // VecRealAllocated eq_mult_copy(eq_mult);
+        // for (int i = 0; i < eq_mult.m(); i++){ eq_mult_copy(i) = eq_mult(i);}
+        // if (ng_ineq > 0)
+        // {
+        //     gemv_t(nu + nx, ng_ineq, 1.0, jacobian.Gg_ineqt[k], 0, 0, x, offs, 1.0, g, offs_eq_ineq,
+        //            eq_mult, offs_eq_ineq);
+        //     eq_mult.block(ng_ineq, offs_eq_ineq) =
+        //         eq_mult.block(ng_ineq, offs_eq_ineq) / D_s.block(ng_ineq, offs_slack);
+        //     // if (k == 6){
+        //     // PrintNpArray(jacobian.Gg_ineqt[k], "\nGg_ineqt[" + std::to_string(k) + "]", nu + nx + 1, ng_ineq);
+        //     // PrintNpArray(D_s, offs_slack, ng_ineq, "D_s[" + std::to_string(k) + "]");
+        //     // PrintNpArray(g, offs_eq_ineq, ng_ineq, "g[" + std::to_string(k) + "]");
+        //     // PrintNpArray(x, offs, nu + nx, "x[" + std::to_string(k) + "]");
+        //     // PrintNpArray(eq_mult_copy, offs_eq_ineq, ng_ineq, "[" + std::to_string(k) + "] eq_mult before ineq regularization");
+        //     // std::cout << "nu: " << nu << " nx: " << nx << " ng_ineq: " << ng_ineq << std::endl;
+        //     // std::cout << "offs: " << offs << " offs_eq_ineq: " << offs_eq_ineq << " offs_slack: " << offs_slack << std::endl;
+        //     // gemv_t(nu + nx, ng_ineq, 1.0, jacobian.Gg_ineqt[k], 0, 0, x, offs, 1.0, g, offs_eq_ineq,
+        //     //        eq_mult_copy, offs_eq_ineq);
+        //     // eq_mult_copy.block(ng_ineq, offs_eq_ineq) =
+        //     //     eq_mult_copy.block(ng_ineq, offs_eq_ineq) / D_s.block(ng_ineq, offs_slack);
+        //     // PrintNpArray(eq_mult_copy, offs_eq_ineq, ng_ineq, "[" + std::to_string(k) + "] eq_mult after ineq regularization");
+        //     // }
+        // }
         if (k != info.dims.K - 1)
         {
             const Index offs_dyn_eq_k = info.offsets_g_eq_dyn[k];
@@ -3052,7 +3070,7 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
     
     auto end = std::chrono::high_resolution_clock::now();
     duration_solve = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    PostProcess(info, modified_info, jacobian, hessian, x, eq_mult);
+    PostProcess(info, modified_info, jacobian, hessian, x, eq_mult, &D_s, nullptr, g);
     if (print_final_solution){
         std::string file = "final_solution.py";
         std::ofstream o(file);
@@ -3101,7 +3119,7 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
     LinsolReturnFlag flag = ModifiedAugSystemSolver::solve(modified_info, jacobian, hessian, D_x_copy, D_eq_copy, D_s_copy, f_copy, g_copy, x, eq_mult);
     auto end = std::chrono::high_resolution_clock::now();
     duration_solve = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    PostProcess(info, modified_info, jacobian, hessian, x, eq_mult);
+    PostProcess(info, modified_info, jacobian, hessian, x, eq_mult, &D_s, &D_eq, g);
     if (print_debug) {std::cout << "AugSystemSolver<ImplicitOcpType> solve end" << std::endl;}
     return flag;
 }
@@ -3129,7 +3147,7 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve_rhs(const ProblemInfo &
     LinsolReturnFlag flag = ModifiedAugSystemSolver::solve_rhs(modified_info, jacobian, hessian, D_s, f_copy, g_copy, x, eq_mult);
     auto end = std::chrono::high_resolution_clock::now();
     duration_solve = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    PostProcess(info, modified_info, jacobian, hessian, x, eq_mult);
+    PostProcess(info, modified_info, jacobian, hessian, x, eq_mult, &D_s, nullptr, g);
     return flag;
 }
 LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve_rhs(const ProblemInfo &info,
@@ -3158,7 +3176,7 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve_rhs(const ProblemInfo &
     LinsolReturnFlag flag = ModifiedAugSystemSolver::solve_rhs(modified_info, jacobian, hessian, D_eq_copy, D_s_copy, f_copy, g_copy, x, eq_mult);
     auto end = std::chrono::high_resolution_clock::now();
     duration_solve = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    PostProcess(info, modified_info, jacobian, hessian, x, eq_mult);
+    PostProcess(info, modified_info, jacobian, hessian, x, eq_mult, &D_s, &D_eq, g);
     return flag;
 }
 
@@ -3210,11 +3228,13 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
                 Scalar scaling_factor = 1.0 / (*D_eq)(offset_eq_k + i);
                 colsc(nu + nx + 1, scaling_factor, jacobian.Gg_eqt[k], 0, i);
             }
-            // add the penalty
+            // add the penalty to hessian
             syrk_ln_mn(nu + nx + 1, nu + nx, ng, 1.0, jacobian.Gg_eqt[k], 0, 0, jacobian.Gg_eqt_original[k], 0, 0,
                        1.0, hessian.RSQrqt[k], 0, 0, hessian.RSQrqt[k], 0, 0);
+            // add the penalty to rhs
+            gemv_n(nu + nx, ng, 1.0, jacobian.Gg_eqt[k], 0, 0, g, offset_eq_k, 1.0, f, offset_u, f, offset_u);
 
-            vecsc(ng, 0.0, *D_eq, offset_eq_k);
+            vecse(ng, 1.0, *D_eq, offset_eq_k);
         }
         if (D_s != nullptr)
         // inequalities + inertia correction
@@ -3226,19 +3246,21 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
                     Scalar scaling_factor = 1.0 / (*D_s)(offs_ineq_k + i);
                     colsc(nu + nx + 1, scaling_factor, jacobian.Gg_ineqt[k], 0, i);
                 }
-                // add the penalty
+                // add the penalty to hessian
                 syrk_ln_mn(nu + nx + 1, nu + nx, ng_ineq, 1.0, jacobian.Gg_ineqt[k], 0, 0,
-                           jacobian.Gg_ineqt[k], 0, 0, 1.0, hessian.RSQrqt[k], 0, 0, hessian.RSQrqt[k],
+                           jacobian.Gg_ineqt_original[k], 0, 0, 1.0, hessian.RSQrqt[k], 0, 0, hessian.RSQrqt[k],
                            0, 0);
+                // add the penalty to rhs
+                gemv_n(nu + nx, ng_ineq, 1.0, jacobian.Gg_ineqt[k], 0, 0, g, offset_g_ineq_k, 1.0, f, offset_u, f, offset_u);
 
-                vecsc(ng_ineq, 0.0, *D_s, offs_ineq_k);
+                vecse(ng_ineq, 1.0, *D_s, offs_ineq_k);
             }
         }
         if (D_x != nullptr)
         {
         // inertia correction
         diaad(nu + nx, 1.0, *D_x, offset_u, hessian.RSQrqt[k], 0, 0);
-        vecsc(nu + nx, 0.0, *D_x, offset_u);
+        vecse(nu + nx, 0.0, *D_x, offset_u);
         }
     }
     }
@@ -3287,8 +3309,8 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
         gecp(nx_next-rank, rank, JBAbt_modified, rank, 0, jacobian.U1U2t[k], 0, 0);
 
         // other hessian contribution
+        trtr_l(nu_next + nx_next, hessian.RSQrqt[k+1], 0, 0, hessian.RSQrqt[k+1], 0, 0);
         if (!USE_NEW_REGULARIZATION_TREATMENT){
-        trtr_l(nu_next + nx_next, hessian.RSQrqt[k+1], 0, 0, hessian.RSQrqt[k+1], 0, 0); // copy lower part of RSQ to upper part
         if (D_x != nullptr){
             // consider regularization already here
             diaad(nu_next + nx_next, 1.0, *D_x, info.offsets_primal_u[k+1], hessian.RSQrqt[k+1], 0, 0);
@@ -3332,8 +3354,8 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
         Pr_extended.apply_on_rows(nu_next + rank, &jacobian.Gg_eqt[k+1].mat());
         gemm_nn(nx_next - rank, info.dims.number_of_eq_constraints[k+1], rank, 1.0, jacobian.U1U2t[k], 0, 0, jacobian.Gg_eqt[k+1], nu_next, 0, 1.0, jacobian.Gg_eqt[k+1], nu_next + rank, 0, jacobian.Gg_eqt[k+1], nu_next + rank, 0);
         // inequality constraints
-        Pr_extended.apply_on_rows(nu_next + rank, &jacobian.Gg_ineqt[k+1].mat());
-        gemm_nn(nx_next - rank, info.dims.number_of_ineq_constraints[k+1], rank, 1.0, jacobian.U1U2t[k], 0, 0, jacobian.Gg_ineqt[k+1], nu_next, 0, 1.0, jacobian.Gg_ineqt[k+1], nu_next + rank, 0, jacobian.Gg_ineqt[k+1], nu_next + rank, 0);
+        // Pr_extended.apply_on_rows(nu_next + rank, &jacobian.Gg_ineqt[k+1].mat());
+        // gemm_nn(nx_next - rank, info.dims.number_of_ineq_constraints[k+1], rank, 1.0, jacobian.U1U2t[k], 0, 0, jacobian.Gg_ineqt[k+1], nu_next, 0, 1.0, jacobian.Gg_ineqt[k+1], nu_next + rank, 0, jacobian.Gg_ineqt[k+1], nu_next + rank, 0);
 
 
         // Move undefined states to controls
@@ -3342,7 +3364,7 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
             TreatStatesAsInputs(nu_next, nx_next, rank, hessian.RSQrqt[k+1], true);
             TreatStatesAsInputs(nu_next, nx_next, rank, hessian.RSQrqt[k+1]);
             TreatStatesAsInputs(nu_next, nx_next, rank, jacobian.Gg_eqt[k+1], true);
-            TreatStatesAsInputs(nu_next, nx_next, rank, jacobian.Gg_ineqt[k+1], true);
+            // TreatStatesAsInputs(nu_next, nx_next, rank, jacobian.Gg_ineqt[k+1], true);
             if (k < K - 2){
                 TreatStatesAsInputs(nu_next, nx_next, rank, jacobian.BAbt[k+1], true);
                 TreatStatesAsInputs(nu_next, nx_next, rank, hessian.FuFx[k+1], true);
@@ -3402,7 +3424,10 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
                                                    const ProblemInfo &modified_info,
                                                    Jacobian<ImplicitOcpType> &jacobian,
                                                    Hessian<ImplicitOcpType> &hessian,
-                                                   VecRealView &x, VecRealView &eq_mult){   
+                                                   VecRealView &x, VecRealView &eq_mult,
+                                                   const VecRealView* D_s, 
+                                                   const VecRealView* D_eq,
+                                                   const VecRealView &g){   
     // GENERAL VERSION
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::PostProcess start" << std::endl;}
     VecRealAllocated x_copy(x.m());
@@ -3485,6 +3510,30 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
 
     jacobian.ResetPreProcess(info);
     hessian.ResetPreProcess(info, jacobian);
+
+    // Consider constraint regularizations
+    if (D_s != nullptr){
+        for (int k = 0; k < info.dims.K; ++k){
+            const Index nu = info.dims.number_of_controls[k];
+            const Index nx = info.dims.number_of_states[k];
+            const Index ng_ineq = info.dims.number_of_ineq_constraints[k];
+            const Index offs = info.offsets_primal_u[k];
+            const Index offs_eq_ineq = info.offsets_g_eq_slack[k];
+            const Index offs_slack = info.offsets_slack[k];
+            // PrintNpArray(jacobian.Gg_ineqt[k], "\nGg_ineqt[" + std::to_string(k) + "]", nu + nx + 1, ng_ineq);
+            // PrintNpArray(*D_s, offs_slack, ng_ineq, "D_s[" + std::to_string(k) + "]");
+            // PrintNpArray(g, offs_eq_ineq, ng_ineq, "g[" + std::to_string(k) + "]");
+            // PrintNpArray(x, offs, nu + nx, "x[" + std::to_string(k) + "]");
+            // PrintNpArray(eq_mult, offs_eq_ineq, ng_ineq, "[" + std::to_string(k) + "] eq_mult before ineq regularization");
+            // std::cout << "nu: " << nu << " nx: " << nx << " ng_ineq: " << ng_ineq << std::endl;
+            // std::cout << "offs: " << offs << " offs_eq_ineq: " << offs_eq_ineq << " offs_slack: " << offs_slack << std::endl;
+            gemv_t(nu + nx, ng_ineq, 1.0, jacobian.Gg_ineqt[k], 0, 0, x, offs, 1.0, g, offs_eq_ineq,
+                   eq_mult, offs_eq_ineq);
+            eq_mult.block(ng_ineq, offs_eq_ineq) =
+                eq_mult.block(ng_ineq, offs_eq_ineq) / (*D_s).block(ng_ineq, offs_slack);
+            // PrintNpArray(eq_mult, offs_eq_ineq, ng_ineq, "[" + std::to_string(k) + "] eq_mult after ineq regularization");
+        }
+    }
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::PostProcess done" << std::endl;}
 }
 

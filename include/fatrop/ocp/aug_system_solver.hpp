@@ -442,7 +442,9 @@ namespace fatrop
                          const ProblemInfo &modified_info,
                          Jacobian<ImplicitOcpType> &jacobian,
                          Hessian<ImplicitOcpType> &hessian,
-                         VecRealView &x, VecRealView &eq_mult);
+                         VecRealView &x, VecRealView &eq_mult,
+                         const VecRealView* D_s, const VecRealView* D_eq,
+                         const VecRealView &g);
 
         // take last (nx_next - rank) columns (or rows) and insert them after
         // the first nu_next columns (or rows) of A, while shifting all
