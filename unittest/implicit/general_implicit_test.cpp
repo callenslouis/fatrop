@@ -324,7 +324,7 @@ public:
                 }
             }
         }
-        ng_ineq = RandomVector(K, 0, max_val);
+        ng_ineq = RandomVector(K, 0, 0*max_val);
 
         // print dimensions
         std::cout << "int K = " << K << ";" << std::endl;

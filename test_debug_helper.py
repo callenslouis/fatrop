@@ -141,13 +141,22 @@ def print_solution(solution):
     print()
 
 def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
-          Pl, Pr, L, U, Lmbds, rank_k_values, Hut, max_recursion_depth=-1):
+          Pl, Pr, L, U, Lmbds, rank_k_values, Hut, max_recursion_depth=-1, **kwargs):
     if max_recursion_depth == 0:
         print("Maximum recursion depth reached. Solving linear system.")
         KKT, rhs = GetKKT(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b)
         solution_vector = np.linalg.solve(KKT, -rhs)
         solution = extract_solultion(K, nu, nx, ng_eq, solution_vector)
-        return solution
+        if kwargs.get("store_linear_systems", False):
+            if "linear_systems" not in kwargs:
+                kwargs["linear_systems"] = []
+            kwargs["linear_systems"].append({
+                "KKT": KKT,
+                "rhs": rhs,
+            })
+            return solution, kwargs["linear_systems"]
+        else:
+            return solution
 
     # figure out what step to perform
     nu_c = nu.copy(); nx_c = nx.copy(); ng_eq_c = ng_eq.copy(); 
@@ -311,7 +320,11 @@ def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
         # perform recursive call
         solution = Solve(K, nu_c, nx_c, ng_eq_c, R_c, S_c, Q_c, Gu_c, Gx_c, Fu_c, Fx_c,
               Hu_c, Hx_c, B_c, A_c, r_c, q_c, h_c, b_c, Pl, Pr, L, U,
-              Lmbds, rank_k_values, Hut)
+              Lmbds, rank_k_values, Hut, max_recursion_depth=max_recursion_depth-1, **kwargs)
+        if kwargs.get("store_linear_systems", True):
+            solution, linear_systems = solution
+            kwargs["linear_systems"] = linear_systems
+
         # verify solution dimensions
         for k in range(K-1):
             assert solution["u"][k].shape == (nu_c[k], 1), f"solution['u'][{k}] has shape {solution['u'][k].shape}, expected {(nu_c[k], 1)}"
@@ -379,7 +392,10 @@ def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
         
         solution = Solve(K - 1, nu_c, nx_c, ng_eq_c, R_c, S_c, Q_c, Gu_c, Gx_c, Fu_c, Fx_c,
               Hu_c, Hx_c, B_c, A_c, r_c, q_c, h_c, b_c, Pl, Pr, L, U,
-              Lmbds, rank_k_values, Hut)
+              Lmbds, rank_k_values, Hut, max_recursion_depth=max_recursion_depth-1, **kwargs)
+        if kwargs.get("store_linear_systems", True):
+            solution, linear_systems = solution
+            kwargs["linear_systems"] = linear_systems
         # KKT, rhs = GetKKT(K-1, nu_c, nx_c, ng_eq_c, R_c, S_c, Q_c, Gu_c, Gx_c, Fu_c, Fx_c, Hu_c, Hx_c, B_c, A_c, r_c, q_c, h_c, b_c)
         # solution_vector = np.linalg.solve(KKT, -rhs)
         # solution = extract_solultion(K-1, nu_c, nx_c, ng_eq_c, solution_vector)
@@ -412,9 +428,131 @@ def Solve(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b,
 
     print(f"\n\nStage {K-1} complete. returning")
     max_recursion_depth -= 1
-    return solution
+
+    if kwargs.get("store_linear_systems", False):
+        if "linear_systems" not in kwargs:
+            kwargs["linear_systems"] = []
+        KKT, rhs = GetKKT(K, nu, nx, ng_eq, R, S, Q, Gu, Gx, Fu, Fx, Hu, Hx, B, A, r, q, h, b)
+        kwargs["linear_systems"].append({
+            "KKT": KKT,
+            "rhs": rhs,
+        })
+        return solution, kwargs['linear_systems']
+    else:
+        return solution
+
 
         
+def get_expected_matrices(K, nu, nx, r, ng_eq, ng_ineq, modified_nu, modified_nx, modified_ng_eq, modified_ng_ineq, 
+                          RSQrqt_original, GuGx_original, FuFx_original, Gg_eqt_original, Gg_ineqt_original, BAbt_original, D_x,
+                          Pl, Pr, L, U, 
+                          RSQrqt, GuGx, FuFx, Gg_eqt, Gg_ineqt, BAbt, Jt):
+    BAbt_expected = [m.copy() for m in BAbt_original]
+    GuGx_expected = [m.copy() for m in GuGx_original]
+    FuFx_expected = [m.copy() for m in FuFx_original]
+    RSQrqt_expected = [m.copy() for m in RSQrqt_original]
+    Gg_eqt_expected = [m.copy() for m in Gg_eqt_original]
+    Gg_ineqt_expected = [m.copy() for m in Gg_ineqt_original]
 
+    # add regularization to hessian
+    for k in range(K):
+        for i in range(nu[k] + nx[k]):
+            RSQrqt_expected[k][i,i] += D_x[k][i]
+
+    # pre-processing code
+    Dl_list = []
+    Dr_list = []
+    Dl_inv_list = []
+    Dr_inv_list = []
+    for k in range(K-1):
+        # construct Dl and Dr
+        U1 = U[k][:r[k], :r[k]]
+        U2 = U[k][:r[k], r[k]:]
+        J = Jt[k].T
+        if Pl[k].shape[0] == 0 or Pl[k].shape[1] == 0:
+            Pl[k] = np.zeros((0,0))
+        if Pr[k].shape[0] == 0 or Pr[k].shape[1] == 0:
+            Pr[k] = np.zeros((0,0))
+        if L[k].shape[0] == 0 or L[k].shape[1] == 0:
+            L[k] = np.zeros((0,0))
+
+        Dl = Pl[k] @ L[k] @ np.block([[-U1, np.zeros((r[k],nx[k+1]-r[k]))], [np.zeros((nx[k+1]-r[k],r[k])), np.eye(nx[k+1]-r[k])]])
+        Dr = np.block([[np.eye(r[k]), np.linalg.inv(U1) @ U2], [np.zeros((nx[k+1]-r[k],r[k])), np.eye(nx[k+1]-r[k])]]) @ Pr[k].T
+        Dl_inv = np.linalg.inv(Dl)
+        Dr_inv = np.linalg.inv(Dr)
+        Dl_list.append(Dl)
+        Dr_list.append(Dr)
+        Dl_inv_list.append(Dl_inv)
+        Dr_inv_list.append(Dr_inv)
+        norm = np.linalg.norm(J - Dl @ np.block([[-np.eye(r[k]), np.zeros((r[k],nx[k+1]-r[k]))], [np.zeros((nx[k+1]-r[k],nx[k+1]))]]) @ Dr)
+        assert norm < 1e-6, f"Decomposition error at stage {k}: {norm}"
+
+        # construct W
+        W = np.block([[np.eye(nu[k+1]), np.zeros((nu[k+1], nx[k+1]))],
+                    [np.zeros((nx[k+1] - r[k], nu[k+1] + r[k])), np.eye(nx[k+1] - r[k])],
+                    [np.zeros((r[k], nu[k+1])), np.eye(r[k]), np.zeros((r[k], nx[k+1] - r[k]))]])
+        Wp = np.block([[W, np.zeros((W.shape[0], 1))],
+                    [np.zeros((1, W.shape[1])), 1]])
+            
+        BAbt_expected[k] = BAbt_expected[k] @ Dl_inv.T
+        
+        temp = np.zeros((nu[k] + nx[k], nu[k+1] + nx[k+1]))
+        temp[:, nu[k+1]:] = FuFx_expected[k] @ Dr_inv
+        GuGx_expected[k] = np.block([temp[:, :nu[k+1]], temp[:, nu[k+1]+modified_nx[k+1]:nu[k+1]+nx[k+1]]])
+        FuFx_expected[k] = temp[:, nu[k+1]:nu[k+1]+modified_nx[k+1]]
+
+        RSQrqt_expected[k+1][nu[k+1]:nu[k+1]+nx[k+1], :] = np.linalg.inv(Dr).T @ RSQrqt_expected[k+1][nu[k+1]:nu[k+1]+nx[k+1], :]
+        RSQrqt_expected[k+1][:,nu[k+1]:] = RSQrqt_expected[k+1][:,nu[k+1]:] @ np.linalg.inv(Dr)
+        RSQrqt_expected[k+1] = Wp @ RSQrqt_expected[k+1]
+        RSQrqt_expected[k+1] = RSQrqt_expected[k+1] @ W.T
+
+        Gg_eqt_expected[k+1][nu[k+1]:nu[k+1]+nx[k+1], :] = np.linalg.inv(Dr).T @ Gg_eqt_expected[k+1][nu[k+1]:nu[k+1]+nx[k+1], :]
+        Gg_eqt_expected[k+1] = Wp @ Gg_eqt_expected[k+1]
+        Gg_ineqt_expected[k+1][nu[k+1]:nu[k+1]+nx[k+1], :] = np.linalg.inv(Dr).T @ Gg_ineqt_expected[k+1][nu[k+1]:nu[k+1]+nx[k+1], :]
+        Gg_ineqt_expected[k+1] = Wp @ Gg_ineqt_expected[k+1]
+
+        if k < K-2:
+            BAbt_expected[k+1][nu[k+1]:nu[k+1]+nx[k+1], :] = np.linalg.inv(Dr).T @ BAbt_expected[k+1][nu[k+1]:nu[k+1]+nx[k+1], :]
+            FuFx_expected[k+1][nu[k+1]:nu[k+1]+nx[k+1], :] = np.linalg.inv(Dr).T @ FuFx_expected[k+1][nu[k+1]:nu[k+1]+nx[k+1],:]
+
+            FuFx_expected[k+1] = W @ FuFx_expected[k+1]
+            BAbt_expected[k+1] = Wp @ BAbt_expected[k+1]
+
+        Gg_eqt_expected[k] = np.block([Gg_eqt_expected[k], BAbt_expected[k][:, r[k]:]])
+        BAbt_expected[k] = BAbt_expected[k][:, :r[k]]
+
+    # check pre-processing results
+    for k in range(K):
+        if k < K-1:
+            n = np.linalg.norm(BAbt[k] - BAbt_expected[k])
+            if n > 1e-6: 
+                print(f"BAbt[{k}] error: {n}")
+            n = np.linalg.norm(GuGx[k] - GuGx_expected[k])
+            if n > 1e-6: 
+                print(f"GuGx[{k}] error: {n}")
+            n = np.linalg.norm(FuFx[k] - FuFx_expected[k])
+            if n > 1e-6: 
+                print(f"FuFx[{k}] error: {n}")
+            n = np.linalg.norm(RSQrqt[k] - RSQrqt_expected[k])
+            if n > 1e-6: 
+                print(f"RSQrqt[{k}] error: {n}")
+                # print(f"RSQrqt original\n{RSQrqt_original[k]}")
+                # print(f"RSQrqt expected\n{RSQrqt_expected[k]}")
+                # print(f"RSQrqt:\n{RSQrqt[k]}")
+            # print(f"GuGx original\n{GuGx_original[k]}")
+            # print(f"GuGx expected\n{GuGx_expected[k]}")
+            # print(f"GuGx:\n{GuGx[k]}")
+            # print(f"FuFx original\n{FuFx_original[k]}")
+            # print(f"FuFx expected\n{FuFx_expected[k]}")
+            # print(f"FuFx:\n{FuFx[k]}")
+
+        n = np.linalg.norm(Gg_eqt[k] - Gg_eqt_expected[k])
+        if n > 1e-6:
+            print(f"Gg_eqt[{k}] error: {n}")
+        n = np.linalg.norm(Gg_ineqt[k] - Gg_ineqt_expected[k])
+        if n > 1e-6:
+            print(f"Gg_ineqt[{k}] error: {n}")
+
+    return BAbt_expected, GuGx_expected, FuFx_expected, RSQrqt_expected, Gg_eqt_expected, Gg_ineqt_expected, Dl_list, Dr_list, Dl_inv_list, Dr_inv_list
 
         
