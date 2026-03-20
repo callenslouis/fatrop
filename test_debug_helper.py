@@ -453,11 +453,16 @@ def get_expected_matrices(K, nu, nx, r, ng_eq, ng_ineq, modified_nu, modified_nx
     RSQrqt_expected = [m.copy() for m in RSQrqt_original]
     Gg_eqt_expected = [m.copy() for m in Gg_eqt_original]
     Gg_ineqt_expected = [m.copy() for m in Gg_ineqt_original]
+    Jt_expected = [J.copy() for J in Jt] if Jt is not None else None
 
     if kwargs.get("store_linear_systems", False):
         linear_systems = []
-        blocks = GetBlockMatrices(K, modified_nu, modified_nx, modified_ng_eq, RSQrqt, GuGx, FuFx, Gg_eqt, BAbt)
-        # TODO
+        blocks = GetBlockMatrices(K, nu, nx, ng_eq, RSQrqt_expected, GuGx_expected, FuFx_expected, Gg_eqt_expected, BAbt_expected)
+        KKT, rhs = GetKKT(K, nu, nx, ng_eq, blocks['R'], blocks['S'], blocks['Q'], blocks['Gu'], blocks['Gx'], blocks['Fu'], blocks['Fx'], blocks['Hu'], blocks['Hx'], blocks['B'], blocks['A'], blocks['r'], blocks['q'], blocks['h'], blocks['b'], Jt=Jt_expected)
+        linear_systems.append({
+            "KKT": KKT,
+            "rhs": rhs,
+        })
 
     # add regularization to hessian
     for k in range(K):
@@ -480,6 +485,8 @@ def get_expected_matrices(K, nu, nx, r, ng_eq, ng_ineq, modified_nu, modified_nx
             Pr[k] = np.zeros((0,0))
         if L[k].shape[0] == 0 or L[k].shape[1] == 0:
             L[k] = np.zeros((0,0))
+        if Jt_expected[k].shape[0] == 0 or Jt_expected[k].shape[1] == 0:
+            Jt_expected[k] = np.zeros((0,0))
 
         Dl = Pl[k] @ L[k] @ np.block([[-U1, np.zeros((r[k],nx[k+1]-r[k]))], [np.zeros((nx[k+1]-r[k],r[k])), np.eye(nx[k+1]-r[k])]])
         Dr = np.block([[np.eye(r[k]), np.linalg.inv(U1) @ U2], [np.zeros((nx[k+1]-r[k],r[k])), np.eye(nx[k+1]-r[k])]]) @ Pr[k].T
@@ -490,6 +497,9 @@ def get_expected_matrices(K, nu, nx, r, ng_eq, ng_ineq, modified_nu, modified_nx
         Dl_inv_list.append(Dl_inv)
         Dr_inv_list.append(Dr_inv)
         norm = np.linalg.norm(J - Dl @ np.block([[-np.eye(r[k]), np.zeros((r[k],nx[k+1]-r[k]))], [np.zeros((nx[k+1]-r[k],nx[k+1]))]]) @ Dr)
+        print(Jt_expected[k].T.shape)
+        print(Dr_inv.shape)
+        Jt_expected[k] = ((Dl_inv @ Jt_expected[k].T @ Dr_inv).T)[:modified_nx[k+1], :modified_nx[k+1]]
         assert norm < 1e-6, f"Decomposition error at stage {k}: {norm}"
 
         # construct W
@@ -526,6 +536,18 @@ def get_expected_matrices(K, nu, nx, r, ng_eq, ng_ineq, modified_nu, modified_nx
         Gg_eqt_expected[k] = np.block([Gg_eqt_expected[k], BAbt_expected[k][:, r[k]:]])
         BAbt_expected[k] = BAbt_expected[k][:, :r[k]]
 
+        if kwargs.get("store_linear_systems", False):
+            intermediate_nu = modified_nu[:k+2] + nu[k+2:]
+            intermediate_nx = modified_nx[:k+2] + nx[k+2:]
+            intermediate_ng_eq = modified_ng_eq[:k+1] + ng_eq[k+1:]
+            intermediate_ng_ineq = modified_ng_ineq[:k+1] + ng_ineq[k+1:]
+            blocks = GetBlockMatrices(K, intermediate_nu, intermediate_nx, intermediate_ng_eq, RSQrqt_expected, GuGx_expected, FuFx_expected, Gg_eqt_expected, BAbt_expected)
+            KKT, rhs = GetKKT(K, intermediate_nu, intermediate_nx, intermediate_ng_eq, blocks['R'], blocks['S'], blocks['Q'], blocks['Gu'], blocks['Gx'], blocks['Fu'], blocks['Fx'], blocks['Hu'], blocks['Hx'], blocks['B'], blocks['A'], blocks['r'], blocks['q'], blocks['h'], blocks['b'], Jt=Jt_expected)
+            linear_systems.append({
+                "KKT": KKT,
+                "rhs": rhs,
+            })
+
     # check pre-processing results
     for k in range(K):
         if k < K-1:
@@ -558,6 +580,9 @@ def get_expected_matrices(K, nu, nx, r, ng_eq, ng_ineq, modified_nu, modified_nx
         if n > 1e-6:
             print(f"Gg_ineqt[{k}] error: {n}")
 
-    return BAbt_expected, GuGx_expected, FuFx_expected, RSQrqt_expected, Gg_eqt_expected, Gg_ineqt_expected, Dl_list, Dr_list, Dl_inv_list, Dr_inv_list
+    if kwargs.get("store_linear_systems", False):
+        return BAbt_expected, GuGx_expected, FuFx_expected, RSQrqt_expected, Gg_eqt_expected, Gg_ineqt_expected, Dl_list, Dr_list, Dl_inv_list, Dr_inv_list, linear_systems
+    else:
+        return BAbt_expected, GuGx_expected, FuFx_expected, RSQrqt_expected, Gg_eqt_expected, Gg_ineqt_expected, Dl_list, Dr_list, Dl_inv_list, Dr_inv_list
 
         
