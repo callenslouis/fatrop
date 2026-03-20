@@ -31,6 +31,9 @@ void ProblemDims::check_problem_dimensions() const {
         fatrop_assert_msg(number_of_eq_constraints[i] >= 0, "The number of equality constraints must be non-negative.");
         fatrop_assert_msg(number_of_ineq_constraints[i] >= 0, "The number of inequality constraints must be non-negative.");
         fatrop_assert_msg(number_of_eq_constraints[i] <= number_of_states[i] + number_of_controls[i],
-                          "The number of eq constraints exceeds the number of variables.");
+                          "The number of eq constraints (" + 
+                          std::to_string(number_of_eq_constraints[i]) + 
+                          ") exceeds the number of variables (" +
+                          std::to_string(number_of_states[i] + number_of_controls[i]) + ").");
     }
 }

@@ -67,6 +67,7 @@ add_executable(options_test common/options_test.cpp)
 add_executable(general_implicit_test implicit/general_implicit_test.cpp)
 add_executable(blasfeo_valgrind_test linear_algebra/blasfeo_valgrind_test.cpp)
 add_executable(blasfeo_test linear_algebra/blasfeo_test.cpp)
+add_executable(general_implicit_benchmark implicit/general_implicit_benchmark.cpp)
 
 # target_precompile_headers(implicit_ocp_test PRIVATE implicit/generators/pch.hpp)
 
@@ -94,6 +95,7 @@ target_link_libraries(ip_filter_test GTest::gtest GTest::gtest_main blasfeo fatr
 target_link_libraries(general_implicit_test GTest::gtest GTest::gtest_main blasfeo fatrop)
 target_link_libraries(blasfeo_valgrind_test GTest::gtest GTest::gtest_main blasfeo fatrop)
 target_link_libraries(blasfeo_test blasfeo)
+target_link_libraries(general_implicit_benchmark GTest::gtest GTest::gtest_main blasfeo fatrop)
 
 # Discover and add the tests
 gtest_discover_tests(vector_test)
@@ -114,3 +116,4 @@ gtest_discover_tests(ip_filter_test)
 gtest_discover_tests(options_test)
 gtest_discover_tests(general_implicit_test)
 gtest_discover_tests(blasfeo_valgrind_test)
+gtest_discover_tests(general_implicit_benchmark)

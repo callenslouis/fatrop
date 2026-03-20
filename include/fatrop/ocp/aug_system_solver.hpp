@@ -278,6 +278,8 @@ namespace fatrop
                                            const VecRealView &D_s, const VecRealView &f,
                                            const VecRealView &g, VecRealView &x, VecRealView &eq_mult);
 
+        void set_performance_mode(bool set);
+
     private:
         // temporaries, pre-allocated during construction to avoid allocation during
         // optimization
@@ -338,6 +340,13 @@ namespace fatrop
         bool print_debug_lines = false;
         bool print_initial_stage = false;
         bool write_factorization_file = false;
+
+        // for debugging
+        std::vector<Index> rank_k_values;
+        std::vector<MatRealAllocated> LU;
+        std::vector<Index> gamma_k_values;
+        std::vector<MatRealAllocated> Ggt_eq;
+        std::vector<MatRealAllocated> R_shur;
     };
 
     // define ImplicitOcpType augmented system solver
@@ -426,8 +435,22 @@ namespace fatrop
                                            const VecRealView &D_s, const VecRealView &f,
                                            const VecRealView &g, VecRealView &x, VecRealView &eq_mult);
 
+
+        void set_performance_mode(bool set);
+
+        std::chrono::microseconds duration_preprocess;
         std::chrono::microseconds duration_preprocess_jac;
         std::chrono::microseconds duration_preprocess_hess;
+        std::chrono::microseconds duration_preprocess_regularization;
+        std::chrono::microseconds duration_preprocess_decomposition;
+        std::chrono::microseconds duration_decomp_copies;
+        std::chrono::microseconds duration_decomp_decomp;
+        std::chrono::microseconds duration_decomp_scale1;
+        std::chrono::microseconds duration_decomp_scale2;
+        std::chrono::microseconds duration_decomp_permutation;
+        std::chrono::microseconds duration_decomp_store;
+        std::chrono::microseconds duration_preprocess_info;
+        std::chrono::microseconds duration_preprocess_modify_rhs;
         std::chrono::microseconds duration_solve;
         std::chrono::microseconds duration_postprocess;
         std::chrono::microseconds duration_copying_rhs;
@@ -459,8 +482,24 @@ namespace fatrop
         bool print_final_solution = false;
 
         double lu_fact_tol = 1e-5;
-        
+
+        // memory allocations
+        std::vector<Index> number_of_states;
+        std::vector<Index> number_of_controls;
+        std::vector<Index> number_of_eq_constraints;
+        std::vector<Index> number_of_ineq_constraints;
+        std::vector<VecRealAllocated> f_copy;
+        std::vector<VecRealAllocated> g_copy;
+        std::vector<VecRealAllocated> D_x_copy;
+        std::vector<VecRealAllocated> D_s_copy;
+        std::vector<VecRealAllocated> D_eq_copy;
+        std::vector<VecRealAllocated> x_copy;
+        std::vector<VecRealAllocated> eq_mult_copy;
+
         std::unique_ptr<MatRealAllocated> scratch = std::make_unique<MatRealAllocated>(0,0);
+        std::vector<MatRealAllocated> JBAbt;
+        std::vector<MatRealAllocated> JBAbt_modified;
+        // std::vector<PermutationMatrix> Pr_extended;
     };
 
 } // namespace fatrop

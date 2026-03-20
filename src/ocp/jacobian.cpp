@@ -235,7 +235,9 @@ void Jacobian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
               g, info.offsets_g_eq_dyn[k], 
               BAbt[k], info.dims.number_of_states[k] + 
               info.dims.number_of_controls[k], 0);
-        BAbt_original[k] = BAbt[k];
+        // BAbt_original[k] = BAbt[k];
+        gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
+             info.dims.number_of_states[k + 1], BAbt[k], 0, 0, BAbt_original[k], 0, 0);
 
     }
     for (int k = 0; k < info.dims.K; ++k){
@@ -244,14 +246,18 @@ void Jacobian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
               g, info.offsets_g_eq_path[k], 
               Gg_eqt[k], info.dims.number_of_states[k] + 
               info.dims.number_of_controls[k], 0);
-        Gg_eqt_original[k] = Gg_eqt[k];
+        // Gg_eqt_original[k] = Gg_eqt[k];
+        gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
+             info.dims.number_of_eq_constraints[k], Gg_eqt[k], 0, 0, Gg_eqt_original[k], 0, 0);
 
         // inequalities
         rowin(info.dims.number_of_ineq_constraints[k], 1.0, 
               g, info.offsets_g_eq_slack[k], 
               Gg_ineqt[k], info.dims.number_of_states[k] + 
               info.dims.number_of_controls[k], 0);
-        Gg_ineqt_original[k] = Gg_ineqt[k];
+        // Gg_ineqt_original[k] = Gg_ineqt[k];
+        gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
+             info.dims.number_of_ineq_constraints[k], Gg_ineqt[k], 0, 0, Gg_ineqt_original[k], 0, 0);
     }
     return;
 
@@ -305,13 +311,19 @@ void Jacobian<ImplicitOcpType>::ResetPreProcess(const ProblemInfo &info){
     for (int k = 0; k < info.dims.K - 1; ++k){
         // std::cout << "BAbt[" << k << "]:" << std::endl << BAbt[k] << std::endl;
         // std::cout << "BAbt_original[" << k << "]:" << std::endl << BAbt_original[k] << std::endl;
-        BAbt[k] = BAbt_original[k];
+        // BAbt[k] = BAbt_original[k];
+        gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
+             info.dims.number_of_states[k + 1], BAbt_original[k], 0, 0, BAbt[k], 0, 0);
     }   
     for (int k = 0; k < info.dims.K; ++k){
         // std::cout << "Gg_eqt[" << k << "]:" << std::endl << Gg_eqt[k] << std::endl;
         // std::cout << "Gg_eqt_original[" << k << "]:" << std::endl << Gg_eqt_original[k] << std::endl;
-        Gg_eqt[k] = Gg_eqt_original[k];
-        Gg_ineqt[k] = Gg_ineqt_original[k];
+        // Gg_eqt[k] = Gg_eqt_original[k];
+        // Gg_ineqt[k] = Gg_ineqt_original[k];
+        gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
+             info.dims.number_of_eq_constraints[k], Gg_eqt_original[k], 0, 0, Gg_eqt[k], 0, 0);
+        gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
+             info.dims.number_of_ineq_constraints[k], Gg_ineqt_original[k], 0, 0, Gg_ineqt[k], 0, 0);    
     }
 }
 

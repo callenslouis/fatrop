@@ -139,6 +139,7 @@ namespace fatrop
                 U1U2t.emplace_back(dims.number_of_states[k + 1] + 8, dims.number_of_states[k + 1] + 8);
                 U1t.emplace_back(dims.number_of_states[k + 1], dims.number_of_states[k + 1]);
             }
+            J_ranks = std::vector<Index>(dims.K - 1, 0);
 
             // enlarge Gg_eqt (since states from the previous time-step could be added)
             Gg_eqt = {};

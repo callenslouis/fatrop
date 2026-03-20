@@ -1652,6 +1652,13 @@ ModifiedAugSystemSolver::ModifiedAugSystemSolver(const ProblemInfo &info)
 
     gamma.resize(new_info.dims.K);
     rho.resize(new_info.dims.K);
+
+    // for debugging
+    rank_k_values = std::vector<Index>(info.dims.K);
+    LU.reserve(info.dims.K); for (Index k = 0; k < info.dims.K; k++){ LU.emplace_back(20, 20);}
+    gamma_k_values = std::vector<Index>(info.dims.K);
+    Ggt_eq.reserve(info.dims.K); for (Index k = 0; k < info.dims.K; k++){ Ggt_eq.emplace_back(20, 20);}
+    R_shur.reserve(info.dims.K); for (Index k = 0; k < info.dims.K; k++){ R_shur.emplace_back(20, 20);}
 };
 
 LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
@@ -1662,14 +1669,6 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
 {
     MatRealView *RSQrq_hat_curr_p;
     Index rank_k;
-    std::vector<Index> rank_k_values(info.dims.K);
-    std::vector<MatRealAllocated> LU;
-    LU.reserve(info.dims.K); for (Index k = 0; k < info.dims.K; k++){ LU.emplace_back(20, 20);}
-    std::vector<Index> gamma_k_values(info.dims.K);
-    std::vector<MatRealAllocated> Ggt_eq;
-    Ggt_eq.reserve(info.dims.K); for (Index k = 0; k < info.dims.K; k++){ Ggt_eq.emplace_back(20, 20);}
-    std::vector<MatRealAllocated> R_shur;
-    R_shur.reserve(info.dims.K); for (Index k = 0; k < info.dims.K; k++){ R_shur.emplace_back(20, 20);}
 
     /////////////// recursion ///////////////
     for (Index k = info.dims.K - 1; k >= 0; --k)
@@ -1813,8 +1812,10 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             gamma_k_values[k] = gamma_k;
             gecp(nu, gamma_k, Ggt_stripe[0], 0, 0, Ggt_eq[k], 0, 0);
             lu_fact_transposed(gamma_k, nu + nx + 1, nu, rank_k, Ggt_stripe[0], Pl[k], Pr[k], lu_fact_tol);
-            rank_k_values[k] = rank_k;
-            gecp(nu, gamma_k, Ggt_stripe[0], 0, 0, LU[k], 0, 0);
+            if (write_factorization_file){
+                rank_k_values[k] = rank_k;
+                gecp(nu, gamma_k, Ggt_stripe[0], 0, 0, LU[k], 0, 0);
+            }
             // std::cout << "Pl: "; for (int i = 0; i < rank_k; i++){ std::cout << Pl[k][i] << " ";}std::cout << std::endl;
             // std::cout << "Pr: "; for (int i = 0; i < rank_k; i++){ std::cout << Pr[k][i] << " ";}std::cout << std::endl;
             // std::cout << "rank_" << k << " = " << rank_k << std::endl;
@@ -2813,6 +2814,14 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve_rhs(const ProblemInfo &info,
     return LinsolReturnFlag::SUCCESS;
 }
 
+void ModifiedAugSystemSolver::set_performance_mode(bool set){
+    if (set){
+        print_debug_lines = false;
+        print_initial_stage = false;
+        write_factorization_file = false;
+    }
+}
+
 
 
 
@@ -3058,9 +3067,24 @@ AugSystemSolver<ImplicitOcpType>::AugSystemSolver(const ProblemInfo &info) : Mod
     int max_nx = *std::max_element(info.dims.number_of_states.begin(), info.dims.number_of_states.end());
     int max_nu = *std::max_element(info.dims.number_of_controls.begin(), info.dims.number_of_controls.end());
     int max_ng = *std::max_element(info.dims.number_of_eq_constraints.begin(), info.dims.number_of_eq_constraints.end());
-    int dim = std::max(max_nu + max_nx + 1, max_ng);
+    
+    number_of_states = info.dims.number_of_states;
+    number_of_controls = info.dims.number_of_controls;
+    number_of_eq_constraints = info.dims.number_of_eq_constraints;
+    number_of_ineq_constraints = info.dims.number_of_ineq_constraints;
+    
+    f_copy.emplace_back(info.number_of_primal_variables);
+    g_copy.emplace_back(info.number_of_eq_constraints);
+    D_x_copy.emplace_back(info.number_of_primal_variables);
+    D_s_copy.emplace_back(info.number_of_slack_variables);
+    D_eq_copy.emplace_back(info.number_of_eq_constraints);
+    x_copy.emplace_back(info.number_of_primal_variables);
+    eq_mult_copy.emplace_back(info.number_of_eq_constraints + info.number_of_slack_variables);
 
+    int dim = std::max(max_nu + max_nx + 1, max_ng);
     scratch = std::make_unique<MatRealAllocated>(dim + 8, dim);
+    JBAbt.emplace_back(dim + max_nx, max_nx);
+    JBAbt_modified.emplace_back(dim + max_nx, max_nx);
 };
 
 LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info,
@@ -3072,21 +3096,21 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
     if (print_debug) {std::cout << "AugSystemSolver<ImplicitOcpType> solve start" << std::endl;}
     // copy the rhs since they are altered during preprocessing and are needed for checking the solution
     auto start = std::chrono::high_resolution_clock::now();
-    VecRealAllocated f_copy(info.number_of_primal_variables);
-    VecRealAllocated g_copy(info.number_of_eq_constraints);
-    VecRealAllocated D_x_copy(info.number_of_primal_variables);
-    VecRealAllocated D_s_copy(info.number_of_slack_variables);
-    for (int i = 0; i < info.number_of_primal_variables; i++){ f_copy(i) = f(i);}
-    for (int i = 0; i < info.number_of_eq_constraints; i++){ g_copy(i) = g(i);}
-    for (int i = 0; i < info.number_of_primal_variables; i++){ D_x_copy(i) = D_x(i);}
-    for (int i = 0; i < info.number_of_slack_variables; i++){ D_s_copy(i) = D_s(i);}
+    veccp(info.number_of_primal_variables, f, 0, f_copy[0], 0);
+    veccp(info.number_of_eq_constraints, g, 0, g_copy[0], 0);
+    veccp(info.number_of_primal_variables, D_x, 0, D_x_copy[0], 0);
+    veccp(info.number_of_slack_variables, D_s, 0, D_s_copy[0], 0);
 
     auto stop = std::chrono::high_resolution_clock::now();
     duration_copying_rhs = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-    ProblemInfo modified_info = PreProcess(info, jacobian, hessian, f_copy, g_copy, &D_x_copy, nullptr, &D_s_copy);
 
     start = std::chrono::high_resolution_clock::now();
-    LinsolReturnFlag flag = ModifiedAugSystemSolver::solve(modified_info, jacobian, hessian, D_x_copy, D_s_copy, f_copy, g_copy, x, eq_mult);
+    ProblemInfo modified_info = PreProcess(info, jacobian, hessian, f_copy[0], g_copy[0], &(D_x_copy[0]), nullptr, &(D_s_copy[0]));
+    stop = std::chrono::high_resolution_clock::now();
+    duration_preprocess = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+
+    start = std::chrono::high_resolution_clock::now();
+    LinsolReturnFlag flag = ModifiedAugSystemSolver::solve(modified_info, jacobian, hessian, D_x_copy[0], D_s_copy[0], f_copy[0], g_copy[0], x, eq_mult);
 
     if (write_preprocessing_file){
         PrintPreProcessNpInfo(info, modified_info, hessian, jacobian, x, eq_mult, D_x);
@@ -3096,8 +3120,8 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
         std::cout << "KKT matrix:" << std::endl;
         PrintNpArray(GetKKT(modified_info, jacobian, hessian, true), "KKT");
         VecRealAllocated full_rhs = VecRealAllocated(modified_info.number_of_primal_variables + modified_info.number_of_eq_constraints);
-        for (Index i = 0; i < info.number_of_primal_variables; ++i){full_rhs(i) = f_copy(i) + D_x_copy(i)*x(i);}
-        for (Index i = 0; i < info.number_of_eq_constraints; ++i){full_rhs(info.number_of_primal_variables + i) = g_copy(i);}
+        for (Index i = 0; i < info.number_of_primal_variables; ++i){full_rhs(i) = (f_copy[0])(i) + (D_x_copy[0])(i)*x(i);}
+        for (Index i = 0; i < info.number_of_eq_constraints; ++i){full_rhs(info.number_of_primal_variables + i) = (g_copy[0])(i);}
         for (Index i = 0; i < info.number_of_slack_variables; ++i){
             full_rhs(info.number_of_primal_variables + info.offset_g_eq_slack + i) -= D_s(i) * eq_mult(info.offset_g_eq_slack + i);
         }
@@ -3106,12 +3130,17 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
         std::cout << "obtained eq_mult:" << std::endl << eq_mult << std::endl;
     }
     if (verify_preprocessed_solution){
-        VerifyIntermediateSolution(modified_info, jacobian, hessian, x, eq_mult, f_copy, g_copy);    
+        VerifyIntermediateSolution(modified_info, jacobian, hessian, x, eq_mult, f_copy[0], g_copy[0]);    
     }
     
     auto end = std::chrono::high_resolution_clock::now();
     duration_solve = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+
+    start = std::chrono::high_resolution_clock::now();
     PostProcess(info, modified_info, jacobian, hessian, x, eq_mult, &D_s, nullptr, g);
+    stop = std::chrono::high_resolution_clock::now();
+    duration_postprocess = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+
     if (print_final_solution){
         std::string file = "final_solution.py";
         std::ofstream o(file);
@@ -3140,24 +3169,19 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
     if (print_debug) {std::cout << "AugSystemSolver<ImplicitOcpType> solve start" << std::endl;}
     // copy the rhs since they are altered during preprocessing and are needed for checking the solution
     auto start = std::chrono::high_resolution_clock::now();
-    VecRealAllocated f_copy(info.number_of_primal_variables);
-    VecRealAllocated g_copy(info.number_of_eq_constraints);
-    VecRealAllocated D_x_copy(info.number_of_primal_variables);
-    VecRealAllocated D_eq_copy(info.number_of_eq_constraints);
-    VecRealAllocated D_s_copy(info.number_of_eq_constraints);
-    for (int i = 0; i < info.number_of_primal_variables; i++){ f_copy(i) = f(i);}
-    for (int i = 0; i < info.number_of_eq_constraints; i++){ g_copy(i) = g(i);}
-    for (int i = 0; i < info.number_of_primal_variables; i++){ D_x_copy(i) = D_x(i);}
-    for (int i = 0; i < info.number_of_eq_constraints; i++){ D_eq_copy(i) = D_eq(i);}
-    for (int i = 0; i < info.number_of_slack_variables; i++){ D_s_copy(i) = D_s(i);}
+    veccp(info.number_of_primal_variables, f, 0, f_copy[0], 0);
+    veccp(info.number_of_eq_constraints, g, 0, g_copy[0], 0);
+    veccp(info.number_of_primal_variables, D_x, 0, D_x_copy[0], 0);
+    veccp(info.number_of_eq_constraints, D_eq, 0, D_eq_copy[0], 0);
+    veccp(info.number_of_slack_variables, D_s, 0, D_s_copy[0], 0);
 
     auto stop = std::chrono::high_resolution_clock::now();
     duration_copying_rhs = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
 
     // return LinsolReturnFlag::SUCCESS;
-    ProblemInfo modified_info = PreProcess(info, jacobian, hessian, f_copy, g_copy, &D_x_copy, &D_eq_copy, &D_s_copy);
+    ProblemInfo modified_info = PreProcess(info, jacobian, hessian, f_copy[0], g_copy[0], &D_x_copy[0], &D_eq_copy[0], &D_s_copy[0]);
     start = std::chrono::high_resolution_clock::now();
-    LinsolReturnFlag flag = ModifiedAugSystemSolver::solve(modified_info, jacobian, hessian, D_x_copy, D_eq_copy, D_s_copy, f_copy, g_copy, x, eq_mult);
+    LinsolReturnFlag flag = ModifiedAugSystemSolver::solve(modified_info, jacobian, hessian, D_x_copy[0], D_eq_copy[0], D_s_copy[0], f_copy[0], g_copy[0], x, eq_mult);
     auto end = std::chrono::high_resolution_clock::now();
     duration_solve = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     PostProcess(info, modified_info, jacobian, hessian, x, eq_mult, &D_s, &D_eq, g);
@@ -3173,19 +3197,16 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve_rhs(const ProblemInfo &
                                                VecRealView &eq_mult)
 {
     auto start = std::chrono::high_resolution_clock::now();
-    VecRealAllocated f_copy(info.number_of_primal_variables);
-    VecRealAllocated g_copy(info.number_of_eq_constraints);
-    VecRealAllocated D_s_copy(info.number_of_slack_variables);
-    for (int i = 0; i < info.number_of_primal_variables; i++){ f_copy(i) = f(i);}
-    for (int i = 0; i < info.number_of_eq_constraints; i++){ g_copy(i) = g(i);}
-    for (int i = 0; i < info.number_of_slack_variables; i++){ D_s_copy(i) = D_s(i);}
+    veccp(info.number_of_primal_variables, f, 0, f_copy[0], 0);
+    veccp(info.number_of_eq_constraints, g, 0, g_copy[0], 0);
+    veccp(info.number_of_slack_variables, D_s, 0, D_s_copy[0], 0);
     auto stop = std::chrono::high_resolution_clock::now();
     duration_copying_rhs = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
 
     // return LinsolReturnFlag::SUCCESS;
-    ProblemInfo modified_info = PreProcess(info, jacobian, hessian, f_copy, g_copy, nullptr, nullptr, &D_s_copy);
+    ProblemInfo modified_info = PreProcess(info, jacobian, hessian, f_copy[0], g_copy[0], nullptr, nullptr, &D_s_copy[0]);
     start = std::chrono::high_resolution_clock::now();
-    LinsolReturnFlag flag = ModifiedAugSystemSolver::solve_rhs(modified_info, jacobian, hessian, D_s, f_copy, g_copy, x, eq_mult);
+    LinsolReturnFlag flag = ModifiedAugSystemSolver::solve_rhs(modified_info, jacobian, hessian, D_s, f_copy[0], g_copy[0], x, eq_mult);
     auto end = std::chrono::high_resolution_clock::now();
     duration_solve = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     PostProcess(info, modified_info, jacobian, hessian, x, eq_mult, &D_s, nullptr, g);
@@ -3199,26 +3220,33 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve_rhs(const ProblemInfo &
                                                VecRealView &x, VecRealView &eq_mult)
 {
     auto start = std::chrono::high_resolution_clock::now();
-    VecRealAllocated f_copy(info.number_of_primal_variables);
-    VecRealAllocated g_copy(info.number_of_eq_constraints);
-    VecRealAllocated D_eq_copy(info.number_of_eq_constraints);
-    VecRealAllocated D_s_copy(info.number_of_slack_variables);
-    for (int i = 0; i < info.number_of_primal_variables; i++){f_copy(i) = f(i);}
-    for (int i = 0; i < info.number_of_eq_constraints; i++){g_copy(i) = g(i);}
-    for (int i = 0; i < info.number_of_eq_constraints; i++){ D_eq_copy(i) = D_eq(i);}
-    for (int i = 0; i < info.number_of_slack_variables; i++){ D_s_copy(i) = D_s(i);}
+    veccp(info.number_of_primal_variables, f, 0, f_copy[0], 0);
+    veccp(info.number_of_eq_constraints, g, 0, g_copy[0], 0);
+    veccp(info.number_of_eq_constraints, D_eq, 0, D_eq_copy[0], 0);
+    veccp(info.number_of_slack_variables, D_s, 0, D_s_copy[0], 0);
 
     auto stop = std::chrono::high_resolution_clock::now();
     duration_copying_rhs = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
 
     // return LinsolReturnFlag::SUCCESS;
-    ProblemInfo modified_info = PreProcess(info, jacobian, hessian, f_copy, g_copy, nullptr, &D_eq_copy, &D_s_copy);
+    ProblemInfo modified_info = PreProcess(info, jacobian, hessian, f_copy[0], g_copy[0], nullptr, &D_eq_copy[0], &D_s_copy[0]);
     start = std::chrono::high_resolution_clock::now();
-    LinsolReturnFlag flag = ModifiedAugSystemSolver::solve_rhs(modified_info, jacobian, hessian, D_eq_copy, D_s_copy, f_copy, g_copy, x, eq_mult);
+    LinsolReturnFlag flag = ModifiedAugSystemSolver::solve_rhs(modified_info, jacobian, hessian, D_eq_copy[0], D_s_copy[0], f_copy[0], g_copy[0], x, eq_mult);
     auto end = std::chrono::high_resolution_clock::now();
     duration_solve = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     PostProcess(info, modified_info, jacobian, hessian, x, eq_mult, &D_s, &D_eq, g);
     return flag;
+}
+
+void AugSystemSolver<ImplicitOcpType>::set_performance_mode(bool set){
+    if (set){
+        print_debug = false;
+        print_preprocessed_system = false;
+        write_preprocessing_file = false;
+        verify_preprocessed_solution = false;
+        print_final_solution = false;
+        ModifiedAugSystemSolver::set_performance_mode(true);
+    }
 }
 
 ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
@@ -3233,19 +3261,21 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::PreProcess start" << std::endl;}
 
     // GENERAL VERSION
+    auto start = std::chrono::high_resolution_clock::now();
     jacobian.PreProcess(info, f, g);
+    auto stop = std::chrono::high_resolution_clock::now();
+    duration_preprocess_jac = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::jacobian::PreProcess done" << std::endl;}
+
+    start = std::chrono::high_resolution_clock::now();
     hessian.PreProcess(info, jacobian, f, g);
+    stop = std::chrono::high_resolution_clock::now();
+    duration_preprocess_hess = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::hessian::PreProcess done" << std::endl;}
 
+    start = std::chrono::high_resolution_clock::now();
     int K = info.dims.K;
-    std::vector<Index> number_of_states = info.dims.number_of_states;
-    std::vector<Index> number_of_controls = info.dims.number_of_controls;
-    std::vector<Index> number_of_eq_constraints = info.dims.number_of_eq_constraints;
-    std::vector<Index> number_of_ineq_constraints = info.dims.number_of_ineq_constraints;
-
     bool USE_NEW_REGULARIZATION_TREATMENT = true;
-
     if (USE_NEW_REGULARIZATION_TREATMENT){
     // Deal with regularization terms
     for (int k = 0; k < K; ++k){
@@ -3305,9 +3335,11 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
         }
     }
     }
-
+    stop = std::chrono::high_resolution_clock::now();
+    duration_preprocess_regularization = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
 
     // Pre-process 
+    start = std::chrono::high_resolution_clock::now();
     for (int k = 0; k < K-1; ++k){
         int nx = number_of_states[k];
         int nx_next = number_of_states[k + 1];
@@ -3316,16 +3348,23 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
 
         // construct JABbt-matrix
         int rank;
-        MatRealAllocated JBAbt = MatRealAllocated(nx_next + nu + nx + 1, nx_next);
-        MatRealAllocated JBAbt_modified = MatRealAllocated(nx_next + nu + nx + 1, nx_next);
-        gecp(nx_next, nx_next, jacobian.Jt[k], 0, 0, JBAbt, 0, 0);
-        gecp(nu + nx + 1, nx_next, jacobian.BAbt[k], 0, 0, JBAbt, nx_next, 0);
-        gecp(nx_next + nu + nx + 1, nx_next, JBAbt, 0, 0, JBAbt_modified, 0, 0);
+        // std::vector<MatRealAllocated> JBAbt = {MatRealAllocated(nx_next + nu + nx + 1, nx_next)};
+        // std::vector<MatRealAllocated> JBAbt_modified = {MatRealAllocated(nx_next + nu + nx + 1, nx_next)};
+        auto inner_start = std::chrono::high_resolution_clock::now();
+        gecp(nx_next, nx_next, jacobian.Jt[k], 0, 0, JBAbt[0], 0, 0);
+        gecp(nu + nx + 1, nx_next, jacobian.BAbt[k], 0, 0, JBAbt[0], nx_next, 0);
+        gecp(nx_next + nu + nx + 1, nx_next, JBAbt[0], 0, 0, JBAbt_modified[0], 0, 0);
+        auto inner_stop = std::chrono::high_resolution_clock::now();
+        duration_decomp_copies += std::chrono::duration_cast<std::chrono::microseconds>(inner_stop - inner_start);
 
         // decompose J matrix
-        lu_fact_transposed(nx_next, nx_next + nu + nx + 1, nx_next, rank, JBAbt, jacobian.Pl_pre[k], jacobian.Pr_pre[k], lu_fact_tol);
-        gecp(rank, rank, JBAbt, 0, 0, jacobian.U1t[k], 0, 0);
+        inner_start = std::chrono::high_resolution_clock::now();
+        lu_fact_transposed(nx_next, nx_next + nu + nx + 1, nx_next, rank, JBAbt[0], jacobian.Pl_pre[k], jacobian.Pr_pre[k], lu_fact_tol);
+        gecp(rank, rank, JBAbt[0], 0, 0, jacobian.U1t[k], 0, 0);
         // PrintLuInfo(JBAbt, jacobian.Jt[k], jacobian.Pl_pre[k], jacobian.Pr_pre[k]);
+        inner_stop = std::chrono::high_resolution_clock::now();
+        duration_decomp_decomp += std::chrono::duration_cast<std::chrono::microseconds>(inner_stop - inner_start);
+        inner_start = std::chrono::high_resolution_clock::now();
 
         if (nu + nx < info.dims.number_of_eq_constraints[k] + nx_next - rank){
             // there will be more constraints at this stage than can be
@@ -3342,12 +3381,12 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
         for (int i = 0; i < rank; i++){ Pr_extended[nu_next + i] = nu_next + jacobian.Pr_pre[k][i];}
 
         // Modify dynamics jacobian
-        jacobian.Pl_pre[k].apply_on_cols(rank, &JBAbt_modified.mat());                                              // * P_l
-        trsm_runu(nx_next + nu + nx + 1, nx_next, 1.0, JBAbt, 0, 0, JBAbt_modified, 0, 0, JBAbt_modified, 0, 0);    // * L^-1
-        trsm_rlnn(nx_next + nu + nx + 1, rank, -1.0, JBAbt, 0, 0, JBAbt_modified, 0, 0, JBAbt_modified, 0, 0);      // * U^-1
-        gecp(nu + nx + 1, nx_next, JBAbt_modified, nx_next, 0, jacobian.BAbt[k], 0, 0);
-        jacobian.Pr_pre[k].apply_on_rows(rank, &JBAbt_modified.mat());                                              // * P_r
-        gecp(nx_next-rank, rank, JBAbt_modified, rank, 0, jacobian.U1U2t[k], 0, 0);
+        jacobian.Pl_pre[k].apply_on_cols(rank, &(JBAbt_modified[0]).mat());                                              // * P_l
+        trsm_runu(nx_next + nu + nx + 1, nx_next, 1.0, JBAbt[0], 0, 0, JBAbt_modified[0], 0, 0, JBAbt_modified[0], 0, 0);    // * L^-1
+        trsm_rlnn(nx_next + nu + nx + 1, rank, -1.0, JBAbt[0], 0, 0, JBAbt_modified[0], 0, 0, JBAbt_modified[0], 0, 0);      // * U^-1
+        gecp(nu + nx + 1, nx_next, JBAbt_modified[0], nx_next, 0, jacobian.BAbt[k], 0, 0);
+        jacobian.Pr_pre[k].apply_on_rows(rank, &(JBAbt_modified[0]).mat());                                              // * P_r
+        gecp(nx_next-rank, rank, JBAbt_modified[0], rank, 0, jacobian.U1U2t[k], 0, 0);
 
         // other hessian contribution
         trtr_l(nu_next + nx_next, hessian.RSQrqt[k+1], 0, 0, hessian.RSQrqt[k+1], 0, 0);
@@ -3365,6 +3404,10 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
             }
         }
         }
+        inner_stop = std::chrono::high_resolution_clock::now();
+        duration_decomp_scale1 += std::chrono::duration_cast<std::chrono::microseconds>(inner_stop - inner_start);
+        inner_start = std::chrono::high_resolution_clock::now();
+
         // right-multiply right part with Dr^-1
         Pr_extended.apply_on_rows(nu_next + rank, &hessian.RSQrqt[k+1].mat());
         gemm_nn(nx_next - rank, nu_next + nx_next, rank, 1.0, jacobian.U1U2t[k], 0, 0, hessian.RSQrqt[k+1], nu_next, 0, 1.0, 
@@ -3397,8 +3440,10 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
         // inequality constraints
         // Pr_extended.apply_on_rows(nu_next + rank, &jacobian.Gg_ineqt[k+1].mat());
         // gemm_nn(nx_next - rank, info.dims.number_of_ineq_constraints[k+1], rank, 1.0, jacobian.U1U2t[k], 0, 0, jacobian.Gg_ineqt[k+1], nu_next, 0, 1.0, jacobian.Gg_ineqt[k+1], nu_next + rank, 0, jacobian.Gg_ineqt[k+1], nu_next + rank, 0);
+        inner_stop = std::chrono::high_resolution_clock::now();
+        duration_decomp_scale2 += std::chrono::duration_cast<std::chrono::microseconds>(inner_stop - inner_start);
 
-
+        inner_start = std::chrono::high_resolution_clock::now();
         // Move undefined states to controls
         if (rank < nx_next){
             gecp(nu + nx, nx_next - rank, hessian.FuFx[k], 0, rank, hessian.GuGx[k], 0, nu_next);
@@ -3420,42 +3465,53 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
             number_of_eq_constraints[k] += sk;
             number_of_states[k + 1] = rank;
         }
+        inner_stop = std::chrono::high_resolution_clock::now();
+        duration_decomp_permutation += std::chrono::duration_cast<std::chrono::microseconds>(inner_stop - inner_start);
 
         // store info
-        jacobian.J_ranks.push_back(rank);
-        jacobian.Jt_LU[k] = JBAbt;
+        inner_start = std::chrono::high_resolution_clock::now();
+        jacobian.J_ranks[k] = rank;
+        // jacobian.Jt_LU[k] = JBAbt[0];
+        gecp(nx_next, nx_next, JBAbt[0], 0, 0, jacobian.Jt_LU[k], 0, 0);
+        inner_stop = std::chrono::high_resolution_clock::now();
+        duration_decomp_store += std::chrono::duration_cast<std::chrono::microseconds>(inner_stop - inner_start);
     }
+    stop = std::chrono::high_resolution_clock::now();
+    duration_preprocess_decomposition += std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+
+    start = std::chrono::high_resolution_clock::now();
     ProblemInfo modified_info(ProblemDims(K, number_of_controls, number_of_states, number_of_eq_constraints, number_of_ineq_constraints));
+    stop = std::chrono::high_resolution_clock::now();
+    duration_preprocess_info += std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
 
     // modify right-hand side
-    VecRealAllocated f_original = VecRealAllocated(info.number_of_primal_variables);
-    for (int i = 0; i < info.number_of_primal_variables; i++){
-        f_original(i) = f(i);
-    }
-    VecRealAllocated g_original = VecRealAllocated(info.number_of_eq_constraints);
-    for (int i = 0; i < info.number_of_eq_constraints; i++){
-        g_original(i) = g(i);
-    }
+    start = std::chrono::high_resolution_clock::now();
     for (int k = 0; k < K; ++k){
         int nx = modified_info.dims.number_of_states[k];
         int nu = modified_info.dims.number_of_controls[k];
 
         // modify f
-        for (int i = 0; i < nu + nx; i++){
-            f(modified_info.offsets_primal_u[k] + i) = hessian.RSQrqt[k](nu + nx, i);
-        }
+        // for (int i = 0; i < nu + nx; i++){
+        //     f(modified_info.offsets_primal_u[k] + i) = hessian.RSQrqt[k](nu + nx, i);
+        // }
+        rowex(nu + nx, 1.0, hessian.RSQrqt[k], nu + nx, 0, f, modified_info.offsets_primal_u[k]);
 
         // modify g
-        for (int i = 0; i < modified_info.dims.number_of_eq_constraints[k]; i++){
-            g(modified_info.offsets_g_eq_path[k] + i) = jacobian.Gg_eqt[k](nu + nx, i);
-        }
+        // for (int i = 0; i < modified_info.dims.number_of_eq_constraints[k]; i++){
+        //     g(modified_info.offsets_g_eq_path[k] + i) = jacobian.Gg_eqt[k](nu + nx, i);
+        // }
+        rowex(modified_info.dims.number_of_eq_constraints[k], 1.0, jacobian.Gg_eqt[k], nu + nx, 0, g, modified_info.offsets_g_eq_path[k]);
+
         if (k < K - 1){
             int nx_next = modified_info.dims.number_of_states[k + 1];
-            for (int i = 0; i < nx_next; i++){
-                g(modified_info.offsets_g_eq_dyn[k] + i) = jacobian.BAbt[k](nu + nx, i);
-            }
+            // for (int i = 0; i < nx_next; i++){
+            //     g(modified_info.offsets_g_eq_dyn[k] + i) = jacobian.BAbt[k](nu + nx, i);
+            // }
+            rowex(nx_next, 1.0, jacobian.BAbt[k], nu + nx, 0, g, modified_info.offsets_g_eq_dyn[k]); 
         }
     }
+    stop = std::chrono::high_resolution_clock::now();
+    duration_preprocess_modify_rhs = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
 
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::PreProcess done" << std::endl;}   
     return modified_info;
@@ -3471,14 +3527,16 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
                                                    const VecRealView &g){   
     // GENERAL VERSION
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::PostProcess start" << std::endl;}
-    VecRealAllocated x_copy(x.m());
-    for (int i = 0; i < x.m(); i++){
-        x_copy(i) = x(i);
-    }
-    VecRealAllocated eq_mult_copy(eq_mult.m());
-    for (int i = 0; i < eq_mult.m(); i++){
-        eq_mult_copy(i) = eq_mult(i);
-    }
+    // VecRealAllocated x_copy(x.m());
+    // for (int i = 0; i < x.m(); i++){
+    //     x_copy(i) = x(i);
+    // }
+    // VecRealAllocated eq_mult_copy(eq_mult.m());
+    // for (int i = 0; i < eq_mult.m(); i++){
+    //     eq_mult_copy(i) = eq_mult(i);
+    // }
+    veccp(x.m(), x, 0, x_copy[0], 0);
+    veccp(eq_mult.m(), eq_mult, 0, eq_mult_copy[0], 0);
 
     for (int k = 0; k < info.dims.K; ++k){
         Index nu = info.dims.number_of_controls[k];
@@ -3487,43 +3545,51 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
         Index s_states = (k > 0) ? info.dims.number_of_states[k] - jacobian.J_ranks[k-1] : 0;
 
         // controls (plain copy)
-        for (int i = 0; i < nu; i++){
-            x(info.offsets_primal_u[k] + i) = x_copy(modified_info.offsets_primal_u[k] + i);
-        }
+        // for (int i = 0; i < nu; i++){
+        //     x(info.offsets_primal_u[k] + i) = (x_copy[0])(modified_info.offsets_primal_u[k] + i);
+        // }
+        veccp(nu, x_copy[0], modified_info.offsets_primal_u[k], x, info.offsets_primal_u[k]);
 
         // states (copy existing states, and append additional states treated as controls)
         if (k > 0){
-            for (int i = 0; i < jacobian.J_ranks[k-1]; i++){
-                x(info.offsets_primal_x[k] + i) = x_copy(modified_info.offsets_primal_x[k] + i);
-            }
-            for (int i = 0; i < s_states; i++){
-                x(info.offsets_primal_x[k] + jacobian.J_ranks[k-1] + i) = x_copy(modified_info.offsets_primal_u[k] + nu + i);
-            }
+            // for (int i = 0; i < jacobian.J_ranks[k-1]; i++){
+            //     x(info.offsets_primal_x[k] + i) = (x_copy[0])(modified_info.offsets_primal_x[k] + i);
+            // }
+            veccp(jacobian.J_ranks[k-1], x_copy[0], modified_info.offsets_primal_x[k], x, info.offsets_primal_x[k]);
+            // for (int i = 0; i < s_states; i++){
+            //     x(info.offsets_primal_x[k] + jacobian.J_ranks[k-1] + i) = (x_copy[0])(modified_info.offsets_primal_u[k] + nu + i);
+            // }
+            veccp(s_states, x_copy[0], modified_info.offsets_primal_u[k] + nu, x, info.offsets_primal_x[k] + jacobian.J_ranks[k-1]);
         } else {
-            for (int i = 0; i < info.dims.number_of_states[k]; i++){
-                x(info.offsets_primal_x[k] + i) = x_copy(modified_info.offsets_primal_x[k] + i);
-            }
+            // for (int i = 0; i < info.dims.number_of_states[k]; i++){
+            //     x(info.offsets_primal_x[k] + i) = (x_copy[0])(modified_info.offsets_primal_x[k] + i);
+            // }
+            veccp(info.dims.number_of_states[k], x_copy[0], modified_info.offsets_primal_x[k], x, info.offsets_primal_x[k]);
         }
         if (k < info.dims.K - 1){
             // dynamics (copy existing dynamics, and append additional path constraints)
-            for (int i = 0; i < jacobian.J_ranks[k]; i++){
-                eq_mult(info.offsets_g_eq_dyn[k] + i) = eq_mult_copy(modified_info.offsets_g_eq_dyn[k] + i);
-            }
-            for (int i = 0; i < s; i++){
-                eq_mult(info.offsets_g_eq_dyn[k] + jacobian.J_ranks[k] + i) = 
-                    eq_mult_copy(modified_info.offsets_g_eq_path[k] + info.dims.number_of_eq_constraints[k] + i);
-            }
+            // for (int i = 0; i < jacobian.J_ranks[k]; i++){
+            //     eq_mult(info.offsets_g_eq_dyn[k] + i) = (eq_mult_copy[0])(modified_info.offsets_g_eq_dyn[k] + i);
+            // }
+            veccp(jacobian.J_ranks[k], eq_mult_copy[0], modified_info.offsets_g_eq_dyn[k], eq_mult, info.offsets_g_eq_dyn[k]);
+            // for (int i = 0; i < s; i++){
+            //     eq_mult(info.offsets_g_eq_dyn[k] + jacobian.J_ranks[k] + i) = 
+            //         (eq_mult_copy[0])(modified_info.offsets_g_eq_path[k] + info.dims.number_of_eq_constraints[k] + i);
+            // }
+            veccp(s, eq_mult_copy[0], modified_info.offsets_g_eq_path[k] + info.dims.number_of_eq_constraints[k], eq_mult, info.offsets_g_eq_dyn[k] + jacobian.J_ranks[k]);
         }
 
         // equality path constraints (plain copy)
-        for (int i = 0; i < info.dims.number_of_eq_constraints[k]; i++){
-            eq_mult(info.offsets_g_eq_path[k] + i) = eq_mult_copy(modified_info.offsets_g_eq_path[k] + i);
-        }
+        // for (int i = 0; i < info.dims.number_of_eq_constraints[k]; i++){
+        //     eq_mult(info.offsets_g_eq_path[k] + i) = (eq_mult_copy[0])(modified_info.offsets_g_eq_path[k] + i);
+        // }
+        veccp(info.dims.number_of_eq_constraints[k], eq_mult_copy[0], modified_info.offsets_g_eq_path[k], eq_mult, info.offsets_g_eq_path[k]);
 
         // inequality path constraints (plain copy)
-        for (int i = 0; i < info.dims.number_of_ineq_constraints[k]; i++){
-            eq_mult(info.offsets_g_eq_slack[k] + i) = eq_mult_copy(modified_info.offsets_g_eq_slack[k] + i);
-        }
+        // for (int i = 0; i < info.dims.number_of_ineq_constraints[k]; i++){
+        //     eq_mult(info.offsets_g_eq_slack[k] + i) = (eq_mult_copy[0])(modified_info.offsets_g_eq_slack[k] + i);
+        // }
+        veccp(info.dims.number_of_ineq_constraints[k], eq_mult_copy[0], modified_info.offsets_g_eq_slack[k], eq_mult, info.offsets_g_eq_slack[k]);
         
         // scale states and dynamics multipliers
         if (k > 0){

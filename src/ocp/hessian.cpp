@@ -106,11 +106,18 @@ void Hessian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
               1.0, f, info.offsets_primal_u[k], RSQrqt[k],
               info.dims.number_of_states[k] + info.dims.number_of_controls[k], 0); 
 
-        RSQrqt_original[k] = RSQrqt[k];
+        // RSQrqt_original[k] = RSQrqt[k];
+        gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
+             info.dims.number_of_states[k] + info.dims.number_of_controls[k], RSQrqt[k], 0, 0, 
+             RSQrqt_original[k], 0, 0);
     }
     for (int k = 0; k < info.dims.K-1; ++k){
-        FuFx_original[k] = FuFx[k];
-        GuGx_original[k] = GuGx[k];
+        // FuFx_original[k] = FuFx[k];
+        // GuGx_original[k] = GuGx[k];
+        gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
+             info.dims.number_of_states[k + 1], FuFx[k], 0, 0, FuFx_original[k], 0, 0);
+        gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
+            info.dims.number_of_controls[k + 1], GuGx[k], 0, 0, GuGx_original[k], 0, 0);
     }
 }
 
@@ -126,10 +133,17 @@ void Hessian<ImplicitOcpType>::ResetPreProcess(const ProblemInfo &info,
         //     std::cout << "GuGx[" << k << "]:" << std::endl << GuGx[k] << std::endl;
         //     std::cout << "GuGx_original[" << k << "]:" << std::endl << GuGx_original[k] << std::endl;
         // }
-        RSQrqt[k] = RSQrqt_original[k];
+        // RSQrqt[k] = RSQrqt_original[k];
+        gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
+             info.dims.number_of_states[k] + info.dims.number_of_controls[k], RSQrqt_original[k], 0, 0, 
+             RSQrqt[k], 0, 0);
         if (k < info.dims.K-1){
-            FuFx[k] = FuFx_original[k];
-            GuGx[k] = GuGx_original[k];
+            // FuFx[k] = FuFx_original[k];
+            // GuGx[k] = GuGx_original[k];
+            gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
+                 info.dims.number_of_states[k + 1], FuFx_original[k], 0, 0, FuFx[k], 0, 0);
+            gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
+                 info.dims.number_of_controls[k + 1], GuGx_original[k], 0, 0, GuGx[k], 0, 0);
         }
     }
 }
