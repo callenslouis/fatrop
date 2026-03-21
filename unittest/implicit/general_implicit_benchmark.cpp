@@ -152,8 +152,8 @@ public:
     void GetRandomDimensions()
     {
         ClearOptionals();
-        int max_val = 100;
-        K = rand() % 5 + 2; // Random K between 2 and 21
+        int max_val = 50;
+        K = rand() % 4 + 2; // Random K between 2 and 21
         nx = RandomVector(K, 0, max_val);
         if (full_rank){
             r = nx;
@@ -186,12 +186,12 @@ public:
         }
         ng_ineq = RandomVector(K, 0, max_val);
 
-        std::cout << "K: " << K << std::endl;
-        std::cout << "nx:      "; for (auto val : nx){ std::cout << std::setw(4) << val << " ";} std::cout << std::endl;
-        std::cout << "r:       "; for (auto val : r){ std::cout << std::setw(4) << val << " ";} std::cout << std::endl;
-        std::cout << "nu:      "; for (auto val : nu){ std::cout << std::setw(4) << val << " ";} std::cout << std::endl;
-        std::cout << "ng:      "; for (auto val : ng){ std::cout << std::setw(4) << val << " ";} std::cout << std::endl;
-        std::cout << "ng_ineq: "; for (auto val : ng_ineq){ std::cout << std::setw(4) << val << " ";} std::cout << std::endl;
+        // std::cout << "K: " << K << std::endl;
+        // std::cout << "nx:      "; for (auto val : nx){ std::cout << std::setw(4) << val << " ";} std::cout << std::endl;
+        // std::cout << "r:       "; for (auto val : r){ std::cout << std::setw(4) << val << " ";} std::cout << std::endl;
+        // std::cout << "nu:      "; for (auto val : nu){ std::cout << std::setw(4) << val << " ";} std::cout << std::endl;
+        // std::cout << "ng:      "; for (auto val : ng){ std::cout << std::setw(4) << val << " ";} std::cout << std::endl;
+        // std::cout << "ng_ineq: "; for (auto val : ng_ineq){ std::cout << std::setw(4) << val << " ";} std::cout << std::endl;
 
     }
 
@@ -199,6 +199,9 @@ public:
         AllocateExplicitSolver();
         AllocateImplicitSolver();
         AllocateReformulatedSolver();
+        // std::cout << "KKT size expl:   " << full_kkt_matrix_expl.value().m() << " x " << full_kkt_matrix_expl.value().n() << std::endl;
+        // std::cout << "KKT size impl:   " << full_kkt_matrix_impl.value().m() << " x " << full_kkt_matrix_impl.value().n() << std::endl;
+        // std::cout << "KKT size reform: " << full_kkt_matrix_reform.value().m() << " x " << full_kkt_matrix_reform.value().n() << std::endl;
     }
 
     void AllocateExplicitSolver(){
@@ -502,12 +505,12 @@ public:
 
 TEST_F(RandomBenchmarkTest, Test)
 {
-    int nb_runs = 1000;
+    int nb_runs = 50000;
     int nb_runs_completed = 0;
 
     long int total_ns_expl = 0; long int total_ns_impl = 0; long int total_ns_reform = 0;
     long int total_ns_impl_solve = 0; long int total_ns_impl_preprocess = 0; long int total_ns_impl_postprocess = 0;
-    int ns_expl, ns_impl, ns_impl_solve, ns_impl_preprocess, ns_impl_postprocess, ns_reform;
+    long int ns_expl, ns_impl, ns_impl_solve, ns_impl_preprocess, ns_impl_postprocess, ns_reform;
 
     long int total_pre_jac = 0;
     long int total_pre_hess = 0;
@@ -525,8 +528,13 @@ TEST_F(RandomBenchmarkTest, Test)
     long int total_decomp_store = 0;
     long int ns_decomp_copies, ns_decomp_decomp, ns_decomp_scale1, ns_decomp_scale2, ns_decomp_permutation, ns_decomp_store;
 
+    long int total_lu_reform = 0;
+    long int ns_lu_reform = 0;
+    long int total_lu_impl = 0;
+    long int ns_lu_impl = 0;
+
     std::ofstream f("random_benchmark_results.csv");
-    f << "K,nu,nx,r,ng,ng_ineq,t_expl,t_impl,t_impl_pre,t_impl_solve,t_impl_post,t_reform\n";
+    f << "K,nu,nx,r,ng,ng_ineq,t_expl,t_impl,t_impl_pre,t_impl_solve,t_impl_post,t_reform,lu_impl,lu_reform,impl_decomp\n";
     
     int nb_consecutive_failures = 0;
     while (nb_runs_completed < nb_runs){
@@ -561,22 +569,22 @@ TEST_F(RandomBenchmarkTest, Test)
         }
         stop = std::chrono::steady_clock::now();
         ns_impl = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count();
-        ns_impl_preprocess = 1000 * solver_impl.value().duration_preprocess.count();
-        ns_impl_solve = 1000 * solver_impl.value().duration_solve.count();
-        ns_impl_postprocess = 1000 * solver_impl.value().duration_postprocess.count();
-        ns_pre_jac = 1000 * solver_impl.value().duration_preprocess_jac.count();
-        ns_pre_hess = 1000 * solver_impl.value().duration_preprocess_hess.count();
-        ns_pre_reg = 1000 * solver_impl.value().duration_preprocess_regularization.count();
-        ns_pre_decomp = 1000 * solver_impl.value().duration_preprocess_decomposition.count();
-        ns_pre_info = 1000 * solver_impl.value().duration_preprocess_info.count();
-        ns_pre_rhs = 1000 * solver_impl.value().duration_preprocess_modify_rhs.count();
+        ns_impl_preprocess = solver_impl.value().duration_preprocess.count();
+        ns_impl_solve = solver_impl.value().duration_solve.count();
+        ns_impl_postprocess = solver_impl.value().duration_postprocess.count();
+        ns_pre_jac = solver_impl.value().duration_preprocess_jac.count();
+        ns_pre_hess = solver_impl.value().duration_preprocess_hess.count();
+        ns_pre_reg = solver_impl.value().duration_preprocess_regularization.count();
+        ns_pre_decomp = solver_impl.value().duration_preprocess_decomposition.count();
+        ns_pre_info = solver_impl.value().duration_preprocess_info.count();
+        ns_pre_rhs = solver_impl.value().duration_preprocess_modify_rhs.count();
 
-        ns_decomp_copies = 1000 * solver_impl.value().duration_decomp_copies.count();
-        ns_decomp_decomp = 1000 * solver_impl.value().duration_decomp_decomp.count();
-        ns_decomp_scale1 = 1000 * solver_impl.value().duration_decomp_scale1.count();
-        ns_decomp_scale2 = 1000 * solver_impl.value().duration_decomp_scale2.count();
-        ns_decomp_permutation = 1000 * solver_impl.value().duration_decomp_permutation.count();
-        ns_decomp_store = 1000 * solver_impl.value().duration_decomp_store.count();
+        ns_decomp_copies = solver_impl.value().duration_decomp_copies.count();
+        ns_decomp_decomp = solver_impl.value().duration_decomp_decomp.count();
+        ns_decomp_scale1 = solver_impl.value().duration_decomp_scale1.count();
+        ns_decomp_scale2 = solver_impl.value().duration_decomp_scale2.count();
+        ns_decomp_permutation = solver_impl.value().duration_decomp_permutation.count();
+        ns_decomp_store = solver_impl.value().duration_decomp_store.count();
 
         if (ret_expl != LinsolReturnFlag::SUCCESS || 
                 ret_reform != LinsolReturnFlag::SUCCESS || 
@@ -604,12 +612,17 @@ TEST_F(RandomBenchmarkTest, Test)
         total_decomp_scale2 += ns_decomp_scale2;
         total_decomp_permutation += ns_decomp_permutation;
         total_decomp_store += ns_decomp_store;
-        
+
+        ns_lu_impl = solver_impl.value().duration_lu_factorization.count() + ns_decomp_decomp;
+        ns_lu_reform = solver_reform.value().duration_lu_factorization.count();
+        total_lu_impl += ns_lu_impl;
+        total_lu_reform += ns_lu_reform;
+
         nb_runs_completed++;
         nb_consecutive_failures = 0;
 
         f << K << "," << nu[0] << "," << nx[0] << "," << r[0] << "," << ng[0] << "," << ng_ineq[0];
-        f << "," << ns_expl << "," << ns_impl << "," << ns_impl_preprocess << "," << ns_impl_solve << "," << ns_impl_postprocess << "," << ns_reform << "\n";
+        f << "," << ns_expl << "," << ns_impl << "," << ns_impl_preprocess << "," << ns_impl_solve << "," << ns_impl_postprocess << "," << ns_reform << "," << ns_lu_impl << "," << ns_lu_reform << "," << ns_decomp_decomp << "\n";
         
     }
 
@@ -619,6 +632,9 @@ TEST_F(RandomBenchmarkTest, Test)
     std::cout << total_ns_impl_preprocess / nb_runs_completed << " - ";
     std::cout << total_ns_impl_solve / nb_runs_completed << " - ";
     std::cout << total_ns_impl_postprocess / nb_runs_completed << ")" << std::endl;
+    std::cout << "Time spent in LU factorization: " << std::endl;
+    std::cout << "  - Implicit:     " << std::setw(3) << std::setprecision(3) << 100.0 * total_lu_impl / total_ns_impl << " %" << std::endl;
+    std::cout << "  - Reformulated: " << std::setw(3) << std::setprecision(3) << 100.0 * total_lu_reform / total_ns_reform << " %" << std::endl;
     std::cout << "Average time implicit preprocess breakdown: " << std::endl;
     std::cout << "  - Jacobian:       " << std::setw(3) << std::setprecision(3) << 100.0 * total_pre_jac / total_ns_impl_preprocess << " %" << std::endl;
     std::cout << "  - Hessian:        " << std::setw(3) << std::setprecision(3) << 100.0 * total_pre_hess / total_ns_impl_preprocess << " %" << std::endl;

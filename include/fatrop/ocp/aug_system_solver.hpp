@@ -145,6 +145,7 @@ namespace fatrop
                                            const VecRealView &D_s, const VecRealView &f,
                                            const VecRealView &g, VecRealView &x, VecRealView &eq_mult);
 
+        std::chrono::nanoseconds duration_lu_factorization = std::chrono::nanoseconds(0);
     private:
         // temporaries, pre-allocated during construction to avoid allocation during
         // optimization
@@ -280,6 +281,7 @@ namespace fatrop
 
         void set_performance_mode(bool set);
 
+        std::chrono::nanoseconds duration_lu_factorization = std::chrono::nanoseconds(0);
     private:
         // temporaries, pre-allocated during construction to avoid allocation during
         // optimization
@@ -438,22 +440,22 @@ namespace fatrop
 
         void set_performance_mode(bool set);
 
-        std::chrono::microseconds duration_preprocess;
-        std::chrono::microseconds duration_preprocess_jac;
-        std::chrono::microseconds duration_preprocess_hess;
-        std::chrono::microseconds duration_preprocess_regularization;
-        std::chrono::microseconds duration_preprocess_decomposition;
-        std::chrono::microseconds duration_decomp_copies;
-        std::chrono::microseconds duration_decomp_decomp;
-        std::chrono::microseconds duration_decomp_scale1;
-        std::chrono::microseconds duration_decomp_scale2;
-        std::chrono::microseconds duration_decomp_permutation;
-        std::chrono::microseconds duration_decomp_store;
-        std::chrono::microseconds duration_preprocess_info;
-        std::chrono::microseconds duration_preprocess_modify_rhs;
-        std::chrono::microseconds duration_solve;
-        std::chrono::microseconds duration_postprocess;
-        std::chrono::microseconds duration_copying_rhs;
+        std::chrono::nanoseconds duration_preprocess = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_preprocess_jac = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_preprocess_hess = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_preprocess_regularization = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_preprocess_decomposition = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_decomp_copies = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_decomp_decomp = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_decomp_scale1 = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_decomp_scale2 = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_decomp_permutation = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_decomp_store = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_preprocess_info = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_preprocess_modify_rhs = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_solve = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_postprocess = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_copying_rhs = std::chrono::nanoseconds(0);
     private:
         ProblemInfo PreProcess(const ProblemInfo &info, 
                         Jacobian<ImplicitOcpType> &jacobian,
