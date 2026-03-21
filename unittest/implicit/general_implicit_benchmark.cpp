@@ -14,6 +14,7 @@
 #include <filesystem>
 #include <chrono>
 #include <random>
+#include <fstream>
 
 using namespace fatrop;
 
@@ -21,7 +22,9 @@ class RandomBenchmarkTest : public ::testing::Test
 {
 // protected:
 public:
-    bool full_rank = false;
+    bool full_rank = true;
+    bool constant_dimensions = true;
+
     int K;
     std::vector<Index> nx;
     std::vector<Index> r;
@@ -83,8 +86,15 @@ public:
     std::vector<int> RandomVector(int size, int min_val, int max_val)
     {
         std::vector<int> vec(size);
+        if (size == 0){ return vec;}
+
+        vec[0] = rand() % (max_val - min_val + 1) + min_val;
         for (int i = 0; i < size; ++i){
-            vec[i] = rand() % (max_val - min_val + 1) + min_val;
+            if (constant_dimensions){
+                vec[i] = vec[0];
+            } else {
+                vec[i] = rand() % (max_val - min_val + 1) + min_val;
+            }
         }
         return vec;
     }
@@ -142,8 +152,8 @@ public:
     void GetRandomDimensions()
     {
         ClearOptionals();
-        int max_val = 10;
-        K = rand() % max_val + 20; // Random K between 2 and 21
+        int max_val = 100;
+        K = rand() % 5 + 2; // Random K between 2 and 21
         nx = RandomVector(K, 0, max_val);
         if (full_rank){
             r = nx;
@@ -164,12 +174,25 @@ public:
                     okay = true;
                 } else {
                     // randomize both the nb of constraints and the nb of controls
-                    ng[k] = rand() % (max_val + 1);
-                    nu[k] = rand() % (max_val + 1);
+                    if (constant_dimensions){
+                        ng = RandomVector(K, 0, max_val);
+                        nu = RandomVector(K, 0, max_val);
+                    } else {
+                        ng[k] = rand() % (max_val + 1);
+                        nu[k] = rand() % (max_val + 1);
+                    }
                 }
             }
         }
         ng_ineq = RandomVector(K, 0, max_val);
+
+        std::cout << "K: " << K << std::endl;
+        std::cout << "nx:      "; for (auto val : nx){ std::cout << std::setw(4) << val << " ";} std::cout << std::endl;
+        std::cout << "r:       "; for (auto val : r){ std::cout << std::setw(4) << val << " ";} std::cout << std::endl;
+        std::cout << "nu:      "; for (auto val : nu){ std::cout << std::setw(4) << val << " ";} std::cout << std::endl;
+        std::cout << "ng:      "; for (auto val : ng){ std::cout << std::setw(4) << val << " ";} std::cout << std::endl;
+        std::cout << "ng_ineq: "; for (auto val : ng_ineq){ std::cout << std::setw(4) << val << " ";} std::cout << std::endl;
+
     }
 
     void AllocateSolvers(){
@@ -502,10 +525,16 @@ TEST_F(RandomBenchmarkTest, Test)
     long int total_decomp_store = 0;
     long int ns_decomp_copies, ns_decomp_decomp, ns_decomp_scale1, ns_decomp_scale2, ns_decomp_permutation, ns_decomp_store;
 
+    std::ofstream f("random_benchmark_results.csv");
+    f << "K,nu,nx,r,ng,ng_ineq,t_expl,t_impl,t_impl_pre,t_impl_solve,t_impl_post,t_reform\n";
+    
+    int nb_consecutive_failures = 0;
     while (nb_runs_completed < nb_runs){
         // std::cout << "Run " << nb_runs_completed + 1 << "/" << nb_runs << std::endl;
         // overwrite current status
-        std::cout << "progress: " << std::setw(3) << std::setprecision(2) << 100.0 * nb_runs_completed / nb_runs << " %\r" << std::flush;
+        std::cout << "progress: " << std::setw(3) << std::setprecision(2) << 100.0 * nb_runs_completed / nb_runs << " %";
+        if (nb_consecutive_failures > 0){ std::cout << " (+" << nb_consecutive_failures << " fails)"; }
+        std::cout << "\r" << std::flush;
         Randomize();
 
         // explicit //
@@ -526,7 +555,8 @@ TEST_F(RandomBenchmarkTest, Test)
         try{
         Index ret_impl = solver_impl.value().solve(info_impl.value(), jacobian_impl.value(), hessian_impl.value(), D_x_impl.value(), D_s_impl.value(), rhs_x_impl.value(), rhs_g_impl.value(), x_impl.value(), mult_impl.value());
         } catch (std::exception &e){
-            std::cerr << "Exception caught during solve!" << std::endl;
+            std::cout << "Exception caught during solve!" << std::endl;
+            nb_consecutive_failures++;
             continue;
         }
         stop = std::chrono::steady_clock::now();
@@ -550,7 +580,8 @@ TEST_F(RandomBenchmarkTest, Test)
 
         if (ret_expl != LinsolReturnFlag::SUCCESS || 
                 ret_reform != LinsolReturnFlag::SUCCESS || 
-                ret_impl != LinsolReturnFlag::SUCCESS){ 
+                ret_impl != LinsolReturnFlag::SUCCESS){
+            nb_consecutive_failures++;
             continue;
         }
         total_ns_expl += ns_expl;
@@ -575,6 +606,11 @@ TEST_F(RandomBenchmarkTest, Test)
         total_decomp_store += ns_decomp_store;
         
         nb_runs_completed++;
+        nb_consecutive_failures = 0;
+
+        f << K << "," << nu[0] << "," << nx[0] << "," << r[0] << "," << ng[0] << "," << ng_ineq[0];
+        f << "," << ns_expl << "," << ns_impl << "," << ns_impl_preprocess << "," << ns_impl_solve << "," << ns_impl_postprocess << "," << ns_reform << "\n";
+        
     }
 
     std::cout << "Average time explicit:     " << total_ns_expl / nb_runs_completed << " ns" << std::endl;

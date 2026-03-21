@@ -1654,11 +1654,22 @@ ModifiedAugSystemSolver::ModifiedAugSystemSolver(const ProblemInfo &info)
     rho.resize(new_info.dims.K);
 
     // for debugging
+    if (write_factorization_file){
     rank_k_values = std::vector<Index>(info.dims.K);
-    LU.reserve(info.dims.K); for (Index k = 0; k < info.dims.K; k++){ LU.emplace_back(20, 20);}
+    LU.reserve(info.dims.K);
+    for (Index k = 0; k < info.dims.K; k++){
+        LU.emplace_back(max_number_of_controls, max_number_of_eq_consttraints);
+    }
     gamma_k_values = std::vector<Index>(info.dims.K);
-    Ggt_eq.reserve(info.dims.K); for (Index k = 0; k < info.dims.K; k++){ Ggt_eq.emplace_back(20, 20);}
-    R_shur.reserve(info.dims.K); for (Index k = 0; k < info.dims.K; k++){ R_shur.emplace_back(20, 20);}
+    Ggt_eq.reserve(info.dims.K);
+    for (Index k = 0; k < info.dims.K; k++){ 
+        Ggt_eq.emplace_back(max_number_of_controls + max_number_of_states + 1, max_number_of_eq_consttraints);
+    }
+    R_shur.reserve(info.dims.K);
+    for (Index k = 0; k < info.dims.K; k++){ 
+        R_shur.emplace_back(max_number_of_states, max_number_of_states);
+    }
+    }
 };
 
 LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
@@ -1809,8 +1820,10 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             // std::cout << "computing factorization" << std::endl;
             // PrintNpArray(Ggt_stripe[0], "Ggt_stripe before factorization");
             // std::cout << "(gamma_k = " << gamma_k << ")" << std::endl;
-            gamma_k_values[k] = gamma_k;
-            gecp(nu, gamma_k, Ggt_stripe[0], 0, 0, Ggt_eq[k], 0, 0);
+            if (write_factorization_file){
+                gamma_k_values[k] = gamma_k;
+                gecp(nu, gamma_k, Ggt_stripe[0], 0, 0, Ggt_eq[k], 0, 0);
+            }
             lu_fact_transposed(gamma_k, nu + nx + 1, nu, rank_k, Ggt_stripe[0], Pl[k], Pr[k], lu_fact_tol);
             if (write_factorization_file){
                 rank_k_values[k] = rank_k;
@@ -1908,7 +1921,9 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             {
                 // DLlt_k = [chol(R_hatk); Llk@chol(R_hatk)^-T]
                 // PrintNpArray(RSQrq_hat_curr_p[0], "RSQrq_hat");
-                gecp(nu-rank_k, nu-rank_k, RSQrq_hat_curr_p[0], 0, 0, R_shur[k], 0, 0);
+                if (write_factorization_file){
+                    gecp(nu-rank_k, nu-rank_k, RSQrq_hat_curr_p[0], 0, 0, R_shur[k], 0, 0);
+                }
                 potrf_l_mn(nu - rank_k + nx + 1, nu - rank_k, RSQrq_hat_curr_p[0], 0, 0, Llt[k], 0,
                            0);
                 // PrintNpArray(Llt[k], "shur[" + std::to_string(k) + "]");
