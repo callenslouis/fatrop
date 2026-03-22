@@ -28,42 +28,45 @@ def get_data():
     return data
 
 def preprocessing(nx, nu, r, ng):
-    return 0.5*(nu + nx)*(nu + nx + 1)*(2*nx - 1) + \
-        (nu + nx + 1)*nx*(2*nx - 1) + \
-        0.5*(nu + nx)*(nu + nx + 1)*(2*nx - 1)
-    # return (2*nx + nu + 1)*(nx**2 + r**2) + \
-    #                 (nx-r)*r*(5*nx + 3*nu + ng + 1)
+    # return 0.5*(nu + nx)*(nu + nx + 1)*(2*nx - 1) + \
+    #     (nu + nx + 1)*nx*(2*nx - 1) + \
+    #     0.5*(nu + nx)*(nu + nx + 1)*(2*nx - 1)
+    return (2*nx + nu + 1)*(nx**2 + r**2) + \
+                    (nx-r)*r*(5*nx + 3*nu + ng + 1)
 
 def postprocessing(nx, nu, rho):
-    return nx*(2*nu - 1) + nx*(2*nx - 1) + nx*(2*nx - 1)
-    # return (2*nx - rho)*nx + rho**2 + nx**2
+    # return nx*(2*nu - 1) + nx*(2*nx - 1) + nx*(2*nx - 1)
+    return (2*nx - rho)*nx + rho**2 + nx**2
 
 def backwardrecursion(nx, nu, nxp, ngp, ngi, rho, gamma, implicit=False):
     # w = np.min(gamma, nu + nx + 1)
-    w = gamma
-    return nxp*(nu + nx + 1)*(2*nxp - 1) + \
-        0.5*(nu + nx)*(nu + nx + 1)*(2*nxp - 1) + \
-        (nu + nx + 1)*ngp*(2*nx - 1) + \
-        0.5*(nu + nx)*(nu + nx + 1)*(2*ngi - 1) + \
-        2*w**3/3 - 2*w/3 + \
-        (nu - rho + nx + 1)*(nu + nx)*(2*rho - 1) + \
-        0.5*(nu - rho + nx - 1)*(nu + nx - rho)*(2*rho - 1) + \
-        (nu - rho)**3/3 + \
-        0.5*(nx + 1)*nx*(2*(nu - rho) - 1)
 
-    # return 2*(nu + nx + 1)*nx**2 + \
-    #     (2*(nu + nx + 1)*nu*nx*nx + 2*(nu + nx)**2*nx if implicit else 0) + \
-    #     (nu + nx + 1)*(nu + nx)*nx + \
-    #     2*(nu + nx + 1)*gamma*nx + \
-    #     2*(nu + nx + 1)*gamma*nx + \
-    #     0.5*gamma*(nu + nx + 1)*min(nu, gamma) + \
-    #     2*(nu - rho + nx + 1)*(nu + nx)*rho + \
-    #     2*(nu - rho + nx + 1)*(nu + nx)*rho + \
-    #     (nu - rho + nx + 1)*(nu + nx - rho)*rho + \
-    #     (2*(nu+nx)*((nu-rho)*rho +  nx*rho + rho) if implicit else 0) + \
-    #     (nu - rho)**3 + 0.5*(nu - rho)**2*(nx+1) + \
-    #     (nx + 1)*nx*(nu-rho) + \
-    #     ((nu+nx)*(nu-rho)*(0.5*(nu-rho) + 2*(nu+nx) + 2 + 2*nx if implicit else 0))
+    # w = gamma
+    # return nxp*(nu + nx + 1)*(2*nxp - 1) + \
+    #     0.5*(nu + nx)*(nu + nx + 1)*(2*nxp - 1) + \
+    #     (nu + nx + 1)*ngp*(2*nx - 1) + \
+    #     0.5*(nu + nx)*(nu + nx + 1)*(2*ngi - 1) + \
+    #     2*w**3/3 - 2*w/3 + \
+    #     (nu - rho + nx + 1)*(nu + nx)*(2*rho - 1) + \
+    #     0.5*(nu - rho + nx - 1)*(nu + nx - rho)*(2*rho - 1) + \
+    #     (nu - rho)**3/3 + \
+    #     0.5*(nx + 1)*nx*(2*(nu - rho) - 1)
+
+    flops = 2*(nu + nx + 1)*nx**2 + \
+        (nu + nx + 1)*(nu + nx)*nx + \
+        2*(nu + nx + 1)*gamma*nx + \
+        2*(nu + nx + 1)*gamma*nx + \
+        0.5*gamma*(nu + nx + 1)*min(nu, gamma) + \
+        2*(nu - rho + nx + 1)*(nu + nx)*rho + \
+        2*(nu - rho + nx + 1)*(nu + nx)*rho + \
+        (nu - rho + nx + 1)*(nu + nx - rho)*rho + \
+        (nu - rho)**3 + 0.5*(nu - rho)**2*(nx+1) + \
+        (nx + 1)*nx*(nu-rho)
+    if implicit:
+        flops += 2*(nu + nx + 1)*(nu+nx)*nx + 2*(nu + nx)**2*nx + \
+            2*(nu+nx)*((nu-rho)*rho +  nx*rho + rho) + \
+            (nu+nx)*(nu-rho)*(0.5*(nu-rho) + 2*(nu+nx) + 2 + 2*nx)
+    return flops
 
 def backwardrecursion_initial_stage(nx, nu, gamma, rho):
     # w = min(gamma, nu + nx + 1)
@@ -77,23 +80,23 @@ def forwardrecursion_initial_stage(nx, rho):
     return (nx - rho)*(2*rho - 1) + nx*(2*rho - 1)
 
 def forwardrecursion(nx, nu, nxp, ngi, rho, rhop, gammap, implicit=False):
-    return nx*(2*(nu - rho) - 1) + \
-        (nx + nu - rho)*(2*rho - 1) + \
-        (nu + nx)*(2*rho - 1) + \
-        (nu + nx)*(2*ngi - 1) + \
-        (nu + nx)*(2*nxp - 1) + \
-        nxp*(2*nxp - 1) + \
-        (gammap - rhop)*(2*nxp - 1)
-    # nux = nu + nx
-    # nur = nu - rho
-    # return 2*nx*nur + \
-    #     nur**2 + \
-    #     (nux*nur*3 if implicit else 0) + \
-    #     2*(nux-rho)*rho + \
-    #     2*nux*rho + \
-    #     (2*nux*rho if implicit else 0) + \
-    #     rho**2 + rho*gammap + \
-    #     2*nux*nx + 2*nx**2 + 2*(gammap-rho)*nx + 2*nux*nx
+    # return nx*(2*(nu - rho) - 1) + \
+    #     (nx + nu - rho)*(2*rho - 1) + \
+    #     (nu + nx)*(2*rho - 1) + \
+    #     (nu + nx)*(2*ngi - 1) + \
+    #     (nu + nx)*(2*nxp - 1) + \
+    #     nxp*(2*nxp - 1) + \
+    #     (gammap - rhop)*(2*nxp - 1)
+    nux = nu + nx
+    nur = nu - rho
+    return 2*nx*nur + \
+        nur**2 + \
+        (nux*nur*3 if implicit else 0) + \
+        2*(nux-rho)*rho + \
+        2*nux*rho + \
+        (2*nux*rho if implicit else 0) + \
+        rho**2 + rho*gammap + \
+        2*nux*nx + 2*nx**2 + 2*(gammap-rho)*nx + 2*nux*nx
     
 
 def get_rough_flop_count(K, nx, nu, ng, r, **kwargs): 
@@ -121,6 +124,8 @@ def get_rough_flop_count(K, nx, nu, ng, r, **kwargs):
             rho = 0
         else:
             rho = rnd.randint(0, min(nu[i], ng[i])-1)
+        # rho = min(nu[i], ng[i])
+        # rho = 0
         if reformulated:
             ng[i] += nx[i]
             nu[i] += nx[i]
@@ -269,7 +274,9 @@ def visualize_scaling(data, **kwargs):
             plt.plot(unique_sorted_metric, relative_flop_expl, '-', alpha=0.5, label='FLOP estimate', color=color_explicit)
 
             plt.plot(unique_sorted_metric, expl_means, label='Explicit (relative)', color=color_explicit)
+            # plt.fill_between(unique_sorted_metric, np.array(expl_means) - np.array(expl_stds)/np.array(reform_means), np.array(expl_means) + np.array(expl_stds)/np.array(reform_means), alpha=0.2, color=color_explicit)
             plt.plot(unique_sorted_metric, impl_means, label='Implicit (relative)', color=color_implicit)
+            # plt.fill_between(unique_sorted_metric, np.array(impl_means) - np.array(impl_stds)/np.array(reform_means), np.array(impl_means) + np.array(impl_stds)/np.array(reform_means), alpha=0.2, color=color_implicit)
             plt.ylabel('Relative time difference (s)')
         else:    
             plt.plot(unique_sorted_metric, impl_flop_means, '-', alpha=0.5, label='FLOP estimate', color=color_implicit)
@@ -296,8 +303,10 @@ def visualize_scaling(data, **kwargs):
         plt.show()
 
 def visualize_scaling_2d(data, **kwargs):
-    x_unique = np.sort(np.unique(data['nx']))
-    y_unique = np.sort(np.unique(data['ng']))
+    x = kwargs.get('x', 'nx')
+    y = kwargs.get('y', 'ng')
+    x_unique = np.sort(np.unique(data[x]))
+    y_unique = np.sort(np.unique(data[y]))
 
     Z = np.full((len(y_unique), len(x_unique)), np.nan)
 
@@ -311,20 +320,20 @@ def visualize_scaling_2d(data, **kwargs):
         data_x = data['t_impl']
         data_y = data['t_reform']
 
-    for i, y in enumerate(y_unique):
-        for j, x in enumerate(x_unique):
-            mask = (data['nx'] == x) & (data['ng'] == y)
+    for i, y_val in enumerate(y_unique):
+        for j, x_val in enumerate(x_unique):
+            mask = (data[x] == x_val) & (data[y] == y_val)
             if mask.any():
                 mean_impl = np.mean(data_x[mask])
                 mean_reform = np.mean(data_y[mask])
                 Z[i, j] = (mean_impl - mean_reform) / mean_reform
 
     fig, ax = plt.subplots()
-    norm = mcolors.TwoSlopeNorm(vmin=np.nanmin(Z), vcenter=0, vmax=max(np.nanmax(Z),0.01))
+    norm = mcolors.TwoSlopeNorm(vmin=min(-0.01, np.nanmin(Z)), vcenter=0, vmax=max(np.nanmax(Z),0.01))
     mesh = ax.pcolormesh(x_unique, y_unique, Z, cmap='bwr', norm=norm)
     fig.colorbar(mesh, ax=ax, label='Relative difference')
-    ax.set_xlabel('nx')
-    ax.set_ylabel('ng')
+    ax.set_xlabel(x)
+    ax.set_ylabel(y)
     ax.set_title('Scaling of Implicit Time with nx and ng')
     plt.show()
     
@@ -497,10 +506,12 @@ data = get_data()
 
 # visualize_preprocessing_scaling(data)
 
-visualize_scaling(data)
-visualize_scaling(data, relative=True)
+# visualize_scaling(data)
+# visualize_scaling(data, relative=True)
 visualize_scaling_2d(data)
-visualize_scaling_2d(data, show_flop=True)
+visualize_scaling_2d(data, x='nx', y='nu')
+visualize_scaling_2d(data, x='nu', y='ng')
+# visualize_scaling_2d(data, show_flop=True)
 
 # visualize_lu_scaling(data)
 # visualize_lu_scaling(data, relative=True)
