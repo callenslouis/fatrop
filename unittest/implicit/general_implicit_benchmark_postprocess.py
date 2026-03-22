@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+import random as rnd
 
 def get_data():
     df = pd.read_csv('build_docker/random_benchmark_results.csv')
@@ -27,17 +28,18 @@ def get_data():
     return data
 
 def preprocessing(nx, nu, r, ng):
-    # return 0.5*(nu + nx)*(nu + nx + 1)*(2*nxp - 1) + \
-    #     (nu + nx + 1)*nxp*(2*nx - 1) + \
-    #     0.5*(nu + nx)*(nu + nx + 1)*(2*nxp - 1)
-    return (2*nx + nu + 1)*(nx**2 + r**2) + \
-                    (nx-r)*r*(5*nx + 3*nu + ng + 1)
+    return 0.5*(nu + nx)*(nu + nx + 1)*(2*nx - 1) + \
+        (nu + nx + 1)*nx*(2*nx - 1) + \
+        0.5*(nu + nx)*(nu + nx + 1)*(2*nx - 1)
+    # return (2*nx + nu + 1)*(nx**2 + r**2) + \
+    #                 (nx-r)*r*(5*nx + 3*nu + ng + 1)
 
-def postprocessing(nx, nu, nxp):
-    return nxp*(2*nu - 1) + nxp*(2*nx - 1) + nxp*(2*nxp - 1)
+def postprocessing(nx, nu, rho):
+    return nx*(2*nu - 1) + nx*(2*nx - 1) + nx*(2*nx - 1)
+    # return (2*nx - rho)*nx + rho**2 + nx**2
 
-def backwardrecursion(nx, nu, nxp, ngp, ngi, rho, gamma):
-    # w = min(gamma, nu + nx + 1)
+def backwardrecursion(nx, nu, nxp, ngp, ngi, rho, gamma, implicit=False):
+    # w = np.min(gamma, nu + nx + 1)
     w = gamma
     return nxp*(nu + nx + 1)*(2*nxp - 1) + \
         0.5*(nu + nx)*(nu + nx + 1)*(2*nxp - 1) + \
@@ -48,6 +50,20 @@ def backwardrecursion(nx, nu, nxp, ngp, ngi, rho, gamma):
         0.5*(nu - rho + nx - 1)*(nu + nx - rho)*(2*rho - 1) + \
         (nu - rho)**3/3 + \
         0.5*(nx + 1)*nx*(2*(nu - rho) - 1)
+
+    # return 2*(nu + nx + 1)*nx**2 + \
+    #     (2*(nu + nx + 1)*nu*nx*nx + 2*(nu + nx)**2*nx if implicit else 0) + \
+    #     (nu + nx + 1)*(nu + nx)*nx + \
+    #     2*(nu + nx + 1)*gamma*nx + \
+    #     2*(nu + nx + 1)*gamma*nx + \
+    #     0.5*gamma*(nu + nx + 1)*min(nu, gamma) + \
+    #     2*(nu - rho + nx + 1)*(nu + nx)*rho + \
+    #     2*(nu - rho + nx + 1)*(nu + nx)*rho + \
+    #     (nu - rho + nx + 1)*(nu + nx - rho)*rho + \
+    #     (2*(nu+nx)*((nu-rho)*rho +  nx*rho + rho) if implicit else 0) + \
+    #     (nu - rho)**3 + 0.5*(nu - rho)**2*(nx+1) + \
+    #     (nx + 1)*nx*(nu-rho) + \
+    #     ((nu+nx)*(nu-rho)*(0.5*(nu-rho) + 2*(nu+nx) + 2 + 2*nx if implicit else 0))
 
 def backwardrecursion_initial_stage(nx, nu, gamma, rho):
     # w = min(gamma, nu + nx + 1)
@@ -60,7 +76,7 @@ def backwardrecursion_initial_stage(nx, nu, gamma, rho):
 def forwardrecursion_initial_stage(nx, rho):
     return (nx - rho)*(2*rho - 1) + nx*(2*rho - 1)
 
-def forwardrecursion(nx, nu, nxp, ngi, rho, rhop, gammap):
+def forwardrecursion(nx, nu, nxp, ngi, rho, rhop, gammap, implicit=False):
     return nx*(2*(nu - rho) - 1) + \
         (nx + nu - rho)*(2*rho - 1) + \
         (nu + nx)*(2*rho - 1) + \
@@ -68,37 +84,74 @@ def forwardrecursion(nx, nu, nxp, ngi, rho, rhop, gammap):
         (nu + nx)*(2*nxp - 1) + \
         nxp*(2*nxp - 1) + \
         (gammap - rhop)*(2*nxp - 1)
+    # nux = nu + nx
+    # nur = nu - rho
+    # return 2*nx*nur + \
+    #     nur**2 + \
+    #     (nux*nur*3 if implicit else 0) + \
+    #     2*(nux-rho)*rho + \
+    #     2*nux*rho + \
+    #     (2*nux*rho if implicit else 0) + \
+    #     rho**2 + rho*gammap + \
+    #     2*nux*nx + 2*nx**2 + 2*(gammap-rho)*nx + 2*nux*nx
+    
 
 def get_rough_flop_count(K, nx, nu, ng, r, **kwargs): 
-    ngi = 0.5*ng
-
+    ngi = 0
     reformulated = kwargs.get('reformulated', False)
     implicit = kwargs.get('implicit', True)
     add_constant_offset = kwargs.get('add_constant_offset', True)
 
-    if not isinstance(nu, int):
-        nu = nu.copy()
-        nx = nx.copy()
-        ng = ng.copy()
+    nx = nx.copy(); nu = nu.copy(); ng = ng.copy(); r = r.copy()
 
-    if reformulated:
-        ng += nx
-        nu += nx
-        flops = backwardrecursion(nx, nu, nx, ng, ngi, ng, ng) + \
-                forwardrecursion(nx, nu, nx, ngi, ng, ng, ng)
-         
-    elif implicit:
-        flops = backwardrecursion(r, nu + (nx-r), r, ng, ngi, ng, ng) + \
-                forwardrecursion(r, nu + (nx-r), r, ngi, ng, ng, ng)
-        flops  += preprocessing(nx, nu, r, ng) + \
-                  postprocessing(nx, nu, nx)
+    # if not isinstance(nu, int):
+    #     nx = nx.copy(); nu = nu.copy(); ng = ng.copy(); r = r.copy()
+    #     nu = nu[0]
+    #     nx = nx[0]
+    #     ng = ng[0]
+    #     r = r[0]
     
-    else:
-        flops = backwardrecursion(nx, nu, nx, ng, ngi, ng, ng) + \
-                forwardrecursion(nx, nu, nx, ngi, ng, ng, ng)
+    # set rho as a random number smaller than min(nu, ng)
+    # rho = rnd.randint(0, min(nu, ng)-1)
 
-    return K*flops + backwardrecursion_initial_stage(nx, nu, ng, ng) + \
-              forwardrecursion_initial_stage(nx, ng) + 500000*add_constant_offset
+    all_flops = []
+    for i in range(len(nu)):
+        # rho = ng[i]
+        if min(nu[i], ng[i]) <= 1:
+            rho = 0
+        else:
+            rho = rnd.randint(0, min(nu[i], ng[i])-1)
+        if reformulated:
+            ng[i] += nx[i]
+            nu[i] += nx[i]
+            flops = backwardrecursion(nx[i], nu[i], nx[i], ng[i], ngi, rho, ng[i]) + \
+                    forwardrecursion(nx[i], nu[i], nx[i], ngi, rho, rho, ng[i])
+            flops = K[i]*flops + 500000*add_constant_offset + \
+                    backwardrecursion_initial_stage(nx[i], nu[i], ng[i], rho) + \
+                    forwardrecursion_initial_stage(nx[i], rho)
+            
+        elif implicit:
+            flops = backwardrecursion(r[i], nu[i] + (nx[i]-r[i]), r[i], ng[i], ngi, rho, ng[i], True) + \
+                    forwardrecursion(r[i], nu[i] + (nx[i]-r[i]), r[i], ngi, rho, rho, ng[i], True)
+            flops  += preprocessing(nx[i], nu[i], r[i], ng[i]) + \
+                    postprocessing(nx[i], nu[i], nx[i])
+            flops = K[i]*flops + 500000*add_constant_offset + \
+                    backwardrecursion_initial_stage(r[i], nu[i] + (nx[i]-r[i]), ng[i], rho) + \
+                    forwardrecursion_initial_stage(r[i], rho)
+        
+        else:
+            flops = backwardrecursion(nx[i], nu[i], nx[i], ng[i], ngi, rho, ng[i]) + \
+                    forwardrecursion(nx[i], nu[i], nx[i], ngi, rho, rho, ng[i])
+            flops = K[i]*flops + 500000*add_constant_offset + \
+                    backwardrecursion_initial_stage(nx[i], nu[i], ng[i], rho) + \
+                    forwardrecursion_initial_stage(nx[i], rho)
+        
+        all_flops.append(flops)
+
+    # return K*flops + 0*backwardrecursion_initial_stage(nx, nu, ng, ng) + \
+    #           0*forwardrecursion_initial_stage(nx, ng) + 500000*add_constant_offset
+    # return np.array([all_flops]) + 500000*add_constant_offset
+    return np.array(all_flops)
 
 def get_preprocessing_flop_count(data):
     nx = data['nx']
@@ -446,8 +499,8 @@ data = get_data()
 
 visualize_scaling(data)
 visualize_scaling(data, relative=True)
-# visualize_scaling_2d(data)
-# visualize_scaling_2d(data, show_flop=True)
+visualize_scaling_2d(data)
+visualize_scaling_2d(data, show_flop=True)
 
 # visualize_lu_scaling(data)
 # visualize_lu_scaling(data, relative=True)

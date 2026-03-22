@@ -215,11 +215,11 @@ LinsolReturnFlag AugSystemSolver<OcpType>::solve(const ProblemInfo &info,
             // symmetric transformation, done a little different than in paper, in order to fuse LA
             // operations LU_FACT_TRANSPOSE(Ggtstripe[:gamma_k, nu+nx+1], nu max) if(k==K-2)
             // blasfeo_print_dmat(1, gamma_k, Ggt_stripe[0], nu+nx, 0);
-            auto start = std::chrono::steady_clock::now();
+            // auto start = std::chrono::steady_clock::now();
             lu_fact_transposed(gamma_k, nu + nx + 1, nu, rank_k, Ggt_stripe[0], Pl[k], Pr[k],
                                lu_fact_tol);
-            auto stop = std::chrono::steady_clock::now();
-            duration_lu_factorization += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+            // auto stop = std::chrono::steady_clock::now();
+            // duration_lu_factorization += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
             std::cout << duration_lu_factorization.count() << std::endl;
 
             rho[k] = rank_k;
@@ -1828,10 +1828,10 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
                 gamma_k_values[k] = gamma_k;
                 gecp(nu, gamma_k, Ggt_stripe[0], 0, 0, Ggt_eq[k], 0, 0);
             }
-            auto start = std::chrono::steady_clock::now();
+            // auto start = std::chrono::steady_clock::now();
             lu_fact_transposed(gamma_k, nu + nx + 1, nu, rank_k, Ggt_stripe[0], Pl[k], Pr[k], lu_fact_tol);
-            auto stop = std::chrono::steady_clock::now();
-            duration_lu_factorization += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+            // auto stop = std::chrono::steady_clock::now();
+            // duration_lu_factorization += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
             if (write_factorization_file){
                 rank_k_values[k] = rank_k;
                 gecp(nu, gamma_k, Ggt_stripe[0], 0, 0, LU[k], 0, 0);
@@ -3117,22 +3117,21 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
 {
     if (print_debug) {std::cout << "AugSystemSolver<ImplicitOcpType> solve start" << std::endl;}
     // copy the rhs since they are altered during preprocessing and are needed for checking the solution
-    auto start = std::chrono::high_resolution_clock::now();
+    // auto start = std::chrono::high_resolution_clock::now();
     veccp(info.number_of_primal_variables, f, 0, f_copy[0], 0);
     veccp(info.number_of_eq_constraints, g, 0, g_copy[0], 0);
     veccp(info.number_of_primal_variables, D_x, 0, D_x_copy[0], 0);
     veccp(info.number_of_slack_variables, D_s, 0, D_s_copy[0], 0);
 
-    auto stop = std::chrono::high_resolution_clock::now();
-    duration_copying_rhs = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+    // auto stop = std::chrono::high_resolution_clock::now();
+    // duration_copying_rhs = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
 
-    start = std::chrono::high_resolution_clock::now();
+    // start = std::chrono::high_resolution_clock::now();
     ProblemInfo modified_info = PreProcess(info, jacobian, hessian, f_copy[0], g_copy[0], &(D_x_copy[0]), nullptr, &(D_s_copy[0]));
-    // ProblemInfo modified_info = info;
-    stop = std::chrono::high_resolution_clock::now();
-    duration_preprocess = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+    // stop = std::chrono::high_resolution_clock::now();
+    // duration_preprocess = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
 
-    start = std::chrono::high_resolution_clock::now();
+    // start = std::chrono::high_resolution_clock::now();
     LinsolReturnFlag flag = ModifiedAugSystemSolver::solve(modified_info, jacobian, hessian, D_x_copy[0], D_s_copy[0], f_copy[0], g_copy[0], x, eq_mult);
 
     if (write_preprocessing_file){
@@ -3156,13 +3155,13 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
         VerifyIntermediateSolution(modified_info, jacobian, hessian, x, eq_mult, f_copy[0], g_copy[0]);    
     }
     
-    auto end = std::chrono::high_resolution_clock::now();
-    duration_solve = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+    // auto end = std::chrono::high_resolution_clock::now();
+    // duration_solve = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
 
-    start = std::chrono::high_resolution_clock::now();
+    // start = std::chrono::high_resolution_clock::now();
     PostProcess(info, modified_info, jacobian, hessian, x, eq_mult, &D_s, nullptr, g);
-    stop = std::chrono::high_resolution_clock::now();
-    duration_postprocess = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+    // stop = std::chrono::high_resolution_clock::now();
+    // duration_postprocess = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
 
     if (print_final_solution){
         std::string file = "final_solution.py";
@@ -3191,22 +3190,22 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
 {
     if (print_debug) {std::cout << "AugSystemSolver<ImplicitOcpType> solve start" << std::endl;}
     // copy the rhs since they are altered during preprocessing and are needed for checking the solution
-    auto start = std::chrono::high_resolution_clock::now();
+    // auto start = std::chrono::high_resolution_clock::now();
     veccp(info.number_of_primal_variables, f, 0, f_copy[0], 0);
     veccp(info.number_of_eq_constraints, g, 0, g_copy[0], 0);
     veccp(info.number_of_primal_variables, D_x, 0, D_x_copy[0], 0);
     veccp(info.number_of_eq_constraints, D_eq, 0, D_eq_copy[0], 0);
     veccp(info.number_of_slack_variables, D_s, 0, D_s_copy[0], 0);
 
-    auto stop = std::chrono::high_resolution_clock::now();
-    duration_copying_rhs = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+    // auto stop = std::chrono::high_resolution_clock::now();
+    // duration_copying_rhs = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
 
     // return LinsolReturnFlag::SUCCESS;
     ProblemInfo modified_info = PreProcess(info, jacobian, hessian, f_copy[0], g_copy[0], &D_x_copy[0], &D_eq_copy[0], &D_s_copy[0]);
-    start = std::chrono::high_resolution_clock::now();
+    // start = std::chrono::high_resolution_clock::now();
     LinsolReturnFlag flag = ModifiedAugSystemSolver::solve(modified_info, jacobian, hessian, D_x_copy[0], D_eq_copy[0], D_s_copy[0], f_copy[0], g_copy[0], x, eq_mult);
-    auto end = std::chrono::high_resolution_clock::now();
-    duration_solve = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+    // auto end = std::chrono::high_resolution_clock::now();
+    // duration_solve = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
     PostProcess(info, modified_info, jacobian, hessian, x, eq_mult, &D_s, &D_eq, g);
     if (print_debug) {std::cout << "AugSystemSolver<ImplicitOcpType> solve end" << std::endl;}
     return flag;
@@ -3219,19 +3218,19 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve_rhs(const ProblemInfo &
                                                const VecRealView &g, VecRealView &x,
                                                VecRealView &eq_mult)
 {
-    auto start = std::chrono::high_resolution_clock::now();
+    // auto start = std::chrono::high_resolution_clock::now();
     veccp(info.number_of_primal_variables, f, 0, f_copy[0], 0);
     veccp(info.number_of_eq_constraints, g, 0, g_copy[0], 0);
     veccp(info.number_of_slack_variables, D_s, 0, D_s_copy[0], 0);
-    auto stop = std::chrono::high_resolution_clock::now();
-    duration_copying_rhs = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+    // auto stop = std::chrono::high_resolution_clock::now();
+    // duration_copying_rhs = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
 
     // return LinsolReturnFlag::SUCCESS;
     ProblemInfo modified_info = PreProcess(info, jacobian, hessian, f_copy[0], g_copy[0], nullptr, nullptr, &D_s_copy[0]);
-    start = std::chrono::high_resolution_clock::now();
+    // start = std::chrono::high_resolution_clock::now();
     LinsolReturnFlag flag = ModifiedAugSystemSolver::solve_rhs(modified_info, jacobian, hessian, D_s, f_copy[0], g_copy[0], x, eq_mult);
-    auto end = std::chrono::high_resolution_clock::now();
-    duration_solve = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+    // auto end = std::chrono::high_resolution_clock::now();
+    // duration_solve = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
     PostProcess(info, modified_info, jacobian, hessian, x, eq_mult, &D_s, nullptr, g);
     return flag;
 }
@@ -3242,21 +3241,21 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve_rhs(const ProblemInfo &
                                                const VecRealView &f, const VecRealView &g,
                                                VecRealView &x, VecRealView &eq_mult)
 {
-    auto start = std::chrono::high_resolution_clock::now();
+    // auto start = std::chrono::high_resolution_clock::now();
     veccp(info.number_of_primal_variables, f, 0, f_copy[0], 0);
     veccp(info.number_of_eq_constraints, g, 0, g_copy[0], 0);
     veccp(info.number_of_eq_constraints, D_eq, 0, D_eq_copy[0], 0);
     veccp(info.number_of_slack_variables, D_s, 0, D_s_copy[0], 0);
 
-    auto stop = std::chrono::high_resolution_clock::now();
-    duration_copying_rhs = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+    // auto stop = std::chrono::high_resolution_clock::now();
+    // duration_copying_rhs = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
 
     // return LinsolReturnFlag::SUCCESS;
     ProblemInfo modified_info = PreProcess(info, jacobian, hessian, f_copy[0], g_copy[0], nullptr, &D_eq_copy[0], &D_s_copy[0]);
-    start = std::chrono::high_resolution_clock::now();
+    // start = std::chrono::high_resolution_clock::now();
     LinsolReturnFlag flag = ModifiedAugSystemSolver::solve_rhs(modified_info, jacobian, hessian, D_eq_copy[0], D_s_copy[0], f_copy[0], g_copy[0], x, eq_mult);
-    auto end = std::chrono::high_resolution_clock::now();
-    duration_solve = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+    // auto end = std::chrono::high_resolution_clock::now();
+    // duration_solve = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
     PostProcess(info, modified_info, jacobian, hessian, x, eq_mult, &D_s, &D_eq, g);
     return flag;
 }
@@ -3284,19 +3283,19 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::PreProcess start" << std::endl;}
 
     // GENERAL VERSION
-    auto start = std::chrono::high_resolution_clock::now();
+    // auto start = std::chrono::high_resolution_clock::now();
     jacobian.PreProcess(info, f, g);
-    auto stop = std::chrono::high_resolution_clock::now();
-    duration_preprocess_jac = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+    // auto stop = std::chrono::high_resolution_clock::now();
+    // duration_preprocess_jac = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::jacobian::PreProcess done" << std::endl;}
 
-    start = std::chrono::high_resolution_clock::now();
+    // start = std::chrono::high_resolution_clock::now();
     hessian.PreProcess(info, jacobian, f, g);
-    stop = std::chrono::high_resolution_clock::now();
-    duration_preprocess_hess = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+    // stop = std::chrono::high_resolution_clock::now();
+    // duration_preprocess_hess = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::hessian::PreProcess done" << std::endl;}
 
-    start = std::chrono::high_resolution_clock::now();
+    // start = std::chrono::high_resolution_clock::now();
     int K = info.dims.K;
     bool USE_NEW_REGULARIZATION_TREATMENT = true;
     if (USE_NEW_REGULARIZATION_TREATMENT){
@@ -3358,11 +3357,11 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
         }
     }
     }
-    stop = std::chrono::high_resolution_clock::now();
-    duration_preprocess_regularization = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+    // stop = std::chrono::high_resolution_clock::now();
+    // duration_preprocess_regularization = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
 
     // Pre-process 
-    start = std::chrono::high_resolution_clock::now();
+    // start = std::chrono::high_resolution_clock::now();
     for (int k = 0; k < K-1; ++k){
         int nx = number_of_states[k];
         int nx_next = number_of_states[k + 1];
@@ -3371,22 +3370,22 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
 
         // construct JABbt-matrix
         int rank;
-        auto inner_start = std::chrono::high_resolution_clock::now();
+        // auto inner_start = std::chrono::high_resolution_clock::now();
         gecp(nx_next, nx_next, jacobian.Jt[k], 0, 0, JBAbt[0], 0, 0);
         gecp(nu + nx + 1, nx_next, jacobian.BAbt[k], 0, 0, JBAbt[0], nx_next, 0);
         gecp(nx_next + nu + nx + 1, nx_next, JBAbt[0], 0, 0, JBAbt_modified[0], 0, 0);
-        auto inner_stop = std::chrono::high_resolution_clock::now();
-        duration_decomp_copies += std::chrono::duration_cast<std::chrono::nanoseconds>(inner_stop - inner_start);
+        // auto inner_stop = std::chrono::high_resolution_clock::now();
+        // duration_decomp_copies += std::chrono::duration_cast<std::chrono::nanoseconds>(inner_stop - inner_start);
 
         // decompose J matrix
-        inner_start = std::chrono::high_resolution_clock::now();
+        // inner_start = std::chrono::high_resolution_clock::now();
         lu_fact_transposed(nx_next, nx_next + nu + nx + 1, nx_next, rank, JBAbt[0], jacobian.Pl_pre[k], jacobian.Pr_pre[k], lu_fact_tol);
         gecp(rank, rank, JBAbt[0], 0, 0, jacobian.U1t[k], 0, 0);
         // PrintLuInfo(JBAbt, jacobian.Jt[k], jacobian.Pl_pre[k], jacobian.Pr_pre[k]);
         // rank = nx_next;
-        inner_stop = std::chrono::high_resolution_clock::now();
-        duration_decomp_decomp += std::chrono::duration_cast<std::chrono::nanoseconds>(inner_stop - inner_start);
-        inner_start = std::chrono::high_resolution_clock::now();
+        // inner_stop = std::chrono::high_resolution_clock::now();
+        // duration_decomp_decomp += std::chrono::duration_cast<std::chrono::nanoseconds>(inner_stop - inner_start);
+        // inner_start = std::chrono::high_resolution_clock::now();
         if (nu + nx < info.dims.number_of_eq_constraints[k] + nx_next - rank){
             // there will be more constraints at this stage than can be
             // satisfied using the constrols and the states.
@@ -3425,9 +3424,9 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
             }
         }
         }
-        inner_stop = std::chrono::high_resolution_clock::now();
-        duration_decomp_scale1 += std::chrono::duration_cast<std::chrono::nanoseconds>(inner_stop - inner_start);
-        inner_start = std::chrono::high_resolution_clock::now();
+        // inner_stop = std::chrono::high_resolution_clock::now();
+        // duration_decomp_scale1 += std::chrono::duration_cast<std::chrono::nanoseconds>(inner_stop - inner_start);
+        // inner_start = std::chrono::high_resolution_clock::now();
 
         // right-multiply right part with Dr^-1
         Pr_extended.apply_on_rows(nu_next + rank, &hessian.RSQrqt[k+1].mat());
@@ -3461,10 +3460,10 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
         // inequality constraints
         // Pr_extended.apply_on_rows(nu_next + rank, &jacobian.Gg_ineqt[k+1].mat());
         // gemm_nn(nx_next - rank, info.dims.number_of_ineq_constraints[k+1], rank, 1.0, jacobian.U1U2t[k], 0, 0, jacobian.Gg_ineqt[k+1], nu_next, 0, 1.0, jacobian.Gg_ineqt[k+1], nu_next + rank, 0, jacobian.Gg_ineqt[k+1], nu_next + rank, 0);
-        inner_stop = std::chrono::high_resolution_clock::now();
-        duration_decomp_scale2 += std::chrono::duration_cast<std::chrono::nanoseconds>(inner_stop - inner_start);
+        // inner_stop = std::chrono::high_resolution_clock::now();
+        // duration_decomp_scale2 += std::chrono::duration_cast<std::chrono::nanoseconds>(inner_stop - inner_start);
 
-        inner_start = std::chrono::high_resolution_clock::now();
+        // inner_start = std::chrono::high_resolution_clock::now();
         // Move undefined states to controls
         if (rank < nx_next){
             gecp(nu + nx, nx_next - rank, hessian.FuFx[k], 0, rank, hessian.GuGx[k], 0, nu_next);
@@ -3486,27 +3485,27 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
             number_of_eq_constraints[k] += sk;
             number_of_states[k + 1] = rank;
         }
-        inner_stop = std::chrono::high_resolution_clock::now();
-        duration_decomp_permutation += std::chrono::duration_cast<std::chrono::nanoseconds>(inner_stop - inner_start);
+        // inner_stop = std::chrono::high_resolution_clock::now();
+        // duration_decomp_permutation += std::chrono::duration_cast<std::chrono::nanoseconds>(inner_stop - inner_start);
 
         // store info
-        inner_start = std::chrono::high_resolution_clock::now();
+        // inner_start = std::chrono::high_resolution_clock::now();
         jacobian.J_ranks[k] = rank;
         // jacobian.Jt_LU[k] = JBAbt[0];
         gecp(nx_next, nx_next, JBAbt[0], 0, 0, jacobian.Jt_LU[k], 0, 0);
-        inner_stop = std::chrono::high_resolution_clock::now();
-        duration_decomp_store += std::chrono::duration_cast<std::chrono::nanoseconds>(inner_stop - inner_start);
+        // inner_stop = std::chrono::high_resolution_clock::now();
+        // duration_decomp_store += std::chrono::duration_cast<std::chrono::nanoseconds>(inner_stop - inner_start);
     }
-    stop = std::chrono::high_resolution_clock::now();
-    duration_preprocess_decomposition += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+    // stop = std::chrono::high_resolution_clock::now();
+    // duration_preprocess_decomposition += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
 
-    start = std::chrono::high_resolution_clock::now();
+    // start = std::chrono::high_resolution_clock::now();
     ProblemInfo modified_info(ProblemDims(K, number_of_controls, number_of_states, number_of_eq_constraints, number_of_ineq_constraints));
-    stop = std::chrono::high_resolution_clock::now();
-    duration_preprocess_info += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+    // stop = std::chrono::high_resolution_clock::now();
+    // duration_preprocess_info += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
 
     // modify right-hand side
-    start = std::chrono::high_resolution_clock::now();
+    // start = std::chrono::high_resolution_clock::now();
     for (int k = 0; k < K; ++k){
         int nx = modified_info.dims.number_of_states[k];
         int nu = modified_info.dims.number_of_controls[k];
@@ -3531,8 +3530,8 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
             rowex(nx_next, 1.0, jacobian.BAbt[k], nu + nx, 0, g, modified_info.offsets_g_eq_dyn[k]); 
         }
     }
-    stop = std::chrono::high_resolution_clock::now();
-    duration_preprocess_modify_rhs = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+    // stop = std::chrono::high_resolution_clock::now();
+    // duration_preprocess_modify_rhs = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
 
     if (print_debug){ std::cout << "AugSystemSolver<ImplicitOcpType>::PreProcess done" << std::endl;}   
     return modified_info;
