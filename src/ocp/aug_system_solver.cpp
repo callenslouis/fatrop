@@ -1109,11 +1109,11 @@ void PrintPreProcessNpInfo(const ProblemInfo &info,
                            const Hessian<ImplicitOcpType> &hess, 
                            const Jacobian<ImplicitOcpType> &jacobian,
                            const VecRealView &x, const VecRealView &eq_mult,
-                           const VecRealView &D_x){
+                           const VecRealView &D_x,
+                           std::string file_name){
     // Print dimensions
     // std::ostream& o = std::cout;
-    std::string filename = "preprocess_info.py";
-    std::ofstream o(filename);
+    std::ofstream o(file_name);
     o << "import numpy as np\n";
 
     // o << "==============================================================\n";
@@ -1397,6 +1397,7 @@ void PrintPreProcessNpInfo(const ProblemInfo &info,
     o << "])\n";
     // o << "==============================================================\n";
     o.close();
+    std::cout << "wrote preprocess info to " << file_name << std::endl;
 }
 
 void PrintFactorizationInfo(const ProblemInfo &info,
@@ -1407,9 +1408,8 @@ void PrintFactorizationInfo(const ProblemInfo &info,
                             std::vector<Index>& gamma_k_values,
                             std::vector<MatRealAllocated>& Gg_eqt,
                             std::vector<MatRealAllocated>& Llt,
-                            std::vector<MatRealAllocated>& R_shur){
-    std::string filename = "factorization_info.py";
-
+                            std::vector<MatRealAllocated>& R_shur,
+                            std::string filename){
     // std::ostream& o = std::cout;
     std::ofstream o(filename);
     o << "import numpy as np\n";
@@ -2255,7 +2255,7 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
     }
 
     if (write_factorization_file){
-        PrintFactorizationInfo(info, rank_k_values, Pl, Pr, LU, gamma_k_values, Ggt_eq, Llt, R_shur);
+        PrintFactorizationInfo(info, rank_k_values, Pl, Pr, LU, gamma_k_values, Ggt_eq, Llt, R_shur, factorization_file_name);
     }
 
     return LinsolReturnFlag::SUCCESS;
@@ -3135,7 +3135,7 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
     LinsolReturnFlag flag = ModifiedAugSystemSolver::solve(modified_info, jacobian, hessian, D_x_copy[0], D_s_copy[0], f_copy[0], g_copy[0], x, eq_mult);
 
     if (write_preprocessing_file){
-        PrintPreProcessNpInfo(info, modified_info, hessian, jacobian, x, eq_mult, D_x);
+        PrintPreProcessNpInfo(info, modified_info, hessian, jacobian, x, eq_mult, D_x, preprocessing_file_name);
     }
 
     if (print_preprocessed_system){

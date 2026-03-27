@@ -4,6 +4,37 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import random as rnd
 
+def latexify():
+    params = {#'backend': 'ps',
+              'axes.labelsize': 20,
+              'axes.titlesize': 15,
+              'legend.fontsize': 15,
+              'xtick.labelsize': 15,
+              'ytick.labelsize': 15,
+              'text.usetex': True,
+              'font.family': 'serif',
+              'figure.figsize': [7,5],
+              'text.latex.preamble': r'\usepackage{bm}',
+              }
+ 
+    plt.rcParams.update(params)
+
+latexify()
+
+def translate_label(label):
+    if label == 'K':
+        return 'K'
+    elif label == 'nx':
+        return r'$n_x$'
+    elif label == 'nu':
+        return r'$n_u$'
+    elif label == 'ng':
+        return r'$n_g$'
+    elif label == 'r':
+        return r'$r$'
+    else:
+        raise ValueError(f'Unknown label: {label}')
+
 def get_data():
     df = pd.read_csv('build_docker/random_benchmark_results.csv')
 
@@ -210,10 +241,7 @@ def visualize_preprocessing_scaling(data):
         axs[1].legend()
 
         plt.tight_layout()
-        plt.show()
-
-    
-
+        plt.savefig(f'unittest/implicit/figures_benelux/preprocessing_scaling_{metric}.png', dpi=300)
 
 def visualize_scaling(data, **kwargs):
     metrics = ['K', 'nx', 'r', 'nu', 'ng']
@@ -223,13 +251,14 @@ def visualize_scaling(data, **kwargs):
     color_implicit = 'b'
     color_reformulated = 'g'
 
-    impl_flop = 0.2*get_rough_flop_count(data['K'], data['nx'], data['nu'], data['ng'], data['r'], reformulated=False, implicit=True)
-    reform_flop = 0.2*get_rough_flop_count(data['K'], data['nx'], data['nu'], data['ng'], data['r'], reformulated=True, implicit=False)
-    expl_flop = 0.2*get_rough_flop_count(data['K'], data['nx'], data['nu'], data['ng'], data['r'], reformulated=False, implicit=False)
+    if kwargs.get('show_flops', True):
+        impl_flop = 0.2*get_rough_flop_count(data['K'], data['nx'], data['nu'], data['ng'], data['r'], reformulated=False, implicit=True)
+        reform_flop = 0.2*get_rough_flop_count(data['K'], data['nx'], data['nu'], data['ng'], data['r'], reformulated=True, implicit=False)
+        expl_flop = 0.2*get_rough_flop_count(data['K'], data['nx'], data['nu'], data['ng'], data['r'], reformulated=False, implicit=False)
 
     # for each metric, plot the scaling of the times
     for metric in metrics:
-        plt.figure()
+        plt.figure(figsize=(6,3.2))
         unique_metric = np.unique(data[metric])
         unique_sorted_metric = np.sort(unique_metric)
 
@@ -258,30 +287,33 @@ def visualize_scaling(data, **kwargs):
             impl_post_means.append(np.mean(data['t_impl_post'][mask]))
             impl_post_stds.append(np.std(data['t_impl_post'][mask]))
 
-            # compute relative flop-count
-            mask = data[metric] == val
-            impl_flop_means.append(np.mean(impl_flop[mask]))
-            reform_flop_means.append(np.mean(reform_flop[mask]))
-            expl_flop_means.append(np.mean(expl_flop[mask]))
+            if kwargs.get('show_flops', True):
+                # compute relative flop-count
+                mask = data[metric] == val
+                impl_flop_means.append(np.mean(impl_flop[mask]))
+                reform_flop_means.append(np.mean(reform_flop[mask]))
+                expl_flop_means.append(np.mean(expl_flop[mask]))
 
         if kwargs.get('relative', False):
             expl_means = (np.array(expl_means) - np.array(reform_means)) / np.array(reform_means)
             impl_means = (np.array(impl_means) - np.array(reform_means)) / np.array(reform_means)
-            relative_flop = (np.array(impl_flop_means) - np.array(reform_flop_means)) / np.array(reform_flop_means)
-            relative_flop_expl = (np.array(expl_flop_means) - np.array(reform_flop_means)) / np.array(reform_flop_means)
-        
-            plt.plot(unique_sorted_metric, relative_flop, '-', alpha=0.5, label='FLOP estimate', color=color_implicit)
-            plt.plot(unique_sorted_metric, relative_flop_expl, '-', alpha=0.5, label='FLOP estimate', color=color_explicit)
+            if kwargs.get('show_flops', True):
+                relative_flop = (np.array(impl_flop_means) - np.array(reform_flop_means)) / np.array(reform_flop_means)
+                relative_flop_expl = (np.array(expl_flop_means) - np.array(reform_flop_means)) / np.array(reform_flop_means)
+                plt.plot(unique_sorted_metric, relative_flop, '-', alpha=0.5, label='FLOP estimate', color=color_implicit)
+                plt.plot(unique_sorted_metric, relative_flop_expl, '-', alpha=0.5, label='FLOP estimate', color=color_explicit)
 
             plt.plot(unique_sorted_metric, expl_means, label='Explicit (relative)', color=color_explicit)
             # plt.fill_between(unique_sorted_metric, np.array(expl_means) - np.array(expl_stds)/np.array(reform_means), np.array(expl_means) + np.array(expl_stds)/np.array(reform_means), alpha=0.2, color=color_explicit)
             plt.plot(unique_sorted_metric, impl_means, label='Implicit (relative)', color=color_implicit)
             # plt.fill_between(unique_sorted_metric, np.array(impl_means) - np.array(impl_stds)/np.array(reform_means), np.array(impl_means) + np.array(impl_stds)/np.array(reform_means), alpha=0.2, color=color_implicit)
-            plt.ylabel('Relative time difference (s)')
+            plt.axhline(0, color='k', linestyle='-')
+            plt.ylabel('Relative time difference')
         else:    
-            plt.plot(unique_sorted_metric, impl_flop_means, '-', alpha=0.5, label='FLOP estimate', color=color_implicit)
-            plt.plot(unique_sorted_metric, expl_flop_means, '-', alpha=0.5, label='FLOP estimate', color=color_explicit)
-            plt.plot(unique_sorted_metric, reform_flop_means, '-', alpha=0.5, label='FLOP estimate', color=color_reformulated)
+            if kwargs.get('show_flops', True):
+                plt.plot(unique_sorted_metric, impl_flop_means, '-', alpha=0.5, label='FLOP estimate', color=color_implicit)
+                plt.plot(unique_sorted_metric, expl_flop_means, '-', alpha=0.5, label='FLOP estimate', color=color_explicit)
+                plt.plot(unique_sorted_metric, reform_flop_means, '-', alpha=0.5, label='FLOP estimate', color=color_reformulated)
 
             plt.plot(unique_sorted_metric, expl_means, label='Explicit', color=color_explicit)
             plt.fill_between(unique_sorted_metric, np.array(expl_means) - np.array(expl_stds), np.array(expl_means) + np.array(expl_stds), alpha=0.2, color=color_explicit)
@@ -292,15 +324,16 @@ def visualize_scaling(data, **kwargs):
             # plt.plot(unique_sorted_metric, np.sum([impl_pre_means, impl_solve_means, impl_post_means], axis=0), ':', label='Implicit post')
             plt.plot(unique_sorted_metric, reform_means, label='Reformulation', color=color_reformulated)
             plt.fill_between(unique_sorted_metric, np.array(reform_means) - np.array(reform_stds), np.array(reform_means) + np.array(reform_stds), alpha=0.2, color=color_reformulated)
-            plt.ylabel('Time (s)')
+            plt.ylabel('Time (ns)')
 
-        plt.xlabel(metric)
-        plt.title(f'Scaling of Times with {metric}')
+        plt.xlabel(translate_label(metric))
+        # plt.title(f'Scaling of Times with {metric}')
         plt.legend()
         plt.grid()
         # plt.xscale('log')
         # plt.yscale('log')
-        plt.show()
+        plt.tight_layout()
+        plt.savefig(f'unittest/implicit/figures_benelux/scaling_{metric}{"_relative" if kwargs.get("relative", False) else ""}{"_flops" if kwargs.get("show_flops") else ""}.png', dpi=300)
 
 def visualize_scaling_2d(data, **kwargs):
     x = kwargs.get('x', 'nx')
@@ -332,10 +365,12 @@ def visualize_scaling_2d(data, **kwargs):
     norm = mcolors.TwoSlopeNorm(vmin=min(-0.01, np.nanmin(Z)), vcenter=0, vmax=max(np.nanmax(Z),0.01))
     mesh = ax.pcolormesh(x_unique, y_unique, Z, cmap='bwr', norm=norm)
     fig.colorbar(mesh, ax=ax, label='Relative difference')
-    ax.set_xlabel(x)
-    ax.set_ylabel(y)
-    ax.set_title('Scaling of Implicit Time with nx and ng')
-    plt.show()
+    ax.set_xlabel(translate_label(x))
+    ax.set_ylabel(translate_label(y))
+    # ax.set_title('Scaling of Implicit Time with nx and ng')
+    # plt.show()
+    plt.tight_layout()
+    plt.savefig(f'unittest/implicit/figures_benelux/scaling_2d_{x}_{y}{"_relative" if kwargs.get("relative", False) else ""}{"_flops" if kwargs.get("show_flop") else ""}.png', dpi=300)
     
 
 def visualize_lu_scaling(data, **kwargs):
@@ -385,80 +420,48 @@ def visualize_lu_scaling(data, **kwargs):
         plt.show()
 
 def visualize_lu_scaling_2d(data):
-    # x-axis: nx, y-axis: nu, color: (lu_impl - lu_reform) / lu_reform
-    plt.figure()
-    x = data['nx']
-    y = data['nu']
-    # color = (data['lu_impl'] - data['lu_reform']) / data['lu_reform']
-    color = data['lu_reform']
-    # color = data['lu_impl']
-    plt.scatter(x, y, c=color, cmap='coolwarm', edgecolor=None)
-    plt.colorbar(label='Relative LU solve time difference')
-    plt.xlabel('nx')
-    plt.ylabel('nu')
-    plt.title('Relative LU Solve Time Difference (Implicit vs Reformulation)')
-    plt.grid()
-
-    # expected relative difference (-nu*nx^2/(nu*nx^2 + nx^3))
-    plt.figure()
-    x = data['nx']
-    y = data['nu']
-    # expected_color = (-y*x**2) / (y*x**2 + x**3)
-    expected_color = (y*x**2 + x**3)
-    # expected_color = x**3
-    plt.scatter(x, y, c=expected_color, cmap='coolwarm', edgecolor=None)
-    plt.colorbar(label='Expected Relative LU solve time difference')
-    plt.xlabel('nx')
-    plt.ylabel('nu')
-    plt.title('Expected Relative LU Solve Time Difference')
-    
-    plt.show()
-
-
-
-
-    # plt.figure()
-    x = data['nx']
-    y = data['nu']
-    # color = (data['lu_impl'] - data['lu_reform']) / data['lu_reform']
-    # color = data['lu_reform']
-    color = data['lu_impl']
-    plt.scatter(x, y, c=color, cmap='coolwarm', edgecolor=None)
-    plt.colorbar(label='Relative LU solve time difference')
-    plt.xlabel('nx')
-    plt.ylabel('nu')
-    plt.title('Relative LU Solve Time Difference (Implicit vs Reformulation)')
-    plt.grid()
-
-    # expected relative difference (-nu*nx^2/(nu*nx^2 + nx^3))
-    plt.figure()
-    x = data['nx']
-    y = data['nu']
-    # expected_color = (-y*x**2) / (y*x**2 + x**3)
-    # expected_color = (y*x**2 + x**3)
-    expected_color = x**3
-    plt.scatter(x, y, c=expected_color, cmap='coolwarm', edgecolor=None)
-    plt.colorbar(label='Expected Relative LU solve time difference')
-    plt.xlabel('nx')
-    plt.ylabel('nu')
-    plt.title('Expected Relative LU Solve Time Difference')
-    
-    plt.show()
-
-
-
-
+    # # x-axis: nx, y-axis: nu, color: (lu_impl - lu_reform) / lu_reform
     # plt.figure()
     # x = data['nx']
     # y = data['nu']
     # # color = (data['lu_impl'] - data['lu_reform']) / data['lu_reform']
-    # # color = data['lu_reform']
+    # color = data['lu_reform']
     # # color = data['lu_impl']
-    # color = data['impl_decomp']
     # plt.scatter(x, y, c=color, cmap='coolwarm', edgecolor=None)
     # plt.colorbar(label='Relative LU solve time difference')
-    # plt.xlabel('nx')
-    # plt.ylabel('nu')
+    # plt.xlabel(translate_label('nx'))
+    # plt.ylabel(translate_label('nu'))
+    # plt.title('Relative LU Solve Time Difference (Implicit vs Reformulation)')
+    # plt.grid()
+
+    # # expected relative difference (-nu*nx^2/(nu*nx^2 + nx^3))
+    # plt.figure()
+    # x = data['nx']
+    # y = data['nu']
+    # # expected_color = (-y*x**2) / (y*x**2 + x**3)
+    # expected_color = (y*x**2 + x**3)
+    # # expected_color = x**3
+    # plt.scatter(x, y, c=expected_color, cmap='coolwarm', edgecolor=None)
+    # plt.colorbar(label='Expected Relative LU solve time difference')
+    # plt.xlabel(translate_label('nx'))
+    # plt.ylabel(translate_label('nu'))
+    # plt.title('Expected Relative LU Solve Time Difference')
+    
+    # plt.show()
+
+
+
+
+    # # plt.figure()
+    # x = data['nx']
+    # y = data['nu']
+    # # color = (data['lu_impl'] - data['lu_reform']) / data['lu_reform']
+    # # color = data['lu_reform']
+    # color = data['lu_impl']
+    # plt.scatter(x, y, c=color, cmap='coolwarm', edgecolor=None)
+    # plt.colorbar(label='Relative LU solve time difference')
+    # plt.xlabel(translate_label('nx'))
+    # plt.ylabel(translate_label('nu'))
     # plt.title('Relative LU Solve Time Difference (Implicit vs Reformulation)')
     # plt.grid()
 
@@ -470,34 +473,68 @@ def visualize_lu_scaling_2d(data):
     # # expected_color = (y*x**2 + x**3)
     # expected_color = x**3
     # plt.scatter(x, y, c=expected_color, cmap='coolwarm', edgecolor=None)
-    # plt.colorbar(label='Expected Relative LU solve time difference')
-    # plt.xlabel('nx')
-    # plt.ylabel('nu')
-    # plt.title('Expected Relative LU Solve Time Difference')
+    # plt.colorbar(label='Relative difference')
+    # plt.xlabel(translate_label('nx'))
+    # plt.ylabel(translate_label('nu'))
+    # # plt.title('Expected Relative LU Solve Time Difference')
+    # plt.tight_layout()
+    # plt.savefig("unittest/implicit/figures_benelux/scaling_2d_lu_impl_expected.png", dpi=300)
     
     # plt.show()
 
 
-    plt.figure()
-    x = data['nx']
-    y = data['nu']
-    color = (data['lu_impl'] - data['lu_reform']) / data['lu_reform']
-    plt.scatter(x, y, c=color, cmap='coolwarm', edgecolor=None)
-    plt.colorbar(label='Relative LU solve time difference')
-    plt.xlabel('nx')
-    plt.ylabel('nu')
-    plt.title('Relative LU Solve Time Difference (Implicit vs Reformulation)')
-    plt.grid()
+
+
+    # # plt.figure()
+    # # x = data['nx']
+    # # y = data['nu']
+    # # # color = (data['lu_impl'] - data['lu_reform']) / data['lu_reform']
+    # # # color = data['lu_reform']
+    # # # color = data['lu_impl']
+    # # color = data['impl_decomp']
+    # # plt.scatter(x, y, c=color, cmap='coolwarm', edgecolor=None)
+    # # plt.colorbar(label='Relative LU solve time difference')
+    # # plt.xlabel('nx')
+    # # plt.ylabel('nu')
+    # # plt.title('Relative LU Solve Time Difference (Implicit vs Reformulation)')
+    # # plt.grid()
+
+    # # # expected relative difference (-nu*nx^2/(nu*nx^2 + nx^3))
+    # # plt.figure()
+    # # x = data['nx']
+    # # y = data['nu']
+    # # # expected_color = (-y*x**2) / (y*x**2 + x**3)
+    # # # expected_color = (y*x**2 + x**3)
+    # # expected_color = x**3
+    # # plt.scatter(x, y, c=expected_color, cmap='coolwarm', edgecolor=None)
+    # # plt.colorbar(label='Expected Relative LU solve time difference')
+    # # plt.xlabel('nx')
+    # # plt.ylabel('nu')
+    # # plt.title('Expected Relative LU Solve Time Difference')
+    
+    # # plt.show()
+
+
+    # plt.figure()
+    # x = data['nx']
+    # y = data['nu']
+    # color = (data['lu_impl'] - data['lu_reform']) / data['lu_reform']
+    # plt.scatter(x, y, c=color, cmap='coolwarm', edgecolor=None)
+    # plt.colorbar(label='Relative LU solve time difference')
+    # plt.xlabel('nx')
+    # plt.ylabel('nu')
+    # plt.title('Relative LU Solve Time Difference (Implicit vs Reformulation)')
+    # plt.grid()
 
     # expected relative difference (-nu*nx^2/(nu*nx^2 + nx^3))
     plt.figure()
     x = data['nx']
-    y = data['nu']
+    y = data['ng']
     expected_color = (-y*x**2) / (y*x**2 + x**3)
     plt.scatter(x, y, c=expected_color, cmap='coolwarm', edgecolor=None)
     plt.colorbar(label='Expected Relative LU solve time difference')
     plt.xlabel('nx')
-    plt.ylabel('nu')
+    plt.ylabel('ng')
     plt.title('Expected Relative LU Solve Time Difference')
     
     plt.show()
@@ -506,8 +543,8 @@ data = get_data()
 
 # visualize_preprocessing_scaling(data)
 
-# visualize_scaling(data)
-# visualize_scaling(data, relative=True)
+visualize_scaling(data, show_flop=True)
+visualize_scaling(data, relative=True, show_flops=False)
 visualize_scaling_2d(data)
 visualize_scaling_2d(data, x='nx', y='nu')
 visualize_scaling_2d(data, x='nu', y='ng')
@@ -515,4 +552,4 @@ visualize_scaling_2d(data, x='nu', y='ng')
 
 # visualize_lu_scaling(data)
 # visualize_lu_scaling(data, relative=True)
-# visualize_lu_scaling_2d(data)
+visualize_lu_scaling_2d(data)

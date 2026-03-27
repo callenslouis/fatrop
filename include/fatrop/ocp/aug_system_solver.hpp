@@ -280,6 +280,7 @@ namespace fatrop
                                            const VecRealView &g, VecRealView &x, VecRealView &eq_mult);
 
         void set_performance_mode(bool set);
+        void set_factorization_file_name(const std::string &name){factorization_file_name = name;};
 
         std::chrono::nanoseconds duration_lu_factorization = std::chrono::nanoseconds(0);
     private:
@@ -341,7 +342,8 @@ namespace fatrop
 
         bool print_debug_lines = false;
         bool print_initial_stage = false;
-        bool write_factorization_file = false;
+        bool write_factorization_file = true;
+        std::string factorization_file_name = "factorization_info.py";
 
         // for debugging
         std::vector<Index> rank_k_values;
@@ -439,6 +441,7 @@ namespace fatrop
 
 
         void set_performance_mode(bool set);
+        void set_preprocessing_file_name(const std::string &name){preprocessing_file_name = name;};
 
         std::chrono::nanoseconds duration_preprocess = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_preprocess_jac = std::chrono::nanoseconds(0);
@@ -479,7 +482,8 @@ namespace fatrop
 
         bool print_debug = false;
         bool print_preprocessed_system = false;
-        bool write_preprocessing_file = false;
+        bool write_preprocessing_file = true;
+        std::string preprocessing_file_name = "preprocess_info..py";
         bool verify_preprocessed_solution = false;
         bool print_final_solution = false;
 

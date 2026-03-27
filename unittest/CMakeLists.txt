@@ -69,6 +69,7 @@ add_executable(blasfeo_valgrind_test linear_algebra/blasfeo_valgrind_test.cpp)
 add_executable(blasfeo_test linear_algebra/blasfeo_test.cpp)
 add_executable(general_implicit_benchmark implicit/general_implicit_benchmark.cpp)
 add_executable(test_lu_fact_complexity implicit/test_lu_fact_complexity.cpp)
+add_executable(generate_visualization_files implicit/generate_visualization_files.cpp)
 
 # target_precompile_headers(implicit_ocp_test PRIVATE implicit/generators/pch.hpp)
 
@@ -98,6 +99,7 @@ target_link_libraries(blasfeo_valgrind_test GTest::gtest GTest::gtest_main blasf
 target_link_libraries(blasfeo_test blasfeo)
 target_link_libraries(general_implicit_benchmark GTest::gtest GTest::gtest_main blasfeo fatrop)
 target_link_libraries(test_lu_fact_complexity blasfeo fatrop)
+target_link_libraries(generate_visualization_files blasfeo fatrop)
 
 # Discover and add the tests
 gtest_discover_tests(vector_test)

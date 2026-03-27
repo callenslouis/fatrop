@@ -28,12 +28,22 @@ def GetBlockMatrices(K, modified_nu, modified_nx, modified_ng_eq, RSQrqt, GuGx, 
             B.append(BAbt[k][:modified_nu[k], :modified_nx[k+1]].T)
             A.append(BAbt[k][modified_nu[k]:modified_nu[k]+modified_nx[k], :modified_nx[k+1]].T)
             b.append(BAbt[k][modified_nu[k]+modified_nx[k]:, :modified_nx[k+1]].T)
-        Hu.append(Gg_eqt[k][:modified_nu[k], :].T)
-        Hx.append(Gg_eqt[k][modified_nu[k]:modified_nu[k]+modified_nx[k], :].T)
+
+            if b[k].shape[0] == 0 or b[k].shape[1] == 0:
+                b[k] = np.zeros((0,1))
+        Hu.append(Gg_eqt[k][:modified_nu[k], :modified_ng_eq[k]].T)
+        Hx.append(Gg_eqt[k][modified_nu[k]:modified_nu[k]+modified_nx[k], :modified_ng_eq[k]].T)
         
-        r.append(RSQrqt[k][modified_nu[k]+modified_nx[k]:, :modified_nu[k]].T)
-        q.append(RSQrqt[k][modified_nu[k]+modified_nx[k]:, modified_nu[k]:modified_nu[k]+modified_nx[k]].T)
-        h.append(Gg_eqt[k][modified_nu[k]+modified_nx[k]:, :modified_ng_eq[k]].T)
+        r.append(RSQrqt[k][modified_nu[k]+modified_nx[k]:modified_nu[k]+modified_nx[k]+1, :modified_nu[k]].T)
+        q.append(RSQrqt[k][modified_nu[k]+modified_nx[k]:modified_nu[k]+modified_nx[k]+1, modified_nu[k]:modified_nu[k]+modified_nx[k]].T)
+        h.append(Gg_eqt[k][modified_nu[k]+modified_nx[k]:modified_nu[k]+modified_nx[k]+1, :modified_ng_eq[k]].T)
+
+        if r[k].shape[0] == 0 or r[k].shape[1] == 0:
+            r[k] = np.zeros((0,1))
+        if q[k].shape[0] == 0 or q[k].shape[1] == 0:
+            q[k] = np.zeros((0,1))
+        if h[k].shape[0] == 0 or h[k].shape[1] == 0:
+            h[k] = np.zeros((0,1))
 
     blocks = {
         "R": R, "S": S, "Q": Q, "Gu": Gu, "Gx": Gx, "Fu": Fu, "Fx": Fx,

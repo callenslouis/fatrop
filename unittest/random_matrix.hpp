@@ -16,7 +16,7 @@ namespace fatrop
             std::uniform_real_distribution<Scalar> dist(lower_bound, upper_bound);
             return dist(gen);
         }
-        MatRealAllocated random_matrix(Index rows, Index cols, Scalar lower_bound = 0.0,
+        MatRealAllocated random_matrix(Index rows, Index cols, Scalar lower_bound = -1.0,
                                        Scalar upper_bound = 1.0)
         {
             MatRealAllocated matrix(rows, cols);
@@ -29,7 +29,7 @@ namespace fatrop
             }
             return matrix;
         }
-        MatRealAllocated random_spd_matrix(Index m, Scalar lower_bound = 0.0,
+        MatRealAllocated random_spd_matrix(Index m, Scalar lower_bound = -1.0,
                                            Scalar upper_bound = 1.0)
         {
             MatRealAllocated matrix = random_matrix(m, m, lower_bound, upper_bound);
@@ -86,7 +86,7 @@ namespace fatrop
             return ret;
         }
 
-        VecRealAllocated random_vector(Index rows, Scalar lower_bound = 0.0,
+        VecRealAllocated random_vector(Index rows, Scalar lower_bound = -1.0,
                                        Scalar upper_bound = 1.0)
         {
             VecRealAllocated v(rows);
