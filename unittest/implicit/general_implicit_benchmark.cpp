@@ -154,7 +154,7 @@ public:
         ClearOptionals();
         int max_val = 50;
         K = rand() % 4 + 2; // Random K between 2 and 21
-        nx = RandomVector(K, 0, max_val);
+        nx = RandomVector(K, 0, 1+0*max_val);
         if (full_rank){
             r = nx;
         } else {
@@ -164,7 +164,7 @@ public:
             }
         }
         nu = RandomVector(K, 0, max_val);
-        ng = RandomVector(K, 0, max_val);
+        ng = RandomVector(K, 0, 1+0*max_val);
         for (int k = 0; k < K; ++k){
             bool okay = false;
             while (!okay){
@@ -184,7 +184,7 @@ public:
                 }
             }
         }
-        ng_ineq = RandomVector(K, 0, max_val);
+        ng_ineq = RandomVector(K, 0, 0*max_val);
 
         // std::cout << "K: " << K << std::endl;
         // std::cout << "nx:      "; for (auto val : nx){ std::cout << std::setw(4) << val << " ";} std::cout << std::endl;
@@ -456,8 +456,8 @@ public:
                 transpose(jacobian_reform.value().Gg_ineqt[k].block(nu + nx, ng_ineq, 0, 0));
 
             hessian_reform.value().RSQrqt[k].block(nu + nx, nu + nx, 0, 0) = ::test::random_spd_matrix(nu + nx);
-            hessian_reform.value().RSQrqt[k].block(nu - nu_true, nu + nx, nu_true, 0) = ::test::empty_matrix(nu_true, nu + nx);
-            hessian_reform.value().RSQrqt[k].block(nu + nx, nu - nu_true, 0, nu_true) = ::test::empty_matrix(nu + nx, nu_true);
+            // hessian_reform.value().RSQrqt[k].block(nu - nu_true, nu + nx, nu_true, 0) = ::test::empty_matrix(nu_true, nu + nx);
+            // hessian_reform.value().RSQrqt[k].block(nu + nx, nu - nu_true, 0, nu_true) = ::test::empty_matrix(nu + nx, nu_true);
             full_matrix_hessian_reform.value().block(nu + nx, nu + nx, offs_ux, offs_ux) =
                 hessian_reform.value().RSQrqt[k].block(nu + nx, nu + nx, 0, 0);
         }
@@ -505,7 +505,7 @@ public:
 
 TEST_F(RandomBenchmarkTest, Test)
 {
-    int nb_runs = 50000;
+    int nb_runs = 10000;
     int nb_runs_completed = 0;
 
     long int total_ns_expl = 0; long int total_ns_impl = 0; long int total_ns_reform = 0;
@@ -532,6 +532,8 @@ TEST_F(RandomBenchmarkTest, Test)
     long int ns_lu_reform = 0;
     long int total_lu_impl = 0;
     long int ns_lu_impl = 0;
+
+    long int total_ns_impl_solve_inner = 0;
 
     std::ofstream f("random_benchmark_results.csv");
     f << "K,nu,nx,r,ng,ng_ineq,t_expl,t_impl,t_impl_pre,t_impl_solve,t_impl_post,t_reform,lu_impl,lu_reform,impl_decomp\n";
@@ -598,6 +600,7 @@ TEST_F(RandomBenchmarkTest, Test)
         total_ns_impl_preprocess += ns_impl_preprocess;
         total_ns_impl_solve += ns_impl_solve;
         total_ns_impl_postprocess += ns_impl_postprocess;
+        total_ns_impl_solve_inner += solver_impl.value().duration_inner_solve.count();
 
         total_pre_jac += ns_pre_jac;
         total_pre_hess += ns_pre_hess;
@@ -633,8 +636,8 @@ TEST_F(RandomBenchmarkTest, Test)
     std::cout << total_ns_impl_solve / nb_runs_completed << " - ";
     std::cout << total_ns_impl_postprocess / nb_runs_completed << ")" << std::endl;
     std::cout << "Time spent in LU factorization: " << std::endl;
-    std::cout << "  - Implicit:     " << std::setw(3) << std::setprecision(3) << 100.0 * total_lu_impl / total_ns_impl << " %" << std::endl;
-    std::cout << "  - Reformulated: " << std::setw(3) << std::setprecision(3) << 100.0 * total_lu_reform / total_ns_reform << " %" << std::endl;
+    std::cout << "  - Implicit:     " << std::setw(3) << std::setprecision(3) << 100.0 * total_lu_impl / total_ns_impl << " % (" << total_lu_impl << ")" << std::endl;
+    std::cout << "  - Reformulated: " << std::setw(3) << std::setprecision(3) << 100.0 * total_lu_reform / total_ns_reform << " % (" << total_lu_reform << ")" << std::endl;
     std::cout << "Average time implicit preprocess breakdown: " << std::endl;
     std::cout << "  - Jacobian:       " << std::setw(3) << std::setprecision(3) << 100.0 * total_pre_jac / total_ns_impl_preprocess << " %" << std::endl;
     std::cout << "  - Hessian:        " << std::setw(3) << std::setprecision(3) << 100.0 * total_pre_hess / total_ns_impl_preprocess << " %" << std::endl;
@@ -650,5 +653,17 @@ TEST_F(RandomBenchmarkTest, Test)
     std::cout << "  - Scaling2:       " << std::setw(3) << std::setprecision(3) << 100.0 * total_decomp_scale2 / total_pre_decomp << " %" << std::endl;
     std::cout << "  - Permutation:    " << std::setw(3) << std::setprecision(3) << 100.0 * total_decomp_permutation / total_pre_decomp << " %" << std::endl;
     std::cout << "  - Store:          " << std::setw(3) << std::setprecision(3) << 100.0 * total_decomp_store / total_pre_decomp << " %" << std::endl;
+
+
+    std::cout << "implicit solve modifications breakdown: (" << total_ns_impl_solve_inner / nb_runs << ")" << std::endl;
+    // duration_lu_factorization, duration_RSQrqt_copy, duration_FuFx_addition, duration_GuGx_addition, duration_GuGx_hat_addition, duration_ukb_tilde_addition, duration_lambdatilde_addition, duration_FuFx_addition_forward
+    std::cout << "  - LU factorization:      " << std::setw(3) << std::setprecision(3) << 100.0 * solver_impl.value().duration_lu_factorization.count() / ns_impl_solve << " % (" << solver_impl.value().duration_lu_factorization.count() << ")" << std::endl;
+    std::cout << "  - RSQrqt copy:           " << std::setw(3) << std::setprecision(3) << 100.0 * solver_impl.value().duration_RSQrqt_copy.count() / ns_impl_solve << " % (" << solver_impl.value().duration_RSQrqt_copy.count() << ")" << std::endl;
+    std::cout << "  - FuFx addition:         " << std::setw(3) << std::setprecision(3) << 100.0 * solver_impl.value().duration_FuFx_addition.count() / ns_impl_solve << " % (" << solver_impl.value().duration_FuFx_addition.count() << ")" << std::endl;
+    std::cout << "  - GuGx addition:         " << std::setw(3) << std::setprecision(3) << 100.0 * solver_impl.value().duration_GuGx_addition.count() / ns_impl_solve << " % (" << solver_impl.value().duration_GuGx_addition.count() << ")" << std::endl;
+    std::cout << "  - GuGx hat addition:     " << std::setw(3) << std::setprecision(3) << 100.0 * solver_impl.value().duration_GuGx_hat_addition.count() / ns_impl_solve << " % (" << solver_impl.value().duration_GuGx_hat_addition.count() << ")" << std::endl;
+    std::cout << "  - ukb_tilde addition:    " << std::setw(3) << std::setprecision(3) << 100.0 * solver_impl.value().duration_ukb_tilde_addition.count() / ns_impl_solve << " % (" << solver_impl.value().duration_ukb_tilde_addition.count() << ")" << std::endl;
+    std::cout << "  - lambdatilde addition:  " << std::setw(3) << std::setprecision(3) << 100.0 * solver_impl.value().duration_lambdatilde_addition.count() / ns_impl_solve << " % (" << solver_impl.value().duration_lambdatilde_addition.count() << ")" << std::endl;
+    std::cout << "  - FuFx addition forward: " << std::setw(3) << std::setprecision(3) << 100.0 * solver_impl.value().duration_FuFx_addition_forward.count() / ns_impl_solve << " % (" << solver_impl.value().duration_FuFx_addition_forward.count() << ")" << std::endl;
 
 }

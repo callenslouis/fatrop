@@ -283,6 +283,15 @@ namespace fatrop
         void set_factorization_file_name(const std::string &name){factorization_file_name = name;};
 
         std::chrono::nanoseconds duration_lu_factorization = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_RSQrqt_copy = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_FuFx_addition = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_GuGx_addition = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_GuGx_hat_addition = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_ukb_tilde_addition = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_lambdatilde_addition = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_FuFx_addition_forward = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_inner_solve = std::chrono::nanoseconds(0);
+
     private:
         // temporaries, pre-allocated during construction to avoid allocation during
         // optimization
@@ -448,6 +457,7 @@ namespace fatrop
         std::chrono::nanoseconds duration_preprocess_hess = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_preprocess_regularization = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_preprocess_decomposition = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_printing_preprocessed = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_decomp_copies = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_decomp_decomp = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_decomp_scale1 = std::chrono::nanoseconds(0);

@@ -113,9 +113,9 @@ namespace fatrop
             BAbt.reserve(dims.K - 1);
             BAbt_original.reserve(dims.K);
             for (int k = 0; k < dims.K - 1; ++k){
-                BAbt.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1 + 8,
+                BAbt.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1 + 0*8,
                                   dims.number_of_states[k + 1]);
-                BAbt_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1 + 8,
+                BAbt_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1 + 0*8,
                                   dims.number_of_states[k + 1]);
             }
 
@@ -136,7 +136,7 @@ namespace fatrop
                 Jt_inv.emplace_back(dims.number_of_states[k + 1], dims.number_of_states[k + 1]);
                 Pl_pre.emplace_back(dims.number_of_states[k + 1]);
                 Pr_pre.emplace_back(dims.number_of_states[k + 1]);
-                U1U2t.emplace_back(dims.number_of_states[k + 1] + 8, dims.number_of_states[k + 1] + 8);
+                U1U2t.emplace_back(dims.number_of_states[k + 1] + 0*8, dims.number_of_states[k + 1] + 0*8);
                 U1t.emplace_back(dims.number_of_states[k + 1], dims.number_of_states[k + 1]);
             }
             J_ranks = std::vector<Index>(dims.K - 1, 0);
@@ -145,7 +145,7 @@ namespace fatrop
             Gg_eqt = {};
             Gg_eqt.reserve(dims.K);
             for (int k = 0; k < dims.K; ++k){
-                Gg_eqt.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1 + 8,
+                Gg_eqt.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1 + 0*8,
                                   dims.number_of_eq_constraints[k] + ((k < dims.K-1) ? dims.number_of_states[k + 1] : 0));
             }
 
@@ -155,11 +155,11 @@ namespace fatrop
             Gg_ineqt.reserve(dims.K);
             Gg_ineqt_original.reserve(dims.K);
             for (int k = 0; k < dims.K; ++k){
-                Gg_eqt_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1 + 8,
+                Gg_eqt_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1 + 0*8,
                                   dims.number_of_eq_constraints[k] + ((k < dims.K-1) ? dims.number_of_states[k + 1] : 0));
-                Gg_ineqt.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1 + 8,
+                Gg_ineqt.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1 + 0*8,
                                                dims.number_of_ineq_constraints[k]);
-                Gg_ineqt_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1 + 8,
+                Gg_ineqt_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1 + 0*8,
                                                dims.number_of_ineq_constraints[k]);
             }
         }
