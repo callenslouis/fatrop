@@ -186,6 +186,12 @@ public:
         }
         ng_ineq = RandomVector(K, 0, 0*max_val);
 
+        K = 1;
+        nx = {0};
+        nu = {0};
+        ng = {0};
+        ng_ineq = {0};
+
         // std::cout << "K: " << K << std::endl;
         // std::cout << "nx:      "; for (auto val : nx){ std::cout << std::setw(4) << val << " ";} std::cout << std::endl;
         // std::cout << "r:       "; for (auto val : r){ std::cout << std::setw(4) << val << " ";} std::cout << std::endl;
@@ -502,43 +508,119 @@ public:
     };
 };
 
+void PrintLine(std::string name, long int val, long int total, bool show_absolute=true){
+    // append name with spaces to align with the longest name
+    int max_name_length = 30;
+    name += ": ";
+    if (name.length() < max_name_length){ name += std::string(max_name_length - name.length(), ' ');}
+    std::cout << "  - " << name << std::setw(4) << std::setprecision(3) << 100.0 * val / total << " %";
+    if (show_absolute){
+        std::cout << " (" << val << ")";
+    }
+    std::cout << std::endl;
+}
+
+void PrintBreakdown(const std::map<std::string, long int>& timings, 
+                    const std::string breakdown_key,
+                    const std::map<std::string, std::vector<std::string>>& breakdown,
+                    const std::map<std::string, std::vector<std::string>>& breakdown_totals){
+    std::cout << "Breakdown of " << breakdown_key << ":" << std::endl;
+    std::map<std::string, std::string> key_translations = {
+        {"total_ns_expl", "explicit"},
+        {"total_ns_impl", "implicit"},
+        {"total_ns_reform", "reformulated"},
+        {"total_ns_impl_solve", "implicit solve"},
+        {"total_ns_impl_preprocess", "implicit preprocess"},
+        {"total_ns_impl_postprocess", "implicit postprocess"},
+        {"total_pre_jac", "jacobian preprocessing"},
+        {"total_pre_hess", "hessian preprocessing"},
+        {"total_pre_reg", "regularization"},
+        {"total_pre_decomp", "decomposition"},
+        {"total_pre_info", "info"},
+        {"total_pre_rhs", "rhs"},
+        {"total_decomp_copies", "copies"},
+        {"total_decomp_decomp", "decomp"},
+        {"total_decomp_scale1", "scale1"},
+        {"total_decomp_scale2", "scale2"},
+        {"total_decomp_permutation", "permutation"},
+        {"total_decomp_store", "store"},
+        {"total_lu_reform", "reformulated lu"},
+        {"total_lu_impl", "implicit lu"},
+        {"total_ns_impl_solve_inner", "implicit solve (inner)"},
+        {"total_solve_RSQrqt_copy", "copy RSQrqt"},
+        {"total_solve_FuFx_addition", "FuFx addition"},
+        {"total_solve_GuGx_addition", "GuGx addition"},
+        {"total_solve_GuGx_hat_addition", "GuGx hat addition"},
+        {"total_solve_ukb_tilde_addition", "ukb tilde addition"},
+        {"total_solve_lambdatilde_addition", "lambdatilde addition"},
+        {"total_solve_FuFx_addition_forward", "FuFx addition forward"},
+    };
+
+    for (const auto& sub_key : breakdown.at(breakdown_key)){
+        PrintLine(key_translations[sub_key], timings.at(sub_key), timings.at(breakdown_totals.at(breakdown_key)[0]), true);
+    }
+}
 
 TEST_F(RandomBenchmarkTest, Test)
 {
-    int nb_runs = 10000;
+    int nb_runs = 100000;
     int nb_runs_completed = 0;
 
-    long int total_ns_expl = 0; long int total_ns_impl = 0; long int total_ns_reform = 0;
-    long int total_ns_impl_solve = 0; long int total_ns_impl_preprocess = 0; long int total_ns_impl_postprocess = 0;
-    long int ns_expl, ns_impl, ns_impl_solve, ns_impl_preprocess, ns_impl_postprocess, ns_reform;
-
-    long int total_pre_jac = 0;
-    long int total_pre_hess = 0;
-    long int total_pre_reg = 0;
-    long int total_pre_decomp = 0;
-    long int total_pre_info = 0;
-    long int total_pre_rhs = 0;
-    long int ns_pre_jac, ns_pre_hess, ns_pre_reg, ns_pre_decomp, ns_pre_info, ns_pre_rhs;
-
-    long int total_decomp_copies = 0;
-    long int total_decomp_decomp = 0;
-    long int total_decomp_scale1 = 0;
-    long int total_decomp_scale2 = 0;
-    long int total_decomp_permutation = 0;
-    long int total_decomp_store = 0;
-    long int ns_decomp_copies, ns_decomp_decomp, ns_decomp_scale1, ns_decomp_scale2, ns_decomp_permutation, ns_decomp_store;
-
-    long int total_lu_reform = 0;
-    long int ns_lu_reform = 0;
-    long int total_lu_impl = 0;
-    long int ns_lu_impl = 0;
-
-    long int total_ns_impl_solve_inner = 0;
+    std::map<std::string, long int> timings = {
+        {"total_ns_expl", 0},
+        {"total_ns_impl", 0},
+        {"total_ns_reform", 0},
+        {"total_ns_impl_solve", 0},
+        {"total_ns_impl_preprocess", 0},
+        {"total_ns_impl_postprocess", 0},
+        {"total_pre_jac", 0},
+        {"total_pre_hess", 0},
+        {"total_pre_reg", 0},
+        {"total_pre_decomp", 0},
+        {"total_pre_info", 0},
+        {"total_pre_rhs", 0},
+        {"total_decomp_copies", 0},
+        {"total_decomp_decomp", 0},
+        {"total_decomp_scale1", 0},
+        {"total_decomp_scale2", 0},
+        {"total_decomp_permutation", 0},
+        {"total_decomp_store", 0},
+        {"total_lu_reform", 0},
+        {"total_lu_impl", 0},
+        {"total_ns_impl_solve_inner", 0},
+        {"total_solve_RSQrqt_copy", 0},
+        {"total_solve_FuFx_addition", 0},
+        {"total_solve_GuGx_addition", 0},
+        {"total_solve_GuGx_hat_addition", 0},
+        {"total_solve_ukb_tilde_addition", 0},
+        {"total_solve_lambdatilde_addition", 0},
+        {"total_solve_FuFx_addition_forward", 0},
+        {"total_expl_backward", 0},
+        {"total_impl_backward", 0},
+        {"total_reform_backward", 0},
+        {"total_expl_initial", 0},
+        {"total_impl_initial", 0},
+        {"total_reform_initial", 0},
+        {"total_expl_forward", 0},
+        {"total_impl_forward", 0},
+        {"total_reform_forward", 0},
+    };
 
     std::ofstream f("random_benchmark_results.csv");
     f << "K,nu,nx,r,ng,ng_ineq,t_expl,t_impl,t_impl_pre,t_impl_solve,t_impl_post,t_reform,lu_impl,lu_reform,impl_decomp\n";
     
     int nb_consecutive_failures = 0;
+    std::array<int, 3> order = {0, 1, 2};
+
+    auto start_impl = std::chrono::steady_clock::now();
+    auto stop_impl = std::chrono::steady_clock::now();
+    auto start_expl = std::chrono::steady_clock::now();
+    auto stop_expl = std::chrono::steady_clock::now();
+    auto start_reform = std::chrono::steady_clock::now();
+    auto stop_reform = std::chrono::steady_clock::now();
+    Index ret_impl, ret_expl, ret_reform;
+    std::mt19937 rng(std::random_device{}());
+
     while (nb_runs_completed < nb_runs){
         // std::cout << "Run " << nb_runs_completed + 1 << "/" << nb_runs << std::endl;
         // overwrite current status
@@ -547,46 +629,31 @@ TEST_F(RandomBenchmarkTest, Test)
         std::cout << "\r" << std::flush;
         Randomize();
 
-        // explicit //
-        auto start = std::chrono::steady_clock::now();
-        Index ret_expl = solver_expl.value().solve(info_expl.value(), jacobian_expl.value(), hessian_expl.value(), D_x_expl.value(), D_s_expl.value(), rhs_x_expl.value(), rhs_g_expl.value(), x_expl.value(), mult_expl.value());
-        auto stop = std::chrono::steady_clock::now();
-        ns_expl = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count();
+        // std::cout << "explicit:\n" << full_kkt_matrix_expl.value() << std::endl;
+        // std::cout << "implicit:\n" << full_kkt_matrix_impl.value() << std::endl;
+        // std::cout << "reformulated:\n" << full_kkt_matrix_reform.value() << std::endl;
+        // std::cout << std::endl;
 
-        // reformulated //
-        start = std::chrono::steady_clock::now();
-        Index ret_reform = solver_reform.value().solve(info_reform.value(), jacobian_reform.value(), hessian_reform.value(), D_x_reform.value(), D_s_reform.value(), rhs_x_reform.value(), rhs_g_reform.value(), x_reform.value(), mult_reform.value());
-        stop = std::chrono::steady_clock::now();
-        ns_reform = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count();
+        std::shuffle(order.begin(), order.end(), rng);
 
-        // implicit //
-        start = std::chrono::steady_clock::now();
-        Index ret_impl = 0;
-        try{
-        Index ret_impl = solver_impl.value().solve(info_impl.value(), jacobian_impl.value(), hessian_impl.value(), D_x_impl.value(), D_s_impl.value(), rhs_x_impl.value(), rhs_g_impl.value(), x_impl.value(), mult_impl.value());
-        } catch (std::exception &e){
-            std::cout << "Exception caught during solve!" << std::endl;
-            nb_consecutive_failures++;
-            continue;
+        for (int idx : order){
+            if (idx == 0){
+                // implicit //
+                start_impl = std::chrono::steady_clock::now();
+                ret_impl = solver_impl.value().solve(info_impl.value(), jacobian_impl.value(), hessian_impl.value(), D_x_impl.value(), D_s_impl.value(), rhs_x_impl.value(), rhs_g_impl.value(), x_impl.value(), mult_impl.value());
+                stop_impl = std::chrono::steady_clock::now();
+            } else if (idx == 1) {
+                // explicit //
+                start_expl = std::chrono::steady_clock::now();
+                ret_expl = solver_expl.value().solve(info_expl.value(), jacobian_expl.value(), hessian_expl.value(), D_x_expl.value(), D_s_expl.value(), rhs_x_expl.value(), rhs_g_expl.value(), x_expl.value(), mult_expl.value());
+                stop_expl = std::chrono::steady_clock::now();
+            } else {
+                // reformulated //
+                start_reform = std::chrono::steady_clock::now();
+                ret_reform = solver_reform.value().solve(info_reform.value(), jacobian_reform.value(), hessian_reform.value(), D_x_reform.value(), D_s_reform.value(), rhs_x_reform.value(), rhs_g_reform.value(), x_reform.value(), mult_reform.value());
+                stop_reform = std::chrono::steady_clock::now();
+            }
         }
-        stop = std::chrono::steady_clock::now();
-        ns_impl = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count();
-        ns_impl_preprocess = solver_impl.value().duration_preprocess.count();
-        ns_impl_solve = solver_impl.value().duration_solve.count();
-        ns_impl_postprocess = solver_impl.value().duration_postprocess.count();
-        ns_pre_jac = solver_impl.value().duration_preprocess_jac.count();
-        ns_pre_hess = solver_impl.value().duration_preprocess_hess.count();
-        ns_pre_reg = solver_impl.value().duration_preprocess_regularization.count();
-        ns_pre_decomp = solver_impl.value().duration_preprocess_decomposition.count();
-        ns_pre_info = solver_impl.value().duration_preprocess_info.count();
-        ns_pre_rhs = solver_impl.value().duration_preprocess_modify_rhs.count();
-
-        ns_decomp_copies = solver_impl.value().duration_decomp_copies.count();
-        ns_decomp_decomp = solver_impl.value().duration_decomp_decomp.count();
-        ns_decomp_scale1 = solver_impl.value().duration_decomp_scale1.count();
-        ns_decomp_scale2 = solver_impl.value().duration_decomp_scale2.count();
-        ns_decomp_permutation = solver_impl.value().duration_decomp_permutation.count();
-        ns_decomp_store = solver_impl.value().duration_decomp_store.count();
 
         if (ret_expl != LinsolReturnFlag::SUCCESS || 
                 ret_reform != LinsolReturnFlag::SUCCESS || 
@@ -594,32 +661,61 @@ TEST_F(RandomBenchmarkTest, Test)
             nb_consecutive_failures++;
             continue;
         }
-        total_ns_expl += ns_expl;
-        total_ns_reform += ns_reform;
-        total_ns_impl += ns_impl;
-        total_ns_impl_preprocess += ns_impl_preprocess;
-        total_ns_impl_solve += ns_impl_solve;
-        total_ns_impl_postprocess += ns_impl_postprocess;
-        total_ns_impl_solve_inner += solver_impl.value().duration_inner_solve.count();
 
-        total_pre_jac += ns_pre_jac;
-        total_pre_hess += ns_pre_hess;
-        total_pre_reg += ns_pre_reg;
-        total_pre_decomp += ns_pre_decomp;
-        total_pre_info += ns_pre_info;
-        total_pre_rhs += ns_pre_rhs;
+        long int ns_expl = std::chrono::duration_cast<std::chrono::nanoseconds>(stop_expl - start_expl).count();
+        long int ns_reform = std::chrono::duration_cast<std::chrono::nanoseconds>(stop_reform - start_reform).count();
+        long int ns_impl = std::chrono::duration_cast<std::chrono::nanoseconds>(stop_impl - start_impl).count();
+        long int ns_impl_preprocess = solver_impl.value().duration_preprocess.count();
+        long int ns_impl_solve = solver_impl.value().duration_solve.count();
+        long int ns_impl_postprocess = solver_impl.value().duration_postprocess.count();
+        timings["total_ns_expl"] += ns_expl;
+        timings["total_ns_reform"] += ns_reform;
+        timings["total_ns_impl"] += ns_impl;
+        timings["total_ns_impl_preprocess"] += ns_impl_preprocess;
+        timings["total_ns_impl_solve"] += ns_impl_solve;
+        timings["total_ns_impl_postprocess"] += ns_impl_postprocess;
+        timings["total_ns_impl_solve_inner"] += solver_impl.value().duration_inner_solve.count();
 
-        total_decomp_copies += ns_decomp_copies;
-        total_decomp_decomp += ns_decomp_decomp;
-        total_decomp_scale1 += ns_decomp_scale1;
-        total_decomp_scale2 += ns_decomp_scale2;
-        total_decomp_permutation += ns_decomp_permutation;
-        total_decomp_store += ns_decomp_store;
+        timings["total_pre_jac"] += solver_impl.value().duration_preprocess_jac.count();
+        timings["total_pre_hess"] += solver_impl.value().duration_preprocess_hess.count();
+        timings["total_pre_reg"] += solver_impl.value().duration_preprocess_regularization.count();
+        timings["total_pre_decomp"] += solver_impl.value().duration_preprocess_decomposition.count();
+        timings["total_pre_info"] += solver_impl.value().duration_preprocess_info.count();
+        timings["total_pre_rhs"] += solver_impl.value().duration_preprocess_modify_rhs.count();
+        
+        timings["total_decomp_copies"] += solver_impl.value().duration_decomp_copies.count();
+        long int ns_decomp_decomp = solver_impl.value().duration_decomp_decomp.count();
+        timings["total_decomp_decomp"] += ns_decomp_decomp;
+        timings["total_decomp_scale1"] += solver_impl.value().duration_decomp_scale1.count();
+        timings["total_decomp_scale2"] += solver_impl.value().duration_decomp_scale2.count();
+        timings["total_decomp_permutation"] += solver_impl.value().duration_decomp_permutation.count();
+        timings["total_decomp_store"] += solver_impl.value().duration_decomp_store.count();
 
-        ns_lu_impl = solver_impl.value().duration_lu_factorization.count() + ns_decomp_decomp;
-        ns_lu_reform = solver_reform.value().duration_lu_factorization.count();
-        total_lu_impl += ns_lu_impl;
-        total_lu_reform += ns_lu_reform;
+        timings["total_solve_RSQrqt_copy"] += solver_impl.value().duration_RSQrqt_copy.count();
+        timings["total_solve_FuFx_addition"] += solver_impl.value().duration_FuFx_addition.count();
+        timings["total_solve_GuGx_addition"] += solver_impl.value().duration_GuGx_addition.count();
+        timings["total_solve_GuGx_hat_addition"] += solver_impl.value().duration_GuGx_hat_addition.count();
+        timings["total_solve_ukb_tilde_addition"] += solver_impl.value().duration_ukb_tilde_addition.count();
+        timings["total_solve_lambdatilde_addition"] += solver_impl.value().duration_lambdatilde_addition.count();
+        timings["total_solve_FuFx_addition_forward"] += solver_impl.value().duration_FuFx_addition_forward.count();
+        
+        long int ns_lu_impl = solver_impl.value().duration_lu_factorization.count() + solver_impl.value().duration_decomp_decomp.count();
+        long int ns_lu_reform = solver_reform.value().duration_lu_factorization.count();
+        timings["ns_lu_impl"] = ns_lu_impl;
+        timings["ns_lu_reform"] = ns_lu_reform;
+        
+        timings["total_lu_impl"] += solver_impl.value().duration_lu_factorization.count() + solver_impl.value().duration_decomp_decomp.count();
+        timings["total_lu_reform"] += solver_reform.value().duration_lu_factorization.count();
+
+        timings["total_expl_backward"] += solver_expl.value().duration_backward_recursion.count();
+        timings["total_impl_backward"] += solver_impl.value().duration_backward_recursion.count();
+        timings["total_reform_backward"] += solver_reform.value().duration_backward_recursion.count();
+        timings["total_expl_initial"] += solver_expl.value().duration_initial_stage.count();
+        timings["total_impl_initial"] += solver_impl.value().duration_initial_stage.count();
+        timings["total_reform_initial"] += solver_reform.value().duration_initial_stage.count();
+        timings["total_expl_forward"] += solver_expl.value().duration_forward_recursion.count();
+        timings["total_impl_forward"] += solver_impl.value().duration_forward_recursion.count();
+        timings["total_reform_forward"] += solver_reform.value().duration_forward_recursion.count();
 
         nb_runs_completed++;
         nb_consecutive_failures = 0;
@@ -629,41 +725,65 @@ TEST_F(RandomBenchmarkTest, Test)
         
     }
 
-    std::cout << "Average time explicit:     " << total_ns_expl / nb_runs_completed << " ns" << std::endl;
-    std::cout << "Average time reformulated: " << total_ns_reform / nb_runs_completed << " ns" << std::endl;
-    std::cout << "Average time implicit:     " << total_ns_impl / nb_runs_completed << " ns (";
-    std::cout << total_ns_impl_preprocess / nb_runs_completed << " - ";
-    std::cout << total_ns_impl_solve / nb_runs_completed << " - ";
-    std::cout << total_ns_impl_postprocess / nb_runs_completed << ")" << std::endl;
-    std::cout << "Time spent in LU factorization: " << std::endl;
-    std::cout << "  - Implicit:     " << std::setw(3) << std::setprecision(3) << 100.0 * total_lu_impl / total_ns_impl << " % (" << total_lu_impl << ")" << std::endl;
-    std::cout << "  - Reformulated: " << std::setw(3) << std::setprecision(3) << 100.0 * total_lu_reform / total_ns_reform << " % (" << total_lu_reform << ")" << std::endl;
-    std::cout << "Average time implicit preprocess breakdown: " << std::endl;
-    std::cout << "  - Jacobian:       " << std::setw(3) << std::setprecision(3) << 100.0 * total_pre_jac / total_ns_impl_preprocess << " %" << std::endl;
-    std::cout << "  - Hessian:        " << std::setw(3) << std::setprecision(3) << 100.0 * total_pre_hess / total_ns_impl_preprocess << " %" << std::endl;
-    std::cout << "  - Regularization: " << std::setw(3) << std::setprecision(3) << 100.0 * total_pre_reg / total_ns_impl_preprocess << " %" << std::endl;
-    std::cout << "  - Decomposition:  " << std::setw(3) << std::setprecision(3) << 100.0 * total_pre_decomp / total_ns_impl_preprocess << " %" << std::endl;
-    std::cout << "  - Info:           " << std::setw(3) << std::setprecision(3) << 100.0 * total_pre_info / total_ns_impl_preprocess << " %" << std::endl;
-    std::cout << "  - RHS:            " << std::setw(3) << std::setprecision(3) << 100.0 * total_pre_rhs / total_ns_impl_preprocess << " %" << std::endl;
+    std::cout << "Average time explicit:     " << timings["total_ns_expl"] / nb_runs_completed << " ns (";
+    std::cout << timings["total_expl_backward"] / nb_runs_completed << " - ";
+    std::cout << timings["total_expl_initial"] / nb_runs_completed << " - ";
+    std::cout << timings["total_expl_forward"] / nb_runs_completed << ")" << std::endl;
+    std::cout << "Average time reformulated: " << timings["total_ns_reform"] / nb_runs_completed << " ns (";
+    std::cout << timings["total_reform_backward"] / nb_runs_completed << " - ";
+    std::cout << timings["total_reform_initial"] / nb_runs_completed << " - ";
+    std::cout << timings["total_reform_forward"] / nb_runs_completed << ")" << std::endl;
+    std::cout << "Average time implicit:     " << timings["total_ns_impl"] / nb_runs_completed << " ns (";
+    std::cout << timings["total_impl_backward"] / nb_runs_completed << " - ";
+    std::cout << timings["total_impl_initial"] / nb_runs_completed << " - ";
+    std::cout << timings["total_impl_forward"] / nb_runs_completed << ")  (";
+    std::cout << timings["total_ns_impl_preprocess"] / nb_runs_completed << " - ";
+    std::cout << timings["total_ns_impl_solve"] / nb_runs_completed << " - ";
+    std::cout << timings["total_ns_impl_postprocess"] / nb_runs_completed << ")" << std::endl;
+    
+    std::map<std::string, std::vector<std::string>> breakdowns = {
+        {"LU factorization", {"total_lu_impl", "total_lu_reform"}},
+        {"implicit preprocess", {"total_pre_jac", "total_pre_hess", "total_pre_reg", "total_pre_decomp", "total_pre_info", "total_pre_rhs"}},
+        {"implicit preprocess decomp", {"total_decomp_copies", "total_decomp_decomp", "total_decomp_scale1", "total_decomp_scale2", "total_decomp_permutation", "total_decomp_store"}},
+        {"implicit solve modifications", {"total_solve_RSQrqt_copy", "total_solve_FuFx_addition", "total_solve_GuGx_addition", "total_solve_GuGx_hat_addition", "total_solve_ukb_tilde_addition", "total_solve_lambdatilde_addition", "total_solve_FuFx_addition_forward"}}
+    };
+    std::map<std::string, std::vector<std::string>> breakdown_totals = {
+        {"LU factorization", {"total_ns_impl", "total_ns_reform"}},
+        {"implicit preprocess", {"total_ns_impl_preprocess"}},
+        {"implicit preprocess decomp", {"total_pre_decomp"}},
+        {"implicit solve modifications", {"total_ns_impl_solve_inner"}}
+    };
 
-    std::cout << "decomposition breakdown: " << std::endl;
-    std::cout << "  - Copies:         " << std::setw(3) << std::setprecision(3) << 100.0 * total_decomp_copies / total_pre_decomp << " %" << std::endl;
-    std::cout << "  - Decomposition:  " << std::setw(3) << std::setprecision(3) << 100.0 * total_decomp_decomp / total_pre_decomp << " %" << std::endl;
-    std::cout << "  - Scaling1:       " << std::setw(3) << std::setprecision(3) << 100.0 * total_decomp_scale1 / total_pre_decomp << " %" << std::endl;
-    std::cout << "  - Scaling2:       " << std::setw(3) << std::setprecision(3) << 100.0 * total_decomp_scale2 / total_pre_decomp << " %" << std::endl;
-    std::cout << "  - Permutation:    " << std::setw(3) << std::setprecision(3) << 100.0 * total_decomp_permutation / total_pre_decomp << " %" << std::endl;
-    std::cout << "  - Store:          " << std::setw(3) << std::setprecision(3) << 100.0 * total_decomp_store / total_pre_decomp << " %" << std::endl;
+    // std::cout << "Time spent in LU factorization: " << std::endl;
+    // PrintLine("Implicit", total_lu_impl, total_ns_impl);
+    // PrintLine("Reformulated", total_lu_reform, total_ns_reform);
+    
+    PrintBreakdown(timings, "implicit preprocess", breakdowns, breakdown_totals);
+    PrintBreakdown(timings, "implicit preprocess decomp", breakdowns, breakdown_totals);
+    PrintBreakdown(timings, "implicit solve modifications", breakdowns, breakdown_totals);
 
+    // sort keys of timings by decreasing value
+    std::vector<std::string> keys_to_sort = breakdowns["implicit preprocess"];
+    keys_to_sort.insert(keys_to_sort.end(), 
+                        breakdowns["implicit preprocess decomp"].begin(), 
+                        breakdowns["implicit preprocess decomp"].end());
+    keys_to_sort.insert(keys_to_sort.end(), 
+                        breakdowns["implicit solve modifications"].begin(), 
+                        breakdowns["implicit solve modifications"].end());
+    std::vector<std::pair<std::string, long int>> sorted_timings(timings.begin(), timings.end());
+    std::sort(sorted_timings.begin(), sorted_timings.end(), [](const auto& a, const auto& b) {
+        return a.second > b.second;
+    });
 
-    std::cout << "implicit solve modifications breakdown: (" << total_ns_impl_solve_inner / nb_runs << ")" << std::endl;
-    // duration_lu_factorization, duration_RSQrqt_copy, duration_FuFx_addition, duration_GuGx_addition, duration_GuGx_hat_addition, duration_ukb_tilde_addition, duration_lambdatilde_addition, duration_FuFx_addition_forward
-    std::cout << "  - LU factorization:      " << std::setw(3) << std::setprecision(3) << 100.0 * solver_impl.value().duration_lu_factorization.count() / ns_impl_solve << " % (" << solver_impl.value().duration_lu_factorization.count() << ")" << std::endl;
-    std::cout << "  - RSQrqt copy:           " << std::setw(3) << std::setprecision(3) << 100.0 * solver_impl.value().duration_RSQrqt_copy.count() / ns_impl_solve << " % (" << solver_impl.value().duration_RSQrqt_copy.count() << ")" << std::endl;
-    std::cout << "  - FuFx addition:         " << std::setw(3) << std::setprecision(3) << 100.0 * solver_impl.value().duration_FuFx_addition.count() / ns_impl_solve << " % (" << solver_impl.value().duration_FuFx_addition.count() << ")" << std::endl;
-    std::cout << "  - GuGx addition:         " << std::setw(3) << std::setprecision(3) << 100.0 * solver_impl.value().duration_GuGx_addition.count() / ns_impl_solve << " % (" << solver_impl.value().duration_GuGx_addition.count() << ")" << std::endl;
-    std::cout << "  - GuGx hat addition:     " << std::setw(3) << std::setprecision(3) << 100.0 * solver_impl.value().duration_GuGx_hat_addition.count() / ns_impl_solve << " % (" << solver_impl.value().duration_GuGx_hat_addition.count() << ")" << std::endl;
-    std::cout << "  - ukb_tilde addition:    " << std::setw(3) << std::setprecision(3) << 100.0 * solver_impl.value().duration_ukb_tilde_addition.count() / ns_impl_solve << " % (" << solver_impl.value().duration_ukb_tilde_addition.count() << ")" << std::endl;
-    std::cout << "  - lambdatilde addition:  " << std::setw(3) << std::setprecision(3) << 100.0 * solver_impl.value().duration_lambdatilde_addition.count() / ns_impl_solve << " % (" << solver_impl.value().duration_lambdatilde_addition.count() << ")" << std::endl;
-    std::cout << "  - FuFx addition forward: " << std::setw(3) << std::setprecision(3) << 100.0 * solver_impl.value().duration_FuFx_addition_forward.count() / ns_impl_solve << " % (" << solver_impl.value().duration_FuFx_addition_forward.count() << ")" << std::endl;
+    std::cout << "Sorted time components:" << std::endl;
+    int i = 0;
+    int nb_printed = 0;
+    while (nb_printed < 100 && i < sorted_timings.size()) {
+        if (std::find(keys_to_sort.begin(), keys_to_sort.end(), sorted_timings[i].first) != keys_to_sort.end()){
+            PrintLine(sorted_timings[i].first, sorted_timings[i].second, timings["total_ns_impl"], true);
+            nb_printed++;
+        }
+        i++;
+    }   
 
 }

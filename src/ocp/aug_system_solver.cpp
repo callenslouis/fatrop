@@ -121,6 +121,7 @@ LinsolReturnFlag AugSystemSolver<OcpType>::solve(const ProblemInfo &info,
 {
     MatRealView *RSQrq_hat_curr_p;
     Index rank_k;
+    auto intermediate_start = std::chrono::high_resolution_clock::now();
     /////////////// recursion ///////////////
     for (Index k = info.dims.K - 1; k >= 0; --k)
     {
@@ -311,6 +312,10 @@ LinsolReturnFlag AugSystemSolver<OcpType>::solve(const ProblemInfo &info,
             trtr_l(nx, Ppt[k], 0, 0, Ppt[k], 0, 0);
         }
     }
+    auto intermediate_stop = std::chrono::high_resolution_clock::now();
+    duration_backward_recursion += std::chrono::duration_cast<std::chrono::nanoseconds>(intermediate_stop - intermediate_start);
+    intermediate_start = std::chrono::high_resolution_clock::now();
+
     rankI = 0;
     //////// FIRST_STAGE
     {
@@ -387,6 +392,9 @@ LinsolReturnFlag AugSystemSolver<OcpType>::solve(const ProblemInfo &info,
         PlI[0].apply_inverse(rankI, &eq_mult.vec(), offs_g);
         PrI[0].apply_inverse(rankI, &x.vec(), offs_x);
     }
+    intermediate_stop = std::chrono::high_resolution_clock::now();
+    duration_initial_stage += std::chrono::duration_cast<std::chrono::nanoseconds>(intermediate_stop - intermediate_start);
+    intermediate_start = std::chrono::high_resolution_clock::now();
     // other stages
     for (Index k = 0; k < info.dims.K; k++)
     {
@@ -469,6 +477,8 @@ LinsolReturnFlag AugSystemSolver<OcpType>::solve(const ProblemInfo &info,
                    offs_dyn_eq_k, eq_mult, offs_dyn_eq_k);
         }
     }
+    intermediate_stop = std::chrono::high_resolution_clock::now();
+    duration_forward_recursion += std::chrono::duration_cast<std::chrono::nanoseconds>(intermediate_stop - intermediate_start);
     return LinsolReturnFlag::SUCCESS;
 }
 LinsolReturnFlag AugSystemSolver<OcpType>::solve(const ProblemInfo &info,
@@ -1689,6 +1699,7 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
     auto start = std::chrono::high_resolution_clock::now();
     auto stop = std::chrono::high_resolution_clock::now();
 
+    auto intermediate_start = std::chrono::high_resolution_clock::now();
     /////////////// recursion ///////////////
     for (Index k = info.dims.K - 1; k >= 0; --k)
     {
@@ -1895,7 +1906,7 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
                 RSQrq_hat_curr_p = &RSQrqt_tilde[k];
             }
             start = std::chrono::steady_clock::now();  
-            if (k > 0){
+            if (k > 0 && jacobian.nb_new_controls[k-1] > 0){
                 // GuGx_tilde = GuGx * T_r^-1
                 gecp(nunxm1, nu, hessian.GuGx[k-1], 0, 0, GuGx_tilde[k-1], 0, 0);
                 // PrintNpArray(GuGx_tilde[k-1], "GuGx_tilde before permutation");
@@ -1982,7 +1993,7 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
                          rank_k);
                 }
                 start = std::chrono::high_resolution_clock::now();
-                if (k > 0){
+                if (k > 0 && jacobian.nb_new_controls[k-1] > 0){
                     // GuGx_hat = GuGx * L^-1
                     if (print_debug_lines) {std::cout << __LINE__ << std::endl;}
                     gecp(nunxm1, nu, GuGx_tilde[k-1], 0, 0, GuGx_hat[k-1], 0, 0);
@@ -2041,6 +2052,10 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
         PrintNpArray(Ppt[0], "Ppt");
         PrintNpArray(Hh[0], "Hh");
     }
+    auto intermediate_stop = std::chrono::high_resolution_clock::now();
+    duration_backward_recursion += std::chrono::duration_cast<std::chrono::nanoseconds>(intermediate_stop - intermediate_start);
+    intermediate_start = std::chrono::high_resolution_clock::now();
+
     rankI = 0;
     //////// FIRST_STAGE
     {
@@ -2126,6 +2141,9 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
         PrintNpArray(x, "x_first_stage");
         PrintNpArray(eq_mult, "eq_mult_first_stage");
     }
+    intermediate_stop = std::chrono::high_resolution_clock::now();
+    duration_initial_stage += std::chrono::duration_cast<std::chrono::nanoseconds>(intermediate_stop - intermediate_start);
+    intermediate_start = std::chrono::high_resolution_clock::now();
     // std::cout << "x initial solution:\n" << x << std::endl;
     // std::cout << "eq_mult initial solution:\n" << eq_mult << std::endl;
     // std::cout << " === FORWARD OTHER STAGES === " << std::endl;
@@ -2160,7 +2178,7 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
 
             start = std::chrono::high_resolution_clock::now();
             // + GuGxt [uk-1, xk-1]
-            if (k > 0){
+            if (k > 0 && jacobian.nb_new_controls[k-1] > 0){
                 const Index nunxm1 = info.dims.number_of_controls[k-1] + info.dims.number_of_states[k-1];
                 // std::cout << "----------------------------------------" << std::endl;
                 // std::cout << "test ukb_tilde update" << std::endl;
@@ -2279,6 +2297,9 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             // std::cout << "----------------------------------------" << std::endl;
         }
     }
+
+    intermediate_stop = std::chrono::high_resolution_clock::now();
+    duration_forward_recursion += std::chrono::duration_cast<std::chrono::nanoseconds>(intermediate_stop - intermediate_start);
 
     if (write_factorization_file){
         PrintFactorizationInfo(info, rank_k_values, Pl, Pr, LU, gamma_k_values, Ggt_eq, Llt, R_shur, factorization_file_name);
@@ -3522,6 +3543,7 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
         // store info
         inner_start = std::chrono::high_resolution_clock::now();
         jacobian.J_ranks[k] = rank;
+        jacobian.nb_new_controls[k] = nx_next - rank;
         // jacobian.Jt_LU[k] = JBAbt[0];
         gecp(nx_next, nx_next, JBAbt[0], 0, 0, jacobian.Jt_LU[k], 0, 0);
         inner_stop = std::chrono::high_resolution_clock::now();

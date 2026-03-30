@@ -146,6 +146,9 @@ namespace fatrop
                                            const VecRealView &g, VecRealView &x, VecRealView &eq_mult);
 
         std::chrono::nanoseconds duration_lu_factorization = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_backward_recursion = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_initial_stage = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_forward_recursion = std::chrono::nanoseconds(0);
     private:
         // temporaries, pre-allocated during construction to avoid allocation during
         // optimization
@@ -291,6 +294,10 @@ namespace fatrop
         std::chrono::nanoseconds duration_lambdatilde_addition = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_FuFx_addition_forward = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_inner_solve = std::chrono::nanoseconds(0);
+
+        std::chrono::nanoseconds duration_backward_recursion = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_initial_stage = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_forward_recursion = std::chrono::nanoseconds(0);
 
     private:
         // temporaries, pre-allocated during construction to avoid allocation during

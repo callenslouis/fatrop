@@ -125,6 +125,7 @@ namespace fatrop
             Jt_inv.reserve(dims.K - 1);
             rho.reserve(dims.K - 1);
             J_ranks.reserve(dims.K - 1);
+            nb_new_controls.reserve(dims.K - 1);
             Pl_pre.reserve(dims.K - 1);
             Pr_pre.reserve(dims.K - 1);
             U1U2t.reserve(dims.K - 1);
@@ -195,6 +196,7 @@ namespace fatrop
         std::vector<MatRealAllocated> U1U2t; // -(U1^-1 * U2)^T
         std::vector<MatRealAllocated> U1t;    // U1^T
         std::vector<Index> J_ranks;
+        std::vector<Index> nb_new_controls;
         std::vector<MatRealAllocated> Jt_LU;
 
         std::vector<MatRealAllocated> Jt_inv; // remove
