@@ -476,6 +476,11 @@ namespace fatrop
         std::chrono::nanoseconds duration_solve = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_postprocess = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_copying_rhs = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_post_rearrange_solution = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_post_scale_solution = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_post_reset_jacobian_pre = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_post_reset_hessian_pre = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_post_regularization = std::chrono::nanoseconds(0);
     private:
         ProblemInfo PreProcess(const ProblemInfo &info, 
                         Jacobian<ImplicitOcpType> &jacobian,

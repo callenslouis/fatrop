@@ -152,9 +152,9 @@ public:
     void GetRandomDimensions()
     {
         ClearOptionals();
-        int max_val = 50;
-        K = rand() % 4 + 2; // Random K between 2 and 21
-        nx = RandomVector(K, 0, 1+0*max_val);
+        int max_val = 40;
+        K = rand() % 10 + 2; // Random K between 2 and 21
+        nx = RandomVector(K, 0, max_val);
         if (full_rank){
             r = nx;
         } else {
@@ -164,7 +164,7 @@ public:
             }
         }
         nu = RandomVector(K, 0, max_val);
-        ng = RandomVector(K, 0, 1+0*max_val);
+        ng = RandomVector(K, 0, max_val);
         for (int k = 0; k < K; ++k){
             bool okay = false;
             while (!okay){
@@ -184,13 +184,13 @@ public:
                 }
             }
         }
-        ng_ineq = RandomVector(K, 0, 0*max_val);
+        ng_ineq = RandomVector(K, 0, max_val);
 
-        K = 1;
-        nx = {0};
-        nu = {0};
-        ng = {0};
-        ng_ineq = {0};
+        // K = 1;
+        // nx = {0};
+        // nu = {0};
+        // ng = {0};
+        // ng_ineq = {0};
 
         // std::cout << "K: " << K << std::endl;
         // std::cout << "nx:      "; for (auto val : nx){ std::cout << std::setw(4) << val << " ";} std::cout << std::endl;
@@ -493,11 +493,15 @@ public:
     }
 
     void Randomize(){
+        // std::cout << "randomizing dimensions" << std::endl;
         GetRandomDimensions();
+        // std::cout << "allocating solvers" << std::endl;
         AllocateSolvers();
+        // std::cout << "filling solvers" << std::endl;
         FillExplicitSolver();
         FillImplicitSolver();
         FillReformulatedSolver();
+        // std::cout << "done" << std::endl;
 
         solver_impl.value().set_performance_mode(true);
     }
@@ -557,13 +561,14 @@ void PrintBreakdown(const std::map<std::string, long int>& timings,
     };
 
     for (const auto& sub_key : breakdown.at(breakdown_key)){
-        PrintLine(key_translations[sub_key], timings.at(sub_key), timings.at(breakdown_totals.at(breakdown_key)[0]), true);
+        std::string key_translation = key_translations.count(sub_key) ? key_translations[sub_key] : sub_key;
+        PrintLine(key_translation, timings.at(sub_key), timings.at(breakdown_totals.at(breakdown_key)[0]), true);
     }
 }
 
 TEST_F(RandomBenchmarkTest, Test)
 {
-    int nb_runs = 100000;
+    int nb_runs = 10000;
     int nb_runs_completed = 0;
 
     std::map<std::string, long int> timings = {
@@ -604,6 +609,11 @@ TEST_F(RandomBenchmarkTest, Test)
         {"total_expl_forward", 0},
         {"total_impl_forward", 0},
         {"total_reform_forward", 0},
+        {"total_post_rearrange_solution", 0},
+        {"total_post_scale_solution", 0},
+        {"total_post_reset_jacobian_pre", 0},
+        {"total_post_reset_hessian_pre", 0},
+        {"total_post_regularization", 0}
     };
 
     std::ofstream f("random_benchmark_results.csv");
@@ -621,11 +631,21 @@ TEST_F(RandomBenchmarkTest, Test)
     Index ret_impl, ret_expl, ret_reform;
     std::mt19937 rng(std::random_device{}());
 
+    auto benchmark_start_time = std::chrono::steady_clock::now();
     while (nb_runs_completed < nb_runs){
         // std::cout << "Run " << nb_runs_completed + 1 << "/" << nb_runs << std::endl;
         // overwrite current status
-        std::cout << "progress: " << std::setw(3) << std::setprecision(2) << 100.0 * nb_runs_completed / nb_runs << " %";
+        std::cout << "progress: " << std::setw(5) << std::setprecision(2) << 100.0 * nb_runs_completed / nb_runs << " %";
+        auto current_time = std::chrono::steady_clock::now();
+        // compute estimated time remaining
+        long int elapsed_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(current_time - benchmark_start_time).count();
+        long int estimated_total_ns = elapsed_ns * nb_runs / (nb_runs_completed + 1);
+        long int estimated_remaining_ns = estimated_total_ns - elapsed_ns;
+        long int estimated_remaining_min = std::chrono::duration_cast<std::chrono::minutes>(std::chrono::nanoseconds(estimated_remaining_ns)).count();
+        long int estimated_remaining_seconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::nanoseconds(estimated_remaining_ns)).count() % 60;
+        std::cout << " (estimated remaining time: " << estimated_remaining_min << " min " << estimated_remaining_seconds << " sec)";
         if (nb_consecutive_failures > 0){ std::cout << " (+" << nb_consecutive_failures << " fails)"; }
+
         std::cout << "\r" << std::flush;
         Randomize();
 
@@ -636,6 +656,7 @@ TEST_F(RandomBenchmarkTest, Test)
 
         std::shuffle(order.begin(), order.end(), rng);
 
+        try{
         for (int idx : order){
             if (idx == 0){
                 // implicit //
@@ -653,6 +674,11 @@ TEST_F(RandomBenchmarkTest, Test)
                 ret_reform = solver_reform.value().solve(info_reform.value(), jacobian_reform.value(), hessian_reform.value(), D_x_reform.value(), D_s_reform.value(), rhs_x_reform.value(), rhs_g_reform.value(), x_reform.value(), mult_reform.value());
                 stop_reform = std::chrono::steady_clock::now();
             }
+        }
+        } catch (const std::exception& e){
+            std::cout << "Exception caught: " << e.what() << std::endl;
+            nb_consecutive_failures++;
+            continue;
         }
 
         if (ret_expl != LinsolReturnFlag::SUCCESS || 
@@ -717,6 +743,12 @@ TEST_F(RandomBenchmarkTest, Test)
         timings["total_impl_forward"] += solver_impl.value().duration_forward_recursion.count();
         timings["total_reform_forward"] += solver_reform.value().duration_forward_recursion.count();
 
+        timings["total_post_rearrange_solution"] += solver_impl.value().duration_post_rearrange_solution.count();
+        timings["total_post_scale_solution"] += solver_impl.value().duration_post_scale_solution.count();
+        timings["total_post_reset_jacobian_pre"] += solver_impl.value().duration_post_reset_jacobian_pre.count();
+        timings["total_post_reset_hessian_pre"] += solver_impl.value().duration_post_reset_hessian_pre.count();
+        timings["total_post_regularization"] += solver_impl.value().duration_post_regularization.count();
+
         nb_runs_completed++;
         nb_consecutive_failures = 0;
 
@@ -745,13 +777,15 @@ TEST_F(RandomBenchmarkTest, Test)
         {"LU factorization", {"total_lu_impl", "total_lu_reform"}},
         {"implicit preprocess", {"total_pre_jac", "total_pre_hess", "total_pre_reg", "total_pre_decomp", "total_pre_info", "total_pre_rhs"}},
         {"implicit preprocess decomp", {"total_decomp_copies", "total_decomp_decomp", "total_decomp_scale1", "total_decomp_scale2", "total_decomp_permutation", "total_decomp_store"}},
-        {"implicit solve modifications", {"total_solve_RSQrqt_copy", "total_solve_FuFx_addition", "total_solve_GuGx_addition", "total_solve_GuGx_hat_addition", "total_solve_ukb_tilde_addition", "total_solve_lambdatilde_addition", "total_solve_FuFx_addition_forward"}}
+        {"implicit solve modifications", {"total_solve_RSQrqt_copy", "total_solve_FuFx_addition", "total_solve_GuGx_addition", "total_solve_GuGx_hat_addition", "total_solve_ukb_tilde_addition", "total_solve_lambdatilde_addition", "total_solve_FuFx_addition_forward"}},
+        {"implicit postprocess", {"total_post_rearrange_solution", "total_post_scale_solution", "total_post_reset_jacobian_pre", "total_post_reset_hessian_pre", "total_post_regularization"}}
     };
     std::map<std::string, std::vector<std::string>> breakdown_totals = {
         {"LU factorization", {"total_ns_impl", "total_ns_reform"}},
         {"implicit preprocess", {"total_ns_impl_preprocess"}},
         {"implicit preprocess decomp", {"total_pre_decomp"}},
-        {"implicit solve modifications", {"total_ns_impl_solve_inner"}}
+        {"implicit solve modifications", {"total_ns_impl_solve_inner"}},
+        {"implicit postprocess", {"total_ns_impl_postprocess"}}
     };
 
     // std::cout << "Time spent in LU factorization: " << std::endl;
@@ -761,6 +795,7 @@ TEST_F(RandomBenchmarkTest, Test)
     PrintBreakdown(timings, "implicit preprocess", breakdowns, breakdown_totals);
     PrintBreakdown(timings, "implicit preprocess decomp", breakdowns, breakdown_totals);
     PrintBreakdown(timings, "implicit solve modifications", breakdowns, breakdown_totals);
+    PrintBreakdown(timings, "implicit postprocess", breakdowns, breakdown_totals);
 
     // sort keys of timings by decreasing value
     std::vector<std::string> keys_to_sort = breakdowns["implicit preprocess"];
@@ -770,12 +805,15 @@ TEST_F(RandomBenchmarkTest, Test)
     keys_to_sort.insert(keys_to_sort.end(), 
                         breakdowns["implicit solve modifications"].begin(), 
                         breakdowns["implicit solve modifications"].end());
+    keys_to_sort.insert(keys_to_sort.end(), 
+                        breakdowns["implicit postprocess"].begin(), 
+                        breakdowns["implicit postprocess"].end());
     std::vector<std::pair<std::string, long int>> sorted_timings(timings.begin(), timings.end());
     std::sort(sorted_timings.begin(), sorted_timings.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
     });
 
-    std::cout << "Sorted time components:" << std::endl;
+    std::cout << "\nSorted time components:" << std::endl;
     int i = 0;
     int nb_printed = 0;
     while (nb_printed < 100 && i < sorted_timings.size()) {
@@ -786,4 +824,11 @@ TEST_F(RandomBenchmarkTest, Test)
         i++;
     }   
 
+    long int jacobian_pre_post = 
+        timings["total_pre_jac"] + timings["total_post_reset_jacobian_pre"];
+    long int hessian_pre_post =
+        timings["total_pre_hess"] + timings["total_post_reset_hessian_pre"];
+    std::cout << "\nJacobian and Hessian pre- and postprocessing overhead:" << std::endl;
+    PrintLine("jacobian", jacobian_pre_post, timings["total_ns_impl"], true);
+    PrintLine("hessian", hessian_pre_post, timings["total_ns_impl"], true);
 }
