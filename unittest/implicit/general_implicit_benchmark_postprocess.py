@@ -9,11 +9,11 @@ settings = json.load(open('unittest/implicit/post_process_settings.json', 'r'))
 
 def latexify():
     params = {#'backend': 'ps',
-              'axes.labelsize': 20,
+              'axes.labelsize': 10,
               'axes.titlesize': 15,
-              'legend.fontsize': 15,
-              'xtick.labelsize': 15,
-              'ytick.labelsize': 15,
+              'legend.fontsize': 10,
+              'xtick.labelsize': 10,
+              'ytick.labelsize': 10,
               'text.usetex': True,
               'font.family': 'serif',
               'figure.figsize': [7,5],
@@ -44,6 +44,7 @@ def translate_label(label):
 def get_data():
     file = 'build_docker/random_benchmark_results.csv'
     # file = 'build_docker/random_benchmark_results_benelux.csv'
+    # file = 'build_docker/random_benchmark_results_huge.csv'
     df = pd.read_csv(file)
 
     data = {
@@ -63,6 +64,16 @@ def get_data():
         'lu_reform': np.array(df['lu_reform'].values),
         'impl_decomp': np.array(df['impl_decomp'].values),
     }
+
+    return data
+
+def add_flops_to_data(data):
+    fc = FlopCounter()
+    impl_flop, expl_flop, reform_flop = fc.get_all_flops(data)
+
+    data['impl_flop'] = impl_flop
+    data['expl_flop'] = expl_flop
+    data['reform_flop'] = reform_flop
 
     return data
 
@@ -114,9 +125,9 @@ def visualize_scaling(data, **kwargs):
     color_implicit = 'b'
     color_reformulated = 'g'
 
-    if kwargs.get('show_flops', True):
-        fc = FlopCounter()
-        impl_flop, expl_flop, reform_flop = fc.get_all_flops(data)
+    impl_flop = data['impl_flop']
+    reform_flop = data['reform_flop']
+    expl_flop = data['expl_flop']
 
     # for each metric, plot the scaling of the times
     if kwargs.get('single_figure', False):
@@ -177,7 +188,7 @@ def visualize_scaling(data, **kwargs):
             ax.plot(unique_sorted_metric, impl_means, label='Implicit (relative)', color=color_implicit)
             # plt.fill_between(unique_sorted_metric, np.array(impl_means) - np.array(impl_stds)/np.array(reform_means), np.array(impl_means) + np.array(impl_stds)/np.array(reform_means), alpha=0.2, color=color_implicit)
             ax.axhline(0, color='k', linestyle='-')
-            ax.set_ylabel('Relative time difference')
+            ax.set_ylabel('Relative\ndifference')
         else:    
             if kwargs.get('show_flops', True):
                 ax.plot(unique_sorted_metric, impl_flop_means, '-', alpha=0.5, label='FLOP estimate', color=color_implicit)
@@ -185,14 +196,17 @@ def visualize_scaling(data, **kwargs):
                 ax.plot(unique_sorted_metric, reform_flop_means, '-', alpha=0.5, label='FLOP estimate', color=color_reformulated)
 
             ax.plot(unique_sorted_metric, expl_means, label='Explicit', color=color_explicit)
-            ax.fill_between(unique_sorted_metric, np.array(expl_means) - np.array(expl_stds), np.array(expl_means) + np.array(expl_stds), alpha=0.2, color=color_explicit)
+            if kwargs.get("show_std", False):
+                ax.fill_between(unique_sorted_metric, np.array(expl_means) - np.array(expl_stds), np.array(expl_means) + np.array(expl_stds), alpha=0.2, color=color_explicit)
             ax.plot(unique_sorted_metric, impl_means, label='Implicit', color=color_implicit)
-            ax.fill_between(unique_sorted_metric, np.array(impl_means) - np.array(impl_stds), np.array(impl_means) + np.array(impl_stds), alpha=0.2, color=color_implicit)
+            if kwargs.get("show_std", False):
+                ax.fill_between(unique_sorted_metric, np.array(impl_means) - np.array(impl_stds), np.array(impl_means) + np.array(impl_stds), alpha=0.2, color=color_implicit)
             ax.plot(unique_sorted_metric, impl_pre_means, ':', label='Implicit pre', color='k')
             ax.plot(unique_sorted_metric, np.sum([impl_pre_means, impl_solve_means], axis=0), '--', label='Implicit solve', color='k')
             # ax.plot(unique_sorted_metric, np.sum([impl_pre_means, impl_solve_means, impl_post_means], axis=0), ':', label='Implicit post')
             ax.plot(unique_sorted_metric, reform_means, label='Reformulation', color=color_reformulated)
-            ax.fill_between(unique_sorted_metric, np.array(reform_means) - np.array(reform_stds), np.array(reform_means) + np.array(reform_stds), alpha=0.2, color=color_reformulated)
+            if kwargs.get("show_std", False):
+                ax.fill_between(unique_sorted_metric, np.array(reform_means) - np.array(reform_stds), np.array(reform_means) + np.array(reform_stds), alpha=0.2, color=color_reformulated)
             ax.set_ylabel('Time (ns)')
 
         ax.set_xlabel(translate_label(metric))
@@ -204,6 +218,21 @@ def visualize_scaling(data, **kwargs):
             plt.savefig(f'unittest/implicit/figures_benelux/scaling_{metric}{"_relative" if kwargs.get("relative", False) else ""}{"_flops" if kwargs.get("show_flops") else ""}.png', dpi=300)
     
     if kwargs.get('single_figure', False):
+        # remove the last axis (bottom right) and put a legend there
+        axs[1, 2].axis('off')
+        handles, labels = [], []
+        for ax in axs.flatten():
+            h, l = ax.get_legend_handles_labels()
+            handles.extend(h)
+            labels.extend(l)
+        unique_labels = []
+        unique_handles = []
+        for h, l in zip(handles, labels):
+            if l not in unique_labels:
+                unique_labels.append(l)
+                unique_handles.append(h)
+        axs[1, 2].legend(unique_handles, unique_labels, loc='center')
+        
         plt.savefig(f'unittest/implicit/figures_benelux/scaling_single_figure{"_relative" if kwargs.get("relative", False) else ""}{"_flops" if kwargs.get("show_flops") else ""}.png', dpi=300)
 
 def visualize_scaling_2d(data, **kwargs):
@@ -215,11 +244,9 @@ def visualize_scaling_2d(data, **kwargs):
     Z = np.full((len(y_unique), len(x_unique)), np.nan)
 
     if kwargs.get('show_flop', False):
-        # impl_flop = get_rough_flop_count(data['K'], data['nx'], data['nu'], data['ng'], data['r'], 
-        # reformulated=False, implicit=True)
-        # reform_flop = get_rough_flop_count(data['K'], data['nx'], data['nu'], data['ng'], data['r'], reformulated=True, implicit=False)
-        fc = FlopCounter()
-        impl_flop, expl_flop, reform_flop = fc.get_all_flops(data)
+        impl_flop = data['impl_flop']
+        reform_flop = data['reform_flop']
+        expl_flop = data['expl_flop']
 
         data_x = impl_flop
         data_y = reform_flop
@@ -238,7 +265,9 @@ def visualize_scaling_2d(data, **kwargs):
                 else:
                     Z[i, j] = (mean_impl - mean_reform)
 
-    fig, ax = plt.subplots()
+    # fig, ax = plt.subplots()
+    fig = plt.figure(figsize=(4,3))
+    ax = plt.gca()
     norm = mcolors.TwoSlopeNorm(vmin=min(-0.01, np.nanmin(Z)), vcenter=0, vmax=max(np.nanmax(Z),0.01))
     mesh = ax.pcolormesh(x_unique, y_unique, Z, cmap='bwr', norm=norm)
     cbar = fig.colorbar(mesh, ax=ax, label='Relative difference')
@@ -420,9 +449,13 @@ def visualize_lu_scaling_2d(data):
 
 data = get_data()
 
+# add flops
+data = add_flops_to_data(data)
+print("added flops to data")
+
 # visualize_preprocessing_scaling(data)
 
-visualize_scaling(data, show_flop=True, single_figure=True)
+visualize_scaling(data, show_flops=False, show_std=False, single_figure=True)
 visualize_scaling(data, relative=True, show_flops=True, single_figure=True)
 
 visualize_scaling_2d(data)

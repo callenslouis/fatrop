@@ -74,6 +74,8 @@ namespace fatrop
     void fatrop_lu_fact_transposed(const Index m, const Index n, const Index n_max, Index &rank, MAT *At,
                             PermutationMatrix &Pl, PermutationMatrix &Pr, double tol)
     {
+        std::cout << "computing LU of matrix" << std::endl;
+        blasfeo_print_dmat(m, n, At, 0, 0);
         fatrop_dbg_assert(m >= 0 && "m must be non-negative");
         fatrop_dbg_assert(n >= 0 && "n must be non-negative");
         fatrop_dbg_assert(n_max >= 0 && "n_max must be non-negative");

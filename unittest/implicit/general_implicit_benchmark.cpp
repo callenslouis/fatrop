@@ -153,7 +153,7 @@ public:
     {
         ClearOptionals();
         int max_val = 40;
-        K = rand() % 10 + 2; // Random K between 2 and 21
+        K = rand() % 30 + 2; // Random K between 2 and 21
         nx = RandomVector(K, 0, max_val);
         if (full_rank){
             r = nx;
@@ -568,8 +568,9 @@ void PrintBreakdown(const std::map<std::string, long int>& timings,
 
 TEST_F(RandomBenchmarkTest, Test)
 {
-    int nb_runs = 10000;
+    int nb_runs = 5000;
     int nb_runs_completed = 0;
+    bool write_csv = true;
 
     std::map<std::string, long int> timings = {
         {"total_ns_expl", 0},
@@ -616,8 +617,11 @@ TEST_F(RandomBenchmarkTest, Test)
         {"total_post_regularization", 0}
     };
 
-    std::ofstream f("random_benchmark_results.csv");
-    f << "K,nu,nx,r,ng,ng_ineq,t_expl,t_impl,t_impl_pre,t_impl_solve,t_impl_post,t_reform,lu_impl,lu_reform,impl_decomp\n";
+    std::ofstream f;    
+    if (write_csv){
+        f.open("random_benchmark_results.csv");
+        f << "K,nu,nx,r,ng,ng_ineq,t_expl,t_impl,t_impl_pre,t_impl_solve,t_impl_post,t_reform,lu_impl,lu_reform,impl_decomp\n";
+    }
     
     int nb_consecutive_failures = 0;
     std::array<int, 3> order = {0, 1, 2};
@@ -752,8 +756,10 @@ TEST_F(RandomBenchmarkTest, Test)
         nb_runs_completed++;
         nb_consecutive_failures = 0;
 
-        f << K << "," << nu[0] << "," << nx[0] << "," << r[0] << "," << ng[0] << "," << ng_ineq[0];
-        f << "," << ns_expl << "," << ns_impl << "," << ns_impl_preprocess << "," << ns_impl_solve << "," << ns_impl_postprocess << "," << ns_reform << "," << ns_lu_impl << "," << ns_lu_reform << "," << ns_decomp_decomp << "\n";
+        if (write_csv){
+            f << K << "," << nu[0] << "," << nx[0] << "," << r[0] << "," << ng[0] << "," << ng_ineq[0];
+            f << "," << ns_expl << "," << ns_impl << "," << ns_impl_preprocess << "," << ns_impl_solve << "," << ns_impl_postprocess << "," << ns_reform << "," << ns_lu_impl << "," << ns_lu_reform << "," << ns_decomp_decomp << "\n";
+        }
         
     }
 

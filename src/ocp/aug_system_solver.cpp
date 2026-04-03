@@ -1,8 +1,8 @@
 //
 // Copyright (C) 2024 Lander Vanroye, KU Leuven
 //
-#define PROFILE             // define to enable detailed profiling
-// #define IGNORE_EXTENSION    // define to use original fatrop algorithm
+// #define PROFILE             // define to enable detailed profiling
+#define IGNORE_EXTENSION    // define to use original fatrop algorithm
 #define IGNORE_JAC_HESS_PREPROCESS // define to ignore the pre- and postprocessing of jacobian and hessian
 
 #include "fatrop/ocp/aug_system_solver.hpp"
@@ -3464,7 +3464,7 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
         const Index offset_u = info.offsets_primal_u[k];
 
         trtr_l(nu + nx, hessian.RSQrqt[k], 0, 0, hessian.RSQrqt[k], 0, 0); // copy lower part of RSQ to upper part
-        if (D_eq != nullptr)
+        if (D_eq != nullptr && ng > 0)
         // equality penalty
         {
             for (Index i = 0; i < ng; i++)
@@ -3480,7 +3480,7 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
 
             // vecse(ng, 1.0, *D_eq, offset_eq_k);
         }
-        if (D_s != nullptr)
+        if (D_s != nullptr && ng_ineq > 0)
         // inequalities + inertia correction
         {
             if (ng_ineq > 0)
@@ -3495,6 +3495,7 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
                            jacobian.Gg_ineqt_original[k], 0, 0, 1.0, hessian.RSQrqt[k], 0, 0, hessian.RSQrqt[k],
                            0, 0);
                 // add the penalty to rhs
+                // TODO: is this needed? 
                 gemv_n(nu + nx, ng_ineq, 1.0, jacobian.Gg_ineqt[k], 0, 0, g, offset_g_ineq_k, 1.0, f, offset_u, f, offset_u);
 
                 // vecse(ng_ineq, 1.0, *D_s, offs_ineq_k);
