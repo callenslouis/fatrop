@@ -21,10 +21,33 @@ namespace fatrop
         fatrop_dbg_assert(kmax <= size_);
         ROWPE(kmax, permutation_vector_.data(), mat);
     };
+    void PermutationMatrix::apply_on_rows(const Index kmax, MAT *mat, const Index ai)
+    {
+        fatrop_dbg_assert(kmax <= size_);
+        fatrop_dbg_assert(ai >= 0);
+        for (Index i = 0; i < kmax; i++)
+        {
+            ROWSW(mat->m, mat, ai + i, 0, mat, ai + permutation_vector_[i], 0);
+        }
+    };
+    void PermutationMatrix::apply_inverse_on_rows(const Index kmax, MAT *mat, const Index ai)
+    {
+        fatrop_dbg_assert(kmax <= size_);
+        fatrop_dbg_assert(ai >= 0);
+        for (Index i = 0; i < kmax; i++)
+        {
+            ROWSW(mat->m, mat, ai + permutation_vector_[i], 0, mat, ai + i, 0);
+        }
+    };
     void PermutationMatrix::apply_on_cols(const Index kmax, MAT *mat)
     {
         fatrop_dbg_assert(kmax <= size_);
         COLPE(kmax, permutation_vector_.data(), mat);
+    };
+    void PermutationMatrix::apply_inverse_on_cols(const Index kmax, MAT *mat)
+    {
+        fatrop_dbg_assert(kmax <= size_);
+        COLPEI(kmax, permutation_vector_.data(), mat);
     };
     void PermutationMatrix::apply(const Index kmax, VEC *vec, const Index ai)
     {
@@ -74,8 +97,8 @@ namespace fatrop
     void fatrop_lu_fact_transposed(const Index m, const Index n, const Index n_max, Index &rank, MAT *At,
                             PermutationMatrix &Pl, PermutationMatrix &Pr, double tol)
     {
-        std::cout << "computing LU of matrix" << std::endl;
-        blasfeo_print_dmat(m, n, At, 0, 0);
+        // std::cout << "computing LU of matrix" << std::endl;
+        // blasfeo_print_dmat(n, m, At, 0, 0);
         fatrop_dbg_assert(m >= 0 && "m must be non-negative");
         fatrop_dbg_assert(n >= 0 && "n must be non-negative");
         fatrop_dbg_assert(n_max >= 0 && "n_max must be non-negative");
@@ -103,6 +126,45 @@ namespace fatrop
                 double Lji = blasfeo_matel_wrap(At, i, j) / blasfeo_matel_wrap(At, i, i);
                 blasfeo_matel_wrap(At, i, j) = Lji;
                 blasfeo_gead_wrap(n - (i + 1), 1, -Lji, At, i + 1, i, At, i + 1, j);
+            }
+            j = i + 1;
+        }
+        rank = j;
+    }
+    void fatrop_lu_fact_transposed(const Index m, const Index n, const Index n_max, Index &rank, MAT *At,
+                            const Index ai, const Index aj,
+                            PermutationMatrix &Pl, PermutationMatrix &Pr, double tol)
+    {
+        // std::cout << "computing LU of matrix" << std::endl;
+        // blasfeo_print_dmat(n, m, At, ai, aj);
+        fatrop_dbg_assert(m >= 0 && "m must be non-negative");
+        fatrop_dbg_assert(n >= 0 && "n must be non-negative");
+        fatrop_dbg_assert(n_max >= 0 && "n_max must be non-negative");
+        fatrop_dbg_assert(tol >= 0 && "tolerance must be non-negative");
+        At->use_dA = 0;
+        Index minmn = std::min(m, n_max);
+        Index j = 0;
+        for (Index i = 0; i < minmn; i++)
+        {
+            std::pair<Index, Index> max_curr = max_el(n_max + aj, m + ai, At, ai+i, aj+i);
+            if (abs(blasfeo_matel_wrap(At, max_curr.first, max_curr.second)) < tol)
+            {
+                break;
+            }
+
+            // switch rows
+            COLSW(n, At, ai, aj+i, At, ai, max_curr.second);
+            // save in permutation vector
+            Pl[i] = max_curr.second - aj;
+            // switch cols
+            ROWSW(m, At, ai+i, aj, At, max_curr.first, aj);
+            // save in permutation vector
+            Pr[i] = max_curr.first - ai;
+            for (Index j = i + 1; j < m; j++)
+            {
+                double Lji = blasfeo_matel_wrap(At, ai+i, aj+j) / blasfeo_matel_wrap(At, ai+i, aj+i);
+                blasfeo_matel_wrap(At, ai+i, aj+j) = Lji;
+                blasfeo_gead_wrap(n - (i + 1), 1, -Lji, At, ai+i + 1, aj+i, At, ai+i + 1, aj+j);
             }
             j = i + 1;
         }

@@ -44,6 +44,8 @@ namespace fatrop
          * @param mat Pointer to the matrix to be permuted.
          */
         void apply_on_rows(const Index kmax, MAT *mat);
+        void apply_on_rows(const Index kmax, MAT *mat, const Index ai);
+        void apply_inverse_on_rows(const Index kmax, MAT *mat, const Index ai);
 
         /**
          * @brief Applies the permutation to the columns of the given matrix.
@@ -51,6 +53,7 @@ namespace fatrop
          * @param mat Pointer to the matrix to be permuted.
          */
         void apply_on_cols(const Index kmax, MAT *mat);
+        void apply_inverse_on_cols(const Index kmax, MAT *mat);
 
         /**
          * @brief Applies the permutation to the given vector.
@@ -115,6 +118,9 @@ namespace fatrop
      * @note Ensure \( At \), \( Pl_p \), and \( Pr_p \) are allocated before use.
      */
     void fatrop_lu_fact_transposed(const Index m, const Index n, const Index n_max, Index &rank, MAT *At,
+                            PermutationMatrix &Pl, PermutationMatrix &Pr, double tol = 1e-5);
+    void fatrop_lu_fact_transposed(const Index m, const Index n, const Index n_max, Index &rank, MAT *At,
+                            const Index ai, const Index aj, 
                             PermutationMatrix &Pl, PermutationMatrix &Pr, double tol = 1e-5);
 
     /**
