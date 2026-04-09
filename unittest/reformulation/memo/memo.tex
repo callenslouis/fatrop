@@ -1,0 +1,172 @@
+\documentclass{article}
+\usepackage[a4paper, total={6in, 8in}]{geometry}
+
+\usepackage{amsmath}
+\usepackage{bm}
+\usepackage{amsfonts}
+\usepackage{blkarray}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{placeins}
+
+\begin{document}
+\title{LU decomposition for of constraint Jacobian}
+\section{Introduction}
+In the Riccati recursion, states (and dynamics lagrangian multipliers) are eliminated using the dynamics equation
+\begin{equation}
+    f(x_k, u_k) - x_{k+1} = 0
+\end{equation}
+of which the linearization that appears in the constraint jacobian is
+\begin{equation}
+    B_k u_k + A_k x_k - x_{k+1} = 0
+\end{equation}
+
+Controls (and stage-wise equality lagrnagian multipliers) are eliminated partially using the equality constraints by decomposing the stage-wise equality constraint jacobian, given by
+\begin{equation}
+    H_u = P_l T_l \begin{bmatrix}\bm{I}_\rho & \\ & \bm{0} \end{bmatrix} T_r P_r
+\end{equation}
+
+In the case of implicit integrators, the dynamics equation is given by
+\begin{equation}
+    f(x_k, u_k, x_{k+1}) = 0
+\end{equation}
+which can be implemented by introducing the controls $z_k \in \mathbb{R}^{n_x}$ and enforcing
+\begin{align}
+    z_k - x_{k+1} &= 0\\
+    f(x_k, u_k, z_k) &= 0
+\end{align}
+which leads to a specific structure in the stage-wise equality constraint jacobian, since the original equality do not depend on $z_k$
+\begin{equation}
+    H_u = \begin{bmatrix} M_1 & \\ M_2 & M_3 \end{bmatrix} \label{eq:Hu}
+\end{equation}
+where $M_1 \in \mathbb{R}^{n_x \times n_x}$, $M_2 \in \mathbb{R}^{n_g \times n_x}$, and $M_3 \in \mathbb{R}^{n_g \times n_u}$.
+
+\section{Blocked LU decomposition}
+The structure in the matrix given by \eqref{eq:Hu} can be exploited by performing the decomposition more efficiently. More precisely, instead of computing
+\begin{equation}
+    P_l H_u P_r = L U
+\end{equation}
+directly, we compute
+\begin{align}
+    P_l^1 M_1 P_r^1 &= L_1 U_1 & P_l^3 M_3 P_r^3 &= L_3 U_3 \\
+\end{align}
+
+The blocked LU decomposition can be completed by writing
+\begin{align}
+    \begin{bmatrix} P_l^1 & \\ & P_l^1 \end{bmatrix}
+    H_u
+    \begin{bmatrix} P_r^1 & \\ & P_r^1 \end{bmatrix}
+    &=
+    \begin{bmatrix} L_1 & \\ L_2 & L_3 \end{bmatrix}
+    \begin{bmatrix} U_1 & U_2 \\ & U_3 \end{bmatrix}\\
+    \longleftrightarrow
+    \begin{bmatrix} P_l^1 M_1 P_r^1 & \\ P_l^2 M_2 P_r^1 & P_l^2 M_3 P_r^2 \end{bmatrix}
+    &= \begin{bmatrix} L_1 U_1 & L_1 U_2 \\ L_2 U_1 & L_2 U_2 + L_3 U_3 \end{bmatrix}
+\end{align}
+where $U_2 = 0$ must hold, leading to
+\begin{align}
+    \begin{bmatrix} P_l^1 M_1 P_r^1 & \\ P_l^2 M_2 P_r^1 & P_l^2 M_3 P_r^2 \end{bmatrix}
+    &= \begin{bmatrix} L_1 U_1 &  \\ L_2 U_1 & L_3 U_3 \end{bmatrix}
+\end{align}
+This means the blocked LU decomposition can be completed by computing
+\begin{equation}
+    L_2 = P_l^2 M_2 P_r^1 U_1^{-1}
+\end{equation}
+Note that $U_1 \in \mathbb{R}^{n_x \times n_x}$ but is invertible only if $M_1$ is invertible. 
+
+\subsection{Note on invertability of $M_1$}
+In the case where $M_1$ is not invertible, a more general approach to determine $L_2$ is needed. If the rank of $M_1$ is denoted by $\rho$, then
+\begin{align}
+    L_1 &= \begin{bmatrix} K_1 & \\ K_2 & \bm{I}_{n_x-\rho} \end{bmatrix} & 
+    L_2 &= \begin{bmatrix} K_3 & K_4 \end{bmatrix} & 
+    U_1 &= \begin{bmatrix} V_1 & V_2 \\ & \bm{0}_{n_x-\rho} \end{bmatrix}
+\end{align}
+with $K_1 \in \mathbb{R}^{\rho \times \rho}$, $K_2 \in \mathbb{R}^{(n_x-\rho) \times \rho}$, $K_3 \in \mathbb{R}^{n_g \times \rho}$, $K_4 \in \mathbb{R}^{n_g \times (n_x-\rho)}$, $V_1 \in \mathbb{R}^{\rho \times \rho}$, and $V_2 \in \mathbb{R}^{\rho \times (n_x-\rho)}$.
+Then, we can see that
+\begin{align}
+    \begin{bmatrix} P_l^1 & \\ & P_l^1 \end{bmatrix}
+    H_u
+    \begin{bmatrix} P_r^1 & \\ & P_r^1 \end{bmatrix}
+    &=
+    \begin{bmatrix} L_1 & \\ L_2 & L_3 \end{bmatrix}
+    \begin{bmatrix} U_1 & \\ & U_3 \end{bmatrix}\\
+    &= \begin{bmatrix} K_1 & & \\ K_2 & \bm{I}_{n_x-\rho} & \\ K_3 & K_4 & L_3 \end{bmatrix}
+    \begin{bmatrix} V_1 & V_2 & \\ & \bm{0}_{n_x-\rho} & \\ & & U_3 \end{bmatrix}\\
+    &= \begin{bmatrix} K_1 V_1 & K_1 V_2 & \\ K_2 V_1 & K_2 V_2 & \\ K_3 V_1 & K_3 V_2 & L_3 U_3 \end{bmatrix}\\
+    &= \begin{bmatrix} P_l^1 M_1 P_r^1 & \\ P_l^2 M_2 P_r^1 & P_l^2 M_3 P_r^2 \end{bmatrix}
+\end{align}
+We can see that the value of $K_4$ does not influence the last equality so we can choose $K_4 = 0$. Finally, since we know that $V_1$ must be invertible, we can determine
+\begin{equation}
+    K_3 = P_l^2 M_2 P_r^1 \begin{bmatrix} \bm{I}_\rho\\ \bm{0}_{n_x-\rho \times \rho} \end{bmatrix} V_1^{-1}
+\end{equation}
+
+\textbf{Question: How do we guarantee that this choice of $K_3$ ensures that $K_3 V_2$ has the correct value?}
+
+We then obtain the following decomposition
+\begin{align}
+    \begin{bmatrix} P_l^1 & \\ & P_l^1 \end{bmatrix}
+    H_u
+    \begin{bmatrix} P_r^1 & \\ & P_r^1 \end{bmatrix}
+    &= \begin{bmatrix} K_1 & & \\ K_2 & \bm{I}_{n_x-\rho} & \\ K_3 & & L_3 \end{bmatrix}
+    \begin{bmatrix} V_1 & V_2 & \\ & \bm{0}_{n_x-\rho} & \\ & & U_3 \end{bmatrix}\\
+    &= \tilde{P}_l \begin{bmatrix} K_1 & & \\ K_3 & L_3 & \\ K_2 & & \bm{I}_{n_x-\rho} \end{bmatrix}
+    \begin{bmatrix} V_1 & & V_2 \\ & U_3 & \\ & & \end{bmatrix} \tilde{P}_r
+\end{align}
+where
+\begin{align}
+    \tilde{P}_l &= \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_x-\rho} \\ & \bm{I}_{n_g} & \end{bmatrix} &
+    \tilde{P}_r &= \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_u} \\ & \bm{I}_{n_x-\rho} & \end{bmatrix}
+\end{align}
+The additional permutation is required to obtain an LU decomposition that can be used in the Riccati recursion.
+
+\section{Numerical results} \FloatBarrier
+Figure \ref{fig:scaling} shows the computation time of the full LU decomposition (direct) and the blocked LU decomposition for varying $n_x$, $n_u$, and $n_g$. Figure \ref{fig:scaling_relative} shows the relative computation time between the two methods. For small values of $n_x$, the blocked LU is slower than the full LU decomposition, but for other cases, a speedup of 20\% to 30\% is observed.
+
+Figure \ref{fig:scaling_sliced} shows the relative difference in computation time as a function of $n_x$ and $n_u$ for different values of $n_g$. Again, for low values of $n_x$, the blocked LU is slower than the full LU decomposition. Additionally, the speedup is lower if $n_g$ is low.
+
+Both of these observations are to be expected since for $n_g = 0$, $H_u$ simply becomes
+\begin{equation}
+    H_u = \begin{bmatrix} M_1 & 0\end{bmatrix}
+\end{equation} 
+If $n_u$ is then also small, both approaches just perform the same decomposition of $M_1$. Similarly, if $n_x$ is low, both approaches just perform the decomposition of $M_3$.
+
+
+\begin{figure}
+    \centering
+    \begin{subfigure}{0.3\linewidth}
+        \includegraphics[width=\linewidth]{../figures/scaling_nx.png}
+    \end{subfigure}
+    \begin{subfigure}{0.3\linewidth}
+        \includegraphics[width=\linewidth]{../figures/scaling_nu.png}
+    \end{subfigure}
+    \begin{subfigure}{0.3\linewidth}
+        \includegraphics[width=\linewidth]{../figures/scaling_ng.png}
+    \end{subfigure}
+    \caption{Comparison in computation time between full LU decomposition (direct) and blocked LU decomposition.}
+    \label{fig:scaling}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \begin{subfigure}{0.3\linewidth}
+        \includegraphics[width=\linewidth]{../figures/scaling_relative_nx.png}
+    \end{subfigure}
+    \begin{subfigure}{0.3\linewidth}
+        \includegraphics[width=\linewidth]{../figures/scaling_relative_nu.png}
+    \end{subfigure}
+    \begin{subfigure}{0.3\linewidth}
+        \includegraphics[width=\linewidth]{../figures/scaling_relative_ng.png}
+    \end{subfigure}
+    \caption{Relative computation time between full LU decomposition (direct) and blocked LU decomposition.}
+    \label{fig:scaling_relative}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\linewidth]{../figures/scaling_sliced.png}
+    \caption{Comparison in computation time between full LU decomposition (direct) and blocked LU decomposition as a function of $n_x$ and $n_u$ for varying ranges of $n_g$. Note that we only consider cases where $n_g \leq n_x + n_u$.}
+    \label{fig:scaling_sliced}
+\end{figure}
+
+
+\end{document}

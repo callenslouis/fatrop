@@ -198,7 +198,7 @@ int main(){
     std::vector<int> nu(nb_runs);
     std::vector<int> nx(nb_runs);
     std::vector<int> ng(nb_runs);
-    int max_val = 15;
+    int max_val = 25;
     for (int i = 0; i < nb_runs; ++i) {
         nu[i] = rand() % (max_val+1); // Random number of control inputs between 1 and 100
         nx[i] = rand() % (max_val+1); // Random number of states between 1 and 100
@@ -353,8 +353,11 @@ int main(){
     std::ofstream csv_file(file_name);
     csv_file << "nu,nx,ng,time_full,time_blocked\n";
     for (int i = 0; i < nb_runs; ++i) {
+        double progress = (double)(i+1) / nb_runs * 100.0;
+        std::cout << "writing csv ... " << std::setw(4) << std::setprecision(3) << progress << "%\r" << std::flush;
         csv_file << nu[i] << "," << nx[i] << "," << ng[i] << "," << time_full[i] << "," << time_blocked[i] << "\n";
     }
+    std::cout << "\ncsv writing done" << std::endl;
 
     std::cout << "average time for full LU:    " << std::accumulate(time_full.begin(), time_full.end(), 0.0) / nb_runs << " us" << std::endl;
     std::cout << "average time for blocked LU: " << std::accumulate(time_blocked.begin(), time_blocked.end(), 0.0) / nb_runs << " us" << std::endl;
