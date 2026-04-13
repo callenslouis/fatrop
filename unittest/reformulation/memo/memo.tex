@@ -8,9 +8,14 @@
 \usepackage{graphicx}
 \usepackage{subcaption}
 \usepackage{placeins}
+\usepackage{mathtools}
+\usepackage{multirow}
+
+\title{Structure-exploiting LU decomposition for implicit integrators in the Riccati recursion}
+\author{Louis Callens}
 
 \begin{document}
-\title{LU decomposition for of constraint Jacobian}
+\maketitle
 \section{Introduction}
 In the Riccati recursion, states (and dynamics lagrangian multipliers) are eliminated using the dynamics equation
 \begin{equation}
@@ -40,6 +45,27 @@ which leads to a specific structure in the stage-wise equality constraint jacobi
     H_u = \begin{bmatrix} M_1 & \\ M_2 & M_3 \end{bmatrix} \label{eq:Hu}
 \end{equation}
 where $M_1 \in \mathbb{R}^{n_x \times n_x}$, $M_2 \in \mathbb{R}^{n_g \times n_x}$, and $M_3 \in \mathbb{R}^{n_g \times n_u}$.
+
+Figure \ref{fig:lu_time_spent} shows the percentage of computation time of the Ricatti recursion spent in computing the LU factorization of the matrix shown in \eqref{eq:Hu} as a function of $n_x$, $n_u$, and $n_g$. Especially if $n_g$ and $n_u$ are large, a significant percentage of time is spent in the LU decomposition, motivating the need to perform this decomposition more efficiently. For small values of $n_x$, the decomposition is less significant.
+
+\begin{figure}
+    \centering
+    \begin{subfigure}{0.3\linewidth}
+        \includegraphics[width=\linewidth]{../figures/scaling_2d_lu_time_spent_ng_nx.png}        
+    \end{subfigure}
+    \begin{subfigure}{0.3\linewidth}
+        \includegraphics[width=\linewidth]{../figures/scaling_2d_lu_time_spent_ng_nu.png}        
+    \end{subfigure}
+    \begin{subfigure}{0.3\linewidth}
+        \includegraphics[width=\linewidth]{../figures/scaling_2d_lu_time_spent_nx_nu.png}        
+    \end{subfigure}
+    \caption{Percentage of computation time of the Ricatti recursion spent in computing LU factorization of the matrix shown in \eqref{eq:Hu} as a function of $n_x$, $n_u$, and $n_g$. Gray colored areas indicate no data available in the performed benchmark.}
+    \label{fig:lu_time_spent}
+\end{figure}
+
+
+
+
 
 \section{Blocked LU decomposition}
 The structure in the matrix given by \eqref{eq:Hu} can be exploited by performing the decomposition more efficiently. More precisely, instead of computing
@@ -74,50 +100,145 @@ This means the blocked LU decomposition can be completed by computing
 \end{equation}
 Note that $U_1 \in \mathbb{R}^{n_x \times n_x}$ but is invertible only if $M_1$ is invertible. 
 
-\subsection{Note on invertability of $M_1$}
-In the case where $M_1$ is not invertible, a more general approach to determine $L_2$ is needed. If the rank of $M_1$ is denoted by $\rho$, then
-\begin{align}
-    L_1 &= \begin{bmatrix} K_1 & \\ K_2 & \bm{I}_{n_x-\rho} \end{bmatrix} & 
-    L_2 &= \begin{bmatrix} K_3 & K_4 \end{bmatrix} & 
-    U_1 &= \begin{bmatrix} V_1 & V_2 \\ & \bm{0}_{n_x-\rho} \end{bmatrix}
-\end{align}
-with $K_1 \in \mathbb{R}^{\rho \times \rho}$, $K_2 \in \mathbb{R}^{(n_x-\rho) \times \rho}$, $K_3 \in \mathbb{R}^{n_g \times \rho}$, $K_4 \in \mathbb{R}^{n_g \times (n_x-\rho)}$, $V_1 \in \mathbb{R}^{\rho \times \rho}$, and $V_2 \in \mathbb{R}^{\rho \times (n_x-\rho)}$.
-Then, we can see that
-\begin{align}
-    \begin{bmatrix} P_l^1 & \\ & P_l^1 \end{bmatrix}
-    H_u
-    \begin{bmatrix} P_r^1 & \\ & P_r^1 \end{bmatrix}
-    &=
-    \begin{bmatrix} L_1 & \\ L_2 & L_3 \end{bmatrix}
-    \begin{bmatrix} U_1 & \\ & U_3 \end{bmatrix}\\
-    &= \begin{bmatrix} K_1 & & \\ K_2 & \bm{I}_{n_x-\rho} & \\ K_3 & K_4 & L_3 \end{bmatrix}
-    \begin{bmatrix} V_1 & V_2 & \\ & \bm{0}_{n_x-\rho} & \\ & & U_3 \end{bmatrix}\\
-    &= \begin{bmatrix} K_1 V_1 & K_1 V_2 & \\ K_2 V_1 & K_2 V_2 & \\ K_3 V_1 & K_3 V_2 & L_3 U_3 \end{bmatrix}\\
-    &= \begin{bmatrix} P_l^1 M_1 P_r^1 & \\ P_l^2 M_2 P_r^1 & P_l^2 M_3 P_r^2 \end{bmatrix}
-\end{align}
-We can see that the value of $K_4$ does not influence the last equality so we can choose $K_4 = 0$. Finally, since we know that $V_1$ must be invertible, we can determine
-\begin{equation}
-    K_3 = P_l^2 M_2 P_r^1 \begin{bmatrix} \bm{I}_\rho\\ \bm{0}_{n_x-\rho \times \rho} \end{bmatrix} V_1^{-1}
-\end{equation}
 
-\textbf{Question: How do we guarantee that this choice of $K_3$ ensures that $K_3 V_2$ has the correct value?}
 
-We then obtain the following decomposition
+\subsection{Note on invertibility of $M_1$}
+In the case where $M_1$ is not invertible, a more general approach is needed. Suppose $M_1$ is decomposed as 
 \begin{align}
-    \begin{bmatrix} P_l^1 & \\ & P_l^1 \end{bmatrix}
-    H_u
-    \begin{bmatrix} P_r^1 & \\ & P_r^1 \end{bmatrix}
-    &= \begin{bmatrix} K_1 & & \\ K_2 & \bm{I}_{n_x-\rho} & \\ K_3 & & L_3 \end{bmatrix}
-    \begin{bmatrix} V_1 & V_2 & \\ & \bm{0}_{n_x-\rho} & \\ & & U_3 \end{bmatrix}\\
-    &= \tilde{P}_l \begin{bmatrix} K_1 & & \\ K_3 & L_3 & \\ K_2 & & \bm{I}_{n_x-\rho} \end{bmatrix}
-    \begin{bmatrix} V_1 & & V_2 \\ & U_3 & \\ & & \end{bmatrix} \tilde{P}_r
+    P_l^1 M_1 P_r^1 &= L_1 U_1
 \end{align}
 where
 \begin{align}
-    \tilde{P}_l &= \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_x-\rho} \\ & \bm{I}_{n_g} & \end{bmatrix} &
-    \tilde{P}_r &= \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_u} \\ & \bm{I}_{n_x-\rho} & \end{bmatrix}
+    L_1 &= \begin{bmatrix} K_1 & \\ K_2 & \bm{I}_{n_x-\rho} \end{bmatrix} & 
+    &\text{and} &
+    U_1 &= \begin{bmatrix} V_1 & V_2 \\ & \bm{0}_{n_x-\rho} \end{bmatrix}
 \end{align}
-The additional permutation is required to obtain an LU decomposition that can be used in the Riccati recursion.
+Define 
+\begin{align}
+    \tilde{L} &\coloneqq \begin{bmatrix} K_1 & & \\ K_2 & \bm{I}_{n_x-\rho} & \\ & & \bm{I}_{n_g} \end{bmatrix}
+    & &\text{such that} &
+    \tilde{L}^{-1} &= \begin{bmatrix} K_1^{-1} & & \\ -K_2 K_1^{-1} & \bm{I}_{n_x-\rho} & \\ & & \bm{I}_{n_g} \end{bmatrix}
+\end{align}
+which leads to
+\begin{equation}
+    \tilde{L}^{-1} 
+    \begin{bmatrix} P_l^1 & \\ & \bm{I}_{n_g} \end{bmatrix} 
+    H_u
+    \begin{bmatrix} P_r^1 & \\ & \bm{I}_{n_u} \end{bmatrix} 
+    = \begin{bmatrix} V_1 & V_2 & \\ &  & \\ K_3 & K_4 & M_3 \end{bmatrix}
+\end{equation}
+where $\begin{bmatrix} K_3 & K_4 \end{bmatrix} = M_2 P_r^1$ with $K_3 \in \mathbb{R}^{n_g \times \rho}$ and $K_4 \in \mathbb{R}^{n_g \times n_x - \rho}$.
+
+Continuing gaussian elimination, we can obtain
+\begin{align}
+    \hat{L} &\coloneqq \begin{bmatrix} K_1 & & \\ K_2 & \bm{I}_{n_x-\rho} & \\ K_3 V_1^{-1} & & \bm{I}_{n_g} \end{bmatrix}
+    & &\text{such that} &
+    \hat{L}^{-1} &= \begin{bmatrix} K_1^{-1} & & \\ -K_2 K_1^{-1} & \bm{I}_{n_x-\rho} & \\ -K_3 V_1^{-1} K_1^{-1} & & \bm{I}_{n_g} \end{bmatrix}
+\end{align}
+which leads to
+\begin{equation}
+    \hat{L}^{-1} 
+    \begin{bmatrix} P_l^1 & \\ & \bm{I}_{n_g} \end{bmatrix} 
+    H_u
+    \begin{bmatrix} P_r^1 & \\ & \bm{I}_{n_u} \end{bmatrix} 
+    = \begin{bmatrix} V_1 & V_2 & \\ &  & \\ & K_4 - K_3 V_1^{-1} V_2 & M_3 \end{bmatrix}
+\end{equation}
+Because of the zero-row, we must perform row pivoting in order to continue the decomposition. Hence, define
+\begin{equation}
+    \tilde{P} \coloneqq \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_x-\rho}\\ & \bm{I}_{n_g} & \end{bmatrix}
+\end{equation}
+leading to
+\begin{equation}
+    \tilde{P}
+    \hat{L}^{-1}
+    \tilde{P}^\top \tilde{P} 
+    \begin{bmatrix} P_l^1 & \\ & \bm{I}_{n_g} \end{bmatrix} 
+    H_u
+    \begin{bmatrix} P_r^1 & \\ & \bm{I}_{n_u} \end{bmatrix} 
+    = \begin{bmatrix} V_1 & V_2 & \\ & K_4 - K_3 V_1^{-1} V_2 & M_3\\ &  & \\\end{bmatrix}
+\end{equation}
+using the fact that $\tilde{P}^\top \tilde{P} = \bm{I}_{n_x + n_g}$. Now, a remaining LU-decomposition should be performed on the matrix $\begin{bmatrix} K_4 - K_3 V_1^{-1} V_2 & M_3\end{bmatrix}$ such that
+\begin{equation}
+    P_l^2 \begin{bmatrix} K_4 - K_3 V_1^{-1} V_2 & M_3\end{bmatrix} P_r^2 = L_2 \begin{bmatrix} V_3 & V_4 \end{bmatrix}
+\end{equation}
+where $V_3 \in \mathbb{R}^{n_g \times n_x - \rho}$ and $V_4 \in \mathbb{R}^{n_g \times n_u}$. Note that if $\rho = n_x$, this decomposition reduces to a decomposition of $M_3$.
+
+Finally, the decomposition of $M$ is given by 
+\begin{equation}
+    \hat{P}_l M \hat{P}_r = 
+    \begin{bmatrix} K_1 & & \\ K_3 & L_2 & \\ K_2 &  & \bm{I}_{n_x-\rho} \end{bmatrix}
+    \begin{bmatrix} V_1 & V_2 & \bm{0}_{\rho \times n_u}\\ & V_3 & V_4 \\ & & \bm{0}_{n_x-\rho \times n_u} \end{bmatrix}
+\end{equation}
+and 
+\begin{align}
+    \hat{P}_l &= 
+    \begin{bmatrix} \bm{I}_\rho & & \\ & P_l^2 & \\ & & \bm{I}_{n_x-\rho} \end{bmatrix}
+    \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_g} \\ & \bm{I}_{n_x-\rho} & \end{bmatrix}
+    \begin{bmatrix} P_l^1 & \\ & \bm{I}_{n_g} \end{bmatrix}\\
+    \hat{P}_r &= \begin{bmatrix} P_r^1 & \\ & \bm{I}_{n_u}\end{bmatrix} \begin{bmatrix}\bm{I}_\rho &\\ & P_r^2 \end{bmatrix}
+\end{align}
+
+
+
+% and we can continue with a decomposition of the matrix
+% \begin{equation}
+%     \begin{bmatrix} K_4 - K_3 V_1^{-1} V_2 & M_3\\ &  & \\\end{bmatrix}
+% \end{equation}
+% However, the current $L$-matrix of the decomposition is now given by
+% \begin{equation}
+%     \hat{L}\tilde{P}^{-1} = \begin{bmatrix} K_1^{-1} & & \\ K_2 & & \bm{I}_{n_x-\rho} \\ K_3 V_1^{-1} & \bm{I}_{n_g} & \end{bmatrix}
+% \end{equation}
+% which is not triangular anymore because we permuted rows that had already been covered in the decomposition.
+% This means it is impossible to perform a LU decomposition of the matrix $M_1$ and re-use it's result to compute the full LU decomposition.
+
+% a more general approach to determine $L_2$ is needed. If the rank of $M_1$ is denoted by $\rho$, then
+% \begin{align}
+%     L_1 &= \begin{bmatrix} K_1 & \\ K_2 & \bm{I}_{n_x-\rho} \end{bmatrix} & 
+%     L_2 &= \begin{bmatrix} K_3 & K_4 \end{bmatrix} & 
+%     U_1 &= \begin{bmatrix} V_1 & V_2 \\ & \bm{0}_{n_x-\rho} \end{bmatrix}
+% \end{align}
+% with $K_1 \in \mathbb{R}^{\rho \times \rho}$, $K_2 \in \mathbb{R}^{(n_x-\rho) \times \rho}$, $K_3 \in \mathbb{R}^{n_g \times \rho}$, $K_4 \in \mathbb{R}^{n_g \times (n_x-\rho)}$, $V_1 \in \mathbb{R}^{\rho \times \rho}$, and $V_2 \in \mathbb{R}^{\rho \times (n_x-\rho)}$.
+% Then, we can see that
+% \begin{align}
+%     \begin{bmatrix} P_l^1 & \\ & P_l^1 \end{bmatrix}
+%     H_u
+%     \begin{bmatrix} P_r^1 & \\ & P_r^1 \end{bmatrix}
+%     &=
+%     \begin{bmatrix} L_1 & \\ L_2 & L_3 \end{bmatrix}
+%     \begin{bmatrix} U_1 & \\ & U_3 \end{bmatrix}\\
+%     &= \begin{bmatrix} K_1 & & \\ K_2 & \bm{I}_{n_x-\rho} & \\ K_3 & K_4 & L_3 \end{bmatrix}
+%     \begin{bmatrix} V_1 & V_2 & \\ & \bm{0}_{n_x-\rho} & \\ & & U_3 \end{bmatrix}\\
+%     &= \begin{bmatrix} K_1 V_1 & K_1 V_2 & \\ K_2 V_1 & K_2 V_2 & \\ K_3 V_1 & K_3 V_2 & L_3 U_3 \end{bmatrix}\\
+%     &= \begin{bmatrix} P_l^1 M_1 P_r^1 & \\ P_l^2 M_2 P_r^1 & P_l^2 M_3 P_r^2 \end{bmatrix}
+% \end{align}
+% We can see that the value of $K_4$ does not influence the last equality so we can choose $K_4 = 0$. Finally, since we know that $V_1$ must be invertible, we can determine
+% \begin{equation}
+%     K_3 = P_l^2 M_2 P_r^1 \begin{bmatrix} \bm{I}_\rho\\ \bm{0}_{n_x-\rho \times \rho} \end{bmatrix} V_1^{-1}
+% \end{equation}
+
+% \textbf{Question: How do we guarantee that this choice of $K_3$ ensures that $K_3 V_2$ has the correct value?}
+
+% We then obtain the following decomposition
+% \begin{align}
+%     \begin{bmatrix} P_l^1 & \\ & P_l^1 \end{bmatrix}
+%     H_u
+%     \begin{bmatrix} P_r^1 & \\ & P_r^1 \end{bmatrix}
+%     &= \begin{bmatrix} K_1 & & \\ K_2 & \bm{I}_{n_x-\rho} & \\ K_3 & & L_3 \end{bmatrix}
+%     \begin{bmatrix} V_1 & V_2 & \\ & \bm{0}_{n_x-\rho} & \\ & & U_3 \end{bmatrix}\\
+%     &= \tilde{P}_l \begin{bmatrix} K_1 & & \\ K_3 & L_3 & \\ K_2 & & \bm{I}_{n_x-\rho} \end{bmatrix}
+%     \begin{bmatrix} V_1 & & V_2 \\ & U_3 & \\ & & \end{bmatrix} \tilde{P}_r
+% \end{align}
+% where
+% \begin{align}
+%     \tilde{P}_l &= \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_x-\rho} \\ & \bm{I}_{n_g} & \end{bmatrix} &
+%     \tilde{P}_r &= \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_u} \\ & \bm{I}_{n_x-\rho} & \end{bmatrix}
+% \end{align}
+% The additional permutation is required to obtain an LU decomposition that can be used in the Riccati recursion.
+
+
+
+
+
 
 \section{Numerical results} \FloatBarrier
 Figure \ref{fig:scaling} shows the computation time of the full LU decomposition (direct) and the blocked LU decomposition for varying $n_x$, $n_u$, and $n_g$. Figure \ref{fig:scaling_relative} shows the relative computation time between the two methods. For small values of $n_x$, the blocked LU is slower than the full LU decomposition, but for other cases, a speedup of 20\% to 30\% is observed.
@@ -167,6 +288,13 @@ If $n_u$ is then also small, both approaches just perform the same decomposition
     \caption{Comparison in computation time between full LU decomposition (direct) and blocked LU decomposition as a function of $n_x$ and $n_u$ for varying ranges of $n_g$. Note that we only consider cases where $n_g \leq n_x + n_u$.}
     \label{fig:scaling_sliced}
 \end{figure}
+
+\section{Conclusion}
+For some values of $n_x$, $n_u$ and $n_g$, the LU decomposition in the Ricatti recursion takes a significant percentage of the computation time. Hence, speeding it up can reduce the overall computation time. In the case of implicit integrators, the constraint jacobian (of which the LU decomposition is computed) is a 2x2 block matrix of which the top-left matrix is zero which can be exploited.
+
+Numerical results show that the time required to compute the decomposition can be reduced by 20-40\%. It is not always faster to compute the blocked LU decomposition. However, the parameter values for which the blocked LU is slower correspond to parameter values where the LU decomposition is less important within the recursion.
+
+However, in the case where the top-left matrix of the constraint jacobian (the $J$-matrix resulting from the dynamics) is not invertible, the blocked LU decomposition cannot be computed by first computing the LU decomposition of the top-left matrix and then re-using this decomposition to compute the full LU decomposition. Instead, pivoting within the full matrix should be included in the decomposition of the top-left block (which destroys structure).
 
 
 \end{document}

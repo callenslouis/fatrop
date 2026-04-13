@@ -113,13 +113,18 @@ def create_2d_plot(metric_x, metric_y, df, **kwargs):
 
     for ix, val_x in enumerate(metric_x_unique_sorted):
         for iy, val_y in enumerate(metric_y_unique_sorted):
-            if kwargs.get('show_flops', False):
+            if kwargs.get('show_time_spent_LU', False):
+                lu = df[(df[metric_x] == val_x) & (df[metric_y] == val_y)]['lu_reform'].mean()
+                total = df[(df[metric_x] == val_x) & (df[metric_y] == val_y)]['t_reform'].mean()
+                Z[ix, iy] = lu/total
+            elif kwargs.get('show_flops', False):
                 full = df[(df[metric_x] == val_x) & (df[metric_y] == val_y)]['flops_full'].mean()
                 blocked = df[(df[metric_x] == val_x) & (df[metric_y] == val_y)]['flops_blocked'].mean()
+                Z[ix,iy] = (blocked - full) / full
             else:
                 full = df[(df[metric_x] == val_x) & (df[metric_y] == val_y)]['time_full'].mean()
                 blocked = df[(df[metric_x] == val_x) & (df[metric_y] == val_y)]['time_blocked'].mean()
-            Z[ix,iy] = (blocked - full) / full
+                Z[ix,iy] = (blocked - full) / full
 
     ax = kwargs.get("ax", None)
     if ax is None:
@@ -140,10 +145,11 @@ def create_2d_plot(metric_x, metric_y, df, **kwargs):
         levels = np.arange(level_jump*(np.nanmin(Z)//level_jump-1), level_jump*(np.nanmax(Z)//level_jump+1), level_jump)
         
         # cmap = 'bwr'
-        cmap = 'seismic'
+        # cmap = 'seismic'
         # cmap = 'Spectral'
         # cmap = 'RdBu'
         # cmap = 'jet'
+        cmap = plt.cm.seismic
 
         # TwoSlopeNorm has weird scaling
         # norm = mcolors.TwoSlopeNorm(vmin=min(-0.01, np.nanmin(Z)), vcenter=0, vmax=max(np.nanmax(Z),0.01))
@@ -152,21 +158,31 @@ def create_2d_plot(metric_x, metric_y, df, **kwargs):
         # norm = mcolors.TwoSlopeNorm(vmin=-max_val, vcenter=0, vmax=max_val)
 
         # discrete colorbar with good scaling
-        levels = np.arange(level_jump*(-max_val//level_jump), level_jump*(max_val//level_jump+2), level_jump)
-        print(levels[0], levels[-1])
+        if kwargs.get('show_time_spent_LU', False):
+            levels = np.arange(0, 1, level_jump)
+        else:
+            levels = np.arange(level_jump*(-max_val//level_jump), level_jump*(max_val//level_jump+2), level_jump)
         norm = mcolors.BoundaryNorm(levels, ncolors=256)
+    
+    # color nan values in Z in grey
+    cmap.set_bad(color='lightgrey')
     
     # cntr = ax.contourf(metric_x_unique_sorted, metric_y_unique_sorted, Z, levels=levels, cmap=cmap, norm=norm)
     # cbar = fig.colorbar(cntr, ax=ax, label='Relative difference')
     mesh = ax.pcolormesh(metric_x_unique_sorted, metric_y_unique_sorted, Z, cmap=cmap, norm=norm)
-    cbar = fig.colorbar(mesh, ax=ax, label='Relative difference', )
-    
+    if kwargs.get('show_time_spent_LU', False):
+        cbar = fig.colorbar(mesh, ax=ax, label='Percentage of time\nspent in LU')
+    else:
+        cbar = fig.colorbar(mesh, ax=ax, label='Relative difference', )
+
     ax.set_xlabel(metric_y)
     ax.set_ylabel(metric_x)
+    plt.tight_layout()
     # plt.show()
     if kwargs.get("save_fig", True):
+        appendix = "lu_time_spent_" if kwargs.get("show_time_spent_LU", False) else ("flops_" if kwargs.get("show_flops", False) else "")
         plt.savefig("unittest/reformulation/figures/scaling_2d_" + 
-                    ("flops_" if kwargs.get("show_flops", False) else "") +
+                    appendix + 
                     metric_x + "_" + metric_y + ".png", dpi=300)
 
 def plot_scaling_2d(df, **kwargs):
@@ -203,6 +219,9 @@ def plot_sliced_scaling(df, **kwargs):
     # plt.show()
     plt.savefig("unittest/reformulation/figures/scaling_sliced.png", dpi=300)
 
+def show_time_spent_LU(**kwargs):
+    df = pd.read_csv('build_docker/random_benchmark_results_huge.csv')
+    plot_scaling_2d(df, show_time_spent_LU=True)
 
 # read the csv file (nu, nx, ng, time_full, time_blocked)
 df = pd.read_csv('build_docker/blocked_lu_timings.csv')
@@ -218,6 +237,7 @@ plot_scaling(df, show_flops=False, show_relative=True)
 plot_scaling_2d(df, simple_colorbar=False)
 # plot_scaling_2d(df, show_flops=True, simple_colorbar=False)
 plot_sliced_scaling(df)
+show_time_spent_LU()
 
 
 
