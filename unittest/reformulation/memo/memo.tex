@@ -10,6 +10,8 @@
 \usepackage{placeins}
 \usepackage{mathtools}
 \usepackage{multirow}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
 
 \title{Structure-exploiting LU decomposition for implicit integrators in the Riccati recursion}
 \author{Louis Callens}
@@ -178,7 +180,24 @@ and
     \hat{P}_r &= \begin{bmatrix} P_r^1 & \\ & \bm{I}_{n_u}\end{bmatrix} \begin{bmatrix}\bm{I}_\rho &\\ & P_r^2 \end{bmatrix}
 \end{align}
 
+\begin{algorithm}
+    \caption{Blocked LU decomposition of matrix $H_u$}
+    \begin{algorithmic}
+    \Require Matrix $H_u$ given by \eqref{eq:Hu}
+    \Ensure LU decomposition with complete pivoting $P_l H_u P_r = L U$
+    \State Compute $P_l^1$, $P_r^1$, $K_1$, $K_2$, $V_1$ and $V_2$ such that $P_l^1 M_1 P_r^1 = \begin{bmatrix}K1 & \\ K_2 & \bm{I}\end{bmatrix} \begin{bmatrix} V_1 & V_2\\ & \bm{0}\end{bmatrix}$
+    \State $\tilde{M}_2 \gets M_2 P_r^1$
+    \State $K_3 \gets \tilde{M}_2 \begin{bmatrix} \bm{I}_\rho \\ \bm{0}_{n_x-\rho \times \rho} \end{bmatrix} V_1^{-1}$
+    \State $K_4 \gets \tilde{M}_2 \begin{bmatrix} \bm{0}_{\rho \times n_x-\rho} \\ \bm{I}_{n_x-\rho} \end{bmatrix} - K_3 V_2$
+    \State Compute $P_l^2$, $P_r^2$, $L_2$, $V_3$ and $V_4$ such that $P_l^2 \begin{bmatrix} K_4 & M_3 \end{bmatrix} P_r^2 = L_2 \begin{bmatrix} V_3 & V_4 \end{bmatrix}$
+    \State $L \gets \begin{bmatrix} K_1 & & \\ K_3 & L_2 & \\ K_2 &  & \bm{I}_{n_x-\rho} \end{bmatrix}$
+    \State $U \gets \begin{bmatrix} V_1 & V_2 & \bm{0}_{\rho \times n_u}\\ & V_3 & V_4 \\ & & \bm{0}_{n_x-\rho \times n_u} \end{bmatrix}$
+    \State $P_l \gets \begin{bmatrix} \bm{I}_\rho & & \\ & P_l^2 & \\ & & \bm{I}_{n_x-\rho} \end{bmatrix} \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_g} \\ & \bm{I}_{n_x-\rho} & \end{bmatrix} \begin{bmatrix} P_l^1 & \\ & \bm{I}_{n_g} \end{bmatrix}$
+    \State $P_r \gets \begin{bmatrix} P_r^1 & \\ & \bm{I}_{n_u}\end{bmatrix} \begin{bmatrix}\bm{I}_\rho &\\ & P_r^2 \end{bmatrix}$
 
+    \end{algorithmic}
+\end{algorithm}
+    
 
 % and we can continue with a decomposition of the matrix
 % \begin{equation}

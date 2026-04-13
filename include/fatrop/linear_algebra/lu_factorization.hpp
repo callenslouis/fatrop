@@ -53,7 +53,9 @@ namespace fatrop
          * @param mat Pointer to the matrix to be permuted.
          */
         void apply_on_cols(const Index kmax, MAT *mat);
+        void apply_on_cols(const Index kmax, MAT *mat, const Index aj);
         void apply_inverse_on_cols(const Index kmax, MAT *mat);
+        void apply_inverse_on_cols(const Index kmax, MAT *mat, const Index aj);
 
         /**
          * @brief Applies the permutation to the given vector.

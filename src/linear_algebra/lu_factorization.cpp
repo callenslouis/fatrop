@@ -44,10 +44,28 @@ namespace fatrop
         fatrop_dbg_assert(kmax <= size_);
         COLPE(kmax, permutation_vector_.data(), mat);
     };
+    void PermutationMatrix::apply_on_cols(const Index kmax, MAT *mat, const Index aj)
+    {
+        fatrop_dbg_assert(kmax <= size_);
+        fatrop_dbg_assert(aj >= 0);
+        for (Index i = 0; i < kmax; i++)
+        {
+            COLSW(mat->n, mat, 0, aj + i, mat, 0, aj + permutation_vector_[i]);
+        }
+    }
     void PermutationMatrix::apply_inverse_on_cols(const Index kmax, MAT *mat)
     {
         fatrop_dbg_assert(kmax <= size_);
         COLPEI(kmax, permutation_vector_.data(), mat);
+    };
+    void PermutationMatrix::apply_inverse_on_cols(const Index kmax, MAT *mat, const Index aj)
+    {
+        fatrop_dbg_assert(kmax <= size_);
+        fatrop_dbg_assert(aj >= 0);
+        for (Index i = 0; i < kmax; i++)
+        {
+            COLSW(mat->n, mat, 0, aj + permutation_vector_[i], mat, 0, aj + i);
+        }
     };
     void PermutationMatrix::apply(const Index kmax, VEC *vec, const Index ai)
     {
@@ -114,13 +132,13 @@ namespace fatrop
                 break;
             }
             // switch rows
-            COLSW(n, At, 0, i, At, 0, max_curr.second);
-            // save in permutation vector
-            Pl[i] = max_curr.second;
-            // switch cols
-            ROWSW(m, At, i, 0, At, max_curr.first, 0);
-            // save in permutation vector
-            Pr[i] = max_curr.first;
+            // COLSW(n, At, 0, i, At, 0, max_curr.second);
+            // // save in permutation vector
+            // Pl[i] = max_curr.second;
+            // // switch cols
+            // ROWSW(m, At, i, 0, At, max_curr.first, 0);
+            // // save in permutation vector
+            // Pr[i] = max_curr.first;
             for (Index j = i + 1; j < m; j++)
             {
                 double Lji = blasfeo_matel_wrap(At, i, j) / blasfeo_matel_wrap(At, i, i);
@@ -153,13 +171,13 @@ namespace fatrop
             }
 
             // switch rows
-            COLSW(n, At, ai, aj+i, At, ai, max_curr.second);
-            // save in permutation vector
-            Pl[i] = max_curr.second - aj;
-            // switch cols
-            ROWSW(m, At, ai+i, aj, At, max_curr.first, aj);
-            // save in permutation vector
-            Pr[i] = max_curr.first - ai;
+            // COLSW(n, At, ai, aj+i, At, ai, max_curr.second);
+            // // save in permutation vector
+            // Pl[i] = max_curr.second - aj;
+            // // switch cols
+            // ROWSW(m, At, ai+i, aj, At, max_curr.first, aj);
+            // // save in permutation vector
+            // Pr[i] = max_curr.first - ai;
             for (Index j = i + 1; j < m; j++)
             {
                 double Lji = blasfeo_matel_wrap(At, ai+i, aj+j) / blasfeo_matel_wrap(At, ai+i, aj+i);
