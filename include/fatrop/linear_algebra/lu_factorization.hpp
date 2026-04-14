@@ -45,6 +45,7 @@ namespace fatrop
          */
         void apply_on_rows(const Index kmax, MAT *mat);
         void apply_on_rows(const Index kmax, MAT *mat, const Index ai);
+        void apply_on_rows(const Index kmax, MAT *mat, const Index ai, const Index m);
         void apply_inverse_on_rows(const Index kmax, MAT *mat, const Index ai);
 
         /**
@@ -54,6 +55,7 @@ namespace fatrop
          */
         void apply_on_cols(const Index kmax, MAT *mat);
         void apply_on_cols(const Index kmax, MAT *mat, const Index aj);
+        void apply_on_cols(const Index kmax, MAT *mat, const Index aj, const Index n);
         void apply_inverse_on_cols(const Index kmax, MAT *mat);
         void apply_inverse_on_cols(const Index kmax, MAT *mat, const Index aj);
 

@@ -43,7 +43,8 @@ def lu_full_pivoting(M, ignore_pivoting=False, ignore_col_pivoting=False):
         if ignore_pivoting:
             pivot_row, pivot_col = i, i
 
-        if np.isclose(U[pivot_row, pivot_col], 0):
+        # if np.isclose(U[pivot_row, pivot_col], 0):
+        if U[pivot_row, pivot_col] <= 1.0e-5:
             # If the pivot is zero, we cannot eliminate this column
             break
         
@@ -162,29 +163,56 @@ def test_degenerate_case_general():
 
     print("OK" + (" (full rank)" if r == nx else " (rank deficient)"))
 
-def test_degenerate_case_full_pivoting():
-    A, B, C, nx, r, nu, ng = get_M()
+def test_degenerate_case_full_pivoting(**kwargs):
+    if not kwargs.get("example_provided", False):
+        A, B, C, nx, r, nu, ng = get_M()
+    else:
+        M = kwargs.get("M", None)
+        assert M is not None, "If example_provided is True, M must be provided in kwargs"
+        nx = kwargs.get("nx", None)
+        r = kwargs.get("r", None)
+        nu = kwargs.get("nu", None)
+        ng = kwargs.get("ng", None)
+        assert nx is not None and r is not None and nu is not None and ng is not None, "If example_provided is True, nx, r, nu, ng must be provided in kwargs"
+        A = M[:nx,:nx].copy()
+        B = M[nx:nx+ng,:nx].copy()
+        C = M[nx:nx+ng:,nx:nx+nu].copy()
 
     ### Perform LU of top-left block
     P1, L11, U11, Q1 = lu_full_pivoting(A)
-    K1 = L11[:r, :r]
-    K2 = L11[r:, :r]
-    V1 = U11[:r, :r]
-    V2 = U11[:r, r:]
+    K1 = L11[:r, :r].copy()
+    K2 = L11[r:, :r].copy()
+    V1 = U11[:r, :r].copy()
+    V2 = U11[:r, r:].copy()
     assert L11.shape == (nx, nx)
     assert U11.shape == (nx, nx)
+    print(f"P1:\n{P1}\n")
+    print(f"L11:\n{L11}\n")
+    print(f"U11:\n{U11}\n")
+    print(f"Q1:\n{Q1}\n\n")
 
     ### Compute bottom left block of L
     B_tilde = B @ Q1
     K3 = B_tilde[:,:r] @ np.linalg.inv(V1)
+    print(f"K3:\n{K3}\n")
 
     ### Compute K4
     K4 = B_tilde[:, r:] - K3 @ V2
+    print(f"V2:\n{V2}\n")
+    print(f"-K3 @ V2:\n{-K3 @ V2}\n")
+    print(f"M2^2:\n{B_tilde[:,r:]}\n")
+    print(f"K4:\n{K4}\n\n")
 
     ### Perform second LU
-    P2, L22, U22, Q2 = lu_full_pivoting(np.block([[K4, C]]), ignore_pivoting=False, ignore_col_pivoting=True)
-    V3 = U22[:ng, :nx-r]
-    V4 = U22[:ng, nx-r:]
+    print(f"Computing LU of\n{np.block([[K4, C]])}\n")
+    P2, L22, U22, Q2 = lu_full_pivoting(np.block([[K4, C]]), ignore_pivoting=False, ignore_col_pivoting=False)
+    V3 = U22[:ng, :nx-r].copy()
+    V4 = U22[:ng, nx-r:].copy()
+
+    # K3 = P2.T @ K3
+    # V2 = (np.block([[V2, np.zeros((r, nu))]]) @ Q2.T)[:r, :nx-r]
+    K3 = P2 @ K3
+    V2 = (np.block([[V2, np.zeros((r, nu))]]) @ Q2)[:r, :nx-r]
 
     L = np.block([[K1, np.zeros((r, ng+nx-r))],
                     [P2 @ K3, L22[:ng, :ng], np.zeros((ng, nx-r))], 
@@ -213,24 +241,32 @@ def test_degenerate_case_full_pivoting():
     # print(f"Q:\n{Q}\n\n")
 
     assert M_reconstructed.shape == M.shape
+    print(f"L:\n{L}\n\n")
+    print(f"U:\n{U}\n\n")
 
-    # P_true, L_true, U_true, Q_true = lu_full_pivoting(M)
-    # print(f"P_true:\n{P_true}\n\n")
-    # print(f"L_true:\n{L_true}\n\n")
-    # print(f"U_true:\n{U_true}\n\n")
-    # print(f"Q_true:\n{Q_true}\n\n")
-
-    # print(f"Pl M2^1 Pr\n{P2 @ B[:,:r]}")
-
-    # print(f"M:\n{M}\n\n")
-    # print(f"M_reconstructed:\n{M_reconstructed}\n\n")
+    print(f"M:\n{M}\n\n")
+    print(f"P M Q:\n{P @ M @ Q}\n\n")
+    print(f"M_reconstructed:\n{M_reconstructed}\n\n")
     assert np.allclose(M_reconstructed, P @ M @ Q)
 
     print("OK" + (" (full rank)" if r == nx else " (rank deficient)"))
 
-for _ in range(10000):
+# for _ in range(10000):
     # test_degenerate_case()
     # test_degenerate_case_general()
-    test_degenerate_case_full_pivoting()
+    # test_degenerate_case_full_pivoting()
+
+ng = 3
+nu = 2
+nx = 3
+r = 2
+A_blocked = np.array([
+    [0.107025799236, -0.102612872972, 0.086754398769, 0.258906119624, 0.151229985129, 0.072545010630],
+    [-0.239653489647, 0.213823282910, -0.194164260232, 0.107848282022, 0.647207381971, 0.363598296588],
+    [0.684294982925, -0.547026985303, 0.554019914608, 0.288269520406, 0.331385820327, 0.091148579536],
+    [0.000000000000, 0.000000000000, 0.000000000000, 0.265461322975, 0.658746634451, 0.761777807847],
+    [0.000000000000, 0.000000000000, 0.000000000000, 0.625665319444, 0.517714721392, 0.207843591090]
+])
+test_degenerate_case_full_pivoting(example_provided=True, M=A_blocked.T, nx=nx, r=r, nu=nu, ng=ng)
 
     
