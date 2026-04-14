@@ -294,16 +294,24 @@ int main(){
 
 
     // setup random dimensions
-    int nb_runs = 10000;//1000000;
-    bool verify = true;
-    std::string file_name = "blocked_lu_timings.csv";
-    bool write_csv = false;
+    int nb_batches = 5;
+    int nb_runs = 1000000;
+    bool verify = false;
+    std::string file_name = "blocked_lu_timings_general.csv";
+    bool write_csv = true;
+    std::ofstream csv_file;
+    if (write_csv){
+        csv_file.open(file_name);
+        csv_file << "nu,nx,ng,rank,time_full,time_blocked\n";
+    }
+
+    for (int current_batch_number = 0; current_batch_number < nb_batches; current_batch_number++){
 
     std::vector<int> nu(nb_runs);
     std::vector<int> nx(nb_runs);
     std::vector<int> ng(nb_runs);
     std::vector<int> rank(nb_runs);
-    int max_val = 25;
+    int max_val = 20;
     for (int i = 0; i < nb_runs; ++i) {
         nu[i] = rand() % (max_val+1); // Random number of control inputs between 1 and 100
         nx[i] = rand() % (max_val+1); // Random number of states between 1 and 100
@@ -350,7 +358,7 @@ int main(){
     Pr_blocked_total.reserve(nb_runs);
     for (int k = 0; k < nb_runs; k++){
         double progress = (double)(k+1) / nb_runs * 100.0;
-        std::cout << "allocating ... " << std::setw(4) << std::setprecision(3) << progress << "%\r" << std::flush;
+        std::cout << "allocating ... " << std::setw(9) << std::setprecision(3) << progress << "%\r" << std::flush;
         int m = ng[k] + nx[k];
         int n = nu[k] + nx[k];
         MatRealAllocated top_left_block = ::test::random_degenerate_matrix(nx[k], rank[k]);
@@ -392,7 +400,7 @@ int main(){
     int r;
     for (int i = 0; i < nb_runs; ++i) {
         double progress = (double)(i+1) / nb_runs * 100.0;
-        std::cout << "running full LU ... " << std::setw(4) << std::setprecision(3) << progress << "%\r" << std::flush;
+        std::cout << "running full LU ... " << std::setw(9) << std::setprecision(3) << progress << "%\r" << std::flush;
 
         // store current matrix for verification later
         blasfeo_dgecp(nu[i]+nx[i], ng[i]+nx[i], &A_full[i].mat(), 0, 0, &A_copy.mat(), 0, 0);
@@ -417,7 +425,7 @@ int main(){
     int r2 = 0;
     for (int i = 0; i < nb_runs; ++i) {
         double progress = (double)(i+1) / nb_runs * 100.0;
-        std::cout << "running blocked LU ... " << std::setw(4) << std::setprecision(3) << progress << "%\r" << std::flush;
+        std::cout << "running blocked LU ... " << std::setw(9) << std::setprecision(3) << progress << "%\r" << std::flush;
         
         blasfeo_dgese(A_copy.m(), A_copy.n(), 0, &A_copy.mat(), 0, 0);
         blasfeo_dgecp(nu[i]+nx[i], ng[i]+nx[i], &A_blocked[i].mat(), 0, 0, &A_copy.mat(), 0, 0);
@@ -523,19 +531,17 @@ int main(){
     }
     std::cout << "\nblocked LU done" << std::endl;
 
-    if (!write_csv){
-        return 0;
+    if (write_csv){
+        // write csv file
+        for (int i = 0; i < nb_runs; ++i) {
+            double progress = (double)(i+1) / nb_runs * 100.0;
+            std::cout << "writing csv ... " << std::setw(9) << std::setprecision(3) << progress << "%\r" << std::flush;
+            csv_file << nu[i] << "," << nx[i] << "," << ng[i] << "," << rank[i] << "," << time_full[i] << "," << time_blocked[i] << "\n";
+        }
+        std::cout << "\ncsv writing done" << std::endl;
     }
-    // write csv file
-    std::ofstream csv_file(file_name);
-    csv_file << "nu,nx,ng,time_full,time_blocked\n";
-    for (int i = 0; i < nb_runs; ++i) {
-        double progress = (double)(i+1) / nb_runs * 100.0;
-        std::cout << "writing csv ... " << std::setw(4) << std::setprecision(3) << progress << "%\r" << std::flush;
-        csv_file << nu[i] << "," << nx[i] << "," << ng[i] << "," << time_full[i] << "," << time_blocked[i] << "\n";
-    }
-    std::cout << "\ncsv writing done" << std::endl;
 
     std::cout << "average time for full LU:    " << std::accumulate(time_full.begin(), time_full.end(), 0.0) / nb_runs << " us" << std::endl;
     std::cout << "average time for blocked LU: " << std::accumulate(time_blocked.begin(), time_blocked.end(), 0.0) / nb_runs << " us" << std::endl;
+    }
 }

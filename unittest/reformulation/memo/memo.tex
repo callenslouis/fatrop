@@ -12,6 +12,9 @@
 \usepackage{multirow}
 \usepackage{algorithm}
 \usepackage{algpseudocode}
+\usepackage{tikz}
+\usepackage{nicematrix}
+\usepackage{xcolor}
 
 \title{Structure-exploiting LU decomposition for implicit integrators in the Riccati recursion}
 \author{Louis Callens}
@@ -127,25 +130,25 @@ which leads to
     \begin{bmatrix} P_l^1 & \\ & \bm{I}_{n_g} \end{bmatrix} 
     H_u
     \begin{bmatrix} P_r^1 & \\ & \bm{I}_{n_u} \end{bmatrix} 
-    = \begin{bmatrix} V_1 & V_2 & \\ &  & \\ K_3 & K_4 & M_3 \end{bmatrix}
+    = \begin{bmatrix} V_1 & V_2 & \\ &  & \\ \tilde{M}_2^1 & \tilde{M}_2^2 & M_3 \end{bmatrix}
 \end{equation}
-where $\begin{bmatrix} K_3 & K_4 \end{bmatrix} = M_2 P_r^1$ with $K_3 \in \mathbb{R}^{n_g \times \rho}$ and $K_4 \in \mathbb{R}^{n_g \times n_x - \rho}$.
+where $\begin{bmatrix} \tilde{M}_2^1 & \tilde{M}_2^2 \end{bmatrix} = M_2 P_r^1$ with $\tilde{M}_2^1 \in \mathbb{R}^{n_g \times \rho}$ and $\tilde{M}_2^2 \in \mathbb{R}^{n_g \times n_x - \rho}$.
 
 Continuing gaussian elimination, we can obtain
 \begin{align}
-    \hat{L} &\coloneqq \begin{bmatrix} K_1 & & \\ K_2 & \bm{I}_{n_x-\rho} & \\ K_3 V_1^{-1} & & \bm{I}_{n_g} \end{bmatrix}
+    \hat{L} &\coloneqq \begin{bmatrix} K_1 & & \\ K_2 & \bm{I}_{n_x-\rho} & \\ K_3 & & \bm{I}_{n_g} \end{bmatrix}
     & &\text{such that} &
-    \hat{L}^{-1} &= \begin{bmatrix} K_1^{-1} & & \\ -K_2 K_1^{-1} & \bm{I}_{n_x-\rho} & \\ -K_3 V_1^{-1} K_1^{-1} & & \bm{I}_{n_g} \end{bmatrix}
+    \hat{L}^{-1} &= \begin{bmatrix} K_1^{-1} & & \\ -K_2 K_1^{-1} & \bm{I}_{n_x-\rho} & \\ -K_3 K_1^{-1} & & \bm{I}_{n_g} \end{bmatrix}
 \end{align}
-which leads to
+using $K_3 \coloneqq \tilde{M}_2^1 V_1^{-1}$, which leads to
 \begin{equation}
     \hat{L}^{-1} 
     \begin{bmatrix} P_l^1 & \\ & \bm{I}_{n_g} \end{bmatrix} 
     H_u
     \begin{bmatrix} P_r^1 & \\ & \bm{I}_{n_u} \end{bmatrix} 
-    = \begin{bmatrix} V_1 & V_2 & \\ &  & \\ & K_4 - K_3 V_1^{-1} V_2 & M_3 \end{bmatrix}
+    = \begin{bmatrix} V_1 & V_2 & \\ &  & \\ & K_4 & M_3 \end{bmatrix}
 \end{equation}
-Because of the zero-row, we must perform row pivoting in order to continue the decomposition. Hence, define
+where $K_4 \coloneqq \tilde{M}_2^2 - K_3 V_2$. Because of the zero-row, we must perform row pivoting in order to continue the decomposition. Hence, define
 \begin{equation}
     \tilde{P} \coloneqq \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_x-\rho}\\ & \bm{I}_{n_g} & \end{bmatrix}
 \end{equation}
@@ -157,19 +160,28 @@ leading to
     \begin{bmatrix} P_l^1 & \\ & \bm{I}_{n_g} \end{bmatrix} 
     H_u
     \begin{bmatrix} P_r^1 & \\ & \bm{I}_{n_u} \end{bmatrix} 
-    = \begin{bmatrix} V_1 & V_2 & \\ & K_4 - K_3 V_1^{-1} V_2 & M_3\\ &  & \\\end{bmatrix}
+    = \begin{bmatrix} V_1 & V_2 & \\ & K_4 & M_3\\ &  & \\\end{bmatrix}
 \end{equation}
-using the fact that $\tilde{P}^\top \tilde{P} = \bm{I}_{n_x + n_g}$. Now, a remaining LU-decomposition should be performed on the matrix $\begin{bmatrix} K_4 - K_3 V_1^{-1} V_2 & M_3\end{bmatrix}$ such that
+using the fact that $\tilde{P}^\top \tilde{P} = \bm{I}_{n_x + n_g}$. Now, a remaining LU-decomposition should be performed on the matrix $\begin{bmatrix} K_4 & M_3\end{bmatrix}$ such that
 \begin{equation}
-    P_l^2 \begin{bmatrix} K_4 - K_3 V_1^{-1} V_2 & M_3\end{bmatrix} P_r^2 = L_2 \begin{bmatrix} V_3 & V_4 \end{bmatrix}
+    P_l^2 \begin{bmatrix} K_4 & M_3\end{bmatrix} P_r^2 = L_2 \begin{bmatrix} V_3 & V_4 \end{bmatrix}
 \end{equation}
-where $V_3 \in \mathbb{R}^{n_g \times n_x - \rho}$ and $V_4 \in \mathbb{R}^{n_g \times n_u}$. Note that if $\rho = n_x$, this decomposition reduces to a decomposition of $M_3$.
+where $V_3 \in \mathbb{R}^{n_g \times n_x - \rho}$ and $V_4 \in \mathbb{R}^{n_g \times n_u}$. Note that if $\rho = n_x$, this decomposition reduces to a decomposition of $M_3$. Note that the permutation matrices $P_l^2$ and $P_r^2$ affect also $K_3$ and $V_2$, hence we define
+\begin{align}
+    \tilde{K}_3 &\coloneqq P_l^2 K_3\\
+    \tilde{V}_2 &\coloneqq V_2 \begin{bmatrix} \left(P_r^2\right)_{11} & \left(P_r^2\right)_{12} \end{bmatrix}
+\end{align}
 
 Finally, the decomposition of $M$ is given by 
 \begin{equation}
-    \hat{P}_l M \hat{P}_r = 
-    \begin{bmatrix} K_1 & & \\ K_3 & L_2 & \\ K_2 &  & \bm{I}_{n_x-\rho} \end{bmatrix}
-    \begin{bmatrix} V_1 & V_2 & \bm{0}_{\rho \times n_u}\\ & V_3 & V_4 \\ & & \bm{0}_{n_x-\rho \times n_u} \end{bmatrix}
+    \hat{P}_l H_u \hat{P}_r = 
+    \begin{bmatrix} K_1 & & \\ \tilde{K}_3 & L_2 & \\ K_2 &  & \bm{I}_{n_x-\rho} \end{bmatrix}
+    \begin{bNiceMatrix}[margin=8pt, cell-space-limits=2pt]
+        V_1 & \Block[draw=black]{1-2}{\tilde{V}_2} \\
+        & V_3 & V_4 \\
+        & & \bm{0}_{n_x-\rho \times n_u}
+    \end{bNiceMatrix}
+    \label{eq:final_decomposition}
 \end{equation}
 and 
 \begin{align}
@@ -190,69 +202,80 @@ and
     \State $K_3 \gets \tilde{M}_2 \begin{bmatrix} \bm{I}_\rho \\ \bm{0}_{n_x-\rho \times \rho} \end{bmatrix} V_1^{-1}$
     \State $K_4 \gets \tilde{M}_2 \begin{bmatrix} \bm{0}_{\rho \times n_x-\rho} \\ \bm{I}_{n_x-\rho} \end{bmatrix} - K_3 V_2$
     \State Compute $P_l^2$, $P_r^2$, $L_2$, $V_3$ and $V_4$ such that $P_l^2 \begin{bmatrix} K_4 & M_3 \end{bmatrix} P_r^2 = L_2 \begin{bmatrix} V_3 & V_4 \end{bmatrix}$
-    \State $L \gets \begin{bmatrix} K_1 & & \\ K_3 & L_2 & \\ K_2 &  & \bm{I}_{n_x-\rho} \end{bmatrix}$
-    \State $U \gets \begin{bmatrix} V_1 & V_2 & \bm{0}_{\rho \times n_u}\\ & V_3 & V_4 \\ & & \bm{0}_{n_x-\rho \times n_u} \end{bmatrix}$
+    \State $\tilde{K}_3 \gets P_l^2 K_3$
+    \State $\tilde{V}_2 \gets V_2 \begin{bmatrix} \left(P_r^2\right)_{11} & \left(P_r^2\right)_{12} \end{bmatrix}$
+    \State $L \gets \begin{bmatrix} K_1 & & \\ \tilde{K}_3 & L_2 & \\ K_2 &  & \bm{I}_{n_x-\rho} \end{bmatrix}$
+    \State $U \gets \begin{bNiceMatrix}[margin=8pt, cell-space-limits=2pt] V_1 & \Block[draw=black]{1-2}{\tilde{V}_2}\\ & V_3 & V_4 \\ & & \bm{0}_{n_x-\rho \times n_u} \end{bNiceMatrix}$
     \State $P_l \gets \begin{bmatrix} \bm{I}_\rho & & \\ & P_l^2 & \\ & & \bm{I}_{n_x-\rho} \end{bmatrix} \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_g} \\ & \bm{I}_{n_x-\rho} & \end{bmatrix} \begin{bmatrix} P_l^1 & \\ & \bm{I}_{n_g} \end{bmatrix}$
     \State $P_r \gets \begin{bmatrix} P_r^1 & \\ & \bm{I}_{n_u}\end{bmatrix} \begin{bmatrix}\bm{I}_\rho &\\ & P_r^2 \end{bmatrix}$
 
     \end{algorithmic}
 \end{algorithm}
-    
 
-% and we can continue with a decomposition of the matrix
-% \begin{equation}
-%     \begin{bmatrix} K_4 - K_3 V_1^{-1} V_2 & M_3\\ &  & \\\end{bmatrix}
-% \end{equation}
-% However, the current $L$-matrix of the decomposition is now given by
-% \begin{equation}
-%     \hat{L}\tilde{P}^{-1} = \begin{bmatrix} K_1^{-1} & & \\ K_2 & & \bm{I}_{n_x-\rho} \\ K_3 V_1^{-1} & \bm{I}_{n_g} & \end{bmatrix}
-% \end{equation}
-% which is not triangular anymore because we permuted rows that had already been covered in the decomposition.
-% This means it is impossible to perform a LU decomposition of the matrix $M_1$ and re-use it's result to compute the full LU decomposition.
 
-% a more general approach to determine $L_2$ is needed. If the rank of $M_1$ is denoted by $\rho$, then
-% \begin{align}
-%     L_1 &= \begin{bmatrix} K_1 & \\ K_2 & \bm{I}_{n_x-\rho} \end{bmatrix} & 
-%     L_2 &= \begin{bmatrix} K_3 & K_4 \end{bmatrix} & 
-%     U_1 &= \begin{bmatrix} V_1 & V_2 \\ & \bm{0}_{n_x-\rho} \end{bmatrix}
-% \end{align}
-% with $K_1 \in \mathbb{R}^{\rho \times \rho}$, $K_2 \in \mathbb{R}^{(n_x-\rho) \times \rho}$, $K_3 \in \mathbb{R}^{n_g \times \rho}$, $K_4 \in \mathbb{R}^{n_g \times (n_x-\rho)}$, $V_1 \in \mathbb{R}^{\rho \times \rho}$, and $V_2 \in \mathbb{R}^{\rho \times (n_x-\rho)}$.
-% Then, we can see that
-% \begin{align}
-%     \begin{bmatrix} P_l^1 & \\ & P_l^1 \end{bmatrix}
-%     H_u
-%     \begin{bmatrix} P_r^1 & \\ & P_r^1 \end{bmatrix}
-%     &=
-%     \begin{bmatrix} L_1 & \\ L_2 & L_3 \end{bmatrix}
-%     \begin{bmatrix} U_1 & \\ & U_3 \end{bmatrix}\\
-%     &= \begin{bmatrix} K_1 & & \\ K_2 & \bm{I}_{n_x-\rho} & \\ K_3 & K_4 & L_3 \end{bmatrix}
-%     \begin{bmatrix} V_1 & V_2 & \\ & \bm{0}_{n_x-\rho} & \\ & & U_3 \end{bmatrix}\\
-%     &= \begin{bmatrix} K_1 V_1 & K_1 V_2 & \\ K_2 V_1 & K_2 V_2 & \\ K_3 V_1 & K_3 V_2 & L_3 U_3 \end{bmatrix}\\
-%     &= \begin{bmatrix} P_l^1 M_1 P_r^1 & \\ P_l^2 M_2 P_r^1 & P_l^2 M_3 P_r^2 \end{bmatrix}
-% \end{align}
-% We can see that the value of $K_4$ does not influence the last equality so we can choose $K_4 = 0$. Finally, since we know that $V_1$ must be invertible, we can determine
-% \begin{equation}
-%     K_3 = P_l^2 M_2 P_r^1 \begin{bmatrix} \bm{I}_\rho\\ \bm{0}_{n_x-\rho \times \rho} \end{bmatrix} V_1^{-1}
-% \end{equation}
 
-% \textbf{Question: How do we guarantee that this choice of $K_3$ ensures that $K_3 V_2$ has the correct value?}
 
-% We then obtain the following decomposition
-% \begin{align}
-%     \begin{bmatrix} P_l^1 & \\ & P_l^1 \end{bmatrix}
-%     H_u
-%     \begin{bmatrix} P_r^1 & \\ & P_r^1 \end{bmatrix}
-%     &= \begin{bmatrix} K_1 & & \\ K_2 & \bm{I}_{n_x-\rho} & \\ K_3 & & L_3 \end{bmatrix}
-%     \begin{bmatrix} V_1 & V_2 & \\ & \bm{0}_{n_x-\rho} & \\ & & U_3 \end{bmatrix}\\
-%     &= \tilde{P}_l \begin{bmatrix} K_1 & & \\ K_3 & L_3 & \\ K_2 & & \bm{I}_{n_x-\rho} \end{bmatrix}
-%     \begin{bmatrix} V_1 & & V_2 \\ & U_3 & \\ & & \end{bmatrix} \tilde{P}_r
-% \end{align}
-% where
-% \begin{align}
-%     \tilde{P}_l &= \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_x-\rho} \\ & \bm{I}_{n_g} & \end{bmatrix} &
-%     \tilde{P}_r &= \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_u} \\ & \bm{I}_{n_x-\rho} & \end{bmatrix}
-% \end{align}
-% The additional permutation is required to obtain an LU decomposition that can be used in the Riccati recursion.
+
+
+
+
+\subsection{Verification of blocked LU decomposition}
+To verify \eqref{eq:final_decomposition}, compute both the left and right-hand side. The right-hand side is given by
+\begin{equation}
+    \begin{bmatrix} K_1 & & \\ \tilde{K}_3 & L_2 & \\ K_2 &  & \bm{I}_{n_x-\rho} \end{bmatrix}
+    \begin{bNiceMatrix}[margin=8pt, cell-space-limits=2pt]
+        V_1 & \Block[draw=black]{1-2}{\tilde{V}_2} \\
+        & V_3 & V_4 \\
+        & & \bm{0}_{n_x-\rho \times n_u}
+    \end{bNiceMatrix}
+    = 
+    \begin{bNiceMatrix}[margin=8pt, cell-space-limits=2pt]
+        K_1 V_1         & K_1 \tilde{V}_2 \\
+        \tilde{K}_3 V_1 & \tilde{K}_3 \tilde{V}_2 + L_2 \begin{bmatrix} V_3 & V_4 \end{bmatrix} \\
+        K_2 V_1         & K_2 \tilde{V}_2
+    \end{bNiceMatrix}
+    \label{eq:right-hand-side}
+\end{equation}
+
+The left-hand side can be using the definitions
+\begin{align}
+    X_1 \coloneqq \begin{bmatrix} P_l^1 & \\ & \bm{I}_{n_g} \end{bmatrix}
+    H_u
+    \begin{bmatrix} P_r^1 & \\ & \bm{I}_{n_u}\end{bmatrix}
+    &= \begin{bmatrix} P_l^1 M_1 P_r^1 & \\ M_2 P_r^1 & M_3 \end{bmatrix}\\
+    &= \begin{bmatrix} L_1 U_1 & \\ M_2 P_r^1 & M_3 \end{bmatrix}\\
+    &= \begin{bmatrix} K_1 V_1 & K_1 V_2 & \\ K_2 V_1 & K_2 V_2 &  \\ \tilde{M}_2^1 & \tilde{M}_2^2 & M_3 \end{bmatrix}\\
+    X_2 \coloneqq \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_g} \\ & \bm{I}_{n_x-\rho} & \end{bmatrix}
+    X_1
+    &= \begin{bmatrix} K_1 V_1 & K_1 V_2 & \\ \tilde{M}_2^1 & \tilde{M}_2^2 & M_3 \\ K_2 V_1 & K_2 V_2 & \end{bmatrix}
+\end{align}
+Such that we can compute
+\begin{align}
+    \hat{P}_l H_u \hat{P}_r &= \begin{bmatrix} \bm{I}_\rho & & \\ & P_l^2 & \\ & & \bm{I}_{n_x-\rho} \end{bmatrix}
+    X_2
+    \begin{bmatrix}\bm{I}_\rho & & \\ & \left(P_r^2\right)_{11} & \left(P_r^2\right)_{12}\\ & \left(P_r^2\right)_{21} & \left(P_r^2\right)_{22} \end{bmatrix}\\
+    &= \begin{bmatrix} K_1 V_1 & K_1 V_2 & \\ P_l^2 \tilde{M}_2^1 & P_l^2  \tilde{M}_2^2 & P_l^2  M_3 \\ K_2 V_1 & K_2 V_2 & \end{bmatrix}
+    \begin{bmatrix}\bm{I}_\rho & & \\ & \left(P_r^2\right)_{11} & \left(P_r^2\right)_{12}\\ & \left(P_r^2\right)_{21} & \left(P_r^2\right)_{22} \end{bmatrix}\\
+    &= \begin{bNiceMatrix}[margin=8pt, cell-space-limits=2pt] 
+        K_1 V_1 & K_1 \tilde{V}_2 \\ 
+        P_l^2 \tilde{M}_2^1 & P_l^2 \begin{bmatrix} \tilde{M}_2^2 & M_3 \end{bmatrix} P_r^2 \\ 
+        K_2 V_1 & K_2 \tilde{V}_2 
+    \end{bNiceMatrix}
+    \label{eq:left-hand-side}
+\end{align}
+
+Now we can see that \eqref{eq:left-hand-side} is equal to \eqref{eq:right-hand-side} by seeing that $\tilde{K}_3 V_1 = P_l^2 K_3 V_1 = P_l^2 \tilde{M}_2^1 V_1^{-1} V_1 = P_l^2 \tilde{M}_2^1$ and that
+\begin{align}
+    P_l^2 \begin{bmatrix} \tilde{M}_2^2 & M_3 \end{bmatrix} P_r^2
+    &= 
+    P_l^2 \begin{bmatrix} K_4 + K_3 V_2 & M_3 \end{bmatrix} P_r^2\\
+    &= P_l^2 \begin{bmatrix} K_4& M_3 \end{bmatrix} P_r^2 + P_l^2 \begin{bmatrix} K_3 V_2 & \bm{0}\end{bmatrix} P_r^2\\
+    &= \begin{bmatrix} L_2 V_3 & L_2 V_4 \end{bmatrix} + \tilde{K_3} \tilde{V}_2
+\end{align}
+
+
+
+
 
 
 
@@ -260,9 +283,11 @@ and
 
 
 \section{Numerical results} \FloatBarrier
-Figure \ref{fig:scaling} shows the computation time of the full LU decomposition (direct) and the blocked LU decomposition for varying $n_x$, $n_u$, and $n_g$. Figure \ref{fig:scaling_relative} shows the relative computation time between the two methods. For small values of $n_x$, the blocked LU is slower than the full LU decomposition, but for other cases, a speedup of 20\% to 30\% is observed.
+Figure \ref{fig:scaling} shows the computation time of the full LU decomposition (direct) and the blocked LU decomposition for varying $n_x$, relative rank of $M_1$, $n_u$, and $n_g$. Figure \ref{fig:scaling_relative} shows the relative computation time between the two methods. For small values of $n_x$, the blocked LU is slower than the full LU decomposition, but for other cases, a speedup of 20\% to 30\% is observed.
 
 Figure \ref{fig:scaling_sliced} shows the relative difference in computation time as a function of $n_x$ and $n_u$ for different values of $n_g$. Again, for low values of $n_x$, the blocked LU is slower than the full LU decomposition. Additionally, the speedup is lower if $n_g$ is low.
+
+Finally, Figure \ref{fig:scaling_sliced_rank} shows the relative difference in computation time as a function of $n_x$ and $n_u$ for different values of the relative rank of $M_1$. Again, for low values of $n_x$, the blocked LU is slower than the full LU decomposition. Additionally, the speedup is lower if the relative rank of $M_1$ is low. The rank itself does not seem to influence the relative computation time significantly.
 
 Both of these observations are to be expected since for $n_g = 0$, $H_u$ simply becomes
 \begin{equation}
@@ -273,13 +298,16 @@ If $n_u$ is then also small, both approaches just perform the same decomposition
 
 \begin{figure}
     \centering
-    \begin{subfigure}{0.3\linewidth}
+    \begin{subfigure}{0.24\linewidth}
         \includegraphics[width=\linewidth]{../figures/scaling_nx.png}
     \end{subfigure}
-    \begin{subfigure}{0.3\linewidth}
+    \begin{subfigure}{0.24\linewidth}
+        \includegraphics[width=\linewidth]{../figures/scaling_rank.png}
+    \end{subfigure}
+    \begin{subfigure}{0.24\linewidth}
         \includegraphics[width=\linewidth]{../figures/scaling_nu.png}
     \end{subfigure}
-    \begin{subfigure}{0.3\linewidth}
+    \begin{subfigure}{0.24\linewidth}
         \includegraphics[width=\linewidth]{../figures/scaling_ng.png}
     \end{subfigure}
     \caption{Comparison in computation time between full LU decomposition (direct) and blocked LU decomposition.}
@@ -288,13 +316,16 @@ If $n_u$ is then also small, both approaches just perform the same decomposition
 
 \begin{figure}
     \centering
-    \begin{subfigure}{0.3\linewidth}
+    \begin{subfigure}{0.24\linewidth}
         \includegraphics[width=\linewidth]{../figures/scaling_relative_nx.png}
     \end{subfigure}
-    \begin{subfigure}{0.3\linewidth}
+    \begin{subfigure}{0.24\linewidth}
+        \includegraphics[width=\linewidth]{../figures/scaling_relative_rank.png}
+    \end{subfigure}
+    \begin{subfigure}{0.24\linewidth}
         \includegraphics[width=\linewidth]{../figures/scaling_relative_nu.png}
     \end{subfigure}
-    \begin{subfigure}{0.3\linewidth}
+    \begin{subfigure}{0.24\linewidth}
         \includegraphics[width=\linewidth]{../figures/scaling_relative_ng.png}
     \end{subfigure}
     \caption{Relative computation time between full LU decomposition (direct) and blocked LU decomposition.}
@@ -308,12 +339,20 @@ If $n_u$ is then also small, both approaches just perform the same decomposition
     \label{fig:scaling_sliced}
 \end{figure}
 
+\begin{figure}
+    \centering
+    \includegraphics[width=\linewidth]{../figures/scaling_sliced_rank.png}
+    \caption{Comparison in computation time between full LU decomposition (direct) and blocked LU decomposition as a function of $n_x$ and $n_u$ for varying ranges of the relative rank of $M_1$.}
+    \label{fig:scaling_sliced_rank}
+\end{figure}
+
+
+
+
+
 \section{Conclusion}
 For some values of $n_x$, $n_u$ and $n_g$, the LU decomposition in the Ricatti recursion takes a significant percentage of the computation time. Hence, speeding it up can reduce the overall computation time. In the case of implicit integrators, the constraint jacobian (of which the LU decomposition is computed) is a 2x2 block matrix of which the top-left matrix is zero which can be exploited.
 
-Numerical results show that the time required to compute the decomposition can be reduced by 20-40\%. It is not always faster to compute the blocked LU decomposition. However, the parameter values for which the blocked LU is slower correspond to parameter values where the LU decomposition is less important within the recursion.
-
-However, in the case where the top-left matrix of the constraint jacobian (the $J$-matrix resulting from the dynamics) is not invertible, the blocked LU decomposition cannot be computed by first computing the LU decomposition of the top-left matrix and then re-using this decomposition to compute the full LU decomposition. Instead, pivoting within the full matrix should be included in the decomposition of the top-left block (which destroys structure).
-
+Numerical results show that the time required to compute the decomposition can be reduced by 20-40\% by using a blocked LU deomposition instead of a direct LU decomposition directly. Even though the blocked LU decomposition is not always faster to compute, the parameter values for which the blocked LU is slower correspond to parameter values where the LU decomposition is less important within the recursion.
 
 \end{document}
