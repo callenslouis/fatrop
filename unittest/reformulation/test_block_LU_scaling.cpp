@@ -10,6 +10,59 @@
 
 using namespace fatrop;
 
+void apply_Pl_on_cols(PermutationMatrix& Pl1, PermutationMatrix& Pl_rank, PermutationMatrix& Pl2, 
+                   const Index r1, const Index r2, const Index m, MAT* A){
+    // m: nx + ng
+    Pl1.apply_on_cols(r1, A);
+    Pl_rank.apply_on_cols(m, A);
+    Pl2.apply_on_cols(r2, A, 0, r1, A->m);
+}
+
+void apply_Pl_on_cols(PermutationMatrix& Pl1, PermutationMatrix& Pl_rank, PermutationMatrix& Pl2, 
+                   const Index r1, const Index r2, const Index m, MAT* A, const Index row_start){
+    Pl1.apply_on_cols(r1, A, row_start, 0, m);
+    Pl_rank.apply_on_cols(m, A, row_start, 0, m);
+    Pl2.apply_on_cols(r2, A, row_start, r1, m);
+}
+
+void apply_Pl(PermutationMatrix& Pl1, PermutationMatrix& Pl_rank, PermutationMatrix& Pl2, 
+              const Index r1, const Index r2, const Index m, VEC *vec, const Index ai){
+    Pl1.apply(r1, vec, ai);
+    Pl_rank.apply(m, vec, ai);
+    Pl2.apply(r2, vec, ai+r1);
+}
+
+void apply_Pl_inverse(PermutationMatrix& Pl1, PermutationMatrix& Pl_rank, PermutationMatrix& Pl2, 
+                      const Index r1, const Index r2, const Index m, VEC *vec, const Index ai){
+    Pl2.apply_inverse(r2, vec, ai+r1);
+    Pl_rank.apply_inverse(m, vec, ai);
+    Pl1.apply_inverse(r1, vec, ai);
+}
+
+void apply_Pr_on_rows(PermutationMatrix& Pr1, PermutationMatrix& Pr2, 
+                      const Index r1, const Index r2, MAT* A){
+    Pr1.apply_on_rows(r1, A);
+    Pr2.apply_on_rows(r2, A, r1);
+}
+
+void apply_Pr_on_cols(PermutationMatrix& Pr1, PermutationMatrix& Pr2, 
+                      const Index r1, const Index r2, MAT* A){
+    Pr1.apply_on_cols(r1, A);
+    Pr2.apply_on_cols(r2, A, 0, r1, A->m);
+}
+
+void apply_Pr(PermutationMatrix& Pr1, PermutationMatrix& Pr2, 
+              const Index r1, const Index r2, VEC *vec, const Index ai){
+    Pr1.apply(r1, vec, ai);
+    Pr2.apply(r2, vec, ai+r1);
+}
+
+void apply_Pr_inverse(PermutationMatrix& Pr1, PermutationMatrix& Pr2, 
+                      const Index r1, const Index r2, VEC *vec, const Index ai){
+    Pr2.apply_inverse(r2, vec, ai+r1);
+    Pr1.apply_inverse(r1, vec, ai);
+}
+
 void extract_L(const MatRealAllocated &LU, MatRealAllocated &L, int m, int n, int ai=0, int aj=0, int bi=0, int bj=0){
     for (int row = 0; row < m; row++){
         for (int col = 0; col < m; col++){
@@ -92,23 +145,13 @@ bool verify_lu(const MatRealAllocated &LU, const MatRealAllocated &A_original, M
     return true;
 }
 
-bool verify_blocked_lu(const MatRealAllocated& LU, const MatRealAllocated& B_tilde, 
-                       const MatRealAllocated& A_original, MatRealAllocated& A_verification, 
-                       MatRealAllocated& A_verification_T, MatRealAllocated& L, MatRealAllocated& U, 
-                       PermutationMatrix& Pl1, PermutationMatrix& Pr1, int rank1,
-                       PermutationMatrix& Pl2, PermutationMatrix& Pr2, int rank2,
-                       int ng, int nu, int nx){
-    PermutationMatrix Pl_total(ng+nx);
-    PermutationMatrix Pr_total(nu+nx);
-    for (int i = 0; i < nx; i++){
-        Pl_total[i] = Pl1[i];
-        Pr_total[i] = Pr1[i];
-    }
-    for (int i = 0; i < rank2; i++){
-        Pl_total[nx + i] = Pl2[i] + nx;
-        Pr_total[nx + i] = Pr2[i] + nx;
-    }
-
+bool verify_blocked_lu_new(const MatRealAllocated& LU, 
+        const MatRealAllocated& A_original, MatRealAllocated& A_verification, 
+        MatRealAllocated& A_verification_T, MatRealAllocated& L, MatRealAllocated& U, 
+        PermutationMatrix& Pl1, PermutationMatrix& Pr1, int rank1,
+        PermutationMatrix& Pl_rank,
+        PermutationMatrix& Pl2, PermutationMatrix& Pr2, int rank2,
+        int ng, int nu, int nx){
     MatRealAllocated A(A_original.m(), A_original.n());
     gecp(A_original.m(), A_original.n(), A_original, 0, 0, A, 0, 0);
 
@@ -117,26 +160,16 @@ bool verify_blocked_lu(const MatRealAllocated& LU, const MatRealAllocated& B_til
     blasfeo_dgese(L.m(), L.n(), 0, &L.mat(), 0, 0);
     blasfeo_dgese(U.m(), U.n(), 0, &U.mat(), 0, 0);
 
-
-    // extract L2 and U2
-    extract_L(LU, L, ng, ng, nx, nx, nx, nx);
-    extract_U(LU, U, ng, nu, nx, nx, nx, nx);
-
-    // extract L1 and U1
-    extract_L(LU, L, nx, nx, 0, 0);
-    extract_U(LU, U, nx, nx, 0, 0);
-
-    // copy B_tilde
-    getr(nx, ng, B_tilde, 0, 0, L, nx, 0);
+    extract_L(LU, L, ng+nx, ng+nx, 0, 0);
+    extract_U(LU, U, ng+nx, nu+nx, 0, 0);
 
     // compute L*U
     blasfeo_dgemm_nn(ng+nx, nu+nx, ng+nx, 1.0, &L.mat(), 0, 0, &U.mat(), 0, 0, 0.0, 
                      &A_verification.mat(), 0, 0, &A_verification.mat(), 0, 0);
 
     // apply permutations
-    int r = nx + rank2;
-    Pl_total.apply_on_cols(r, &A.mat());
-    Pr_total.apply_on_rows(r, &A.mat());
+    apply_Pl_on_cols(Pl1, Pl_rank, Pl2, rank1, rank2, ng+nx, &A.mat());
+    apply_Pr_on_rows(Pr1, Pr2, rank1, rank2, &A.mat());
 
     // transpose A_verification
     blasfeo_dgetr(ng+nx, nu+nx, &A_verification.mat(), 0, 0, &A_verification_T.mat(), 0, 0);
@@ -167,90 +200,57 @@ bool verify_blocked_lu(const MatRealAllocated& LU, const MatRealAllocated& B_til
     return true;
 }
 
+void fatrop_lu_fact_blocked_transposed(const Index m, const Index n, 
+        const Index n1, const Index n_max, Index &r1, Index &r2, Index &r, MAT *At,
+        PermutationMatrix &Pl1, PermutationMatrix &Pr1, PermutationMatrix &Pl_rank,
+        PermutationMatrix &Pl2, PermutationMatrix &Pr2, double tol,
+        MAT *scratch){
+    // nx: n1
+    // nu: n - n1
+    // ng: m - n1
 
-bool verify_blocked_lu_new(const MatRealAllocated& LU, 
-        const MatRealAllocated& A_original, MatRealAllocated& A_verification, 
-        MatRealAllocated& A_verification_T, MatRealAllocated& L, MatRealAllocated& U, 
-        PermutationMatrix& Pl1, PermutationMatrix& Pr1, int rank1,
-        PermutationMatrix& Pl_rank,
-        PermutationMatrix& Pl2, PermutationMatrix& Pr2, int rank2,
-        int ng, int nu, int nx){
-    // PermutationMatrix Pl_total(ng+nx);
-    // PermutationMatrix Pr_total(nu+nx);
-    // for (int i = 0; i < nx; i++){
-    //     Pl_total[i] = Pl1[i];
-    //     Pr_total[i] = Pr1[i];
-    // }
-    // for (int i = 0; i < rank2; i++){
-    //     Pl_total[nx + i] = Pl2[i] + nx;
-    //     Pr_total[nx + i] = Pr2[i] + nx;
-    // }
+    // lu of top-left block
+    fatrop_lu_fact_transposed(n1, n1, n1, r1, At, Pl1, Pr1, tol);
+    for (int k = 0; k < m-n1; k++){Pl_rank[r1 + k] = n1 + k;}
 
-    MatRealAllocated A(A_original.m(), A_original.n());
-    gecp(A_original.m(), A_original.n(), A_original, 0, 0, A, 0, 0);
+    // permute rows of matrix
+    Pl_rank.apply_on_cols(m, At);
 
-    blasfeo_dgese(A_verification.m(), A_verification.n(), 0, &A_verification.mat(), 0, 0);
-    blasfeo_dgese(A_verification_T.m(), A_verification_T.n(), 0, &A_verification_T.mat(), 0, 0);
-    blasfeo_dgese(L.m(), L.n(), 0, &L.mat(), 0, 0);
-    blasfeo_dgese(U.m(), U.n(), 0, &U.mat(), 0, 0);
+    // scaling bottom-left
+    blasfeo_dgecp(n1, m-n1, At, 0, r1, scratch, 0, 0);   // M2 to B
+    Pr1.apply_on_rows(r1, scratch);
 
+    // compute K3 and K4
+    blasfeo_dtrsm_llnn(r1, m-n1, 1.0, At, 0, 0, scratch, 0, 0, At, 0, r1);
 
-    // // extract L2 and U2
-    // extract_L(LU, L, ng, ng, nx, nx, nx, nx);
-    // extract_U(LU, U, ng, nu, nx, nx, nx, nx);
+    blasfeo_dgemm_nn(n1-r1, m-n1, r1, -1.0, At, r1, 0, At, 0, r1, 0.0, 
+                        At, r1, r1, At, r1, r1);
+    if (r1 > 0){
+        blasfeo_dgead(n1-r1, m-n1, 1.0, scratch, r1, 0, At, r1, r1);
+    } else {
+        blasfeo_dgecp(n1-r1, m-n1, scratch, r1, 0, At, r1, r1);
+    }
 
-    // // extract L1 and U1
-    // extract_L(LU, L, nx, nx, 0, 0);
-    // extract_U(LU, U, nx, nx, 0, 0);
+    // second LU decomposition
+    fatrop_lu_fact_transposed(m-n1, n-r1, n-r1, r2, At, r1, r1, Pl2, Pr2, tol);
+    r = r1 + r2;
 
-    extract_L(LU, L, ng+nx, ng+nx, 0, 0);
-    extract_U(LU, U, ng+nx, nu+nx, 0, 0);
+    Pl2.apply_on_cols(r2, At, 0, r1, r1); // permute K3
+    Pr2.apply_on_rows(r2, At, r1, r1); // permute V2
 
-    // // copy B_tilde
-    // getr(nx, ng, B_tilde, 0, 0, L, nx, 0);
+    // Fix bottom part
+    if (n > n_max){
+        apply_Pl_on_cols(Pl1, Pl_rank, Pl2, r1, r2, n-n_max, At, n_max);
+        blasfeo_dtrsm_runu(n-n_max, r, 1.0, At, 0, 0, At, n_max, 0, At, n_max, 0);
 
-    // compute L*U
-    blasfeo_dgemm_nn(ng+nx, nu+nx, ng+nx, 1.0, &L.mat(), 0, 0, &U.mat(), 0, 0, 0.0, 
-                     &A_verification.mat(), 0, 0, &A_verification.mat(), 0, 0);
-
-    // // apply permutations
-    // int r = nx + rank2;
-    // Pl_total.apply_on_cols(r, &A.mat());
-    // Pr_total.apply_on_rows(r, &A.mat());
-    Pl1.apply_on_cols(rank1, &A.mat());
-    Pl_rank.apply_on_cols(nx+ng, &A.mat());
-    Pl2.apply_on_cols(rank2, &A.mat(), rank1);
-
-    Pr1.apply_on_rows(rank1, &A.mat());
-    Pr2.apply_on_rows(rank2, &A.mat(), rank1);
-
-    // transpose A_verification
-    blasfeo_dgetr(ng+nx, nu+nx, &A_verification.mat(), 0, 0, &A_verification_T.mat(), 0, 0);
-
-    // check that A_copy and A_verification are close
-    double max_diff = 0.0;
-    for (int row = 0; row < nu+nx; row++){
-        for (int col = 0; col < ng+nx; col++){
-            double diff = std::abs(A(row,col) - A_verification_T(row,col));
-            if (diff > max_diff){
-                max_diff = diff;
+        for (int i = 0; i < r; i++){
+            for (int j = r; j < m; j++){
+                double Lji = blasfeo_matel_wrap(At, i, j);
+                blasfeo_gead_wrap(n-n_max, 1, -Lji, At, n_max, i, At, n_max, j);
             }
         }
     }
-
-    if (max_diff > 1e-4){
-        std::cout << "\nBlocked LU factorization verification failed" << std::endl;
-        std::cout << "A is an " << (ng+nx) << "x" << (nu+nx) << " matrix" << std::endl;
-        std::cout << "Max difference: " << max_diff << std::endl;
-        std::cout << "A_original:\n" << A_original << std::endl;
-        std::cout << "A_copy:\n" << A << std::endl;
-        std::cout << "A_verification:\n" << A_verification_T << std::endl;
-        std::cout << "L:\n" << L << std::endl;
-        std::cout << "U:\n" << U << std::endl;
-        return false;
-    }
-
-    return true;
+    
 }
 
 void write_np_matrix(const MatRealAllocated& M, int m, int n, std::string name){
@@ -276,29 +276,84 @@ void write_np_matrix(const MatRealAllocated& M, int m, int n, std::string name){
     o << std::flush;    
 }
 
+void test_fatrop_lu_fact_transposed_bottom_block(int N = 1000000){
+    // Test fatrop_lu_fact_transposed bottom block
+    // set random seed
+    srand(time(0));
+    int nb_successes = 0;
+    int nb_degenerate_cases = 0;
+    for (int nb = 0; nb < N; nb++){
+        // get random matrices
+        int m = rand() % 10 + 1;
+        int n_max = rand() % 10 + 1;
+        int n = rand() % 15 + 1;
+        n = std::max(n, n_max);
+        int rank = rand() % (std::min(m, n_max)+1);
+        MatRealAllocated At = ::test::random_degenerate_matrix(n, m, rank);
+        MatRealAllocated At_copy(n, m);
+        gecp(n, m, At, 0, 0, At_copy, 0, 0);
+
+        /// compute normal LU ///
+        PermutationMatrix Pl(m);
+        PermutationMatrix Pr(n);
+        int r;
+        fatrop_lu_fact_transposed(m, n, n_max, r, &At.mat(), Pl, Pr, 1e-5);
+        if (r < std::min(m, n_max)){ nb_degenerate_cases++;}
+        /////////////////////////
+
+        /// compute LU on top part and fix bottom part ///
+        PermutationMatrix Pl2(m);
+        PermutationMatrix Pr2(n);
+        int r2;
+        fatrop_lu_fact_transposed(m, n_max, n_max, r2, &At_copy.mat(), Pl2, Pr2, 1e-5);
+
+        Pl2.apply_on_cols(r2, &At_copy.mat(), n_max, 0, n-n_max);
+        blasfeo_dtrsm_runu(n-n_max, r2, 1.0, &At_copy.mat(), 0, 0, &At_copy.mat(), n_max, 0, &At_copy.mat(), n_max, 0);
+
+        for (int i = 0; i < r2; i++){
+            for (int j = r2; j < m; j++){
+                double Lji = blasfeo_matel_wrap(&At_copy.mat(), i, j);
+                blasfeo_gead_wrap(n-n_max, 1, -Lji, &At_copy.mat(), n_max, i, &At_copy.mat(), n_max, j);
+            }
+        }
+        /////////////////////////
+
+        bool success = true;
+        for (int ai = 0; ai < n; ai++){
+            for (int aj = 0; aj < m; aj++){
+                double diff = std::abs(At(ai,aj) - At_copy(ai,aj));
+                if (diff > 1e-4){
+                    success = false;
+                }
+            }
+        }
+        if (success) { nb_successes++; }
+        if (!success){
+            std::cout << "m: " << m << ", n_max: " << n_max << ", n: " << n << ", rank: " << r << std::endl;
+            // std::cout << "expected:\n" << At.block(n-n_max, m, n_max, 0) << std::endl;
+            // std::cout << "actual:\n" << At_copy.block(n-n_max, m, n_max, 0) << std::endl;
+            // std::cout << "expected:\n" << At << std::endl;
+            // std::cout << "actual:\n" << At_copy << std::endl;
+            blasfeo_dgead(n, m, -1.0, &At.mat(), 0, 0, &At_copy.mat(), 0, 0);
+            std::cout << "difference:\n" << At_copy << std::endl;
+        }    
+    }
+
+    std::cout << "success rate:    " << (double)nb_successes / N * 100.0 << "%" << std::endl;
+    std::cout << "degenerate rate: " << (double)nb_degenerate_cases / N * 100.0 << "%" << N << std::endl;
+}
+
 int main(){
-
-    // PermutationMatrix p1(3);
-    // PermutationMatrix p2(3);
-    // p1[0] = 1;
-    // // p2[1] = 2;
-    // std::cout << "before:" << std::endl;
-    // std::cout << "p1: " << p1 << std::endl;
-    // std::cout << "p2: " << p2 << std::endl;
-
-    // p2.apply(3, p1, 0);
-    // std::cout << "after:" << std::endl;
-    // std::cout << "p1: " << p1 << std::endl;
-    // std::cout << "p2: " << p2 << std::endl;
-    // return 0;
-
+    test_fatrop_lu_fact_transposed_bottom_block();
+    return 0;
 
     // setup random dimensions
-    int nb_batches = 5;
-    int nb_runs = 1000000;
-    bool verify = false;
+    int nb_batches = 1;//5;
+    int nb_runs = 100000;//1000000;
+    bool verify = true;
+    bool write_csv = false;
+
     std::string file_name = "blocked_lu_timings_general.csv";
-    bool write_csv = true;
     std::ofstream csv_file;
     if (write_csv){
         csv_file.open(file_name);
@@ -316,13 +371,7 @@ int main(){
         nu[i] = rand() % (max_val+1); // Random number of control inputs between 1 and 100
         nx[i] = rand() % (max_val+1); // Random number of states between 1 and 100
         ng[i] = rand() % (max_val+1); // Random number of constraints between 1 and 100
-        // rank[i] = nx[i];
-        // rank[i] = std::max(0, nx[i]-1);
         rank[i] = rand() % (nx[i]+1); // Random rank between 0 and nx[i]
-
-        // nu[i] = 1;
-        // nx[i] = 2;
-        // ng[i] = 1;
     }
 
     // allocate random matrices
@@ -409,7 +458,6 @@ int main(){
         auto start = std::chrono::high_resolution_clock::now();
         fatrop_lu_fact_transposed(ng[i]+nx[i], nu[i]+nx[i], nu[i]+nx[i], r, &A_full[i].mat(), Pl_full[i], Pr_full[i], 1e-5);
         auto end = std::chrono::high_resolution_clock::now();
-        // time_full[i] = std::chrono::duration<double>(end - start).count();
         time_full[i] = std::chrono::duration<double, std::micro>(end - start).count();
 
         // verify
@@ -423,6 +471,7 @@ int main(){
     // perform blocked lu timings
     int r1 = 0; 
     int r2 = 0;
+    int r_tot;
     for (int i = 0; i < nb_runs; ++i) {
         double progress = (double)(i+1) / nb_runs * 100.0;
         std::cout << "running blocked LU ... " << std::setw(9) << std::setprecision(3) << progress << "%\r" << std::flush;
@@ -430,103 +479,23 @@ int main(){
         blasfeo_dgese(A_copy.m(), A_copy.n(), 0, &A_copy.mat(), 0, 0);
         blasfeo_dgecp(nu[i]+nx[i], ng[i]+nx[i], &A_blocked[i].mat(), 0, 0, &A_copy.mat(), 0, 0);
 
-        // std::cout << "\nng = " << ng[i] << "\nnu = " << nu[i] << "\nnx = " << nx[i] << "\nr = " << rank[i] << std::endl;
-        // write_np_matrix(A_blocked[i], nu[i]+nx[i], ng[i]+nx[i], "A_blocked");
-
         auto start = std::chrono::high_resolution_clock::now();
-        // fatrop_lu_fact_transposed(nx[i], nx[i], nx[i], r1, &A_blocked[i].mat(), Pl_blocked1[i], Pr_blocked1[i], 1e-5);
-        // fatrop_lu_fact_transposed(ng[i], nu[i], nu[i], r2, &A_blocked[i].mat(), nx[i], nx[i], Pl_blocked2[i], Pr_blocked2[i], 1e-5);
-        // gecp(nx[i], ng[i], A_blocked[i], 0, nx[i], B, 0, 0);
-        // Pr_blocked1[i].apply_inverse_on_rows(r1, &B.mat(), 0);
-        // Pl_blocked2[i].apply_on_cols(r2, &B.mat());
-        // blasfeo_dtrsm_llnn(nx[i], ng[i], 1.0, &A_blocked[i].mat(), 0, 0, &B.mat(), 0, 0, &B_tilde.mat(), 0, 0);
-
-        // lu of top-left block
-        fatrop_lu_fact_transposed(nx[i], nx[i], nx[i], r1, &A_blocked[i].mat(), Pl_blocked1[i], Pr_blocked1[i], 1e-5);
-        // std::cout << "first lu done (rank: " << r1 << ")" << std::endl;
-        for (int k = 0; k < ng[i]; k++){Pl_rank[i][r1 + k] = nx[i] + k;}
-        // std::cout << "Pl_rank constructed" << std::endl;
-        // std::cout << Pl_rank[i] << std::endl;
-
-        // permute rows of matrix
-        // std::cout << "A_blocked before permuting rows: \n" << A_blocked[i] << std::endl;
-        Pl_rank[i].apply_on_cols(nx[i]+ng[i], &A_blocked[i].mat());
-        // std::cout << "permuted rows:\n" << A_blocked[i].block(nx[i]+nu[i], nx[i]+ng[i], 0, 0) << std::endl;
-        // std::cout << "A_blocked after permuting rows: \n" << A_blocked[i] << std::endl;
-
-        // scaling bottom-left
-        gecp(nx[i], ng[i], A_blocked[i], 0, r1, B, 0, 0);   // M2 to B
-        // Pr_blocked1[i].apply_inverse_on_rows(r1, &B.mat(), 0);
-        Pr_blocked1[i].apply_on_rows(r1, &B.mat());
-        // std::cout << "permuted rows of B:\n" << B.block(nx[i], ng[i], 0, 0) << std::endl;
-
-        // compute K3 and K4
-        blasfeo_dtrsm_llnn(r1, ng[i], 1.0, &A_blocked[i].mat(), 0, 0, &B.mat(), 0, 0, &A_blocked[i].mat(), 0, r1);
-        // std::cout << "computed K3" << std::endl;
-        // std::cout << "K3:\n" << A_blocked[i].block(r1, ng[i], 0, r1) << std::endl;
-        // std::cout << "A_blocked after computing K3: \n" << A_blocked[i] << std::endl;
-
-        blasfeo_dgemm_nn(nx[i]-r1, ng[i], r1, -1.0, &A_blocked[i].mat(), r1, 0, &A_blocked[i].mat(), 0, r1, 0.0, 
-                         &A_blocked[i].mat(), r1, r1, &A_blocked[i].mat(), r1, r1);
-        // std::cout << "V2:\n" << A_blocked[i].block(nx[i]-r1, r1, r1, 0) << std::endl;
-        // std::cout << "-K3 * V2:\n" << A_blocked[i].block(nx[i]-r1, ng[i], r1, r1) << std::endl;
-        // std::cout << "M2^2:\n" << B.block(nx[i]-r1, ng[i], r1, 0) << std::endl;
-        if (r1 > 0){
-            blasfeo_dgead(nx[i]-r1, ng[i], 1.0, &B.mat(), r1, 0, &A_blocked[i].mat(), r1, r1);
-        } else {
-            blasfeo_dgecp(nx[i]-r1, ng[i], &B.mat(), r1, 0, &A_blocked[i].mat(), r1, r1);
-        }
-        // std::cout << "computed K4" << std::endl;
-        // std::cout << "K4:\n" << A_blocked[i].block(nx[i]-r1, ng[i], r1, r1) << std::endl;
-        // std::cout << "A_blocked after computing K4: \n" << A_blocked[i] << std::endl;
-
-        // second LU decomposition
-        // std::cout << "computing LU of matrix\n" << A_blocked[i].block(ng[i] + nx[i] - r1, ng[i], r1, r1) << std::endl;
-        fatrop_lu_fact_transposed(ng[i], nx[i]-r1+nu[i], nx[i]-r1+nu[i], r2, &A_blocked[i].mat(), r1, r1, Pl_blocked2[i], Pr_blocked2[i], 1e-5);
-        Pl_blocked2[i].apply_on_cols(r2, &A_blocked[i].mat(), r1, r1); // permute K3
-        Pr_blocked2[i].apply_on_rows(r2, &A_blocked[i].mat(), r1, r1); // permute V2
-        // std::cout << "second lu done" << std::endl;
-        // std::cout << "A_blocked after second lu: \n" << A_blocked[i] << std::endl;
-
-        // construct Pl and Pr for the full matrix
-        // Pl_blocked1[i].apply(r1, Pl_blocked_total[i], 0);
-        // Pl_rank[i].apply(r1, Pl_blocked_total[i], 0);
-        // Pl_blocked2[i].apply(r2, Pl_blocked_total[i], r1);
-
+        fatrop_lu_fact_blocked_transposed(ng[i]+nx[i], nu[i]+nx[i], nx[i], nu[i]+nx[i], r1, r2, r_tot, &A_blocked[i].mat(), 
+            Pl_blocked1[i], Pr_blocked1[i], Pl_rank[i], Pl_blocked2[i], Pr_blocked2[i], 1e-5, 
+            &B_tilde.mat());
         auto end = std::chrono::high_resolution_clock::now();
         time_blocked[i] = std::chrono::duration<double, std::micro>(end - start).count();
 
         if (verify){
-        /*
-        bool check_block1 = verify_lu(A_blocked[i], A_copy, A_verification, A_verification_T, L, U, Pl_blocked1[i], Pr_blocked1[i], r1, nx[i], nx[i]);
-        if (!check_block1){
-            std::cout << "Verification failed for blocked LU (block 1) at run " << i+1 << std::endl;
-            return -1;
-        }
-        bool check_block2 = verify_lu(A_blocked[i], A_copy, A_verification, A_verification_T, L, U, Pl_blocked2[i], Pr_blocked2[i], r2, ng[i], nu[i], nx[i], nx[i]);
-        if (!check_block2){
-            // std::cout << "\nng = " << ng[i] << "\nnu = " << nu[i] << "\nnx = " << nx[i] << std::endl;
-            // write_np_matrix(A_blocked[i], nu[i]+nx[i], ng[i]+nx[i], "A_blocked");
-            // std::cout << "Pl: \n" << Pl_blocked2[i] << std::endl;
-            // std::cout << "Pr: \n" << Pr_blocked2[i] << std::endl;
-            std::cout << "Verification failed for blocked LU (block 2) at run " << i+1 << std::endl;
-            return -1;
-        }
-        */
-        // bool check_block_full = verify_blocked_lu(A_blocked[i], B_tilde, A_copy, 
-        //                                           A_verification, A_verification_T, L, U, 
-        //                                           Pl_blocked1[i], Pr_blocked1[i], r1, 
-        //                                           Pl_blocked2[i], Pr_blocked2[i], r2, ng[i], nu[i], nx[i]);
-        // std::cout << "verifying full blocked LU ... " << std::endl;
-        bool check_block_full = verify_blocked_lu_new(A_blocked[i], A_copy, 
-                                                  A_verification, A_verification_T, L, U, 
-                                                  Pl_blocked1[i], Pr_blocked1[i], r1,
-                                                  Pl_rank[i],  
-                                                  Pl_blocked2[i], Pr_blocked2[i], r2, ng[i], nu[i], nx[i]);
-        if (!check_block_full){
-            std::cout << "Verification failed for blocked LU (full) at run " << i+1 << std::endl;
-            return -1;
-        }
+            bool check_block_full = verify_blocked_lu_new(A_blocked[i], A_copy, 
+                                                    A_verification, A_verification_T, L, U, 
+                                                    Pl_blocked1[i], Pr_blocked1[i], r1,
+                                                    Pl_rank[i],  
+                                                    Pl_blocked2[i], Pr_blocked2[i], r2, ng[i], nu[i], nx[i]);
+            if (!check_block_full){
+                std::cout << "Verification failed for blocked LU (full) at run " << i+1 << std::endl;
+                return -1;
+            }
         }        
     }
     std::cout << "\nblocked LU done" << std::endl;

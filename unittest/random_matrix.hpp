@@ -85,6 +85,26 @@ namespace fatrop
             fatrop_dbg_assert(rank_found == rank && "Generated matrix does not have the desired rank");
             return ret;
         }
+        MatRealAllocated random_degenerate_matrix(Index m, Index n, Index rank)
+        {
+            MatRealAllocated matrix1 = random_matrix(m, rank);
+            MatRealAllocated matrix2 = random_matrix(rank, n);
+            MatRealAllocated ret(m, n);
+            // ret = matrix1 * matrix2, which has rank at most 'rank'
+            blasfeo_dgemm_nn(m, n, rank, 1.0, const_cast<MAT *>(&matrix1.mat()), 0, 0,
+                             const_cast<MAT *>(&matrix2.mat()), 0, 0, 0.0,
+                             const_cast<MAT *>(&ret.mat()), 0, 0, const_cast<MAT *>(&ret.mat()),
+                             0, 0);
+            // compute lu factorization of ret to check its rank
+            Index rank_found;
+            PermutationMatrix Pl(m);
+            PermutationMatrix Pr(n);
+            MatRealAllocated LU(m, n);
+            gecp(m, n, ret, 0, 0, LU, 0, 0);
+            fatrop_lu_fact_transposed(n, m, m, rank_found, &LU.mat(), Pl, Pr, 1e-5);
+            fatrop_dbg_assert(rank_found == rank && "Generated matrix does not have the desired rank");
+            return ret;
+        }
 
         VecRealAllocated random_vector(Index rows, Scalar lower_bound = -1.0,
                                        Scalar upper_bound = 1.0)

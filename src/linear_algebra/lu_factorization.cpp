@@ -54,23 +54,45 @@ namespace fatrop
         fatrop_dbg_assert(kmax <= size_);
         COLPE(kmax, permutation_vector_.data(), mat);
     };
-    void PermutationMatrix::apply_on_cols(const Index kmax, MAT *mat, const Index aj)
+    // void PermutationMatrix::apply_on_cols(const Index kmax, MAT *mat, const Index aj)
+    // {
+    //     fatrop_dbg_assert(kmax <= size_);
+    //     fatrop_dbg_assert(aj >= 0);
+    //     for (Index i = 0; i < kmax; i++)
+    //     {
+    //         COLSW(mat->n, mat, 0, aj + i, mat, 0, aj + permutation_vector_[i]);
+    //     }
+    // }
+    // void PermutationMatrix::apply_on_cols(const Index kmax, MAT *mat, const Index aj, const Index n)
+    // {
+    //     fatrop_dbg_assert(kmax <= size_);
+    //     fatrop_dbg_assert(aj >= 0);
+    //     fatrop_dbg_assert(n >= 0);
+    //     for (Index i = 0; i < kmax; i++)
+    //     {
+    //         COLSW(n, mat, 0, aj + i, mat, 0, aj + permutation_vector_[i]);
+    //     }
+    // }
+    // void PermutationMatrix::apply_on_cols(const Index kmax, MAT *mat, const Index aj, const Index n, const Index row_start)
+    // {
+    //     fatrop_dbg_assert(kmax <= size_);
+    //     fatrop_dbg_assert(aj >= 0);
+    //     fatrop_dbg_assert(n >= 0);
+    //     for (Index i = 0; i < kmax; i++)
+    //     {
+    //         COLSW(n, mat, row_start, aj + i, mat, row_start, aj + permutation_vector_[i]);
+    //     }
+    // }
+    void PermutationMatrix::apply_on_cols(const Index kmax, MAT *mat, 
+                                          const Index ai, const Index aj, const Index nb_rows)
     {
         fatrop_dbg_assert(kmax <= size_);
         fatrop_dbg_assert(aj >= 0);
+        fatrop_dbg_assert(ai >= 0);
+        fatrop_dbg_assert(nb_rows >= 0);
         for (Index i = 0; i < kmax; i++)
         {
-            COLSW(mat->n, mat, 0, aj + i, mat, 0, aj + permutation_vector_[i]);
-        }
-    }
-    void PermutationMatrix::apply_on_cols(const Index kmax, MAT *mat, const Index aj, const Index n)
-    {
-        fatrop_dbg_assert(kmax <= size_);
-        fatrop_dbg_assert(aj >= 0);
-        fatrop_dbg_assert(n >= 0);
-        for (Index i = 0; i < kmax; i++)
-        {
-            COLSW(n, mat, 0, aj + i, mat, 0, aj + permutation_vector_[i]);
+            COLSW(nb_rows, mat, ai, aj + i, mat, ai, aj + permutation_vector_[i]);
         }
     }
     void PermutationMatrix::apply_inverse_on_cols(const Index kmax, MAT *mat)
