@@ -83,6 +83,23 @@ public:
     std::optional<MatRealAllocated> full_kkt_matrix_reform;
     std::optional<AugSystemSolver<OcpType>> solver_reform;
 
+    /// Accelerated case ///
+    std::optional<ProblemDims> dims_accel;
+    std::optional<ProblemInfo> info_accel;
+    std::optional<Jacobian<OcpType>> jacobian_accel;
+    std::optional<Hessian<OcpType>> hessian_accel;
+    std::optional<MatRealAllocated> full_matrix_jacobian_accel;
+    std::optional<MatRealAllocated> full_matrix_hessian_accel;
+    std::optional<VecRealAllocated> x_accel;
+    std::optional<VecRealAllocated> mult_accel;
+    std::optional<VecRealAllocated> rhs_x_accel;
+    std::optional<VecRealAllocated> rhs_g_accel;
+    std::optional<VecRealAllocated> D_x_accel;
+    std::optional<VecRealAllocated> D_s_accel;
+    std::optional<VecRealAllocated> D_eq_accel;
+    std::optional<MatRealAllocated> full_kkt_matrix_accel;
+    std::optional<AcceleratedAugSystemSolver> solver_accel;
+
     std::vector<int> RandomVector(int size, int min_val, int max_val)
     {
         std::vector<int> vec(size);
@@ -147,6 +164,22 @@ public:
         D_s_reform.reset();
         D_eq_reform.reset();
         full_kkt_matrix_reform.reset();
+
+        solver_accel.reset();
+        hessian_accel.reset();
+        jacobian_accel.reset();
+        info_accel.reset();
+        dims_accel.reset();
+        full_matrix_jacobian_accel.reset();
+        full_matrix_hessian_accel.reset();
+        x_accel.reset();
+        mult_accel.reset();
+        rhs_x_accel.reset();
+        rhs_g_accel.reset();
+        D_x_accel.reset();
+        D_s_accel.reset();
+        D_eq_accel.reset();
+        full_kkt_matrix_accel.reset();
     }
 
     void GetRandomDimensions()
@@ -205,6 +238,7 @@ public:
         AllocateExplicitSolver();
         AllocateImplicitSolver();
         AllocateReformulatedSolver();
+        AllocateAcceleratedSolver();
         // std::cout << "KKT size expl:   " << full_kkt_matrix_expl.value().m() << " x " << full_kkt_matrix_expl.value().n() << std::endl;
         // std::cout << "KKT size impl:   " << full_kkt_matrix_impl.value().m() << " x " << full_kkt_matrix_impl.value().n() << std::endl;
         // std::cout << "KKT size reform: " << full_kkt_matrix_reform.value().m() << " x " << full_kkt_matrix_reform.value().n() << std::endl;
@@ -281,6 +315,35 @@ public:
             MatRealAllocated(info_reform->number_of_primal_variables + info_reform->number_of_eq_constraints,
                              info_reform->number_of_primal_variables + info_reform->number_of_eq_constraints);
         solver_reform.emplace(AugSystemSolver<OcpType>(info_reform.value()));
+    }
+
+    void AllocateAcceleratedSolver(){
+        std::vector<Index> nu_accel = nu;
+        std::vector<Index> ng_accel = ng;
+        for (int k = 0; k < K-1; ++k){
+            nu_accel[k] += nx[k+1];
+            ng_accel[k] += nx[k+1];
+        }
+
+        dims_accel.emplace(ProblemDims{K, nu_accel, nx, ng_accel, ng_ineq});
+        info_accel.emplace(ProblemInfo(dims_accel.value()));
+        jacobian_accel.emplace(Jacobian<OcpType>(dims_accel.value()));
+        full_matrix_jacobian_accel =
+            MatRealAllocated(info_accel->number_of_eq_constraints, info_accel->number_of_primal_variables);
+        hessian_accel.emplace(Hessian<OcpType>(dims_accel.value()));
+        full_matrix_hessian_accel =
+            MatRealAllocated(info_accel->number_of_primal_variables, info_accel->number_of_primal_variables);
+        x_accel = VecRealAllocated(info_accel->number_of_primal_variables);
+        mult_accel = VecRealAllocated(info_accel->number_of_eq_constraints);
+        rhs_x_accel = VecRealAllocated(info_accel->number_of_primal_variables);
+        rhs_g_accel = VecRealAllocated(info_accel->number_of_eq_constraints);
+        D_x_accel = VecRealAllocated(info_accel->number_of_primal_variables);
+        D_s_accel = VecRealAllocated(info_accel->number_of_slack_variables);
+        D_eq_accel = VecRealAllocated(info_accel->number_of_g_eq_path);
+        full_kkt_matrix_accel =
+            MatRealAllocated(info_accel->number_of_primal_variables + info_accel->number_of_eq_constraints,
+                             info_accel->number_of_primal_variables + info_accel->number_of_eq_constraints);
+        solver_accel.emplace(AcceleratedAugSystemSolver(info_accel.value()));
     }
 
     void FillExplicitSolver(){
@@ -492,6 +555,77 @@ public:
         }
     }
 
+    void FillAcceleratedSolver(){
+        x_accel = 0;
+        full_matrix_jacobian_accel.value() = 0.;
+        full_matrix_hessian_accel.value() = 0.;
+
+        for (Index k = 0; k < info_accel.value().dims.K; ++k)
+        {
+            Index nu = info_accel.value().dims.number_of_controls[k];
+            Index nx = info_accel.value().dims.number_of_states[k];
+            Index offs_eq_dyn = info_accel.value().offsets_g_eq_dyn[k];
+            Index offs_ux = info_accel.value().offsets_primal_u[k];
+            Index offset_g_eq = info_accel.value().offsets_g_eq_path[k];
+            Index offset_g_ineq = info_accel.value().offsets_g_eq_slack[k];
+            Index ng = info_accel.value().dims.number_of_eq_constraints[k];
+            Index ng_ineq = info_accel.value().dims.number_of_ineq_constraints[k];
+            Index nu_true = (k < info_accel.value().dims.K - 1) ? nu - info_accel.value().dims.number_of_states[k+1] : nu;
+            Index ng_true = (k < info_accel.value().dims.K - 1) ? ng - info_accel.value().dims.number_of_states[k+1] : ng;
+            if (k < info_accel.value().dims.K - 1)
+            {
+                Index nx_next = info_accel.value().dims.number_of_states[k + 1];
+                Index offs_x_next = info_accel.value().offsets_primal_x[k + 1];
+                jacobian_accel.value().BAbt[k].block(nx_next, nx_next, nu_true, 0) =
+                    ::test::identity_matrix(nx_next, -1);
+                full_matrix_jacobian_accel.value().block(nx_next, nu + nx, offs_eq_dyn, offs_ux) =
+                    transpose(jacobian_accel.value().BAbt[k].block(nu + nx, nx_next, 0, 0));
+            }
+            jacobian_accel.value().Gg_eqt[k].block(nu + nx, info_accel.value().dims.number_of_eq_constraints[k], 0, 0) =
+                ::test::random_matrix(nu + nx, info_accel.value().dims.number_of_eq_constraints[k]);
+            jacobian_accel.value().Gg_eqt[k].block(nu - nu_true, ng_true, nu_true, 0) =
+                ::test::empty_matrix(nu - nu_true, ng_true);
+            full_matrix_jacobian_accel.value().block(ng, nu + nx, offset_g_eq, offs_ux) =
+                transpose(jacobian_accel.value().Gg_eqt[k].block(nu + nx, ng, 0, 0));
+
+            jacobian_accel.value().Gg_ineqt[k].block(nu + nx, info_accel.value().dims.number_of_ineq_constraints[k], 0, 0) =
+                ::test::random_matrix(nu + nx, info_accel.value().dims.number_of_ineq_constraints[k]);
+            jacobian_accel.value().Gg_ineqt[k].block(nu - nu_true, ng_ineq, nu_true, 0) =
+                ::test::empty_matrix(nu - nu_true, ng_ineq);
+            full_matrix_jacobian_accel.value().block(ng_ineq, nu + nx, offset_g_ineq, offs_ux) =
+                transpose(jacobian_accel.value().Gg_ineqt[k].block(nu + nx, ng_ineq, 0, 0));
+
+            hessian_accel.value().RSQrqt[k].block(nu + nx, nu + nx, 0, 0) = ::test::random_spd_matrix(nu + nx);
+            // hessian_accel.value().RSQrqt[k].block(nu - nu_true, nu + nx, nu_true, 0) = ::test::empty_matrix(nu_true, nu + nx);
+            // hessian_accel.value().RSQrqt[k].block(nu + nx, nu - nu_true, 0, nu_true) = ::test::empty_matrix(nu + nx, nu_true);
+            full_matrix_hessian_accel.value().block(nu + nx, nu + nx, offs_ux, offs_ux) =
+                hessian_accel.value().RSQrqt[k].block(nu + nx, nu + nx, 0, 0);
+        }
+        
+        // set up the full KKT matrix
+        full_kkt_matrix_accel.value().block(info_accel.value().number_of_primal_variables, info_accel.value().number_of_primal_variables, 0,
+                              0) = full_matrix_hessian_accel.value();
+        full_kkt_matrix_accel.value().block(info_accel.value().number_of_primal_variables, info_accel.value().number_of_eq_constraints, 0,
+                              info_accel.value().number_of_primal_variables) = transpose(full_matrix_jacobian_accel.value());
+        full_kkt_matrix_accel.value().block(info_accel.value().number_of_eq_constraints, info_accel.value().number_of_primal_variables,
+                              info_accel.value().number_of_primal_variables, 0) = full_matrix_jacobian_accel.value();
+
+        // fill the x vector with random values
+        for (Index i = 0; i < info_accel.value().number_of_primal_variables; ++i){
+            rhs_x_accel.value()(i) = 1.0 * i; D_x_accel.value()(i) = 1.0 * (i + 0.1);
+        }
+        // fill the mult vector with random values
+        for (Index i = 0; i < info_accel.value().number_of_eq_constraints; ++i){
+            rhs_g_accel.value()(i) = 1.0 * i;
+        }
+        for (Index i = 0; i < info_accel.value().number_of_g_eq_path; ++i){
+            D_eq_accel.value()(i) = 10.0 * (i + 1);
+        }
+        for (Index i = 0; i < info_accel.value().number_of_slack_variables; ++i){
+            D_s_accel.value()(i) =  1.0 + 0*10.0 * (i + 0.1);
+        }
+    }
+
     void Randomize(){
         // std::cout << "randomizing dimensions" << std::endl;
         GetRandomDimensions();
@@ -501,6 +635,7 @@ public:
         FillExplicitSolver();
         FillImplicitSolver();
         FillReformulatedSolver();
+        FillAcceleratedSolver();
         // std::cout << "done" << std::endl;
 
         solver_impl.value().set_performance_mode(true);
