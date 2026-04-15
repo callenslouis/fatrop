@@ -202,6 +202,180 @@ namespace fatrop
     };
 
 
+
+
+    class AcceleratedAugSystemSolver
+    {
+    public:
+        /**
+         * @brief Constructs an AugSystemSolver<OcpType> object.
+         * @param info Problem information for the optimal control problem.
+         */
+        AcceleratedAugSystemSolver(const ProblemInfo &info);
+
+        /**
+         * @brief Solves the augmented system without path equality constraint regularization.
+         * @param info Problem information.
+         * @param jacobian Jacobian of the constraints.
+         * @param hessian Hessian of the Lagrangian.
+         * @param D_x Diagonal regularization for primal variables.
+         * @param D_s Diagonal regularization for slack variables.
+         * @param f Gradient of the objective function.
+         * @param g Constraint residuals.
+         * @param x [out] Solution vector for primal variables.
+         * @param eq_mult [out] Solution vector for equality constraint multipliers.
+         * @return Status flag indicating the outcome of the solve operation.
+         */
+        virtual LinsolReturnFlag solve(const ProblemInfo &info, Jacobian<OcpType> &jacobian,
+                                       Hessian<OcpType> &hessian, const VecRealView &D_x,
+                                       const VecRealView &D_s, const VecRealView &f, const VecRealView &g,
+                                       VecRealView &x, VecRealView &eq_mult);
+
+        /**
+         * @brief Solves the augmented system with path equality constraint regularization.
+         * @param info Problem information.
+         * @param jacobian Jacobian of the constraints.
+         * @param hessian Hessian of the Lagrangian.
+         * @param D_x Diagonal regularization for primal variables.
+         * @param D_eq Diagonal regularization for equality constraints.
+         * @param D_s Diagonal regularization for slack variables.
+         * @param f Gradient of the objective function.
+         * @param g Constraint residuals.
+         * @param x [out] Solution vector for primal variables.
+         * @param eq_mult [out] Solution vector for equality constraint multipliers.
+         * @return Status flag indicating the outcome of the solve operation.
+         */
+        virtual LinsolReturnFlag solve(const ProblemInfo &info, Jacobian<OcpType> &jacobian,
+                                       Hessian<OcpType> &hessian, const VecRealView &D_x,
+                                       const VecRealView &D_eq, const VecRealView &D_s,
+                                       const VecRealView &f, const VecRealView &g, VecRealView &x,
+                                       VecRealView &eq_mult);
+
+        /**
+         * @brief Solves the system for a new right-hand side without path equality constraint regularization.
+         * @param info Problem information.
+         * @param jacobian Jacobian of the constraints.
+         * @param hessian Hessian of the Lagrangian.
+         * @param D_s Diagonal regularization for slack variables.
+         * @param f Gradient of the objective function.
+         * @param g Constraint residuals.
+         * @param x [out] Solution vector for primal variables.
+         * @param eq_mult [out] Solution vector for equality constraint multipliers.
+         * @return Status flag indicating the outcome of the solve operation.
+         */
+        virtual LinsolReturnFlag solve_rhs(const ProblemInfo &info,
+                                           const Jacobian<OcpType> &jacobian,
+                                           const Hessian<OcpType> &hessian, const VecRealView &D_s,
+                                           const VecRealView &f, const VecRealView &g, VecRealView &x,
+                                           VecRealView &eq_mult);
+
+        /**
+         * @brief Solves the system for a new right-hand side with path equality constraint regularization.
+         * @param info Problem information.
+         * @param jacobian Jacobian of the constraints.
+         * @param hessian Hessian of the Lagrangian.
+         * @param D_eq Diagonal regularization for equality constraints.
+         * @param D_s Diagonal regularization for slack variables.
+         * @param f Gradient of the objective function.
+         * @param g Constraint residuals.
+         * @param x [out] Solution vector for primal variables.
+         * @param eq_mult [out] Solution vector for equality constraint multipliers.
+         * @return Status flag indicating the outcome of the solve operation.
+         */
+        virtual LinsolReturnFlag solve_rhs(const ProblemInfo &info,
+                                           const Jacobian<OcpType> &jacobian,
+                                           const Hessian<OcpType> &hessian, const VecRealView &D_eq,
+                                           const VecRealView &D_s, const VecRealView &f,
+                                           const VecRealView &g, VecRealView &x, VecRealView &eq_mult);
+
+        std::chrono::nanoseconds duration_lu_factorization = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_backward_recursion = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_initial_stage = std::chrono::nanoseconds(0);
+        std::chrono::nanoseconds duration_forward_recursion = std::chrono::nanoseconds(0);
+    private:
+        void fatrop_lu_fact_blocked_transposed(const Index m, const Index n, 
+            const Index n1, const Index n_max, Index &r1, Index &r2, Index &r, MAT *At,
+            PermutationMatrix &Pl1, PermutationMatrix &Pl_rank, PermutationMatrix &Pl2,
+            PermutationMatrix &Pr1, PermutationMatrix &Pr2);
+
+        void apply_Pl_on_cols(
+            PermutationMatrix& Pl1, PermutationMatrix& Pl_rank, PermutationMatrix& Pl2, 
+            const Index r1, const Index r2, const Index m, MAT* A, const Index row_start);
+        void apply_Pl(
+            PermutationMatrix& Pl1, PermutationMatrix& Pl_rank, PermutationMatrix& Pl2, 
+            const Index r1, const Index r2, const Index m, VEC *vec, const Index ai);
+        void apply_Pl_inverse(
+            PermutationMatrix& Pl1, PermutationMatrix& Pl_rank, PermutationMatrix& Pl2, 
+            const Index r1, const Index r2, const Index m, VEC *vec, const Index ai);
+        void apply_Pr_on_rows(
+            PermutationMatrix& Pr1, PermutationMatrix& Pr2, const Index r1, const Index r2, MAT* A);
+        void apply_Pr_on_cols(
+            PermutationMatrix& Pr1, PermutationMatrix& Pr2, const Index r1, const Index r2, MAT* A);
+        void apply_Pr(
+            PermutationMatrix& Pr1, PermutationMatrix& Pr2, const Index r1, const Index r2, VEC *vec, const Index ai);
+        void apply_Pr_inverse(
+            PermutationMatrix& Pr1, PermutationMatrix& Pr2, const Index r1, const Index r2, VEC *vec, const Index ai);
+
+        // temporaries, pre-allocated during construction to avoid allocation during
+        // optimization
+        std::vector<MatRealAllocated> Ppt;
+        std::vector<MatRealAllocated> Hh;
+        std::vector<MatRealAllocated> AL;
+        std::vector<MatRealAllocated> RSQrqt_tilde;
+        std::vector<MatRealAllocated> Ggt_stripe;
+        std::vector<MatRealAllocated> Ggt_tilde;
+        std::vector<MatRealAllocated> GgLt;
+        std::vector<MatRealAllocated> RSQrqt_hat;
+        std::vector<MatRealAllocated> Llt;
+        std::vector<MatRealAllocated> Llt_shift;
+        std::vector<MatRealAllocated> GgIt_tilde;
+        std::vector<MatRealAllocated> GgLIt;
+        std::vector<MatRealAllocated> HhIt;
+        std::vector<MatRealAllocated> PpIt_hat;
+        std::vector<MatRealAllocated> LlIt;
+        std::vector<MatRealAllocated> Ggt_ineq_temp;
+        std::vector<VecRealAllocated> v_Ppt;
+        std::vector<VecRealAllocated> v_Hh;
+        std::vector<VecRealAllocated> v_AL;
+        std::vector<VecRealAllocated> v_RSQrqt_tilde;
+        std::vector<VecRealAllocated> v_Ggt_stripe;
+        std::vector<VecRealAllocated> v_Ggt_tilde;
+        std::vector<VecRealAllocated> v_GgLt;
+        std::vector<VecRealAllocated> v_RSQrqt_hat;
+        std::vector<VecRealAllocated> v_Llt;
+        std::vector<VecRealAllocated> v_Llt_shift;
+        std::vector<VecRealAllocated> v_GgIt_tilde;
+        std::vector<VecRealAllocated> v_GgLIt;
+        std::vector<VecRealAllocated> v_HhIt;
+        std::vector<VecRealAllocated> v_PpIt_hat;
+        std::vector<VecRealAllocated> v_LlIt;
+        std::vector<VecRealAllocated> v_Ggt_ineq_temp;
+        std::vector<VecRealAllocated> v_tmp;
+        
+        std::vector<PermutationMatrix> Pl1;
+        std::vector<PermutationMatrix> Pl_rank;
+        std::vector<PermutationMatrix> Pl2;
+        std::vector<PermutationMatrix> Pr1;
+        std::vector<PermutationMatrix> Pr2;
+        std::vector<MatRealAllocated> scratch;
+        
+        std::vector<PermutationMatrix> PlI;
+        std::vector<PermutationMatrix> PrI;
+        std::vector<Index> gamma;
+        std::vector<Index> rho;
+        std::vector<Index> rho1;
+        std::vector<Index> rho2;
+        Index rankI = 0;
+        bool it_ref = true;
+        bool perturbed_mode = false;
+        double perturbed_mode_param = 1e-6;
+        Scalar it_ref_acc = 1e-8;
+        Scalar lu_fact_tol = 1e-5;
+        bool diagnostic = false;
+        bool increased_accuracy = true;
+    };
+
+
     class ModifiedAugSystemSolver
     {
     public:

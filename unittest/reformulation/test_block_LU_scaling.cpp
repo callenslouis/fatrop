@@ -250,7 +250,6 @@ void fatrop_lu_fact_blocked_transposed(const Index m, const Index n,
             }
         }
     }
-    
 }
 
 void write_np_matrix(const MatRealAllocated& M, int m, int n, std::string name){
