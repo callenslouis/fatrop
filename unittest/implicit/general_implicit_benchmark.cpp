@@ -220,9 +220,9 @@ public:
         ng_ineq = RandomVector(K, 0, max_val);
 
         // K = 1;
-        // nx = {0};
-        // nu = {0};
-        // ng = {0};
+        // nx = {1};
+        // nu = {1};
+        // ng = {1};
         // ng_ineq = {0};
 
         // std::cout << "K: " << K << std::endl;
@@ -703,14 +703,15 @@ void PrintBreakdown(const std::map<std::string, long int>& timings,
 
 TEST_F(RandomBenchmarkTest, Test)
 {
-    int nb_runs = 5000;
+    int nb_runs = 100;
     int nb_runs_completed = 0;
-    bool write_csv = true;
+    bool write_csv = false;
 
     std::map<std::string, long int> timings = {
         {"total_ns_expl", 0},
         {"total_ns_impl", 0},
         {"total_ns_reform", 0},
+        {"total_ns_accel", 0},
         {"total_ns_impl_solve", 0},
         {"total_ns_impl_preprocess", 0},
         {"total_ns_impl_postprocess", 0},
@@ -727,6 +728,7 @@ TEST_F(RandomBenchmarkTest, Test)
         {"total_decomp_permutation", 0},
         {"total_decomp_store", 0},
         {"total_lu_reform", 0},
+        {"total_ns_accel", 0},
         {"total_lu_impl", 0},
         {"total_ns_impl_solve_inner", 0},
         {"total_solve_RSQrqt_copy", 0},
@@ -739,12 +741,15 @@ TEST_F(RandomBenchmarkTest, Test)
         {"total_expl_backward", 0},
         {"total_impl_backward", 0},
         {"total_reform_backward", 0},
+        {"total_accel_backward", 0},
         {"total_expl_initial", 0},
         {"total_impl_initial", 0},
         {"total_reform_initial", 0},
+        {"total_accel_initial", 0},
         {"total_expl_forward", 0},
         {"total_impl_forward", 0},
         {"total_reform_forward", 0},
+        {"total_accel_forward", 0},
         {"total_post_rearrange_solution", 0},
         {"total_post_scale_solution", 0},
         {"total_post_reset_jacobian_pre", 0},
@@ -755,11 +760,11 @@ TEST_F(RandomBenchmarkTest, Test)
     std::ofstream f;    
     if (write_csv){
         f.open("random_benchmark_results.csv");
-        f << "K,nu,nx,r,ng,ng_ineq,t_expl,t_impl,t_impl_pre,t_impl_solve,t_impl_post,t_reform,lu_impl,lu_reform,impl_decomp\n";
+        f << "K,nu,nx,r,ng,ng_ineq,t_expl,t_impl,t_impl_pre,t_impl_solve,t_impl_post,t_reform,t_accel,lu_impl,lu_reform,lu_accel,impl_decomp\n";
     }
     
     int nb_consecutive_failures = 0;
-    std::array<int, 3> order = {0, 1, 2};
+    std::array<int, 4> order = {0, 1, 2, 3};
 
     auto start_impl = std::chrono::steady_clock::now();
     auto stop_impl = std::chrono::steady_clock::now();
@@ -767,7 +772,9 @@ TEST_F(RandomBenchmarkTest, Test)
     auto stop_expl = std::chrono::steady_clock::now();
     auto start_reform = std::chrono::steady_clock::now();
     auto stop_reform = std::chrono::steady_clock::now();
-    Index ret_impl, ret_expl, ret_reform;
+    auto start_accel = std::chrono::steady_clock::now();
+    auto stop_accel = std::chrono::steady_clock::now();
+    Index ret_impl, ret_expl, ret_reform, ret_accel;
     std::mt19937 rng(std::random_device{}());
 
     auto benchmark_start_time = std::chrono::steady_clock::now();
@@ -799,20 +806,31 @@ TEST_F(RandomBenchmarkTest, Test)
         for (int idx : order){
             if (idx == 0){
                 // implicit //
+                std::cout << "Running implicit solver..." << std::endl;
                 start_impl = std::chrono::steady_clock::now();
                 ret_impl = solver_impl.value().solve(info_impl.value(), jacobian_impl.value(), hessian_impl.value(), D_x_impl.value(), D_s_impl.value(), rhs_x_impl.value(), rhs_g_impl.value(), x_impl.value(), mult_impl.value());
                 stop_impl = std::chrono::steady_clock::now();
             } else if (idx == 1) {
                 // explicit //
+                std::cout << "Running explicit solver..." << std::endl;
                 start_expl = std::chrono::steady_clock::now();
                 ret_expl = solver_expl.value().solve(info_expl.value(), jacobian_expl.value(), hessian_expl.value(), D_x_expl.value(), D_s_expl.value(), rhs_x_expl.value(), rhs_g_expl.value(), x_expl.value(), mult_expl.value());
                 stop_expl = std::chrono::steady_clock::now();
-            } else {
+            } else if (idx == 2) {
                 // reformulated //
+                std::cout << "Running reformulated solver..." << std::endl;
                 start_reform = std::chrono::steady_clock::now();
                 ret_reform = solver_reform.value().solve(info_reform.value(), jacobian_reform.value(), hessian_reform.value(), D_x_reform.value(), D_s_reform.value(), rhs_x_reform.value(), rhs_g_reform.value(), x_reform.value(), mult_reform.value());
                 stop_reform = std::chrono::steady_clock::now();
+            } else {
+                // accelerated
+                std::cout << "Running accelerated solver..." << std::endl;
+                start_accel = std::chrono::steady_clock::now();
+                ret_accel = solver_accel.value().solve(info_accel.value(), jacobian_accel.value(), hessian_accel.value(), D_x_accel.value(), D_s_accel.value(), rhs_x_accel.value(), rhs_g_accel.value(), x_accel.value(), mult_accel.value());
+                stop_accel = std::chrono::steady_clock::now();
+                std::cout << "acclerated solver returned with flag " << ret_accel << std::endl;
             }
+            std::cout << "Done." << std::endl;
         }
         } catch (const std::exception& e){
             std::cout << "Exception caught: " << e.what() << std::endl;
@@ -822,19 +840,22 @@ TEST_F(RandomBenchmarkTest, Test)
 
         if (ret_expl != LinsolReturnFlag::SUCCESS || 
                 ret_reform != LinsolReturnFlag::SUCCESS || 
-                ret_impl != LinsolReturnFlag::SUCCESS){
+                ret_impl != LinsolReturnFlag::SUCCESS ||
+                ret_accel != LinsolReturnFlag::SUCCESS){
             nb_consecutive_failures++;
             continue;
         }
 
         long int ns_expl = std::chrono::duration_cast<std::chrono::nanoseconds>(stop_expl - start_expl).count();
         long int ns_reform = std::chrono::duration_cast<std::chrono::nanoseconds>(stop_reform - start_reform).count();
+        long int ns_accel = std::chrono::duration_cast<std::chrono::nanoseconds>(stop_accel - start_accel).count();
         long int ns_impl = std::chrono::duration_cast<std::chrono::nanoseconds>(stop_impl - start_impl).count();
         long int ns_impl_preprocess = solver_impl.value().duration_preprocess.count();
         long int ns_impl_solve = solver_impl.value().duration_solve.count();
         long int ns_impl_postprocess = solver_impl.value().duration_postprocess.count();
         timings["total_ns_expl"] += ns_expl;
         timings["total_ns_reform"] += ns_reform;
+        timings["total_ns_accel"] += ns_accel;
         timings["total_ns_impl"] += ns_impl;
         timings["total_ns_impl_preprocess"] += ns_impl_preprocess;
         timings["total_ns_impl_solve"] += ns_impl_solve;
@@ -866,21 +887,27 @@ TEST_F(RandomBenchmarkTest, Test)
         
         long int ns_lu_impl = solver_impl.value().duration_lu_factorization.count() + solver_impl.value().duration_decomp_decomp.count();
         long int ns_lu_reform = solver_reform.value().duration_lu_factorization.count();
+        long int ns_lu_accel = solver_accel.value().duration_lu_factorization.count();
         timings["ns_lu_impl"] = ns_lu_impl;
         timings["ns_lu_reform"] = ns_lu_reform;
+        timings["ns_lu_accel"] = ns_lu_accel;
         
         timings["total_lu_impl"] += solver_impl.value().duration_lu_factorization.count() + solver_impl.value().duration_decomp_decomp.count();
         timings["total_lu_reform"] += solver_reform.value().duration_lu_factorization.count();
+        timings["total_lu_accel"] += solver_accel.value().duration_lu_factorization.count();
 
         timings["total_expl_backward"] += solver_expl.value().duration_backward_recursion.count();
         timings["total_impl_backward"] += solver_impl.value().duration_backward_recursion.count();
         timings["total_reform_backward"] += solver_reform.value().duration_backward_recursion.count();
+        timings["total_accel_backward"] += solver_accel.value().duration_backward_recursion.count();
         timings["total_expl_initial"] += solver_expl.value().duration_initial_stage.count();
         timings["total_impl_initial"] += solver_impl.value().duration_initial_stage.count();
         timings["total_reform_initial"] += solver_reform.value().duration_initial_stage.count();
+        timings["total_accel_initial"] += solver_accel.value().duration_initial_stage.count();
         timings["total_expl_forward"] += solver_expl.value().duration_forward_recursion.count();
         timings["total_impl_forward"] += solver_impl.value().duration_forward_recursion.count();
         timings["total_reform_forward"] += solver_reform.value().duration_forward_recursion.count();
+        timings["total_accel_forward"] += solver_accel.value().duration_forward_recursion.count();
 
         timings["total_post_rearrange_solution"] += solver_impl.value().duration_post_rearrange_solution.count();
         timings["total_post_scale_solution"] += solver_impl.value().duration_post_scale_solution.count();
@@ -893,7 +920,7 @@ TEST_F(RandomBenchmarkTest, Test)
 
         if (write_csv){
             f << K << "," << nu[0] << "," << nx[0] << "," << r[0] << "," << ng[0] << "," << ng_ineq[0];
-            f << "," << ns_expl << "," << ns_impl << "," << ns_impl_preprocess << "," << ns_impl_solve << "," << ns_impl_postprocess << "," << ns_reform << "," << ns_lu_impl << "," << ns_lu_reform << "," << ns_decomp_decomp << "\n";
+            f << "," << ns_expl << "," << ns_impl << "," << ns_impl_preprocess << "," << ns_impl_solve << "," << ns_impl_postprocess << "," << ns_reform << "," << ns_accel << "," << ns_lu_impl << "," << ns_lu_reform << "," << ns_lu_accel << "," << ns_decomp_decomp << "\n";
         }
         
     }
@@ -906,6 +933,10 @@ TEST_F(RandomBenchmarkTest, Test)
     std::cout << timings["total_reform_backward"] / nb_runs_completed << " - ";
     std::cout << timings["total_reform_initial"] / nb_runs_completed << " - ";
     std::cout << timings["total_reform_forward"] / nb_runs_completed << ")" << std::endl;
+    std::cout << "Average time accelerated:  " << timings["total_ns_accel"] / nb_runs_completed << " ns (";
+    std::cout << timings["total_accel_backward"] / nb_runs_completed << " - ";
+    std::cout << timings["total_accel_initial"] / nb_runs_completed << " - ";
+    std::cout << timings["total_accel_forward"] / nb_runs_completed << ")" << std::endl;
     std::cout << "Average time implicit:     " << timings["total_ns_impl"] / nb_runs_completed << " ns (";
     std::cout << timings["total_impl_backward"] / nb_runs_completed << " - ";
     std::cout << timings["total_impl_initial"] / nb_runs_completed << " - ";
@@ -915,14 +946,14 @@ TEST_F(RandomBenchmarkTest, Test)
     std::cout << timings["total_ns_impl_postprocess"] / nb_runs_completed << ")" << std::endl;
     
     std::map<std::string, std::vector<std::string>> breakdowns = {
-        {"LU factorization", {"total_lu_impl", "total_lu_reform"}},
+        {"LU factorization", {"total_lu_impl", "total_lu_reform", "total_lu_accel"}},
         {"implicit preprocess", {"total_pre_jac", "total_pre_hess", "total_pre_reg", "total_pre_decomp", "total_pre_info", "total_pre_rhs"}},
         {"implicit preprocess decomp", {"total_decomp_copies", "total_decomp_decomp", "total_decomp_scale1", "total_decomp_scale2", "total_decomp_permutation", "total_decomp_store"}},
         {"implicit solve modifications", {"total_solve_RSQrqt_copy", "total_solve_FuFx_addition", "total_solve_GuGx_addition", "total_solve_GuGx_hat_addition", "total_solve_ukb_tilde_addition", "total_solve_lambdatilde_addition", "total_solve_FuFx_addition_forward"}},
         {"implicit postprocess", {"total_post_rearrange_solution", "total_post_scale_solution", "total_post_reset_jacobian_pre", "total_post_reset_hessian_pre", "total_post_regularization"}}
     };
     std::map<std::string, std::vector<std::string>> breakdown_totals = {
-        {"LU factorization", {"total_ns_impl", "total_ns_reform"}},
+        {"LU factorization", {"total_ns_impl", "total_ns_reform", "total_ns_accel"}},
         {"implicit preprocess", {"total_ns_impl_preprocess"}},
         {"implicit preprocess decomp", {"total_pre_decomp"}},
         {"implicit solve modifications", {"total_ns_impl_solve_inner"}},

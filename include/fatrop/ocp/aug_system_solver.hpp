@@ -297,6 +297,12 @@ namespace fatrop
             const Index n1, const Index n_max, Index &r1, Index &r2, Index &r, MAT *At,
             PermutationMatrix &Pl1, PermutationMatrix &Pl_rank, PermutationMatrix &Pl2,
             PermutationMatrix &Pr1, PermutationMatrix &Pr2);
+        bool verify_blocked_lu_new(const MatRealAllocated& LU, 
+            const MatRealAllocated& A_original,
+            PermutationMatrix& Pl1, PermutationMatrix& Pr1, int rank1,
+            PermutationMatrix& Pl_rank,
+            PermutationMatrix& Pl2, PermutationMatrix& Pr2, int rank2,
+            int ng, int nu, int nx);
 
         void apply_Pl_on_cols(
             PermutationMatrix& Pl1, PermutationMatrix& Pl_rank, PermutationMatrix& Pl2, 

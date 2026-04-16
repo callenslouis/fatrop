@@ -27,7 +27,7 @@ namespace fatrop
         fatrop_dbg_assert(ai >= 0);
         for (Index i = 0; i < kmax; i++)
         {
-            ROWSW(mat->m, mat, ai + i, 0, mat, ai + permutation_vector_[i], 0);
+            ROWSW(mat->n, mat, ai + i, 0, mat, ai + permutation_vector_[i], 0);
         }
     };
     void PermutationMatrix::apply_on_rows(const Index kmax, MAT *mat, const Index ai, const Index m)
@@ -46,7 +46,7 @@ namespace fatrop
         fatrop_dbg_assert(ai >= 0);
         for (Index i = 0; i < kmax; i++)
         {
-            ROWSW(mat->m, mat, ai + permutation_vector_[i], 0, mat, ai + i, 0);
+            ROWSW(mat->n, mat, ai + permutation_vector_[i], 0, mat, ai + i, 0);
         }
     };
     void PermutationMatrix::apply_on_cols(const Index kmax, MAT *mat)
@@ -106,7 +106,7 @@ namespace fatrop
         fatrop_dbg_assert(aj >= 0);
         for (Index i = 0; i < kmax; i++)
         {
-            COLSW(mat->n, mat, 0, aj + permutation_vector_[i], mat, 0, aj + i);
+            COLSW(mat->m, mat, 0, aj + permutation_vector_[i], mat, 0, aj + i);
         }
     };
     void PermutationMatrix::apply(const Index kmax, VEC *vec, const Index ai)

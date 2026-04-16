@@ -20,9 +20,9 @@ void apply_Pl_on_cols(PermutationMatrix& Pl1, PermutationMatrix& Pl_rank, Permut
 
 void apply_Pl_on_cols(PermutationMatrix& Pl1, PermutationMatrix& Pl_rank, PermutationMatrix& Pl2, 
                    const Index r1, const Index r2, const Index m, MAT* A, const Index row_start){
-    Pl1.apply_on_cols(r1, A, row_start, 0, m);
-    Pl_rank.apply_on_cols(m, A, row_start, 0, m);
-    Pl2.apply_on_cols(r2, A, row_start, r1, m);
+    Pl1.apply_on_cols(r1, A, row_start, 0, A->n-row_start);
+    Pl_rank.apply_on_cols(m, A, row_start, 0, A->n-row_start);
+    Pl2.apply_on_cols(r2, A, row_start, r1, A->n-row_start);
 }
 
 void apply_Pl(PermutationMatrix& Pl1, PermutationMatrix& Pl_rank, PermutationMatrix& Pl2, 
@@ -210,29 +210,31 @@ void fatrop_lu_fact_blocked_transposed(const Index m, const Index n,
     // ng: m - n1
 
     // lu of top-left block
-    fatrop_lu_fact_transposed(n1, n1, n1, r1, At, Pl1, Pr1, tol);
-    for (int k = 0; k < m-n1; k++){Pl_rank[r1 + k] = n1 + k;}
+    fatrop_lu_fact_transposed(m-n1, n-n1, n-n1, r1, At, Pl1, Pr1, tol);
+    for (int k = 0; k < n1; k++){Pl_rank[r1 + k] = m-n1 + k;}
 
     // permute rows of matrix
     Pl_rank.apply_on_cols(m, At);
 
     // scaling bottom-left
-    blasfeo_dgecp(n1, m-n1, At, 0, r1, scratch, 0, 0);   // M2 to B
+    blasfeo_dgecp(n-n1, n1, At, 0, r1, scratch, 0, 0);   // M2 to B
     Pr1.apply_on_rows(r1, scratch);
 
     // compute K3 and K4
-    blasfeo_dtrsm_llnn(r1, m-n1, 1.0, At, 0, 0, scratch, 0, 0, At, 0, r1);
+    blasfeo_dtrsm_llnn(r1, n1, 1.0, At, 0, 0, scratch, 0, 0, At, 0, r1);
 
-    blasfeo_dgemm_nn(n1-r1, m-n1, r1, -1.0, At, r1, 0, At, 0, r1, 0.0, 
+    // K4 was ng x nx - rho, dus in transpose nx-rho x ng (n1-r1) x m-n1
+    // K4 is nu nx x nu-rho, dus in transpose nu-rho x nx (n-n1-r1) x n1
+    blasfeo_dgemm_nn(n-n1-r1, n1, r1, -1.0, At, r1, 0, At, 0, r1, 0.0, 
                         At, r1, r1, At, r1, r1);
     if (r1 > 0){
-        blasfeo_dgead(n1-r1, m-n1, 1.0, scratch, r1, 0, At, r1, r1);
+        blasfeo_dgead(n-n1-r1, n1, 1.0, scratch, r1, 0, At, r1, r1);
     } else {
-        blasfeo_dgecp(n1-r1, m-n1, scratch, r1, 0, At, r1, r1);
+        blasfeo_dgecp(n-n1-r1, n1, scratch, r1, 0, At, r1, r1);
     }
 
     // second LU decomposition
-    fatrop_lu_fact_transposed(m-n1, n-r1, n-r1, r2, At, r1, r1, Pl2, Pr2, tol);
+    fatrop_lu_fact_transposed(n1, n-r1, n-r1, r2, At, r1, r1, Pl2, Pr2, tol);
     r = r1 + r2;
 
     Pl2.apply_on_cols(r2, At, 0, r1, r1); // permute K3
@@ -370,7 +372,8 @@ int main(){
         nu[i] = rand() % (max_val+1); // Random number of control inputs between 1 and 100
         nx[i] = rand() % (max_val+1); // Random number of states between 1 and 100
         ng[i] = rand() % (max_val+1); // Random number of constraints between 1 and 100
-        rank[i] = rand() % (nx[i]+1); // Random rank between 0 and nx[i]
+        // rank[i] = rand() % (nx[i]+1); // Random rank between 0 and nx[i]
+        rank[i] = rand() % (std::min(ng[i], nu[i])+1); // Random rank between 0 and nx[i]
     }
 
     // allocate random matrices
@@ -409,20 +412,20 @@ int main(){
         std::cout << "allocating ... " << std::setw(9) << std::setprecision(3) << progress << "%\r" << std::flush;
         int m = ng[k] + nx[k];
         int n = nu[k] + nx[k];
-        MatRealAllocated top_left_block = ::test::random_degenerate_matrix(nx[k], rank[k]);
+        MatRealAllocated top_left_block = ::test::random_degenerate_matrix(nu[k], ng[k], rank[k]);
         A_full.emplace_back(n, m);
         A_blocked.emplace_back(n, m);
         for (int i = 0; i < n; i++){
             for (int j = 0; j < m; j++){
-                if (i < nx[k] && j < nx[k]){
+                if (i < nu[k] && j < ng[k]){
                     A_full[k](i,j) = top_left_block(i,j);
                     A_blocked[k](i,j) = top_left_block(i,j);
                 } else {
-                    A_full[k](i,j) = rand() / double(RAND_MAX);
-                    if (j >= nx[k] || i < nx[k]){ // transposed
+                    if (j >= ng[k]){ // transposed
+                        A_full[k](i,j) = rand() / double(RAND_MAX);
                         A_blocked[k](i,j) = A_full[k](i,j);
                     } else {
-                        A_blocked[k](i,j) = 0.0; // zero out the top-left block
+                        A_blocked[k](i,j) = 0.0; // zero out the botton-left block (in transpose)
                         A_full[k](i,j) = 0.0;
                     }
                 }
