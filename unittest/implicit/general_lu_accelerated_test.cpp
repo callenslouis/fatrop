@@ -79,7 +79,7 @@ public:
     void GetRandomDimensions()
     {
         ClearOptionals();
-        int max_val = 3;
+        int max_val = 3;//10;
         K = rand() % max_val + 2; // Random K between 2 and 21
         K = 2;
         nx = RandomVector(K, 0, max_val);
@@ -110,9 +110,11 @@ public:
         // r = {2, 2};
         // nu = {2, 2};
         // ng = {2, 2};
+        std::cout << "nx[0]: " << nx[0] << std::endl;
         // nu[0] += nx[0];
         // nx[0] = 0;
-
+        int swap_val = 0;
+        nu[0] += swap_val; nx[0] -= swap_val;
 
         // reformulation
         for (int k = 0; k < K-1; ++k){
@@ -367,6 +369,7 @@ TEST_F(AcceleratedAugSystemSolverTest, TestRandomSolve)
         std::cout << "Test iteration: " << test_counter << std::endl;
         std::cout << "==============================" << std::endl;
         // this->Randomize();
+        std::cout << "--------------------- Solving accelerated solver ---------------------" << std::endl;
         Index ret = solver.value().solve(info.value(), 
             jacobian.value(), hessian.value(), D_x.value(),
             D_s.value(), rhs_x.value(), rhs_g.value(), 
@@ -376,19 +379,16 @@ TEST_F(AcceleratedAugSystemSolverTest, TestRandomSolve)
             continue;
         }
         EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
-
-        // Solution checking
-        // CheckSolution(info.value(), jacobian.value(), 
-        //     hessian.value(), D_x.value(), D_s.value(), 
-        //     rhs_x.value(), rhs_g.value(), x.value(),
-        //     mult.value());
+        std::cout << "-------------------------------  Done. -------------------------------" << std::endl;
         
         VecRealAllocated x_reference(info.value().number_of_primal_variables);
         VecRealAllocated mult_reference(info.value().number_of_eq_constraints);
+        std::cout << "----------------------- Solving original solver ----------------------" << std::endl;
         Index ret_reference = solver_reference.value().solve(info.value(), 
             jacobian.value(), hessian.value(), D_x.value(),
             D_s.value(), rhs_x.value(), rhs_g.value(), 
             x_reference, mult_reference);
+        std::cout << "-------------------------------  Done. -------------------------------" << std::endl;
         double max_diff_x = 0.;
         for (Index i = 0; i < info.value().number_of_primal_variables; ++i){
             max_diff_x = std::max(max_diff_x, std::abs(x.value()(i) - x_reference(i)));
@@ -397,12 +397,26 @@ TEST_F(AcceleratedAugSystemSolverTest, TestRandomSolve)
         for (Index i = 0; i < info.value().number_of_eq_constraints; ++i){
             max_diff_mult = std::max(max_diff_mult, std::abs(mult.value()(i) - mult_reference(i)));
         }
-        // std::cout << "my x:        " << x.value() << std::endl;
-        // std::cout << "reference x: " << x_reference << std::endl;
-        // std::cout << "\nmy mult:        " << mult.value() << std::endl;
-        // std::cout << "reference mult: " << mult_reference << std::endl;
+        std::cout << "my x:        " << x.value() << std::endl;
+        std::cout << "reference x: " << x_reference << std::endl;
+        std::cout << "\nmy mult:        " << mult.value() << std::endl;
+        std::cout << "reference mult: " << mult_reference << std::endl;
 
         EXPECT_NEAR(max_diff_x, 0, 1e-5);
         EXPECT_NEAR(max_diff_mult, 0, 1e-5);
+
+        // Solution checking
+        std::cout << "checking my solution: " << std::endl;
+        CheckSolution(info.value(), jacobian.value(), 
+            hessian.value(), D_x.value(), D_s.value(), 
+            rhs_x.value(), rhs_g.value(), x.value(),
+            mult.value());
+        std::cout << "done checking\n" << std::endl;
+        std::cout << "checking reference solution: " << std::endl;
+        CheckSolution(info.value(), jacobian.value(), 
+            hessian.value(), D_x.value(), D_s.value(), 
+            rhs_x.value(), rhs_g.value(), x_reference,
+            mult_reference);
+        std::cout << "done checking\n" << std::endl;
     }
 }

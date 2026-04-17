@@ -283,7 +283,15 @@ void test_fatrop_lu_fact_transposed_bottom_block(int N = 1000000){
     srand(time(0));
     int nb_successes = 0;
     int nb_degenerate_cases = 0;
+    double last_progress_value_shown = 0;
+    double progress_show_step = 1;
     for (int nb = 0; nb < N; nb++){
+        double progress = (double)nb / N * 100.0;
+        if (progress - last_progress_value_shown >= progress_show_step){
+            last_progress_value_shown = progress;
+            std::cout << "Testing fatrop_lu_fact_transposed bottom block... " << std::fixed << std::setprecision(2) << progress << "%\r" << std::flush;
+        }
+
         // get random matrices
         int m = rand() % 10 + 1;
         int n_max = rand() % 10 + 1;
@@ -308,6 +316,7 @@ void test_fatrop_lu_fact_transposed_bottom_block(int N = 1000000){
         int r2;
         fatrop_lu_fact_transposed(m, n_max, n_max, r2, &At_copy.mat(), Pl2, Pr2, 1e-5);
 
+        /*
         Pl2.apply_on_cols(r2, &At_copy.mat(), n_max, 0, n-n_max);
         blasfeo_dtrsm_runu(n-n_max, r2, 1.0, &At_copy.mat(), 0, 0, &At_copy.mat(), n_max, 0, &At_copy.mat(), n_max, 0);
 
@@ -317,6 +326,17 @@ void test_fatrop_lu_fact_transposed_bottom_block(int N = 1000000){
                 blasfeo_gead_wrap(n-n_max, 1, -Lji, &At_copy.mat(), n_max, i, &At_copy.mat(), n_max, j);
             }
         }
+        */
+
+        // permute columns
+        Pl2.apply_on_cols(r2, &At_copy.mat(), n_max, 0, n-n_max);
+        // M1 <- M1 * L1^-T
+        blasfeo_dtrsm_runu(n-n_max, r2, 1.0, &At_copy.mat(), 0, 0, &At_copy.mat(), n_max, 0, &At_copy.mat(), n_max, 0);
+
+        // M2 <- M2 + M1 * L2
+        blasfeo_dgemm_nn(n-n_max, m-r2, r2, -1.0, &At_copy.mat(), n_max, 0, &At_copy.mat(), 0, r2, 1.0, 
+                        &At_copy.mat(), n_max, r2, &At_copy.mat(), n_max, r2);
+
         /////////////////////////
 
         bool success = true;
@@ -330,21 +350,63 @@ void test_fatrop_lu_fact_transposed_bottom_block(int N = 1000000){
         }
         if (success) { nb_successes++; }
         if (!success){
-            std::cout << "m: " << m << ", n_max: " << n_max << ", n: " << n << ", rank: " << r << std::endl;
+            // std::cout << "m: " << m << ", n_max: " << n_max << ", n: " << n << ", rank: " << r << std::endl;
             // std::cout << "expected:\n" << At.block(n-n_max, m, n_max, 0) << std::endl;
             // std::cout << "actual:\n" << At_copy.block(n-n_max, m, n_max, 0) << std::endl;
             // std::cout << "expected:\n" << At << std::endl;
             // std::cout << "actual:\n" << At_copy << std::endl;
             blasfeo_dgead(n, m, -1.0, &At.mat(), 0, 0, &At_copy.mat(), 0, 0);
-            std::cout << "difference:\n" << At_copy << std::endl;
+            // std::cout << "difference:\n" << At_copy << std::endl;
         }    
     }
+    std::cout << std::endl;
 
     std::cout << "success rate:    " << (double)nb_successes / N * 100.0 << "%" << std::endl;
     std::cout << "degenerate rate: " << (double)nb_degenerate_cases / N * 100.0 << "%" << N << std::endl;
 }
 
 int main(){
+    // int m = 3;
+    // int n = 4;
+    // int n_max = 2;
+    // MatRealAllocated At(n, m);
+    // int ctr = 1;
+    // for (int j = 0; j < At.n(); j++){
+    //     for (int i = 0; i < At.m(); i++){
+    //         At(i,j) = ctr;
+    //         ctr++;
+    //     }
+    // }
+    // MatRealAllocated A(m, n);
+    // blasfeo_dgetr(n, m, &At.mat(), 0, 0, &A.mat(), 0, 0);
+    // std::cout << "A:\n" << A << std::endl;
+    // int r;
+    // PermutationMatrix Pl(m);
+    // PermutationMatrix Pr(n_max);
+    // fatrop_lu_fact_transposed(m, n, n_max, r, &At.mat(), Pl, Pr, 1e-5);
+    // // std::cout << "LU result:\n" << At << std::endl;
+    // MatRealAllocated L(m, m);
+    // MatRealAllocated U(m, n);
+    // extract_L(At, L, m, n);
+    // extract_U(At, U, m, n);
+    // std::cout << "L:\n" << L << std::endl;
+    // std::cout << "U:\n" << U << std::endl;
+    // std::cout << "Pl: " << Pl << std::endl;
+    // std::cout << "Pr: " << Pr << std::endl;
+    // MatRealAllocated A_reconstructed(m, n);
+    // blasfeo_dgemm_nn(m, n, n, 1.0, &L.mat(), 0, 0, &U.mat(), 0, 0, 0.0, 
+    //                  &A_reconstructed.mat(), 0, 0, &A_reconstructed.mat(), 0, 0);
+    // Pl.apply_on_rows(r, &A.mat());
+    // Pr.apply_on_cols(r, &A.mat());
+
+    // MatRealAllocated LU_result(m, n);
+    // blasfeo_dgetr(n, m, &At.mat(), 0, 0, &LU_result.mat(), 0, 0);
+    // std::cout << "full LU result:\n" << LU_result << std::endl;
+
+    // std::cout << "Permuted A:\n" << A << std::endl;
+    // std::cout << "A_reconstructed:\n" << A_reconstructed << std::endl;
+    // return 0;
+
     test_fatrop_lu_fact_transposed_bottom_block();
     return 0;
 
