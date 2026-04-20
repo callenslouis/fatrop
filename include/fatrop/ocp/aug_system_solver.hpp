@@ -288,11 +288,14 @@ namespace fatrop
                                            const VecRealView &D_s, const VecRealView &f,
                                            const VecRealView &g, VecRealView &x, VecRealView &eq_mult);
 
+        void TestPermutationFunctions(const ProblemInfo& info, int k=-1);
+
         std::chrono::nanoseconds duration_lu_factorization = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_backward_recursion = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_initial_stage = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_forward_recursion = std::chrono::nanoseconds(0);
-    private:
+        std::vector<PermutationMatrix> Pl_rank;
+    // private:
         void fatrop_lu_fact_blocked_transposed(const Index m, const Index n, 
             const Index n1, const Index n_max, Index &r1, Index &r2, Index &r, MAT *At,
             PermutationMatrix &Pl1, PermutationMatrix &Pl_rank, PermutationMatrix &Pl2,
@@ -359,7 +362,6 @@ namespace fatrop
         std::vector<VecRealAllocated> v_tmp;
         
         std::vector<PermutationMatrix> Pl1;
-        std::vector<PermutationMatrix> Pl_rank;
         std::vector<PermutationMatrix> Pl2;
         std::vector<PermutationMatrix> Pr1;
         std::vector<PermutationMatrix> Pr2;
@@ -379,6 +381,8 @@ namespace fatrop
         Scalar lu_fact_tol = 1e-5;
         bool diagnostic = false;
         bool increased_accuracy = true;
+
+        private:
     };
 
 

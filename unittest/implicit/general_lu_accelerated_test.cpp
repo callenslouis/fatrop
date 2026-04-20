@@ -103,18 +103,24 @@ public:
                 }
             }
         }
-        ng_ineq = RandomVector(K, 0, 0*max_val);
+        ng_ineq = RandomVector(K, 0, max_val);
 
         // K = 2;
         // nx = {2, 2};
         // r = {2, 2};
         // nu = {2, 2};
         // ng = {2, 2};
-        std::cout << "nx[0]: " << nx[0] << std::endl;
+        // std::cout << "nx[0]: " << nx[0] << std::endl;
         // nu[0] += nx[0];
         // nx[0] = 0;
-        int swap_val = 0;
-        nu[0] += swap_val; nx[0] -= swap_val;
+        // int swap_val = 1;
+        // nu[0] += swap_val; nx[0] -= swap_val;
+
+        // int change_val = 1;
+        // nx[0] -= change_val;
+        // ng[0] -= change_val;
+
+        // ng[K-1] = 0;
 
         // reformulation
         for (int k = 0; k < K-1; ++k){
@@ -196,6 +202,7 @@ public:
                 Index nx_next = info.value().dims.number_of_states[k + 1];
                 jacobian.value().Gg_eqt[k].block(nx_next, ng-nx_next, nu-nx_next, 0) =
                     ::test::empty_matrix(nx_next, ng-nx_next);
+                std::cout << "ng: " << ng << ", nx_next: " << nx_next << std::endl;
             }
             
             full_matrix_jacobian.value().block(ng, nu + nx, offset_g_eq, offs_ux) =
@@ -251,7 +258,7 @@ public:
     void SetUp()
     {
         // int seed = time(0);
-        int seed = 1776350851;
+        int seed = 1776699061; // LU verification failed!
         srand(seed);
         std::cout << "int seed = " << seed << ";" << std::endl;
         Randomize();
@@ -379,6 +386,7 @@ TEST_F(AcceleratedAugSystemSolverTest, TestRandomSolve)
             continue;
         }
         EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
+        solver.value().TestPermutationFunctions(info.value(), 0);
         std::cout << "-------------------------------  Done. -------------------------------" << std::endl;
         
         VecRealAllocated x_reference(info.value().number_of_primal_variables);
@@ -418,5 +426,41 @@ TEST_F(AcceleratedAugSystemSolverTest, TestRandomSolve)
             rhs_x.value(), rhs_g.value(), x_reference,
             mult_reference);
         std::cout << "done checking\n" << std::endl;
+
+        /*
+        std::cout << "Pl_rank modified: ";
+        bool modified = false;
+        for (int i = 0; i < solver.value().Pl_rank[0].size(); i++){
+            if (solver.value().Pl_rank[0][i] != i){
+                modified = true;
+                break;
+            }
+        }
+
+
+
+        std::cout << (modified ? "yes" : "no") << std::endl;
+        if (true || modified){
+            std::cout << "Pl_rank: " << solver.value().Pl_rank[0] << std::endl;
+            std::cout << "rank: " << solver.value().rho1[0] << std::endl;
+            std::cout << "nx: " << info.value().dims.number_of_states[1] << std::endl;
+            std::cout << "gamma: " << solver.value().gamma[0] << std::endl;
+            std::cout << "r1 == ng_true: " << (solver.value().rho1[0] == solver.value().gamma[0] - info.value().dims.number_of_states[1]) << std::endl;
+            std::cout << "r1 == nu_true: " << (solver.value().rho1[0] == info.value().dims.number_of_controls[0] - info.value().dims.number_of_states[1]) << std::endl;
+
+            // append to file: modified,rank,nx,gamma,r1_eq_ng_true,r1_eq_nu_true
+            std::ofstream file;
+            file.open("failure_cases.csv", std::ios_base::app);    
+            file << max_diff_mult << "," 
+                 << max_diff_x << ","
+                 << (modified ? "1" : "0") << "," 
+                 << solver.value().rho1[0] << "," 
+                 << info.value().dims.number_of_states[1] << "," 
+                 << solver.value().gamma[0] << "," 
+                 << (solver.value().rho1[0] == solver.value().gamma[0] - info.value().dims.number_of_states[1]) << "," 
+                 << (solver.value().rho1[0] == info.value().dims.number_of_controls[0] - info.value().dims.number_of_states[1]) << "\n";
+            file.close();
+        }
+        */
     }
 }

@@ -134,7 +134,7 @@ Define
 \begin{align}
     \tilde{L} &\coloneqq \begin{bmatrix} K_1 & & \\ K_2 & \bm{I}_{n_g-\rho} & \\ & & \bm{I}_{n_x} \end{bmatrix}
     & &\text{such that} &
-    \tilde{L}^{-1} &= \begin{bmatrix} K_1^{-1} & & \\ -K_2 K_1^{-1} & \bm{I}_{n_u-\rho} & \\ & & \bm{I}_{n_x} \end{bmatrix}
+    \tilde{L}^{-1} &= \begin{bmatrix} K_1^{-1} & & \\ -K_2 K_1^{-1} & \bm{I}_{n_g-\rho} & \\ & & \bm{I}_{n_x} \end{bmatrix}
 \end{align}
 which leads to
 \begin{equation}
@@ -162,7 +162,7 @@ using $K_3 \coloneqq (\tilde{M}_2)_1 V_1^{-1}$, which leads to
 \end{equation}
 where $K_4 \coloneqq (\tilde{M}_2)_2 - K_3 V_2$. Because of the zero-row, we must perform row pivoting in order to continue the decomposition. Hence, define
 \begin{equation}
-    \tilde{P} \coloneqq \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_g-\rho}\\ & \bm{I}_{n_x} & \end{bmatrix}
+    \tilde{P} \coloneqq \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_x}\\ & \bm{I}_{n_g-\rho} & \end{bmatrix}
 \end{equation}
 leading to
 \begin{equation}
