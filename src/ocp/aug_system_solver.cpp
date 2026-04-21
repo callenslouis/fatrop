@@ -2335,13 +2335,6 @@ void AcceleratedAugSystemSolver::fatrop_lu_fact_blocked_transposed(
     Index n = nu + nx + 1;
     Index n_max = nu;
 
-    std::cout << "nu: " << nu << std::endl;
-    std::cout << "nx: " << nx << std::endl;
-    std::cout << "ng: " << ng << std::endl;
-    std::cout << "nx_next: " << nx_next << std::endl;
-    std::cout << "gamma: " << gamma[k] << std::endl;
-    std::cout << "nc: " << nc << std::endl;
-
     // lu of top-left block
     fatrop_lu_fact_transposed(ng_true, nu_true, nu_true, rho1[k], At, Pl1[k], 
                               Pr1[k], lu_fact_tol);
@@ -2367,28 +2360,15 @@ void AcceleratedAugSystemSolver::fatrop_lu_fact_blocked_transposed(
     }
 
     // second LU decomposition
-    std::cout << "nx_next: " << nx_next << ", nc: " << nc << ", nu-rho1[k]: " << nu-rho1[k] << std::endl;
     blasfeo_dgecp(nu-rho1[k], nx_next + nc, At, rho1[k], rho1[k], &scratch[0].mat(), 0, 0);
-    std::cout << "At now:\n"; blasfeo_print_dmat(At->m, At->n, At, 0, 0);
-    std::cout << "LU of:\n" << scratch[0].block(nu-rho1[k], nx_next+nc, 0, 0) << std::endl;
     fatrop_lu_fact_transposed(nx_next + nc, nu-rho1[k], nu-rho1[k], rho2[k], &scratch[0].mat(), Pl2[k], Pr2[k], lu_fact_tol);
-    std::cout << "LU:\n" << scratch[0].block(nu-rho1[k], nx_next + nc, 0, 0) << std::endl;
-    std::cout << "r: " << rho2[k] << std::endl;
-    std::cout << "Pl: " << Pl2[k] << std::endl;
-    std::cout << "Pr: " << Pr2[k] << std::endl;
-
-    blasfeo_dgecp(nx_next + nc, nu-rho1[k], &scratch[0].mat(), 0, 0, At, rho1[k], rho1[k]);
+    blasfeo_dgecp(nu-rho1[k], nx_next + nc, &scratch[0].mat(), 0, 0, At, rho1[k], rho1[k]);
     // NOTE: offset lu factorization seems to show bugs in blasfeo_dcolsw
     // fatrop_lu_fact_transposed(nx_next + nc, nu-rho1[k], nu-rho1[k], rho2[k], At, rho1[k], rho1[k], Pl2[k], Pr2[k], lu_fact_tol);
     rho[k] = rho1[k] + rho2[k];
 
-    std::cout << "Permuting K3: permuting at most " << rho2[k] << " columns and only permuting " << rho1[k] << " rows starting at 0, " << rho1[k] << ")\n";
-    blasfeo_print_dmat(At->m, At->n, At, 0, 0);
     Pl2[k].apply_on_cols(rho2[k], At, 0, rho1[k], rho1[k]); // permute K3
-    blasfeo_print_dmat(At->m, At->n, At, 0, 0);
-    std::cout << "Permuting V2: permuting at most " << rho2[k] << " rows and only permuting " << rho1[k] << " rows starting at " << rho1[k] << ", " << 0 << ")\n";
     Pr2[k].apply_on_rows(rho2[k], At, rho1[k], rho1[k]); // permute V2
-    blasfeo_print_dmat(At->m, At->n, At, 0, 0);
 
     // Fix bottom part
     // std::cout << "bottom part before:\n"; blasfeo_print_dmat(n-n_max, m, At, n_max, 0);
