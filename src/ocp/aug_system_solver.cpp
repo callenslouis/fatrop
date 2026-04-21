@@ -59,49 +59,6 @@ void PrintNpArray(VecRealAllocated const &v, int offset, int length, std::string
     std::cout << "]]))" << std::endl;
 }
 
-/*
-MatRealAllocated GetTl_mT(MatRealAllocated& LU, Index rank_k, Index nu, Index gamma_k, PermutationMatrix& Pl){
-    // start with identity
-    MatRealAllocated Tl_mT(gamma_k, gamma_k);
-    for (Index i = 0; i < gamma_k; i++){
-        Tl_mT(i,i) = 1.0;
-    }
-
-    // apply Tl^-T
-    Pl.apply_on_cols(rank_k, &Tl_mT.mat());
-    blasfeo_dtrsm_runu(nu, rank_k, 1.0, &LU.mat(), 0, 0, 
-                       &Tl_mT.mat(), 0, 0, &Tl_mT.mat(), 0, 0); // L1^-T to first rank_k cols
-    blasfeo_dgemm_nn(nu, gamma_k-rank_k, rank_k, -1.0, &Tl_mT.mat(), 0, 0, 
-                     &LU.mat(), 0, rank_k, 1.0, 
-                     &Tl_mT.mat(), 0, rank_k, &Tl_mT.mat(), 0, rank_k); // - L2^-T * L1^-T to last rank_k cols
-    blasfeo_dtrsm_rlnn(nu, rank_k, -1.0, &LU.mat(), 0, 0, &Tl_mT.mat(), 0, 0, &Tl_mT.mat(), 0, 0); // *U1^-T to first rank_k cols
-
-    return Tl_mT;
-}
-
-MatRealAllocated GetTr_mT(MatRealAllocated& LU, Index rank_k, Index m, Index n, PermutationMatrix& Pr){
-    // start with identity
-    MatRealAllocated Tr_mT(n, n);
-    for (Index i = 0; i < n; i++){
-        Tr_mT(i,i) = 1.0;
-    }
-
-    // apply Tr^-T
-    Pr.apply_on_rows(rank_k, &Tr_mT.mat());
-    MatRealAllocated U1U2t(n - rank_k, rank_k);
-    gecp(n - rank_k, rank_k, Tr_mT, rank_k, 0, U1U2t, 0, 0); // U2t in there
-    if (n - rank_k > 0){
-    trsm_rlnn(n-rank_k, rank_k, -1.0, Tr_mT, 0, 0, U1U2t, 0, 0, U1U2t, 0, 0); // U1^-T * U2t in there
-    gemm_nn(n - rank_k, m, rank_k, 1.0, U1U2t, 0, 0, Tr_mT, 0, 0, 1.0,
-            Tr_mT, 0, rank_k, Tr_mT, 0, rank_k); // - U2 * U1^-T * U2t in there
-    }
-
-    return Tr_mT;
-}
-*/
-
-
-
 bool check_reg(const Index m, MAT *sA, const Index ai, const Index aj)
 {
     for (Index i = 0; i < m; i++)
@@ -307,9 +264,6 @@ LinsolReturnFlag AugSystemSolver<OcpType>::solve(const ProblemInfo &info,
             // operations LU_FACT_TRANSPOSE(Ggtstripe[:gamma_k, nu+nx+1], nu max) if(k==K-2)
             // blasfeo_print_dmat(1, gamma_k, Ggt_stripe[0], nu+nx, 0);
             auto start = std::chrono::steady_clock::now();
-            if (k == 0){
-                std::cout << "\n\nComputing LU of matrix:\n"; blasfeo_print_dmat(nu + nx + 1, gamma_k, &Ggt_stripe[0].mat(), 0, 0);
-            }
             MatRealAllocated A_original(nu + nx + 1, gamma_k);
             gecp(nu + nx + 1, gamma_k, Ggt_stripe[0], 0, 0, A_original, 0, 0);
 
@@ -318,19 +272,9 @@ LinsolReturnFlag AugSystemSolver<OcpType>::solve(const ProblemInfo &info,
             auto stop = std::chrono::steady_clock::now();
             duration_lu_factorization += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
             // std::cout << duration_lu_factorization.count() << std::endl;
-            if (k == 0){
-                std::cout << "Computed LU decomposition:\n";
-                blasfeo_print_dmat(nu + nx + 1, gamma_k, &Ggt_stripe[0].mat(), 0, 0);
-                std::cout << "rank_k: " << rank_k << std::endl;
-                // VecRealAllocated row_seq(gamma_k); for (int i = 0; i < gamma_k; i++){ row_seq(i) = i;}
-                // VecRealAllocated col_seq(nu + nx + 1); for (int i = 0; i < nu + nx + 1; i++){ col_seq(i) = i;}
-                // Pl[k].apply(rank_k, &row_seq.vec(), 0);
-                // Pr[k].apply(rank_k, &col_seq.vec(), 0);
-                // std::cout << "row sequence: " << row_seq << std::endl;
-                // std::cout << "col sequence: " << col_seq << std::endl;
-            }
 
             // verify Tr^-T At Tl^-T
+            /*
             MatRealAllocated At2(nu, gamma_k);
             gecp(nu, gamma_k, A_original, 0, 0, At2, 0, 0);
 
@@ -354,6 +298,7 @@ LinsolReturnFlag AugSystemSolver<OcpType>::solve(const ProblemInfo &info,
             if (k == 0){
                 std::cout << "At after applying Tl^-T and Tr^-T:\n"; blasfeo_print_dmat(nu, gamma_k, &At2.mat(), 0, 0);
             }
+            */
 
             rho[k] = rank_k;
             if (gamma_k - rank_k > 0)
@@ -362,8 +307,6 @@ LinsolReturnFlag AugSystemSolver<OcpType>::solve(const ProblemInfo &info,
                 if (gamma_k - rank_k > nx)
                     return LinsolReturnFlag::NOFULL_RANK;
                 getr(nx + 1, gamma_k - rank_k, Ggt_stripe[0], nu, rank_k, Hh[k], 0, 0);
-                std::cout << "copied constraint part:\n";
-                blasfeo_print_dmat(gamma_k - rank_k, nx + 1, &Hh[k].mat(), 0, 0);
             }
             if (rank_k > 0)
             {
@@ -1286,9 +1229,9 @@ LinsolReturnFlag AcceleratedAugSystemSolver::solve(const ProblemInfo &info,
                                            const VecRealView &f, const VecRealView &g,
                                            VecRealView &x, VecRealView &eq_mult)
 {
-    for (Index k = info.dims.K - 1; k >= 0; --k){
-        std::cout << "Gg_eqt[" << k << "]:\n" << jacobian.Gg_eqt[k] << "\n";
-    }
+    // for (Index k = info.dims.K - 1; k >= 0; --k){
+    //     std::cout << "Gg_eqt[" << k << "]:\n" << jacobian.Gg_eqt[k] << "\n";
+    // }
     MatRealView *RSQrq_hat_curr_p;
     Index rank_k;
     auto intermediate_start = std::chrono::high_resolution_clock::now();
@@ -1347,23 +1290,11 @@ LinsolReturnFlag AcceleratedAugSystemSolver::solve(const ProblemInfo &info,
                 // if Hkp1 nonempty
                 if (Hp1_size > 0)
                 {
-                    // Make sure that the transfered constraints are put above the dynamics, otherwise they ruin structure
-                    // OLD:
-                    // // Ggt_stripe <- [Ggt_k [BAb_k^T]H_kp1]
-                    // gemm_nt(nu + nx + 1, Hp1_size, nxp1, 1.0, jacobian.BAbt[k], 0, 0, Hh[k + 1], 0,
-                    //         0, 0.0, Ggt_stripe[0], 0, ng, Ggt_stripe[0], 0, ng);
-                    // // Ggt_stripe[-1,ng:] <- Ggt_stripe[-1,ng:] + h_kp1^T
-                    // gead_transposed(1, Hp1_size, 1.0, Hh[k + 1], 0, nxp1, Ggt_stripe[0], nu + nx,
-                    //                 ng);
-                    
-                    // NEW:
-                    // move over current constraints
-                    gecp(nu + nx + 1, ng, Ggt_stripe[0], 0, 0, Ggt_stripe[0], 0, Hp1_size);
-                    // Ggt_stripe <- [[BAb_k^T]H_kp1 Ggt_k]
+                    // Ggt_stripe <- [Ggt_k [BAb_k^T]H_kp1]
                     gemm_nt(nu + nx + 1, Hp1_size, nxp1, 1.0, jacobian.BAbt[k], 0, 0, Hh[k + 1], 0,
-                            0, 0.0, Ggt_stripe[0], 0, 0, Ggt_stripe[0], 0, 0);
+                            0, 0.0, Ggt_stripe[0], 0, ng, Ggt_stripe[0], 0, ng);
                     // Ggt_stripe[-1,ng:] <- Ggt_stripe[-1,ng:] + h_kp1^T
-                    gead_transposed(1, Hp1_size, 1.0, Hh[k + 1], 0, nxp1, Ggt_stripe[0], nu + nx, 0);
+                    gead_transposed(1, Hp1_size, 1.0, Hh[k + 1], 0, nxp1, Ggt_stripe[0], nu + nx, ng);
                 }
             }
             else
@@ -1398,70 +1329,22 @@ LinsolReturnFlag AcceleratedAugSystemSolver::solve(const ProblemInfo &info,
             // operations LU_FACT_TRANSPOSE(Ggtstripe[:gamma_k, nu+nx+1], nu max) if(k==K-2)
             // blasfeo_print_dmat(1, gamma_k, Ggt_stripe[0], nu+nx, 0);
             auto start = std::chrono::steady_clock::now();
-            // lu_fact_transposed(gamma_k, nu + nx + 1, nu, rank_k, Ggt_stripe[0], Pl[k], Pr[k],
-            //                    lu_fact_tol);
             MatRealAllocated A_original(Ggt_stripe[0].m(), Ggt_stripe[0].n());
             blasfeo_dgecp(Ggt_stripe[0].m(), Ggt_stripe[0].n(), &Ggt_stripe[0].mat(), 0, 0, &A_original.mat(), 0, 0);
-            if (k == 0){
-                std::cout << "\n\nComputing LU of matrix:\n"; blasfeo_print_dmat(nu + nx + 1, gamma_k, &Ggt_stripe[0].mat(), 0, 0);
-                std::cout << "gamma: " << gamma_k << ", nu: " << nu << ", nx: " << nx << ", nx_next: " << (k < info.dims.K - 1 ? info.dims.number_of_states[k+1] : 0) << "\n";
-            }
+            std::cout << "Computing LU decomposition of:\n" << Ggt_stripe[0] << std::endl;
             if (k < info.dims.K - 1){
                 int nx_next = info.dims.number_of_states[k+1];
-                // 1. my approach -- FAILS
-                fatrop_lu_fact_blocked_transposed(gamma_k, nu + nx + 1, nx_next, nu, 
-                        rho1[k], rho2[k], rank_k, &Ggt_stripe[0].mat(), Pl1[k], Pl_rank[k], Pl2[k], 
-                        Pr1[k], Pr2[k]);
+                // 1. my approach
+                fatrop_lu_fact_blocked_transposed(info.dims, k, &Ggt_stripe[0].mat());
+                rank_k = rho[k];
 
-
-                // 2. my approach with bottom part separate -- FAILS
-                // fatrop_lu_fact_blocked_transposed(gamma_k, nu, nx_next, nu, 
-                //         rho1[k], rho2[k], rank_k, &Ggt_stripe[0].mat(), Pl1[k], Pl_rank[k], Pl2[k], 
-                //         Pr1[k], Pr2[k]);
-                // apply_Pl_on_cols(Pl1[k], Pl_rank[k], Pl2[k], rho1[k], rho2[k], gamma_k, &Ggt_stripe[0].mat(), nu);
-                // blasfeo_dtrsm_runu(nx+1, rank_k, 1.0, &Ggt_stripe[0].mat(), 0, 0, 
-                //                   &Ggt_stripe[0].mat(), nu, 0, &Ggt_stripe[0].mat(), nu, 0);
-                // blasfeo_dgemm_nn(nx+1, gamma_k-rank_k, rank_k, -1.0, &Ggt_stripe[0].mat(), nu, 0, 
-                //                  &Ggt_stripe[0].mat(), 0, rank_k, 1.0, 
-                //                  &Ggt_stripe[0].mat(), nu, rank_k, &Ggt_stripe[0].mat(), nu, rank_k);
-
-
-                // 3. my approach for bottom part only -- WORKS
-                // fatrop_lu_fact_transposed(gamma_k, nu, nu, 
-                //         rank_k, &Ggt_stripe[0].mat(), Pl1[k], Pr1[k]);
-                // rho1[k] = rank_k;
-                // // bottom part
-                // apply_Pl_on_cols(Pl1[k], Pl_rank[k], Pl2[k], rho1[k], rho2[k], gamma_k, &Ggt_stripe[0].mat(), nu);
-                // blasfeo_dtrsm_runu(nx+1, rank_k, 1.0, &Ggt_stripe[0].mat(), 0, 0, 
-                //                   &Ggt_stripe[0].mat(), nu, 0, &Ggt_stripe[0].mat(), nu, 0);
-                // blasfeo_dgemm_nn(nx+1, gamma_k-rank_k, rank_k, -1.0, &Ggt_stripe[0].mat(), nu, 0, 
-                //                  &Ggt_stripe[0].mat(), 0, rank_k, 1.0, 
-                //                  &Ggt_stripe[0].mat(), nu, rank_k, &Ggt_stripe[0].mat(), nu, rank_k);
-
-
-                // 4. original approach -- WORKS
+                // 2. original approach
                 // fatrop_lu_fact_transposed(gamma_k, nu + nx + 1, nu, 
                 //         rank_k, &Ggt_stripe[0].mat(), Pl1[k], Pr1[k]);
                 // rho1[k] = rank_k;
 
-
-                // 5. my approach but modified structure (no bottom right part in A) -- WORKS
-                // fatrop_lu_fact_blocked_transposed(gamma_k, nu + nx + 1, 0, nu, 
-                //         rho1[k], rho2[k], rank_k, &Ggt_stripe[0].mat(), Pl1[k], Pl_rank[k], Pl2[k], 
-                //         Pr1[k], Pr2[k]);
-
-
-                // 6. my approach but modified structure (bottom right part in A as big as possible) -- WORKS
-                // fatrop_lu_fact_blocked_transposed(gamma_k, nu + nx + 1, std::min(gamma_k, nu+nx+1), nu, 
-                //         rho1[k], rho2[k], rank_k, &Ggt_stripe[0].mat(), Pl1[k], Pl_rank[k], Pl2[k], 
-                //         Pr1[k], Pr2[k]);
-
-                // 7. my approach but modified structure (bottom right part some dimension) -- FAILS
-                // fatrop_lu_fact_blocked_transposed(gamma_k, nu + nx + 1, 1 + 0*std::min(gamma_k, nu+nx+1), nu, 
-                //         rho1[k], rho2[k], rank_k, &Ggt_stripe[0].mat(), Pl1[k], Pl_rank[k], Pl2[k], 
-                //         Pr1[k], Pr2[k]);
-
-                // check if Tr^-T * A^T * Tl^-T = [-I, 0; 0, 0] --> Works for my approach!
+                // check if Tr^-T * A^T * Tl^-T = [-I, 0; 0, 0]
+                /*
                 MatRealAllocated At2(nu, gamma_k);
                 gecp(nu, gamma_k, A_original, 0, 0, At2, 0, 0);
                 // - apply Tl^-T
@@ -1482,20 +1365,16 @@ LinsolReturnFlag AcceleratedAugSystemSolver::solve(const ProblemInfo &info,
                         At2, 0, rank_k, At2, 0, rank_k); // - U2 * U1^-T * U2t in there
                 }
                 std::cout << "At after applying Tl^-T and Tr^-T:\n"; blasfeo_print_dmat(nu, gamma_k, &At2.mat(), 0, 0);
-
-                // std::cout << "Pl1: " << Pl1[k] << std::endl;
-                // std::cout << "Pl_rank: " << Pl_rank[k] << std::endl;
-                // std::cout << "Pl2: " << Pl2[k] << std::endl;
-                // std::cout << "Pr1: " << Pr1[k] << std::endl;
-                // std::cout << "Pr2: " << Pr2[k] << std::endl;
-                std::cout << "rho1: " << rho1[k] << std::endl;
-                std::cout << "rho2: " << rho2[k] << std::endl;
-                std::cout << "rank_k: " << rank_k << std::endl;
+                */
 
                 bool verification = verify_blocked_lu_new(Ggt_stripe[0],
                     A_original, Pl1[k], Pr1[k], rho1[k], Pl_rank[k], Pl2[k], 
-                    Pr2[k], rho2[k], gamma_k-nx_next, nu-nx_next, nx_next);
+                    Pr2[k], rho2[k], info.dims.number_of_eq_constraints[k]-nx_next, 
+                    nu-nx_next, nx_next, gamma_k-info.dims.number_of_eq_constraints[k]);
                 std::cout << "verification: " << verification << std::endl;
+                if (!verification){
+                    throw std::runtime_error("LU factorization verification failed");
+                }
             } else {
                 fatrop_lu_fact_transposed(gamma_k, nu + nx + 1, nu, 
                         rho2[k], &Ggt_stripe[0].mat(), Pl2[k], Pr2[k]);
@@ -1508,17 +1387,6 @@ LinsolReturnFlag AcceleratedAugSystemSolver::solve(const ProblemInfo &info,
             auto stop = std::chrono::steady_clock::now();
             duration_lu_factorization += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
             // std::cout << duration_lu_factorization.count() << std::endl;
-            if (k == 0){
-                std::cout << "Computed LU decomposition:\n";
-                blasfeo_print_dmat(nu + nx + 1, gamma_k, &Ggt_stripe[0].mat(), 0, 0);
-                // std::cout << "rank_k: " << rank_k << std::endl;
-                // VecRealAllocated row_seq(gamma_k); for (int i = 0; i < gamma_k; i++){ row_seq(i) = i;}
-                // VecRealAllocated col_seq(nu + nx + 1); for (int i = 0; i < nu + nx + 1; i++){ col_seq(i) = i;}
-                // apply_Pl(Pl1[k], Pl_rank[k], Pl2[k], rho1[k], rho2[k], gamma_k, &row_seq.vec(), 0);
-                // apply_Pr(Pr1[k], Pr2[k], rho1[k], rho2[k], &col_seq.vec(), 0);
-                // std::cout << "row sequence: " << row_seq << std::endl;
-                // std::cout << "col sequence: " << col_seq << std::endl;
-            }
 
             rho[k] = rank_k;
             if (gamma_k - rank_k > 0)
@@ -1527,8 +1395,7 @@ LinsolReturnFlag AcceleratedAugSystemSolver::solve(const ProblemInfo &info,
                 if (gamma_k - rank_k > nx)
                     return LinsolReturnFlag::NOFULL_RANK;
                 getr(nx + 1, gamma_k - rank_k, Ggt_stripe[0], nu, rank_k, Hh[k], 0, 0);
-                std::cout << "copied constraint part:\n";
-                blasfeo_print_dmat(gamma_k - rank_k, nx + 1, &Hh[k].mat(), 0, 0);
+                std::cout << "copying over constraints:\n" << Hh[k] << "\n";
             }
             if (rank_k > 0)
             {
@@ -2452,123 +2319,94 @@ void AcceleratedAugSystemSolver::TestPermutationFunctions(const ProblemInfo& inf
     std::cout << "Finished test of permutation functions." << std::endl;
 }
 
-void AcceleratedAugSystemSolver::fatrop_lu_fact_blocked_transposed(const Index m, const Index n, 
-        const Index n1, const Index n_max, Index &r1, Index &r2, Index &r, MAT *At,
-        PermutationMatrix &Pl1, PermutationMatrix &Pl_rank, PermutationMatrix &Pl2,
-        PermutationMatrix &Pr1, PermutationMatrix &Pr2){
-    // fatrop_lu_fact_transposed(m, n, n_max, r, At, Pl1, Pr1, lu_fact_tol);
-    // r1 = r;
-    // r2 = 0;
-    // return;
-    
-    // fatrop_lu_fact_transposed(m, n, n_max, r, At, Pl2, Pr2, lu_fact_tol);
-    // r1 = 0;
-    // r2 = r;
-    // return;
+void AcceleratedAugSystemSolver::fatrop_lu_fact_blocked_transposed(
+        const ProblemDims& dims, const Index k, MAT *At){
 
-    // nx: n1
-    // nu: n - n1
-    // ng: m - n1
+    Index nu = dims.number_of_controls[k];
+    Index nx = dims.number_of_states[k];
+    Index ng = dims.number_of_eq_constraints[k];
+    Index nx_next = (k < dims.K - 1) ? dims.number_of_states[k + 1] : 0;
 
-    // verify expected structure
-    for (int i = n_max - n1; i < n_max; i++){
-        for (int j = 0; j < m - n1; j++){
-            if (std::abs(blasfeo_matel_wrap(At, i, j)) > 1e-10){
-                // print warning
-                std::cout << "\nWARNING: unexpected nonzero entry in top-right block at (" << i << ", " << j << "): " 
-                          << blasfeo_matel_wrap(At, i, j) << std::endl << std::endl;
-                break;
-            }
-        }
-    }
+    Index nu_true = nu - nx_next;
+    Index ng_true = ng - nx_next;
+
+    Index m = gamma[k];
+    Index nc = m - ng;
+    Index n = nu + nx + 1;
+    Index n_max = nu;
+
+    std::cout << "nu: " << nu << std::endl;
+    std::cout << "nx: " << nx << std::endl;
+    std::cout << "ng: " << ng << std::endl;
+    std::cout << "nx_next: " << nx_next << std::endl;
+    std::cout << "gamma: " << gamma[k] << std::endl;
+    std::cout << "nc: " << nc << std::endl;
 
     // lu of top-left block
-    fatrop_lu_fact_transposed(m-n1, n_max-n1, n_max-n1, r1, At, Pl1, Pr1, lu_fact_tol);
-    for (int k = 0; k < n1; k++){Pl_rank[r1 + k] = m-n1 + k;}
+    fatrop_lu_fact_transposed(ng_true, nu_true, nu_true, rho1[k], At, Pl1[k], 
+                              Pr1[k], lu_fact_tol);
+    for (int i = 0; i < m - ng_true; i++){Pl_rank[k][rho1[k] + i] = ng_true + i;}
 
     // permute rows of matrix
-    Pl_rank.apply_on_cols(m, At, 0, 0, n_max);
+    Pl_rank[k].apply_on_cols(m, At, 0, 0, n_max);
 
     // scaling bottom-left
-    blasfeo_dgecp(n_max-n1, n1, At, 0, r1, &scratch[0].mat(), 0, 0);   // M2 to B
-    Pr1.apply_on_rows(r1, &scratch[0].mat());
+    blasfeo_dgecp(nu_true, nx_next, At, 0, rho1[k], &scratch[0].mat(), 0, 0);   // M2 to B
+    Pr1[k].apply_on_rows(rho1[k], &scratch[0].mat());
 
     // compute K3 and K4
-    blasfeo_dtrsm_llnn(r1, n1, 1.0, At, 0, 0, &scratch[0].mat(), 0, 0, At, 0, r1);
-
-    blasfeo_dgemm_nn(n_max-n1-r1, n1, r1, -1.0, At, r1, 0, At, 0, r1, 0.0, 
-                        At, r1, r1, At, r1, r1);
-    if (r1 > 0){
-        blasfeo_dgead(n_max-n1-r1, n1, 1.0, &scratch[0].mat(), r1, 0, At, r1, r1);
+    blasfeo_dtrsm_llnn(rho1[k], nx_next, 1.0, At, 0, 0, &scratch[0].mat(), 0, 0, 
+                       At, 0, rho1[k]);
+    blasfeo_dgemm_nn(n_max-nx_next-rho1[k], nx_next, rho1[k], -1.0, 
+                     At, rho1[k], 0, At, 0, rho1[k], 0.0, 
+                     At, rho1[k], rho1[k], At, rho1[k], rho1[k]);
+    if (rho1[k] > 0){
+        blasfeo_dgead(nu_true-rho1[k], nx_next, 1.0, &scratch[0].mat(), rho1[k], 0, At, rho1[k], rho1[k]);
     } else {
-        blasfeo_dgecp(n_max-n1-r1, n1, &scratch[0].mat(), r1, 0, At, r1, r1);
+        blasfeo_dgecp(nu_true-rho1[k], nx_next, &scratch[0].mat(), rho1[k], 0, At, rho1[k], rho1[k]);
     }
 
     // second LU decomposition
-    fatrop_lu_fact_transposed(n1, n_max-r1, n_max-r1, r2, At, r1, r1, Pl2, Pr2, lu_fact_tol);
-    r = r1 + r2;
+    std::cout << "nx_next: " << nx_next << ", nc: " << nc << ", nu-rho1[k]: " << nu-rho1[k] << std::endl;
+    blasfeo_dgecp(nu-rho1[k], nx_next + nc, At, rho1[k], rho1[k], &scratch[0].mat(), 0, 0);
+    std::cout << "At now:\n"; blasfeo_print_dmat(At->m, At->n, At, 0, 0);
+    std::cout << "LU of:\n" << scratch[0].block(nu-rho1[k], nx_next+nc, 0, 0) << std::endl;
+    fatrop_lu_fact_transposed(nx_next + nc, nu-rho1[k], nu-rho1[k], rho2[k], &scratch[0].mat(), Pl2[k], Pr2[k], lu_fact_tol);
+    std::cout << "LU:\n" << scratch[0].block(nu-rho1[k], nx_next + nc, 0, 0) << std::endl;
+    std::cout << "r: " << rho2[k] << std::endl;
+    std::cout << "Pl: " << Pl2[k] << std::endl;
+    std::cout << "Pr: " << Pr2[k] << std::endl;
 
-    Pl2.apply_on_cols(r2, At, 0, r1, r1); // permute K3
-    Pr2.apply_on_rows(r2, At, r1, r1); // permute V2
+    blasfeo_dgecp(nx_next + nc, nu-rho1[k], &scratch[0].mat(), 0, 0, At, rho1[k], rho1[k]);
+    // NOTE: offset lu factorization seems to show bugs in blasfeo_dcolsw
+    // fatrop_lu_fact_transposed(nx_next + nc, nu-rho1[k], nu-rho1[k], rho2[k], At, rho1[k], rho1[k], Pl2[k], Pr2[k], lu_fact_tol);
+    rho[k] = rho1[k] + rho2[k];
 
-    // fatrop_lu_fact_transposed(m, n_max, n_max, r, At, Pl1, Pr1, lu_fact_tol);
-    // r1 = r;
-    // r2 = 0;
-    // fatrop_lu_fact_transposed(m, n_max, n_max, r, At, Pl2, Pr2, lu_fact_tol);
-    // r1 = 0;
-    // r2 = r;
-
-    // std::cout << "Pl1:     " << Pl1 << std::endl;
-    // std::cout << "Pl_rank: " << Pl_rank << std::endl;
-    // std::cout << "Pl2:     " << Pl2 << std::endl;
-
-    // std::cout << "Pr1:     " << Pr1 << std::endl;
-    // std::cout << "Pr2:     " << Pr2 << std::endl;
-
-    // std::cout << "r: " << r << std::endl;
-    // std::cout << "m: " << m << std::endl;
-    // std::cout << "n: " << n << std::endl;
-    // std::cout << "n_max: " << n_max << std::endl;
-
-    // std::cout << "At after LU:\n"; blasfeo_print_dmat(n, m, At, 0, 0);
+    std::cout << "Permuting K3: permuting at most " << rho2[k] << " columns and only permuting " << rho1[k] << " rows starting at 0, " << rho1[k] << ")\n";
+    blasfeo_print_dmat(At->m, At->n, At, 0, 0);
+    Pl2[k].apply_on_cols(rho2[k], At, 0, rho1[k], rho1[k]); // permute K3
+    blasfeo_print_dmat(At->m, At->n, At, 0, 0);
+    std::cout << "Permuting V2: permuting at most " << rho2[k] << " rows and only permuting " << rho1[k] << " rows starting at " << rho1[k] << ", " << 0 << ")\n";
+    Pr2[k].apply_on_rows(rho2[k], At, rho1[k], rho1[k]); // permute V2
+    blasfeo_print_dmat(At->m, At->n, At, 0, 0);
 
     // Fix bottom part
     // std::cout << "bottom part before:\n"; blasfeo_print_dmat(n-n_max, m, At, n_max, 0);
-    if (n > n_max){
-        // apply_Pl_on_cols(Pl1, Pl_rank, Pl2, r1, r2, m, At, n_max);
-        // blasfeo_dtrsm_runu(n-n_max, r, 1.0, At, 0, 0, At, n_max, 0, At, n_max, 0);
-        // for (int i = 0; i < r; i++){
-        //     for (int j = r; j < m; j++){
-        //         double Lji = blasfeo_matel_wrap(At, i, j);
-        //         blasfeo_gead_wrap(n-n_max, 1, -Lji, At, n_max, i, At, n_max, j);
-        //     }
-        // }
-        
-        apply_Pl_on_cols(Pl1, Pl_rank, Pl2, r1, r2, m, At, n_max);
-        // std::cout << "bottom part:\n"; blasfeo_print_dmat(n-n_max, m, At, n_max, 0);
+    if (n > n_max){    
+        apply_Pl_on_cols(Pl1[k], Pl_rank[k], Pl2[k], rho1[k], rho2[k], m, At, n_max);
         // M1 <- M1 * L1^-T
-        blasfeo_dtrsm_runu(n-n_max, r, 1.0, At, 0, 0, At, n_max, 0, At, n_max, 0);
+        blasfeo_dtrsm_runu(n-n_max, rho[k], 1.0, At, 0, 0, At, n_max, 0, At, n_max, 0);
         // M2 <- M2 - M1 * L2^T
-        // std::cout << "bottom part:\n"; blasfeo_print_dmat(n-n_max, m, At, n_max, 0);
-        // std::cout << "operation to be executed:" << std::endl;
-        // std::cout << "n_max - n: " << n_max - n << std::endl;
-        // std::cout << "m - r: " << m - r << std::endl;
-        // blasfeo_print_dmat(n-n_max, m-r, At, n_max, r);
-        // std::cout << "<--\n";
-        // blasfeo_print_dmat(n-n_max, r, At, n_max, 0);
-        // std::cout << "*\n";
-        // blasfeo_print_dmat(r, m-r, At, 0, r);
-        blasfeo_dgemm_nn(n-n_max, m-r, r, -1.0, At, n_max, 0, At, 0, r, 1.0, 
-                        At, n_max, r, At, n_max, r);
+        blasfeo_dgemm_nn(n-n_max, m-rho[k], rho[k], -1.0, At, n_max, 0, At, 0, rho[k], 1.0, 
+                        At, n_max, rho[k], At, n_max, rho[k]);
     }
-
     // std::cout << "bottom part:\n"; blasfeo_print_dmat(n-n_max, m, At, n_max, 0);
 }
 
 void extract_L(const MatRealAllocated &LU, MatRealAllocated &L, int m, int n, int ai=0, int aj=0, int bi=0, int bj=0){
     for (int row = 0; row < m; row++){
         for (int col = 0; col < m; col++){
-            if (row > col /*&& col < nu[i]+nx[i]*/){
+            if (row > col && col < m){
                 L(bi+row,bj+col) = LU(ai+col,aj+row);
             } else if (row == col){
                 L(bi+row,bj+col) = 1.0;
@@ -2595,38 +2433,37 @@ bool AcceleratedAugSystemSolver::verify_blocked_lu_new(const MatRealAllocated& L
         PermutationMatrix& Pl1, PermutationMatrix& Pr1, int rank1,
         PermutationMatrix& Pl_rank,
         PermutationMatrix& Pl2, PermutationMatrix& Pr2, int rank2,
-        int ng, int nu, int nx){
+        int ng, int nu, int nx, int nc){
     MatRealAllocated A(A_original.m(), A_original.n());
     gecp(A_original.m(), A_original.n(), A_original, 0, 0, A, 0, 0);
 
     MatRealAllocated A_verification(A_original.m(), A_original.n());
     MatRealAllocated A_verification_T(A_original.n(), A_original.m());
-    MatRealAllocated L(ng+nx, ng+nx);
-    MatRealAllocated U(ng+nx, nu+nx);
+    MatRealAllocated L(ng+nx+nc, ng+nx+nc);
+    MatRealAllocated U(ng+nx+nc, nu+nx);
+    extract_L(LU, L, ng+nx+nc, nu+nx, 0, 0);
+    extract_U(LU, U, ng+nx+nc, nu+nx, 0, 0);
 
-    extract_L(LU, L, ng+nx, ng+nx, 0, 0);
-    extract_U(LU, U, ng+nx, nu+nx, 0, 0);
-
-    // std::cout << "L:\n" << L << std::endl;
-    // std::cout << "U:\n" << U << std::endl;
+    // std::cout << "L:\n" << L.block(ng+nx+nc, ng+nx+nc, 0, 0) << std::endl;
+    // std::cout << "U:\n" << U.block(ng+nx+nc, nu+nx, 0, 0) << std::endl;
 
     // compute L*U
-    blasfeo_dgemm_nn(ng+nx, nu+nx, ng+nx, 1.0, &L.mat(), 0, 0, &U.mat(), 0, 0, 0.0, 
+    blasfeo_dgemm_nn(ng+nx+nc, nu+nx, ng+nx+nc, 1.0, &L.mat(), 0, 0, &U.mat(), 0, 0, 0.0, 
                      &A_verification.mat(), 0, 0, &A_verification.mat(), 0, 0);
 
     // apply permutations
-    apply_Pl_on_cols(Pl1, Pl_rank, Pl2, rank1, rank2, ng+nx, &A.mat(), 0);
+    apply_Pl_on_cols(Pl1, Pl_rank, Pl2, rank1, rank2, ng+nx+nc, &A.mat(), 0);
     // std::cout << "A after Pl on cols:\n" << A.block(nu+nx, ng+nx, 0, 0) << std::endl;
     apply_Pr_on_rows(Pr1, Pr2, rank1, rank2, &A.mat());
     // std::cout << "A after Pr on rows:\n" << A.block(nu+nx, ng+nx, 0, 0) << std::endl;
 
     // transpose A_verification
-    blasfeo_dgetr(ng+nx, nu+nx, &A_verification.mat(), 0, 0, &A_verification_T.mat(), 0, 0);
+    blasfeo_dgetr(ng+nx+nc, nu+nx, &A_verification.mat(), 0, 0, &A_verification_T.mat(), 0, 0);
 
     // check that A_copy and A_verification are close
     double max_diff = 0.0;
     for (int row = 0; row < nu+nx; row++){
-        for (int col = 0; col < ng+nx; col++){
+        for (int col = 0; col < ng+nx+nc; col++){
             double diff = std::abs(A(row,col) - A_verification_T(row,col));
             if (diff > max_diff){
                 max_diff = diff;
@@ -2638,14 +2475,14 @@ bool AcceleratedAugSystemSolver::verify_blocked_lu_new(const MatRealAllocated& L
         std::cout << "\nBlocked LU factorization verification failed" << std::endl;
         // std::cout << "A is an " << (ng+nx) << "x" << (nu+nx) << " matrix" << std::endl;
         // std::cout << "Max difference: " << max_diff << std::endl;
-        std::cout << "A_original:\n" << A_original.block(nu+nx, ng+nx, 0, 0) << std::endl;
-        std::cout << "A_copy:\n" << A.block(nu+nx, ng+nx, 0, 0) << std::endl;
-        std::cout << "A_verification:\n" << A_verification_T.block(nu+nx, ng+nx, 0, 0) << std::endl;
+        std::cout << "A_original:\n" << A_original.block(nu+nx, ng+nx+nc, 0, 0) << std::endl;
+        std::cout << "A_copy:\n" << A.block(nu+nx, ng+nx+nc, 0, 0) << std::endl;
+        std::cout << "A_verification:\n" << A_verification_T.block(nu+nx, ng+nx+nc, 0, 0) << std::endl;
         std::cout << "L:\n" << L << std::endl;
         std::cout << "U:\n" << U << std::endl;
         std::cout << "difference between Pl A Pr and L*U:" << std::endl;
-        blasfeo_dgead(nu+nx, ng+nx, -1.0, &A.mat(), 0, 0, &A_verification_T.mat(), 0, 0);
-        std::cout << A_verification_T.block(nu+nx, ng+nx, 0, 0) << std::endl;
+        blasfeo_dgead(nu+nx, ng+nx+nc, -1.0, &A.mat(), 0, 0, &A_verification_T.mat(), 0, 0);
+        std::cout << A_verification_T.block(nu+nx, ng+nx+nc, 0, 0) << std::endl;
         std::cout << "Pl1:    " << Pl1 << std::endl;
         std::cout << "Pl_rank:" << Pl_rank << std::endl;
         std::cout << "Pl2:    " << Pl2 << std::endl;

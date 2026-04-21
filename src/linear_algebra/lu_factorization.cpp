@@ -195,8 +195,8 @@ namespace fatrop
                             const Index ai, const Index aj,
                             PermutationMatrix &Pl, PermutationMatrix &Pr, double tol)
     {
-        // std::cout << "computing LU of matrix" << std::endl;
-        // blasfeo_print_dmat(n, m, At, ai, aj);
+        std::cout << "computing LU of matrix" << std::endl;
+        blasfeo_print_dmat(n, m, At, ai, aj);
         fatrop_dbg_assert(m >= 0 && "m must be non-negative");
         fatrop_dbg_assert(n >= 0 && "n must be non-negative");
         fatrop_dbg_assert(n_max >= 0 && "n_max must be non-negative");
@@ -213,7 +213,12 @@ namespace fatrop
             }
 
             // switch rows
-            COLSW(n, At, ai, aj+i, At, ai, max_curr.second);
+            std::cout << __LINE__ << ":\n"; blasfeo_print_dmat(At->m, At->m, At, 0, 0);
+            std::cout << "n: " << n << std::endl; 
+            std::cout << "ai: " << ai << ", aj: " << aj << std::endl;
+            std::cout << "max_curr: " << max_curr.first << ", " << max_curr.second << std::endl;
+            COLSW(4+0*n, At, ai, aj+i, At, ai, max_curr.second);
+            std::cout << __LINE__ << ":\n"; blasfeo_print_dmat(At->m, At->m, At, 0, 0);
             // save in permutation vector
             Pl[i] = max_curr.second - aj;
             // switch cols

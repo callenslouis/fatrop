@@ -296,16 +296,13 @@ namespace fatrop
         std::chrono::nanoseconds duration_forward_recursion = std::chrono::nanoseconds(0);
         std::vector<PermutationMatrix> Pl_rank;
     // private:
-        void fatrop_lu_fact_blocked_transposed(const Index m, const Index n, 
-            const Index n1, const Index n_max, Index &r1, Index &r2, Index &r, MAT *At,
-            PermutationMatrix &Pl1, PermutationMatrix &Pl_rank, PermutationMatrix &Pl2,
-            PermutationMatrix &Pr1, PermutationMatrix &Pr2);
+        void fatrop_lu_fact_blocked_transposed(const ProblemDims& dims, const Index k, MAT *At);
         bool verify_blocked_lu_new(const MatRealAllocated& LU, 
             const MatRealAllocated& A_original,
             PermutationMatrix& Pl1, PermutationMatrix& Pr1, int rank1,
             PermutationMatrix& Pl_rank,
             PermutationMatrix& Pl2, PermutationMatrix& Pr2, int rank2,
-            int ng, int nu, int nx);
+            int ng, int nu, int nx, int nc=0);
 
         void apply_Pl_on_cols(
             PermutationMatrix& Pl1, PermutationMatrix& Pl_rank, PermutationMatrix& Pl2, 

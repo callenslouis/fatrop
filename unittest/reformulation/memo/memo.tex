@@ -58,6 +58,19 @@ which leads to a specific structure in the stage-wise equality constraint jacobi
 \end{align}
 where $M_1 \in \mathbb{R}^{n_g \times n_u}$, $M_2 \in \mathbb{R}^{n_x \times n_u}$, and $M_3 \in \mathbb{R}^{n_x \times n_x}$.
 
+Note that instead of a lower triangular structre, an upper triangulare structure for $H_u$ is also possible, in which case we write
+\begin{align}
+    H_u &=
+    \begin{bmatrix}
+        \nabla_{z_k} f(x_k, u_k, z_k) & \nabla_{u_k} f(x_k, u_k, z_k)\\
+        \nabla_{z_k} g_\mathrm{eq}(x_k, u_k) & \nabla_{u_k} g_\mathrm{eq}(x_k, u_k)
+    \end{bmatrix}
+    =
+    \begin{bmatrix} M_1 & M_2\\ & M_3 \end{bmatrix}
+    \label{eq:Hu-upper}
+\end{align}
+where $M_1 \in \mathbb{R}^{n_x \times n_x}$, $M_2 \in \mathbb{R}^{n_x \times n_u}$, and $M_3 \in \mathbb{R}^{n_g \times n_u}$.
+
 Figure \ref{fig:lu_time_spent} shows the percentage of computation time of the Ricatti recursion spent in computing the LU factorization of the matrix shown in \eqref{eq:Hu} as a function of $n_x$, $n_u$, and $n_g$. Especially if $n_g$ and $n_u$ are large, a significant percentage of time is spent in the LU decomposition, motivating the need to perform this decomposition more efficiently. For small values of $n_x$, the decomposition is less significant.
 
 \begin{figure}
@@ -79,43 +92,7 @@ Figure \ref{fig:lu_time_spent} shows the percentage of computation time of the R
 
 
 
-\section{Blocked LU decomposition}
-% The structure in the matrix given by \eqref{eq:Hu} can be exploited by performing the decomposition more efficiently. More precisely, instead of computing
-% \begin{equation}
-%     P_l H_u P_r = L U
-% \end{equation}
-% directly, we compute
-% \begin{align}
-%     P_l^1 M_1 P_r^1 &= L_1 U_1 & P_l^3 M_3 P_r^3 &= L_3 U_3 \\
-% \end{align}
-
-% The blocked LU decomposition can be completed by writing
-% \begin{align}
-%     \begin{bmatrix} P_l^1 & \\ & P_l^2 \end{bmatrix}
-%     H_u
-%     \begin{bmatrix} P_r^1 & \\ & P_r^2 \end{bmatrix}
-%     &=
-%     \begin{bmatrix} L_1 & \\ L_2 & L_3 \end{bmatrix}
-%     \begin{bmatrix} U_1 & U_2 \\ & U_3 \end{bmatrix}\\
-%     \longleftrightarrow
-%     \begin{bmatrix} P_l^1 M_1 P_r^1 & \\ P_l^2 M_2 P_r^1 & P_l^2 M_3 P_r^2 \end{bmatrix}
-%     &= \begin{bmatrix} L_1 U_1 & L_1 U_2 \\ L_2 U_1 & L_2 U_2 + L_3 U_3 \end{bmatrix}
-% \end{align}
-% where $U_2 = 0$ must hold, leading to
-% \begin{align}
-%     \begin{bmatrix} P_l^1 M_1 P_r^1 & \\ P_l^2 M_2 P_r^1 & P_l^2 M_3 P_r^2 \end{bmatrix}
-%     &= \begin{bmatrix} L_1 U_1 &  \\ L_2 U_1 & L_3 U_3 \end{bmatrix}
-% \end{align}
-% This means the blocked LU decomposition can be completed by computing
-% \begin{equation}
-%     L_2 = P_l^2 M_2 P_r^1 U_1^{-1}
-% \end{equation}
-% Note that $U_1 \in \mathbb{R}^{n_x \times n_x}$ but is invertible only if $M_1$ is invertible. 
-
-
-
-% \subsection{Note on invertibility of $M_1$}
-% In the case where $M_1$ is not invertible, a more general approach is needed.
+\section{Blocked Lower Triangular LU decomposition}
 The structure in the matrix given by \eqref{eq:Hu} can be exploited by performing the decomposition more efficiently. More precisely, we wish to compute
 \begin{equation}
     P H_u Q = L U
@@ -205,12 +182,12 @@ and
 \end{align}
 
 \begin{algorithm}
-    \caption{Blocked LU decomposition of matrix $H_u$}
+    \caption{Blocked LU decomposition of lower triangular matrix $H_u$}
     \begin{algorithmic}
     \Require Matrix $H_u$ given by \eqref{eq:Hu}
     \Ensure LU decomposition with complete pivoting $P H_u P = L U$
     \State Compute $P_1$, $Q_1$, $K_1$, $K_2$, $V_1$ and $V_2$ such that $P_1 M_1 Q_1 = \begin{bmatrix}K1 & \\ K_2 & \bm{I}\end{bmatrix} \begin{bmatrix} V_1 & V_2\\ & \bm{0}\end{bmatrix}$
-    \State $\tilde{M}_2 \gets M_2 P_r^1$
+    \State $\tilde{M}_2 \gets M_2 Q_1$
     \State $K_3 \gets \tilde{M}_2 \begin{bmatrix} \bm{I}_\rho \\ \bm{0}_{n_g-\rho \times \rho} \end{bmatrix} V_1^{-1}$
     \State $K_4 \gets \tilde{M}_2 \begin{bmatrix} \bm{0}_{\rho \times n_g-\rho} \\ \bm{I}_{n_g-\rho} \end{bmatrix} - K_3 V_2$
     \State Compute $P_2$, $Q_2$, $L_2$, $V_3$ and $V_4$ such that $P_2 \begin{bmatrix} K_4 & M_3 \end{bmatrix} Q_2 = L_2 \begin{bmatrix} V_3 & V_4 \end{bmatrix}$
@@ -231,68 +208,306 @@ and
 
 
 
-\subsection{Verification of blocked LU decomposition}
-To verify \eqref{eq:final_decomposition}, compute both the left and right-hand side. The right-hand side is given by
+
+
+
+\section{Blocked Upper Triangular LU decomposition}
+The structure in the matrix given by \eqref{eq:Hu-upper} can be exploited by performing the decomposition more efficiently. More precisely, we wish to compute
 \begin{equation}
-    \begin{bmatrix} K_1 & & \\ \tilde{K}_3 & L_2 & \\ K_2 &  & \bm{I}_{n_x-\rho} \end{bmatrix}
-    \begin{bNiceMatrix}[margin=8pt, cell-space-limits=2pt]
-        V_1 & \Block[draw=black]{1-2}{\tilde{V}_2} \\
-        & V_3 & V_4 \\
-        & & \bm{0}_{n_g-\rho \times n_x}
-    \end{bNiceMatrix}
-    = 
-    \begin{bNiceMatrix}[margin=8pt, cell-space-limits=2pt]
-        K_1 V_1         & K_1 \tilde{V}_2 \\
-        \tilde{K}_3 V_1 & \tilde{K}_3 \tilde{V}_2 + L_2 \begin{bmatrix} V_3 & V_4 \end{bmatrix} \\
-        K_2 V_1         & K_2 \tilde{V}_2
-    \end{bNiceMatrix}
-    \label{eq:right-hand-side}
+    P H_u Q = L U
 \end{equation}
+Suppose $M_1$ is decomposed as 
+\begin{align}
+    P_1 M_1 Q_1 &= L_1 U_1
+\end{align}
+where
+\begin{align}
+    L_1 &= \begin{bmatrix} K_1 & \\ K_2 & \bm{I}_{n_x-\rho} \end{bmatrix} & 
+    &\text{and} &
+    U_1 &= \begin{bmatrix} V_1 & V_2 \\ & \bm{0}_{n_x-\rho \times n_x-\rho} \end{bmatrix}
+\end{align}
+Define 
+\begin{align}
+    \tilde{L} &\coloneqq \begin{bmatrix} K_1 & & \\ K_2 & \bm{I}_{n_x-\rho} & \\ & & \bm{I}_{n_g} \end{bmatrix}
+    & &\text{such that} &
+    \tilde{L}^{-1} &= \begin{bmatrix} K_1^{-1} & & \\ -K_2 K_1^{-1} & \bm{I}_{n_x-\rho} & \\ & & \bm{I}_{n_u} \end{bmatrix}
+\end{align}
+which leads to
+\begin{equation}
+    \tilde{L}^{-1} 
+    \begin{bmatrix} P_1 & \\ & \bm{I}_{n_g} \end{bmatrix} 
+    H_u
+    \begin{bmatrix} Q_1 & \\ & \bm{I}_{n_u} \end{bmatrix} 
+    = \begin{bmatrix} V_1 & V_2 & K_1^{-1}(\tilde{M}_2)_1\\ &  & (\tilde{M}_2)_2 - K_2 K_1^{-1} (\tilde{M}_2)_1\\ & & M_3 \end{bmatrix}
+\end{equation}
+where $\begin{bmatrix} (\tilde{M}_2)_1 &(\tilde{M}_2)_2 \end{bmatrix} = P_1 M_2$ with $(\tilde{M}_2)_1 \in \mathbb{R}^{\rho \times n_u}$ and $(\tilde{M}_2)_2 \in \mathbb{R}^{n_x - \rho \times n_u}$.
+
+Define $K_3 \coloneqq K_1^{-1} (\tilde{M}_2)_1$ and $K_4 \coloneqq (\tilde{M}_2)_2 - K_2 K_3$ and 
+\begin{equation}
+    \tilde{Q} \coloneqq \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_u}\\ & \bm{I}_{n_x-\rho} & \end{bmatrix}
+\end{equation}
+leading to
+\begin{equation}
+    \hat{L}^{-1}
+    \begin{bmatrix} P_1 & \\ & \bm{I}_{n_x} \end{bmatrix} 
+    H_u
+    \begin{bmatrix} Q_1 & \\ & \bm{I}_{n_x} \end{bmatrix} 
+    \tilde{Q}
+    = \begin{bmatrix} V_1 & K_3 & V_2 \\ & K_4 & \\ & M_3 & \\\end{bmatrix}
+\end{equation}
+Now, a remaining LU-decomposition should be performed on the matrix $\begin{bmatrix} K_4 \\ M_3\end{bmatrix}$ such that
+\begin{equation}
+    P_2 \begin{bmatrix} K_4 \\ M_3\end{bmatrix} Q_2 = L_2 U_2
+\end{equation}
+Note that the permutation matrices $P_2$ and $Q_2$ affect also $K_2$ and $K_3$, hence we define
+\begin{align}
+    \tilde{K}_2 &\coloneqq P_2 \begin{bmatrix} K_2\\ \bm{0}_{n_g \times \rho} \end{bmatrix}\\
+    V_3 &\coloneqq K_3 Q_2
+\end{align}
+
+Finally, the decomposition of $M$ is given by 
+\begin{equation}
+    P H_u Q = 
+    \begin{bmatrix} K_1 & \\ \tilde{K}_2 & L_2 \end{bmatrix}
+    \begin{bmatrix}
+        V_1 & V_3 & V_2 \\
+        & U_2 & 
+    \end{bmatrix}
+    \label{eq:final_decomposition-upper}
+\end{equation}
+and 
+\begin{align}
+    P &= 
+    \begin{bmatrix} \bm{I}_\rho & \\ & P_2 \end{bmatrix}
+    \begin{bmatrix} P_1 & \\ & \bm{I}_{n_x} \end{bmatrix}\\
+    Q &= 
+    \begin{bmatrix} Q_1 & \\ & \bm{I}_{n_x}\end{bmatrix} 
+    \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_u} \\ & \bm{I}_{n_x-\rho} & \end{bmatrix}
+    \begin{bmatrix}\bm{I}_\rho & & \\ & Q_2 & \\ & & \bm{I}_{n_x-\rho}\end{bmatrix}
+\end{align}
+
+\begin{algorithm}
+    \caption{Blocked LU decomposition of upper triangular matrix $H_u$}
+    \begin{algorithmic}
+    \Require Matrix $H_u$ given by \eqref{eq:Hu-upper}
+    \Ensure LU decomposition with complete pivoting $P H_u P = L U$
+    \State Compute $P_1$, $Q_1$, $K_1$, $K_2$, $V_1$ and $V_2$ such that $P_1 M_1 Q_1 = \begin{bmatrix}K1 & \\ K_2 & \bm{I}\end{bmatrix} \begin{bmatrix} V_1 & V_2\\ & \bm{0}\end{bmatrix}$
+    \State $\tilde{M}_2 \gets P_1 M_2$
+    \State $K_3 \gets K_1^{-1} (\tilde{M}_2)_1$
+    \State $K_4 \gets (\tilde{M}_2)_2 - K_2 K_3$
+    \State Compute $P_2$, $Q_2$, $L_2$, $V_3$ and $V_4$ such that $P_2 \begin{bmatrix} K_4 \\  M_3 \end{bmatrix} Q_2 = L_2 U_2$
+    \State $\tilde{K}_2 \gets P_2 \begin{bmatrix} K_3 \\ \bm{0} \end{bmatrix}$
+    \State $V_3 \gets K_3 Q_2$
+    \State $L \gets \begin{bmatrix} K_1 & \\ \tilde{K}_2 & L_2\end{bmatrix}$
+    \State $U \gets \begin{bmatrix} V_1 & V_3 & V_2 \\ & U_2 & \end{bmatrix}$
+    \State $P \gets \begin{bmatrix} \bm{I}_\rho & \\ & P_2 \end{bmatrix} \begin{bmatrix} P_1 & \\ & \bm{I}_{n_g} \end{bmatrix}$
+    \State $Q \gets \begin{bmatrix} Q_1 & \\ & \bm{I}_{n_x}\end{bmatrix} \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_u} \\ & \bm{I}_{n_x-\rho} & \end{bmatrix} \begin{bmatrix}\bm{I}_\rho & & \\ & Q_2 & \\ & & \bm{I}_{n_x-\rho} \end{bmatrix}$
+
+    \end{algorithmic}
+\end{algorithm}
+
+
+
+
+
+
+
+
+
+
+
+\subsection{Verification of blocked LU decomposition}
+To verify \eqref{eq:final_decomposition-upper}, compute both the left and right-hand side. The right-hand side is given by
+\begin{equation}
+    \begin{bmatrix} K_1 & \\ \tilde{K}_2 & L_2 \end{bmatrix}
+    \begin{bmatrix} V_1 & V_3 & V_2 \\ & U_2 & \end{bmatrix}
+    = 
+    \begin{bmatrix} K_1 V_1 & K_1 V_3 & K_1 V_2 \\ \tilde{K}_2 V_1 & \tilde{K}_2 V_3 + L_2 U_2 & \tilde{K}_2 V_2 \end{bmatrix}
+    \label{eq:right-hand-side-upper}
+\end{equation}
+where
+\begin{align}
+    L_2 U_2 &= P_2 \begin{bmatrix} K_4 \\ M_3 \end{bmatrix} Q_2\\
+    &= P_2 \begin{bmatrix} (\tilde{M}_2)_2 - K_2 K_3 \\ M_3 \end{bmatrix} Q_2\\
+    &= P_2 \begin{bmatrix} (\tilde{M}_2)_2 \\ M_3 \end{bmatrix} Q_2 - P_2 \begin{bmatrix} K_2 \\ \bm{0} \end{bmatrix} K_3 Q_2\\
+    &= P_2 \begin{bmatrix} (\tilde{M}_2)_2 \\ M_3 \end{bmatrix} Q_2 - \tilde{K}_2 V_3
+\end{align}
 
 The left-hand side can be using the definitions
 \begin{align}
     X_1 \coloneqq \begin{bmatrix} P_1 & \\ & \bm{I}_{n_x} \end{bmatrix}
     H_u
     \begin{bmatrix} Q_1 & \\ & \bm{I}_{n_x}\end{bmatrix}
-    &= \begin{bmatrix} P_1 M_1 Q_1 & \\ M_2 Q_1 & M_3 \end{bmatrix}\\
-    &= \begin{bmatrix} L_1 U_1 & \\ M_2 Q_1 & M_3 \end{bmatrix}\\
-    &= \begin{bmatrix} K_1 V_1 & K_1 V_2 & \\ K_2 V_1 & K_2 V_2 &  \\ (\tilde{M}_2)_1 & (\tilde{M}_2)_2 & M_3 \end{bmatrix}\\
-    X_2 \coloneqq \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_x} \\ & \bm{I}_{n_g-\rho} & \end{bmatrix}
-    X_1
-    &= \begin{bmatrix} K_1 V_1 & K_1 V_2 & \\ (\tilde{M}_2)_1 & (\tilde{M}_2)_2 & M_3 \\ K_2 V_1 & K_2 V_2 & \end{bmatrix}
+    &= \begin{bmatrix} P_1 M_1 Q_1 & P_1 M_2 \\ & M_3 \end{bmatrix}\\
+    &= \begin{bmatrix} L_1 U_1 & \tilde{M}_2 \\ & M_3 \end{bmatrix}\\
+    &= \begin{bmatrix} K_1 V_1 & K_1 V_2 & (\tilde{M}_2)_1 \\ K_2 V_1 & K_2 V_2 & (\tilde{M}_2)_2 \\ & & M_3 \end{bmatrix}\\
+    X_2 \coloneqq X_1 \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_u} \\ & \bm{I}_{n_x-\rho} & \end{bmatrix}
+    &= \begin{bmatrix} K_1 V_1 & (\tilde{M}_2)_1 & K_1 V_2 \\ K_2 V_1 & (\tilde{M}_2)_2 & K_2 V_2 \\ & M_3 & \end{bmatrix}
 \end{align}
 Such that we can compute
 \begin{align}
-    P H_u Q &= \begin{bmatrix} \bm{I}_\rho & & \\ & P_2 & \\ & & \bm{I}_{n_g-\rho} \end{bmatrix}
+    P H_u Q &= \begin{bmatrix} \bm{I}_\rho & \\ & P_2\end{bmatrix}
     X_2
-    \begin{bmatrix}\bm{I}_\rho & & \\ & (Q_2)_{11} & (Q_2)_{12}\\ & (Q_2)_{21} & (Q_2)_{22} \end{bmatrix}\\
-    &= \begin{bmatrix} K_1 V_1 & K_1 V_2 & \\ P_2 (\tilde{M}_2)_1 & P_2  (\tilde{M}_2)_2 & P_2  M_3 \\ K_2 V_1 & K_2 V_2 & \end{bmatrix}
-    \begin{bmatrix}\bm{I}_\rho & & \\ & (Q_2)_{11} & (Q_2)_{12}\\ & (Q_2)_{21} & (Q_2)_{22} \end{bmatrix}\\
-    &= \begin{bNiceMatrix}[margin=8pt, cell-space-limits=2pt] 
-        K_1 V_1 & K_1 \tilde{V}_2 \\ 
-        P_2 (\tilde{M}_2)_1 & P_2 \begin{bmatrix} (\tilde{M}_2)_2 & M_3 \end{bmatrix} Q_2 \\ 
-        K_2 V_1 & K_2 \tilde{V}_2 
-    \end{bNiceMatrix}
-    \label{eq:left-hand-side}
+    \begin{bmatrix}\bm{I}_\rho & & \\ & Q_2 & \\ & & \bm{I}_{n_x-\rho} \end{bmatrix}\\
+    &= \begin{bmatrix} K_1 V_1 & (\tilde{M}_2)_1 & K_1 V_2 \\ \tilde{K}_2 V_1 & P_2 \begin{bmatrix} (\tilde{M}_2)_2\\ M_3 \end{bmatrix} & \tilde{K}_2 V_2 \end{bmatrix}
+    \begin{bmatrix}\bm{I}_\rho & & \\ & Q_2 & \\ & & \bm{I}_{n_x-\rho} \end{bmatrix}\\
+    &= \begin{bmatrix} K_1 V_1 & K_1 V_3 & K_1 V_2 \\ \tilde{K}_2 V_1 & P_2 \begin{bmatrix} (\tilde{M}_2)_2\\ M_3 \end{bmatrix} Q_2 & \tilde{K}_2 V_2 \end{bmatrix}
+    \label{eq:left-hand-side-upper}
 \end{align}
 
-Now we can see that \eqref{eq:left-hand-side} is equal to \eqref{eq:right-hand-side} by seeing that $\tilde{K}_3 V_1 = P_l^2 K_3 V_1 = P_l^2 \tilde{M}_2^1 V_1^{-1} V_1 = P_l^2 \tilde{M}_2^1$ and that
+
+
+
+
+
+
+
+
+
+
+\section{carry-over of constraints}
+In some cases, constraints on $x_{k+1}$ are transferred to stage $k$ using the dynamics equations. In this case, that leads to an augmented matrix 
+\begin{equation}
+    H_u = \begin{bNiceMatrix}[first-row, first-col]
+        & n_u & n_x\\
+        n_g & M_1 &    \\ 
+        n_x & M_2 & M_3\\ 
+        n_c & & M_4
+    \end{bNiceMatrix} \label{eq:Hu-carry}
+\end{equation}
+Note that this is still a lower triangular matrix. If the definition of \eqref{eq:Hu-upper} was used, the structure would now be broken. Additionally, because the dynamics are given by $x_{k+1} = z_k$, the constraints are transferred completely to the columns corresponding to $x_k$. The same approach as explained above can be used to compute the decomposition of this matrix by considering $M_2' \coloneqq \begin{bmatrix} M_2^\top & \end{bmatrix}^\top$ instead of $M_2$ and $M_3' \coloneqq \begin{bmatrix} M_3^\top & M_4^\top \end{bmatrix}^\top$ instead of $M_3$.
+
+
+\section{Blocked LU Decomposition with carry over of constraints}
+To decompose the matrix in \eqref{eq:Hu-carry}, we first write
 \begin{align}
-    P_l^2 \begin{bmatrix} \tilde{M}_2^2 & M_3 \end{bmatrix} P_r^2
-    &= 
-    P_l^2 \begin{bmatrix} K_4 + K_3 V_2 & M_3 \end{bmatrix} P_r^2\\
-    &= P_l^2 \begin{bmatrix} K_4& M_3 \end{bmatrix} P_r^2 + P_l^2 \begin{bmatrix} K_3 V_2 & \bm{0}\end{bmatrix} P_r^2\\
-    &= \begin{bmatrix} L_2 V_3 & L_2 V_4 \end{bmatrix} + \tilde{K_3} \tilde{V}_2
+    P_1 M_1 Q_1 &= L_1 U_1
+\end{align}
+where
+\begin{align}
+    L_1 &= \begin{bmatrix} K_1 & \\ K_2 & \bm{I}_{n_g-\rho} \end{bmatrix} & 
+    &\text{and} &
+    U_1 &= \begin{bmatrix} V_1 & V_2 \\ & \bm{0}_{n_g-\rho \times n_u-\rho} \end{bmatrix}
+\end{align}
+Define 
+\begin{align}
+    \tilde{L} &\coloneqq \begin{bmatrix} K_1 & & \\ K_2 & \bm{I}_{n_g-\rho} & \\ & & \bm{I}_{n_x+n_c} \end{bmatrix}
+    & &\text{such that} &
+    \tilde{L}^{-1} &= \begin{bmatrix} K_1^{-1} & & \\ -K_2 K_1^{-1} & \bm{I}_{n_g-\rho} & \\ & & \bm{I}_{n_x+n_c} \end{bmatrix}
+\end{align}
+which leads to
+\begin{equation}
+    \tilde{L}^{-1} 
+    \begin{bmatrix} P_1 & \\ & \bm{I}_{n_x+n_c} \end{bmatrix} 
+    H_u
+    \begin{bmatrix} Q_1 & \\ & \bm{I}_{n_x} \end{bmatrix} 
+    = \begin{bNiceMatrix}[first-row, first-col, last-col=4]
+        & \rho & n_u - \rho & n_x & \\
+        & V_1 & V_2 & & \rho \\
+        & &  & & n_g-\rho\\ 
+        & (\tilde{M}_2)_1 & (\tilde{M}_2)_2 & M_3 & n_x\\ 
+        & & & M_4 & n_c
+    \end{bNiceMatrix}
+\end{equation}
+where $\begin{bmatrix} (\tilde{M}_2)_1 &(\tilde{M}_2)_2 \end{bmatrix} = M_2 Q_1$ with $(\tilde{M}_2)_1 \in \mathbb{R}^{n_x \times \rho}$ and $(\tilde{M}_2)_2 \in \mathbb{R}^{n_x \times n_x - \rho}$.
+
+Continuing gaussian elimination, we can obtain
+\begin{align}
+    \hat{L} &\coloneqq \begin{bmatrix} K_1 & & & \\ K_2 & \bm{I}_{n_g-\rho} & & \\ K_3 & & \bm{I}_{n_x} & \\ & & & \bm{I}_{n_c}\end{bmatrix}
+    & &\text{such that} &
+    \hat{L}^{-1} &= \begin{bmatrix} K_1^{-1} & & &\\ -K_2 K_1^{-1} & \bm{I}_{n_g-\rho} & &\\ -K_3 K_1^{-1} & & \bm{I}_{n_x}& \\ & & & \bm{I}_{n_c} \end{bmatrix}
+\end{align}
+using $K_3 \coloneqq (\tilde{M}_2)_1 V_1^{-1}$, which leads to
+\begin{equation}
+    \hat{L}^{-1} 
+    \begin{bmatrix} P_1 & \\ & \bm{I}_{n_x+n_c} \end{bmatrix} 
+    H_u
+    \begin{bmatrix} Q_1 & \\ & \bm{I}_{n_x} \end{bmatrix} 
+    = \begin{bNiceMatrix}[first-row, first-col, last-col=4]
+        & \rho & n_u - \rho & n_x & \\
+        & V_1 & V_2 & & \rho\\
+        & &  & & n_g - \rho\\
+        & & K_4 & M_3 & n_x\\
+        & & & M_4 & n_c
+    \end{bNiceMatrix}
+\end{equation}
+where $K_4 \coloneqq (\tilde{M}_2)_2 - K_3 V_2$. Because of the zero-row, we must perform row pivoting in order to continue the decomposition. Hence, define
+\begin{equation}
+    \tilde{P} \coloneqq \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_x+n_c}\\ & \bm{I}_{n_g-\rho} & \end{bmatrix}
+\end{equation}
+leading to
+\begin{equation}
+    \tilde{P}
+    \hat{L}^{-1}
+    \tilde{P}^\top \tilde{P} 
+    \begin{bmatrix} P_1 & \\ & \bm{I}_{n_x+n_c} \end{bmatrix} 
+    H_u
+    \begin{bmatrix} Q_1 & \\ & \bm{I}_{n_x} \end{bmatrix} 
+    = \begin{bNiceMatrix}[first-row, first-col, last-col=4]
+        & \rho & n_u - \rho & n_x & \\
+        & V_1 & V_2 & & \rho\\
+        & & K_4 & M_3 & n_x\\
+        & & & M_4 & n_c\\
+        & &  & & n_g-\rho\\
+    \end{bNiceMatrix}
+\end{equation}
+using the fact that $\tilde{P}^\top \tilde{P} = \bm{I}_{n_x + n_c + n_g}$. Now, a remaining LU-decomposition should be performed on the matrix $\begin{bmatrix} K_4 & M_3\\ & M_4\end{bmatrix}$ such that
+\begin{equation}
+    P_2 \begin{bmatrix} K_4 & M_3\\ & M_4\end{bmatrix} Q_2 = L_2 U_2
+\end{equation}
+Note that this matrix also has structure that can be exploited!
+
+Note also that the permutation matrices $P_2$ and $Q_2$ affect also $K_3$ and $V_2$, hence we define
+\begin{align}
+    \tilde{K}_3 &\coloneqq P_2 \begin{bmatrix} K_3\\ \bm{0} \end{bmatrix}\\
+    \tilde{V}_2 &\coloneqq \begin{bmatrix} V_2 & \bm{0} \end{bmatrix} Q_2
 \end{align}
 
+Finally, the decomposition of is given by 
+\begin{equation}
+    P H_u Q = 
+    \begin{bNiceMatrix}[first-row, first-col]
+        & \rho & n_x + n_c & n_g-\rho\\ 
+        \rho & K_1 & & \\
+        n_x + n_c & \tilde{K}_3 & L_2 & \\ 
+        n_g-\rho & K_2 &  & \bm{I}_{n_g-\rho}
+    \end{bNiceMatrix}
+    \begin{bNiceMatrix}[first-row, first-col, last-col=3]
+        & \rho & n_u - \rho + n_x & \\
+        & V_1 & \tilde{V}_2 & \rho \\
+        & & U_2 & n_x\\
+        & & \bm{0} & n_u - \rho
+    \end{bNiceMatrix}
+    \label{eq:final_decomposition-carry}
+\end{equation}
+and 
+\begin{align}
+    P &= 
+    \begin{bmatrix} \bm{I}_\rho & & \\ & P_2 & \\ & & \bm{I}_{n_g-\rho} \end{bmatrix}
+    \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_x+n_c} \\ & \bm{I}_{n_g-\rho} & \end{bmatrix}
+    \begin{bmatrix} P_1 & \\ & \bm{I}_{n_x+n_c} \end{bmatrix}\\
+    Q &= \begin{bmatrix} Q_1 & \\ & \bm{I}_{n_x}\end{bmatrix} \begin{bmatrix}\bm{I}_\rho &\\ & Q_2 \end{bmatrix}
+\end{align}
 
+\begin{algorithm}
+    \caption{Blocked LU decomposition of lower triangular matrix $H_u$ with carry-over}
+    \begin{algorithmic}
+    \Require Matrix $H_u$ given by \eqref{eq:Hu-carry}
+    \Ensure LU decomposition with complete pivoting $P H_u P = L U$
+    \State Compute $P_1$, $Q_1$, $K_1$, $K_2$, $V_1$ and $V_2$ such that $P_1 M_1 Q_1 = \begin{bmatrix}K1 & \\ K_2 & \bm{I}\end{bmatrix} \begin{bmatrix} V_1 & V_2\\ & \bm{0}\end{bmatrix}$
+    \State $\tilde{M}_2 \gets M_2 Q_1$
+    \State $K_3 \gets (\tilde{M}_2)_1 V_1^{-1}$
+    \State $K_4 \gets (\tilde{M}_2)_2 - K_3 V_2$
+    \State Compute $P_2$, $Q_2$, $L_2$ and $U_2$ such that $P_2 \begin{bmatrix} K_4 & M_3\\ & M_4 \end{bmatrix} Q_2 = L_2 U_2$
+    \State $\tilde{K}_3 \gets P_2 \begin{bmatrix} K_3\\ 0 \end{bmatrix}$
+    \State $\tilde{V}_2 \gets \begin{bmatrix} V_2 & 0 \end{bmatrix} Q_2$
+    \State $L \gets \begin{bmatrix} K_1 & & \\ \tilde{K}_3 & L_2 & \\ K_2 &  & \bm{I}_{n_g-\rho} \end{bmatrix}$
+    \State $U \gets \begin{bmatrix} V_1 & \tilde{V}_2\\ & U_2\\ & \end{bmatrix}$
+    \State $P \gets \begin{bmatrix} \bm{I}_\rho & & \\ & P_2 & \\ & & \bm{I}_{n_g-\rho} \end{bmatrix} \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_x+n_c} \\ & \bm{I}_{n_g-\rho} & \end{bmatrix} \begin{bmatrix} P_1 & \\ & \bm{I}_{n_x+n_c} \end{bmatrix}$
+    \State $Q \gets \begin{bmatrix} Q_1 & \\ & \bm{I}_{n_x}\end{bmatrix} \begin{bmatrix}\bm{I}_\rho &\\ & Q_2 \end{bmatrix}$
 
-
-
-
-
-
-
+    \end{algorithmic}
+\end{algorithm}
 
 \section{Numerical results} \FloatBarrier
 Figure \ref{fig:scaling} shows the computation time of the full LU decomposition (direct) and the blocked LU decomposition for varying $n_x$, relative rank of $M_1$, $n_u$, and $n_g$. Figure \ref{fig:scaling_relative} shows the relative computation time between the two methods. For small values of $n_x$, the blocked LU is slower than the full LU decomposition, but for other cases, a speedup of 20\% to 30\% is observed.

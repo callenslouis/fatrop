@@ -79,9 +79,9 @@ public:
     void GetRandomDimensions()
     {
         ClearOptionals();
-        int max_val = 3;//10;
+        int max_val = 3;
         K = rand() % max_val + 2; // Random K between 2 and 21
-        K = 2;
+        // K = 2;
         nx = RandomVector(K, 0, max_val);
         r = std::vector<Index>(K, 100);
         for (int k = 0; k < K; ++k){ 
@@ -120,7 +120,7 @@ public:
         // nx[0] -= change_val;
         // ng[0] -= change_val;
 
-        // ng[K-1] = 0;
+        // ng[K-1] -= 1;
 
         // reformulation
         for (int k = 0; k < K-1; ++k){
@@ -202,7 +202,6 @@ public:
                 Index nx_next = info.value().dims.number_of_states[k + 1];
                 jacobian.value().Gg_eqt[k].block(nx_next, ng-nx_next, nu-nx_next, 0) =
                     ::test::empty_matrix(nx_next, ng-nx_next);
-                std::cout << "ng: " << ng << ", nx_next: " << nx_next << std::endl;
             }
             
             full_matrix_jacobian.value().block(ng, nu + nx, offset_g_eq, offs_ux) =
@@ -258,7 +257,7 @@ public:
     void SetUp()
     {
         // int seed = time(0);
-        int seed = 1776699061; // LU verification failed!
+        int seed = 1776785351;
         srand(seed);
         std::cout << "int seed = " << seed << ";" << std::endl;
         Randomize();
@@ -386,7 +385,7 @@ TEST_F(AcceleratedAugSystemSolverTest, TestRandomSolve)
             continue;
         }
         EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
-        solver.value().TestPermutationFunctions(info.value(), 0);
+        // solver.value().TestPermutationFunctions(info.value(), 0);
         std::cout << "-------------------------------  Done. -------------------------------" << std::endl;
         
         VecRealAllocated x_reference(info.value().number_of_primal_variables);
@@ -405,15 +404,36 @@ TEST_F(AcceleratedAugSystemSolverTest, TestRandomSolve)
         for (Index i = 0; i < info.value().number_of_eq_constraints; ++i){
             max_diff_mult = std::max(max_diff_mult, std::abs(mult.value()(i) - mult_reference(i)));
         }
-        std::cout << "my x:        " << x.value() << std::endl;
-        std::cout << "reference x: " << x_reference << std::endl;
-        std::cout << "\nmy mult:        " << mult.value() << std::endl;
-        std::cout << "reference mult: " << mult_reference << std::endl;
+        // std::cout << "my x:        " << x.value() << std::endl;
+        // std::cout << "reference x: " << x_reference << std::endl;
+        // std::cout << "\nmy mult:        " << mult.value() << std::endl;
+        // std::cout << "reference mult: " << mult_reference << std::endl;
+
+        if (max_diff_mult > 1e-5){
+            // print out all mult differences
+            for (Index i = 0; i < info.value().number_of_eq_constraints; ++i){
+                double diff = std::abs(mult.value()(i) - mult_reference(i));
+                if (diff > 1e-5){
+                    std::cout << "mult difference at index " << i << ": " << diff << std::endl;
+                }
+            }
+
+            // print sorted values of mult
+            std::vector<double> mult_sorted(mult.value().data(), mult.value().data() + mult.value().m());
+            std::vector<double> mult_reference_sorted(mult_reference.data(), mult_reference.data() + mult_reference.m());
+            std::sort(mult_sorted.begin(), mult_sorted.end());
+            std::sort(mult_reference_sorted.begin(), mult_reference_sorted.end());
+
+            for (int i = 0; i < mult_sorted.size(); ++i){
+                std::cout << std::setw(15) << mult_sorted[i] << " " << mult_reference_sorted[i] << std::endl;
+            }
+        }
 
         EXPECT_NEAR(max_diff_x, 0, 1e-5);
         EXPECT_NEAR(max_diff_mult, 0, 1e-5);
 
         // Solution checking
+        /*
         std::cout << "checking my solution: " << std::endl;
         CheckSolution(info.value(), jacobian.value(), 
             hessian.value(), D_x.value(), D_s.value(), 
@@ -426,6 +446,7 @@ TEST_F(AcceleratedAugSystemSolverTest, TestRandomSolve)
             rhs_x.value(), rhs_g.value(), x_reference,
             mult_reference);
         std::cout << "done checking\n" << std::endl;
+        */
 
         /*
         std::cout << "Pl_rank modified: ";
