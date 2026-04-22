@@ -474,15 +474,15 @@ LinsolReturnFlag AugSystemSolver<OcpType>::solve(const ProblemInfo &info,
     intermediate_stop = std::chrono::high_resolution_clock::now();
     duration_initial_stage += std::chrono::duration_cast<std::chrono::nanoseconds>(intermediate_stop - intermediate_start);
     intermediate_start = std::chrono::high_resolution_clock::now();
-    std::cout << "------------------------------" << std::endl;
-    std::cout << "First stage:\n";
-    PrintNpArray(Ppt[0], "\tPpt");
-    PrintNpArray(Hh[0], "\tHh");
-    std::cout << "Solution to first stage:\n";
-    std::cout << "\tx0: " << x.block(info.dims.number_of_states[0], info.offsets_primal_x[0])<< std::endl;
-    std::cout << "\tu0: " << x.block(info.dims.number_of_controls[0], info.offsets_primal_u[0])<< std::endl;
-    std::cout << "\tnu0: " << eq_mult.block(gamma[0] - rho[0], info.offsets_g_eq_path[0])<< std::endl; 
-    std::cout << "------------------------------" << std::endl;
+    // std::cout << "------------------------------" << std::endl;
+    // std::cout << "First stage:\n";
+    // PrintNpArray(Ppt[0], "\tPpt");
+    // PrintNpArray(Hh[0], "\tHh");
+    // std::cout << "Solution to first stage:\n";
+    // std::cout << "\tx0: " << x.block(info.dims.number_of_states[0], info.offsets_primal_x[0])<< std::endl;
+    // std::cout << "\tu0: " << x.block(info.dims.number_of_controls[0], info.offsets_primal_u[0])<< std::endl;
+    // std::cout << "\tnu0: " << eq_mult.block(gamma[0] - rho[0], info.offsets_g_eq_path[0])<< std::endl; 
+    // std::cout << "------------------------------" << std::endl;
     // other stages
     for (Index k = 0; k < info.dims.K; k++)
     {
@@ -1594,15 +1594,15 @@ LinsolReturnFlag AcceleratedAugSystemSolver::solve(const ProblemInfo &info,
     intermediate_stop = std::chrono::high_resolution_clock::now();
     duration_initial_stage += std::chrono::duration_cast<std::chrono::nanoseconds>(intermediate_stop - intermediate_start);
     intermediate_start = std::chrono::high_resolution_clock::now();
-    std::cout << "------------------------------" << std::endl;
-    std::cout << "First stage:\n";
-    PrintNpArray(Ppt[0], "\tPpt");
-    PrintNpArray(Hh[0], "\tHh");
-    std::cout << "Solution to first stage:\n";
-    std::cout << "\tx0: " << x.block(info.dims.number_of_states[0], info.offsets_primal_x[0])<< std::endl;
-    std::cout << "\tu0: " << x.block(info.dims.number_of_controls[0], info.offsets_primal_u[0])<< std::endl;
-    std::cout << "\tnu0: " << eq_mult.block(gamma[0] - rho[0], info.offsets_g_eq_path[0])<< std::endl; 
-    std::cout << "------------------------------" << std::endl;
+    // std::cout << "------------------------------" << std::endl;
+    // std::cout << "First stage:\n";
+    // PrintNpArray(Ppt[0], "\tPpt");
+    // PrintNpArray(Hh[0], "\tHh");
+    // std::cout << "Solution to first stage:\n";
+    // std::cout << "\tx0: " << x.block(info.dims.number_of_states[0], info.offsets_primal_x[0])<< std::endl;
+    // std::cout << "\tu0: " << x.block(info.dims.number_of_controls[0], info.offsets_primal_u[0])<< std::endl;
+    // std::cout << "\tnu0: " << eq_mult.block(gamma[0] - rho[0], info.offsets_g_eq_path[0])<< std::endl; 
+    // std::cout << "------------------------------" << std::endl;
     // other stages
     for (Index k = 0; k < info.dims.K; k++)
     {
