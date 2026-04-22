@@ -124,10 +124,12 @@ namespace fatrop
      * @note Ensure \( At \), \( Pl_p \), and \( Pr_p \) are allocated before use.
      */
     void fatrop_lu_fact_transposed(const Index m, const Index n, const Index n_max, Index &rank, MAT *At,
-                            PermutationMatrix &Pl, PermutationMatrix &Pr, double tol = 1e-5);
+                            PermutationMatrix &Pl, PermutationMatrix &Pr, double tol = 1e-5,
+                            Index nb_row_perm = -1, Index nb_col_perm = -1);
     void fatrop_lu_fact_transposed(const Index m, const Index n, const Index n_max, Index &rank, MAT *At,
                             const Index ai, const Index aj, 
-                            PermutationMatrix &Pl, PermutationMatrix &Pr, double tol = 1e-5);
+                            PermutationMatrix &Pl, PermutationMatrix &Pr, double tol = 1e-5,
+                            Index nb_row_perm = -1, Index nb_col_perm = -1);
 
     /**
      * @brief Performs an addition operation with a transposed matrix.

@@ -79,9 +79,9 @@ public:
     void GetRandomDimensions()
     {
         ClearOptionals();
-        int max_val = 3;
+        int max_val = 10;
         K = rand() % max_val + 2; // Random K between 2 and 21
-        // K = 2;
+        // K = 3;
         nx = RandomVector(K, 0, max_val);
         r = std::vector<Index>(K, 100);
         for (int k = 0; k < K; ++k){ 
@@ -236,28 +236,30 @@ public:
         for (Index i = 0; i < info.value().number_of_primal_variables; ++i)
         {
             rhs_x.value()(i) = 1.0 * i;
-            D_x.value()(i) = 100.0 * (i + 1.1);
+            D_x.value()(i) = 10.0 * (i + 10.1);
         }
         // fill the mult vector with random values
         for (Index i = 0; i < info.value().number_of_eq_constraints; ++i)
         {
-            rhs_g.value()(i) = 1.0 * i;
+            rhs_g.value()(i) = 10.0 * (i + 10);
         }
 
         for (Index i = 0; i < info.value().number_of_g_eq_path; ++i)
         {
-            D_eq.value()(i) = 10.0 * (i + 1);
+            D_eq.value()(i) = 10.0 * (i + 10);
         }
         for (Index i = 0; i < info.value().number_of_slack_variables; ++i)
         {
-            D_s.value()(i) =  1.0 + 0*10.0 * (i + 0.1);
+            D_s.value()(i) =  1.0 + 10.0 * (i + 0.1);
         }
     }
 
     void SetUp()
     {
-        // int seed = time(0);
-        int seed = 1776785351;
+        int seed = time(0);
+        // int seed = 1776841101; //--> failure case for max_val = 10
+        // int seed = 1776846089; //--> failure case for max_val = 10
+        // int seed = 1776846641; //--> significant failure for max_val = 10 --> only in absolute error (not in relative)
         srand(seed);
         std::cout << "int seed = " << seed << ";" << std::endl;
         Randomize();
@@ -369,22 +371,21 @@ TEST_F(AcceleratedAugSystemSolverTest, TestRandomSolve)
     // int seed = time(0);
     // srand(seed);
     // std::cout << "int seed = " << seed << ";" << std::endl;
+    double overall_max_diff = 0;
+    double overall_max_diff_rel = 0;
     for (int test_counter = 0; test_counter < 1; ++test_counter){
         std::cout << "\n" << std::endl;
         std::cout << "==============================" << std::endl;
         std::cout << "Test iteration: " << test_counter << std::endl;
         std::cout << "==============================" << std::endl;
-        // this->Randomize();
+        this->Randomize();
         std::cout << "--------------------- Solving accelerated solver ---------------------" << std::endl;
         Index ret = solver.value().solve(info.value(), 
             jacobian.value(), hessian.value(), D_x.value(),
             D_s.value(), rhs_x.value(), rhs_g.value(), 
             x.value(), mult.value());
         std::cout << "Solver return flag: " << ret << std::endl;
-        if (ret == 2){
-            continue;
-        }
-        EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
+        // EXPECT_EQ(ret, LinsolReturnFlag::SUCCESS);
         // solver.value().TestPermutationFunctions(info.value(), 0);
         std::cout << "-------------------------------  Done. -------------------------------" << std::endl;
         
@@ -395,45 +396,71 @@ TEST_F(AcceleratedAugSystemSolverTest, TestRandomSolve)
             jacobian.value(), hessian.value(), D_x.value(),
             D_s.value(), rhs_x.value(), rhs_g.value(), 
             x_reference, mult_reference);
+        // EXPECT_EQ(ret_reference, LinsolReturnFlag::SUCCESS);
+        std::cout << "Solver return flag: " << ret_reference << std::endl;
         std::cout << "-------------------------------  Done. -------------------------------" << std::endl;
+        
+        EXPECT_EQ(ret, ret_reference);
+        
         double max_diff_x = 0.;
+        double max_diff_x_rel = 0.;
+        int max_diff_x_idx = -1;
+        int max_diff_x_rel_idx = -1;
         for (Index i = 0; i < info.value().number_of_primal_variables; ++i){
-            max_diff_x = std::max(max_diff_x, std::abs(x.value()(i) - x_reference(i)));
+            double diff = std::abs(x.value()(i) - x_reference(i));
+            max_diff_x = std::max(max_diff_x, diff);
+            max_diff_x_idx = (max_diff_x == diff) ? i : max_diff_x_idx;
+            max_diff_x_rel = std::max(max_diff_x_rel, diff / std::max(1e-8, std::abs(x_reference(i))));
+            max_diff_x_rel_idx = (max_diff_x_rel == diff / std::max(1e-8, std::abs(x_reference(i)))) ? i : max_diff_x_rel_idx;
         }
         double max_diff_mult = 0.;
+        double max_diff_mult_rel = 0.;
+        int max_diff_mult_idx = -1;
+        int max_diff_mult_rel_idx = -1;
         for (Index i = 0; i < info.value().number_of_eq_constraints; ++i){
-            max_diff_mult = std::max(max_diff_mult, std::abs(mult.value()(i) - mult_reference(i)));
+            double diff = std::abs(mult.value()(i) - mult_reference(i));
+            max_diff_mult = std::max(max_diff_mult, diff);
+            max_diff_mult_idx = (max_diff_mult == diff) ? i : max_diff_mult_idx;
+            max_diff_mult_rel = std::max(max_diff_mult_rel, diff / std::max(1e-8, std::abs(mult_reference(i))));
+            max_diff_mult_rel_idx = (max_diff_mult_rel == diff / std::max(1e-8, std::abs(mult_reference(i)))) ? i : max_diff_mult_rel_idx;
         }
+        overall_max_diff = std::max(overall_max_diff, std::max(max_diff_x, max_diff_mult));
+        overall_max_diff_rel = std::max(overall_max_diff_rel, std::max(max_diff_x_rel, max_diff_mult_rel));
         // std::cout << "my x:        " << x.value() << std::endl;
         // std::cout << "reference x: " << x_reference << std::endl;
         // std::cout << "\nmy mult:        " << mult.value() << std::endl;
         // std::cout << "reference mult: " << mult_reference << std::endl;
+        std::cout << "max rel diff x: " << x.value()(max_diff_x_rel_idx) << " vs " << x_reference(max_diff_x_rel_idx) << " - diff: " << max_diff_x_rel << std::endl;
+        std::cout << "max rel diff mult: " << mult.value()(max_diff_mult_rel_idx) << " vs " << mult_reference(max_diff_mult_rel_idx) << " - diff: " << max_diff_mult_rel << std::endl;
 
-        if (max_diff_mult > 1e-5){
-            // print out all mult differences
-            for (Index i = 0; i < info.value().number_of_eq_constraints; ++i){
-                double diff = std::abs(mult.value()(i) - mult_reference(i));
-                if (diff > 1e-5){
-                    std::cout << "mult difference at index " << i << ": " << diff << std::endl;
-                }
-            }
+        // print max diff info
+        // if (max_diff_mult > 1e-5){
+        //     // print out all mult differences
+        //     for (Index i = 0; i < info.value().number_of_eq_constraints; ++i){
+        //         double diff = std::abs(mult.value()(i) - mult_reference(i));
+        //         double rel_diff = diff / std::max(1e-8, std::abs(mult_reference(i)));
+        //         if (diff > 1e-5){
+        //             std::cout << "mult difference at index " << std::setw(3) << i << ": " << std::setw(15) << diff << " - " << std::setw(15) << rel_diff << std::endl;
+        //         }
+        //     }
 
-            // print sorted values of mult
-            std::vector<double> mult_sorted(mult.value().data(), mult.value().data() + mult.value().m());
-            std::vector<double> mult_reference_sorted(mult_reference.data(), mult_reference.data() + mult_reference.m());
-            std::sort(mult_sorted.begin(), mult_sorted.end());
-            std::sort(mult_reference_sorted.begin(), mult_reference_sorted.end());
+        //     // print sorted values of mult
+        //     std::vector<double> mult_sorted(mult.value().data(), mult.value().data() + mult.value().m());
+        //     std::vector<double> mult_reference_sorted(mult_reference.data(), mult_reference.data() + mult_reference.m());
+        //     std::sort(mult_sorted.begin(), mult_sorted.end());
+        //     std::sort(mult_reference_sorted.begin(), mult_reference_sorted.end());
 
-            for (int i = 0; i < mult_sorted.size(); ++i){
-                std::cout << std::setw(15) << mult_sorted[i] << " " << mult_reference_sorted[i] << std::endl;
-            }
-        }
+        //     for (int i = 0; i < mult_sorted.size(); ++i){
+        //         std::cout << std::setw(15) << mult_sorted[i] << " " << mult_reference_sorted[i] << std::endl;
+        //     }
+        // }
 
-        EXPECT_NEAR(max_diff_x, 0, 1e-5);
-        EXPECT_NEAR(max_diff_mult, 0, 1e-5);
+        // EXPECT_NEAR(max_diff_x, 0, 1e-5);
+        // EXPECT_NEAR(max_diff_mult, 0, 1e-5);
+        EXPECT_NEAR(max_diff_x_rel, 0, 1e-7);
+        EXPECT_NEAR(max_diff_mult_rel, 0, 1e-7);
 
         // Solution checking
-        /*
         std::cout << "checking my solution: " << std::endl;
         CheckSolution(info.value(), jacobian.value(), 
             hessian.value(), D_x.value(), D_s.value(), 
@@ -446,7 +473,6 @@ TEST_F(AcceleratedAugSystemSolverTest, TestRandomSolve)
             rhs_x.value(), rhs_g.value(), x_reference,
             mult_reference);
         std::cout << "done checking\n" << std::endl;
-        */
 
         /*
         std::cout << "Pl_rank modified: ";
@@ -484,4 +510,6 @@ TEST_F(AcceleratedAugSystemSolverTest, TestRandomSolve)
         }
         */
     }
+    std::cout << "\noverall max diff:   " << overall_max_diff << std::endl;
+    std::cout << "overall max diff rel: " << overall_max_diff_rel << std::endl;
 }

@@ -5,6 +5,8 @@
 #define IGNORE_EXTENSION    // define to use original fatrop algorithm
 #define IGNORE_JAC_HESS_PREPROCESS // define to ignore the pre- and postprocessing of jacobian and hessian
 
+#define OFFSET_FREE_P2
+
 #include "fatrop/ocp/aug_system_solver.hpp"
 #include "fatrop/linear_algebra/linear_algebra.hpp"
 #include "fatrop/ocp/hessian.hpp"
@@ -1210,9 +1212,15 @@ AcceleratedAugSystemSolver::AcceleratedAugSystemSolver(const ProblemInfo &info)
         Index nu = info.dims.number_of_controls[k];
         Index nx = info.dims.number_of_states[k];
         Index ng = info.dims.number_of_eq_constraints[k];
-        Pl1.emplace_back(2*max_number_of_eq_consttraints);
-        Pl_rank.emplace_back(2*max_number_of_eq_consttraints + nx);
-        Pl2.emplace_back(2*max_number_of_eq_consttraints);
+        // we know gamma <= nu + nx + 1
+        // Pl1.emplace_back(2*max_number_of_eq_consttraints);
+        // Pl_rank.emplace_back(2*max_number_of_eq_consttraints + nx);
+        // Pl2.emplace_back(2*max_number_of_eq_consttraints);
+        // Pr1.emplace_back(nu + nx + 1);
+        // Pr2.emplace_back(nu + nx + 1);
+        Pl1.emplace_back(nu + nx + 1);
+        Pl_rank.emplace_back(nu + nx + 1);
+        Pl2.emplace_back(nu + nx + 1);
         Pr1.emplace_back(nu + nx + 1);
         Pr2.emplace_back(nu + nx + 1);
     }
@@ -1331,12 +1339,30 @@ LinsolReturnFlag AcceleratedAugSystemSolver::solve(const ProblemInfo &info,
             auto start = std::chrono::steady_clock::now();
             MatRealAllocated A_original(Ggt_stripe[0].m(), Ggt_stripe[0].n());
             blasfeo_dgecp(Ggt_stripe[0].m(), Ggt_stripe[0].n(), &Ggt_stripe[0].mat(), 0, 0, &A_original.mat(), 0, 0);
-            std::cout << "Computing LU decomposition of:\n" << Ggt_stripe[0] << std::endl;
+            // std::cout << "Computing LU decomposition of:\n" << Ggt_stripe[0] << std::endl;
             if (k < info.dims.K - 1){
                 int nx_next = info.dims.number_of_states[k+1];
                 // 1. my approach
+                /*
+                MatRealAllocated temp(Ggt_stripe[0].m(), Ggt_stripe[0].n());
+                gecp(Ggt_stripe[0].m(), Ggt_stripe[0].n(), Ggt_stripe[0], 0, 0, temp, 0, 0);
+                fatrop_lu_fact_blocked_transposed(info.dims, k, &temp.mat(), true);
+                std::cout << "LU decomposition avoiding additional perms:\n" << temp.block(nu+nx+1, gamma_k, 0, 0) << std::endl;
+                // reset permutationmatrices
+                for (Index i = 0; i < Pl1[k].size(); i++){Pl1[k][i] = i;}
+                for (Index i = 0; i < Pl_rank[k].size(); i++){Pl_rank[k][i] = i;}
+                for (Index i = 0; i < Pl2[k].size(); i++){Pl2[k][i] = i;}
+                for (Index i = 0; i < Pr1[k].size(); i++){Pr1[k][i] = i;}
+                for (Index i = 0; i < Pr2[k].size(); i++){Pr2[k][i] = i;}
+
                 fatrop_lu_fact_blocked_transposed(info.dims, k, &Ggt_stripe[0].mat());
+                std::cout << "LU decomposition with additional perms:\n" << Ggt_stripe[0].block(nu+nx+1, gamma_k, 0, 0) << std::endl;
+                gead(Ggt_stripe[0].m(), Ggt_stripe[0].n(), -1, Ggt_stripe[0], 0, 0, temp, 0, 0);
+                std::cout << "difference: \n" << temp.block(nu+nx+1, gamma_k, 0, 0) << std::endl;
+                */
+                fatrop_lu_fact_blocked_transposed(info.dims, k, &Ggt_stripe[0].mat(), true);
                 rank_k = rho[k];
+
 
                 // 2. original approach
                 // fatrop_lu_fact_transposed(gamma_k, nu + nx + 1, nu, 
@@ -1371,7 +1397,7 @@ LinsolReturnFlag AcceleratedAugSystemSolver::solve(const ProblemInfo &info,
                     A_original, Pl1[k], Pr1[k], rho1[k], Pl_rank[k], Pl2[k], 
                     Pr2[k], rho2[k], info.dims.number_of_eq_constraints[k]-nx_next, 
                     nu-nx_next, nx_next, gamma_k-info.dims.number_of_eq_constraints[k]);
-                std::cout << "verification: " << verification << std::endl;
+                // std::cout << "verification: " << verification << std::endl;
                 if (!verification){
                     throw std::runtime_error("LU factorization verification failed");
                 }
@@ -1382,7 +1408,7 @@ LinsolReturnFlag AcceleratedAugSystemSolver::solve(const ProblemInfo &info,
                 bool verification = verify_blocked_lu_new(Ggt_stripe[0],
                     A_original, Pl1[k], Pr1[k], rho1[k], Pl_rank[k], Pl2[k], 
                     Pr2[k], rho2[k], gamma_k, nu, 0);
-                std::cout << "verification: " << verification << std::endl;
+                // std::cout << "verification: " << verification << std::endl;
             }
             auto stop = std::chrono::steady_clock::now();
             duration_lu_factorization += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
@@ -1395,7 +1421,7 @@ LinsolReturnFlag AcceleratedAugSystemSolver::solve(const ProblemInfo &info,
                 if (gamma_k - rank_k > nx)
                     return LinsolReturnFlag::NOFULL_RANK;
                 getr(nx + 1, gamma_k - rank_k, Ggt_stripe[0], nu, rank_k, Hh[k], 0, 0);
-                std::cout << "copying over constraints:\n" << Hh[k] << "\n";
+                // std::cout << "copying over constraints:\n" << Hh[k] << "\n";
             }
             if (rank_k > 0)
             {
@@ -2320,7 +2346,7 @@ void AcceleratedAugSystemSolver::TestPermutationFunctions(const ProblemInfo& inf
 }
 
 void AcceleratedAugSystemSolver::fatrop_lu_fact_blocked_transposed(
-        const ProblemDims& dims, const Index k, MAT *At){
+        const ProblemDims& dims, const Index k, MAT *At, bool avoid_additional_perms){
 
     Index nu = dims.number_of_controls[k];
     Index nx = dims.number_of_states[k];
@@ -2336,16 +2362,29 @@ void AcceleratedAugSystemSolver::fatrop_lu_fact_blocked_transposed(
     Index n_max = nu;
 
     // lu of top-left block
-    fatrop_lu_fact_transposed(ng_true, nu_true, nu_true, rho1[k], At, Pl1[k], 
-                              Pr1[k], lu_fact_tol);
+    if (avoid_additional_perms){
+        fatrop_lu_fact_transposed(ng_true, nu_true, nu_true, rho1[k], At, Pl1[k], 
+                                Pr1[k], lu_fact_tol, n, m);
+    } else {
+        fatrop_lu_fact_transposed(ng_true, nu_true, nu_true, rho1[k], At, Pl1[k], 
+                                 Pr1[k], lu_fact_tol);
+    }
     for (int i = 0; i < m - ng_true; i++){Pl_rank[k][rho1[k] + i] = ng_true + i;}
 
     // permute rows of matrix
-    Pl_rank[k].apply_on_cols(m, At, 0, 0, n_max);
+    if (avoid_additional_perms){
+        Pl_rank[k].apply_on_cols(m, At, 0, 0, n);
+    } else {
+        Pl_rank[k].apply_on_cols(m, At, 0, 0, n_max);
+    }
 
     // scaling bottom-left
     blasfeo_dgecp(nu_true, nx_next, At, 0, rho1[k], &scratch[0].mat(), 0, 0);   // M2 to B
-    Pr1[k].apply_on_rows(rho1[k], &scratch[0].mat());
+    // NOTE: this operation can be performed in the lu decomposition by 
+    // applying the permutation to the full matrix already
+    if (!avoid_additional_perms){
+        Pr1[k].apply_on_rows(rho1[k], &scratch[0].mat());
+    }
 
     // compute K3 and K4
     blasfeo_dtrsm_llnn(rho1[k], nx_next, 1.0, At, 0, 0, &scratch[0].mat(), 0, 0, 
@@ -2360,20 +2399,50 @@ void AcceleratedAugSystemSolver::fatrop_lu_fact_blocked_transposed(
     }
 
     // second LU decomposition
-    blasfeo_dgecp(nu-rho1[k], nx_next + nc, At, rho1[k], rho1[k], &scratch[0].mat(), 0, 0);
-    fatrop_lu_fact_transposed(nx_next + nc, nu-rho1[k], nu-rho1[k], rho2[k], &scratch[0].mat(), Pl2[k], Pr2[k], lu_fact_tol);
-    blasfeo_dgecp(nu-rho1[k], nx_next + nc, &scratch[0].mat(), 0, 0, At, rho1[k], rho1[k]);
-    // NOTE: offset lu factorization seems to show bugs in blasfeo_dcolsw
-    // fatrop_lu_fact_transposed(nx_next + nc, nu-rho1[k], nu-rho1[k], rho2[k], At, rho1[k], rho1[k], Pl2[k], Pr2[k], lu_fact_tol);
+    if (avoid_additional_perms){
+        // NOTE: offset lu factorization seems to show bugs in blasfeo_dcolsw
+        fatrop_lu_fact_transposed(nx_next + nc, nu-rho1[k], nu-rho1[k], rho2[k], 
+                                At, rho1[k], rho1[k], Pl2[k], Pr2[k], 
+                                lu_fact_tol, n, m);
+    } else {
+        #ifndef OFFSET_FREE_P2
+            blasfeo_dgecp(nu-rho1[k], nx_next + nc, At, rho1[k], rho1[k], &scratch[0].mat(), 0, 0);
+            fatrop_lu_fact_transposed(nx_next + nc, nu-rho1[k], nu-rho1[k], rho2[k], &scratch[0].mat(), Pl2[k], Pr2[k], lu_fact_tol);
+            blasfeo_dgecp(nu-rho1[k], nx_next + nc, &scratch[0].mat(), 0, 0, At, rho1[k], rho1[k]);
+            // NOTE: these operations can be performed in the lu decompositions by
+            // applying those permutations to the full matrix already
+            Pl2[k].apply_on_cols(rho2[k], At, 0, rho1[k], rho1[k]); // permute K3
+            Pr2[k].apply_on_rows(rho2[k], At, rho1[k], rho1[k]); // permute V2
+        #else
+            blasfeo_dgecp(nu-rho1[k], nx_next + nc, At, rho1[k], rho1[k], &scratch[0].mat(), 0, 0);
+            PermutationMatrix Pl2_temp(Pl2[k].size());
+            PermutationMatrix Pr2_temp(Pr2[k].size());
+            fatrop_lu_fact_transposed(nx_next + nc, nu-rho1[k], nu-rho1[k], rho2[k], &scratch[0].mat(), Pl2_temp, Pr2_temp, lu_fact_tol);
+            for (int i = 0; i < rho2[k]; i++){
+                Pl2[k][rho1[k] + i] = Pl2_temp[i] + rho1[k];
+                Pr2[k][rho1[k] + i] = Pr2_temp[i] + rho1[k];
+            }
+            blasfeo_dgecp(nu-rho1[k], nx_next + nc, &scratch[0].mat(), 0, 0, At, rho1[k], rho1[k]);
+            // NOTE: these operations can be performed in the lu decompositions by
+            // applying those permutations to the full matrix already
+            Pl2[k].apply_on_cols(rho1[k]+rho2[k], At, 0, 0, rho1[k]); // permute K3
+            Pr2[k].apply_on_rows(rho1[k]+rho2[k], At, 0, rho1[k]); // permute V2
+        #endif
+        std::cout << "rho1: " << rho1[k] << ", rho2: " << rho2[k] << std::endl;
+        std::cout << "Pl2:\n" << Pl2[k] << std::endl;
+        std::cout << "Pr2:\n" << Pr2[k] << std::endl;
+    }
     rho[k] = rho1[k] + rho2[k];
-
-    Pl2[k].apply_on_cols(rho2[k], At, 0, rho1[k], rho1[k]); // permute K3
-    Pr2[k].apply_on_rows(rho2[k], At, rho1[k], rho1[k]); // permute V2
 
     // Fix bottom part
     // std::cout << "bottom part before:\n"; blasfeo_print_dmat(n-n_max, m, At, n_max, 0);
     if (n > n_max){    
-        apply_Pl_on_cols(Pl1[k], Pl_rank[k], Pl2[k], rho1[k], rho2[k], m, At, n_max);
+        // NOTE: this operation can be performed in the lu decomposition by 
+        // applying the permutation to the full matrix already
+        if (!avoid_additional_perms){
+            apply_Pl_on_cols(Pl1[k], Pl_rank[k], Pl2[k], rho1[k], rho2[k], m, At, n_max);
+        }
+        
         // M1 <- M1 * L1^-T
         blasfeo_dtrsm_runu(n-n_max, rho[k], 1.0, At, 0, 0, At, n_max, 0, At, n_max, 0);
         // M2 <- M2 - M1 * L2^T
@@ -2479,10 +2548,16 @@ bool AcceleratedAugSystemSolver::verify_blocked_lu_new(const MatRealAllocated& L
 void AcceleratedAugSystemSolver::apply_Pl_on_cols(
         PermutationMatrix& Pl1, PermutationMatrix& Pl_rank, PermutationMatrix& Pl2, 
         const Index r1, const Index r2, const Index m, MAT* A, const Index row_start){
+    // if (row_start != 0){ throw std::runtime_error("Error in apply_Pl_on_cols: row_start is not supported yet");}
+
     Pl1.apply_on_cols(r1, A, row_start, 0, A->m-row_start);
     if (m > A->n){throw std::runtime_error("Error in apply_Pl: m is larger than vector size");}
     Pl_rank.apply_on_cols(m, A, row_start, 0, A->m-row_start);
-    Pl2.apply_on_cols(r2, A, row_start, r1, A->m-row_start);
+    #ifndef OFFSET_FREE_P2
+        Pl2.apply_on_cols(r2, A, row_start, r1, A->m-row_start);
+    #else
+        Pl2.apply_on_cols(r1+r2, A, row_start, 0, A->m-row_start);
+    #endif
 }
 void AcceleratedAugSystemSolver::apply_Pl(PermutationMatrix& Pl1, 
         PermutationMatrix& Pl_rank, PermutationMatrix& Pl2, 
@@ -2490,12 +2565,20 @@ void AcceleratedAugSystemSolver::apply_Pl(PermutationMatrix& Pl1,
     Pl1.apply(r1, vec, ai);
     if (m > vec->m){throw std::runtime_error("Error in apply_Pl: m is larger than vector size");}
     Pl_rank.apply(m, vec, ai);
-    Pl2.apply(r2, vec, ai+r1);
+    #ifndef OFFSET_FREE_P2
+        Pl2.apply(r2, vec, ai+r1);
+    #else
+        Pl2.apply(r1+r2, vec, ai);
+    #endif
 }
 void AcceleratedAugSystemSolver::apply_Pl_inverse(PermutationMatrix& Pl1, 
         PermutationMatrix& Pl_rank, PermutationMatrix& Pl2, const Index r1, 
         const Index r2, const Index m, VEC *vec, const Index ai){
-    Pl2.apply_inverse(r2, vec, ai+r1);
+    #ifndef OFFSET_FREE_P2
+        Pl2.apply_inverse(r2, vec, ai+r1);
+    #else
+        Pl2.apply_inverse(r1+r2, vec, ai);
+    #endif
     if (m > vec->m){throw std::runtime_error("Error in apply_Pl: m is larger than vector size");}
     Pl_rank.apply_inverse(m, vec, ai);
     Pl1.apply_inverse(r1, vec, ai);
@@ -2504,24 +2587,40 @@ void AcceleratedAugSystemSolver::apply_Pl_inverse(PermutationMatrix& Pl1,
 void AcceleratedAugSystemSolver::apply_Pr_on_rows(PermutationMatrix& Pr1, 
         PermutationMatrix& Pr2, const Index r1, const Index r2, MAT* A){
     Pr1.apply_on_rows(r1, A);
-    Pr2.apply_on_rows(r2, A, r1);
+    #ifndef OFFSET_FREE_P2
+        Pr2.apply_on_rows(r2, A, r1);
+    #else
+        Pr2.apply_on_rows(r1+r2, A, 0);
+    #endif
 }
 
 void AcceleratedAugSystemSolver::apply_Pr_on_cols(PermutationMatrix& Pr1,
         PermutationMatrix& Pr2, const Index r1, const Index r2, MAT* A){
     Pr1.apply_on_cols(r1, A);
-    Pr2.apply_on_cols(r2, A, 0, r1, A->m);
+    #ifndef OFFSET_FREE_P2
+        Pr2.apply_on_cols(r2, A, 0, r1, A->m);
+    #else
+        Pr2.apply_on_cols(r1+r2, A, 0, 0, A->m);
+    #endif
 }
 
 void AcceleratedAugSystemSolver::apply_Pr(PermutationMatrix& Pr1, 
         PermutationMatrix& Pr2, const Index r1, const Index r2, VEC *vec, const Index ai){
     Pr1.apply(r1, vec, ai);
-    Pr2.apply(r2, vec, ai+r1);
+    #ifndef OFFSET_FREE_P2
+        Pr2.apply(r2, vec, ai+r1);
+    #else
+        Pr2.apply(r1+r2, vec, ai);
+    #endif
 }
 
 void AcceleratedAugSystemSolver::apply_Pr_inverse(PermutationMatrix& Pr1, 
         PermutationMatrix& Pr2, const Index r1, const Index r2, VEC *vec, const Index ai){
-    Pr2.apply_inverse(r2, vec, ai+r1);
+    #ifndef OFFSET_FREE_P2
+        Pr2.apply_inverse(r2, vec, ai+r1);
+    #else
+        Pr2.apply_inverse(r1+r2, vec, ai);
+    #endif
     Pr1.apply_inverse(r1, vec, ai);
 }
 
