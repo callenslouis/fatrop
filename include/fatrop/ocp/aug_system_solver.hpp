@@ -539,7 +539,7 @@ namespace fatrop
 
         bool print_debug_lines = false;
         bool print_initial_stage = false;
-        bool write_factorization_file = true;
+        bool write_factorization_file = false;
         std::string factorization_file_name = "factorization_info.py";
 
         // for debugging
@@ -685,7 +685,7 @@ namespace fatrop
 
         bool print_debug = false;
         bool print_preprocessed_system = false;
-        bool write_preprocessing_file = true;
+        bool write_preprocessing_file = false;
         std::string preprocessing_file_name = "preprocess_info..py";
         bool verify_preprocessed_solution = false;
         bool print_final_solution = false;

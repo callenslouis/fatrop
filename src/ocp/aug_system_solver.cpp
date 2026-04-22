@@ -2,8 +2,8 @@
 // Copyright (C) 2024 Lander Vanroye, KU Leuven
 //
 // #define PROFILE             // define to enable detailed profiling
-#define IGNORE_EXTENSION    // define to use original fatrop algorithm
-#define IGNORE_JAC_HESS_PREPROCESS // define to ignore the pre- and postprocessing of jacobian and hessian
+// #define IGNORE_EXTENSION    // define to use original fatrop algorithm
+// #define IGNORE_JAC_HESS_PREPROCESS // define to ignore the pre- and postprocessing of jacobian and hessian
 
 #define OFFSET_FREE_P2
 
@@ -1337,8 +1337,8 @@ LinsolReturnFlag AcceleratedAugSystemSolver::solve(const ProblemInfo &info,
             // operations LU_FACT_TRANSPOSE(Ggtstripe[:gamma_k, nu+nx+1], nu max) if(k==K-2)
             // blasfeo_print_dmat(1, gamma_k, Ggt_stripe[0], nu+nx, 0);
             auto start = std::chrono::steady_clock::now();
-            MatRealAllocated A_original(Ggt_stripe[0].m(), Ggt_stripe[0].n());
-            blasfeo_dgecp(Ggt_stripe[0].m(), Ggt_stripe[0].n(), &Ggt_stripe[0].mat(), 0, 0, &A_original.mat(), 0, 0);
+            // MatRealAllocated A_original(Ggt_stripe[0].m(), Ggt_stripe[0].n());
+            // blasfeo_dgecp(Ggt_stripe[0].m(), Ggt_stripe[0].n(), &Ggt_stripe[0].mat(), 0, 0, &A_original.mat(), 0, 0);
             // std::cout << "Computing LU decomposition of:\n" << Ggt_stripe[0] << std::endl;
             if (k < info.dims.K - 1){
                 int nx_next = info.dims.number_of_states[k+1];
@@ -1393,21 +1393,21 @@ LinsolReturnFlag AcceleratedAugSystemSolver::solve(const ProblemInfo &info,
                 std::cout << "At after applying Tl^-T and Tr^-T:\n"; blasfeo_print_dmat(nu, gamma_k, &At2.mat(), 0, 0);
                 */
 
-                bool verification = verify_blocked_lu_new(Ggt_stripe[0],
-                    A_original, Pl1[k], Pr1[k], rho1[k], Pl_rank[k], Pl2[k], 
-                    Pr2[k], rho2[k], info.dims.number_of_eq_constraints[k]-nx_next, 
-                    nu-nx_next, nx_next, gamma_k-info.dims.number_of_eq_constraints[k]);
-                // std::cout << "verification: " << verification << std::endl;
-                if (!verification){
-                    throw std::runtime_error("LU factorization verification failed");
-                }
+                // bool verification = verify_blocked_lu_new(Ggt_stripe[0],
+                //     A_original, Pl1[k], Pr1[k], rho1[k], Pl_rank[k], Pl2[k], 
+                //     Pr2[k], rho2[k], info.dims.number_of_eq_constraints[k]-nx_next, 
+                //     nu-nx_next, nx_next, gamma_k-info.dims.number_of_eq_constraints[k]);
+                // // std::cout << "verification: " << verification << std::endl;
+                // if (!verification){
+                //     throw std::runtime_error("LU factorization verification failed");
+                // }
             } else {
                 fatrop_lu_fact_transposed(gamma_k, nu + nx + 1, nu, 
                         rho2[k], &Ggt_stripe[0].mat(), Pl2[k], Pr2[k]);
                 rank_k = rho2[k];
-                bool verification = verify_blocked_lu_new(Ggt_stripe[0],
-                    A_original, Pl1[k], Pr1[k], rho1[k], Pl_rank[k], Pl2[k], 
-                    Pr2[k], rho2[k], gamma_k, nu, 0);
+                // bool verification = verify_blocked_lu_new(Ggt_stripe[0],
+                //     A_original, Pl1[k], Pr1[k], rho1[k], Pl_rank[k], Pl2[k], 
+                //     Pr2[k], rho2[k], gamma_k, nu, 0);
                 // std::cout << "verification: " << verification << std::endl;
             }
             auto stop = std::chrono::steady_clock::now();

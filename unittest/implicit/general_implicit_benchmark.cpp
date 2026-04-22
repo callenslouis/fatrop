@@ -22,7 +22,7 @@ class RandomBenchmarkTest : public ::testing::Test
 {
 // protected:
 public:
-    bool full_rank = true;
+    bool full_rank = false;
     bool constant_dimensions = true;
 
     int K;
@@ -703,7 +703,7 @@ void PrintBreakdown(const std::map<std::string, long int>& timings,
 
 TEST_F(RandomBenchmarkTest, Test)
 {
-    int nb_runs = 100;
+    int nb_runs = 1000;
     int nb_runs_completed = 0;
     bool write_csv = false;
 
@@ -759,7 +759,7 @@ TEST_F(RandomBenchmarkTest, Test)
 
     std::ofstream f;    
     if (write_csv){
-        f.open("random_benchmark_results.csv");
+        f.open("random_benchmark_results_extended.csv");
         f << "K,nu,nx,r,ng,ng_ineq,t_expl,t_impl,t_impl_pre,t_impl_solve,t_impl_post,t_reform,t_accel,lu_impl,lu_reform,lu_accel,impl_decomp\n";
     }
     
@@ -806,31 +806,31 @@ TEST_F(RandomBenchmarkTest, Test)
         for (int idx : order){
             if (idx == 0){
                 // implicit //
-                std::cout << "Running implicit solver..." << std::endl;
+                // std::cout << "Running implicit solver..." << std::endl;
                 start_impl = std::chrono::steady_clock::now();
                 ret_impl = solver_impl.value().solve(info_impl.value(), jacobian_impl.value(), hessian_impl.value(), D_x_impl.value(), D_s_impl.value(), rhs_x_impl.value(), rhs_g_impl.value(), x_impl.value(), mult_impl.value());
                 stop_impl = std::chrono::steady_clock::now();
             } else if (idx == 1) {
-                // explicit //
-                std::cout << "Running explicit solver..." << std::endl;
-                start_expl = std::chrono::steady_clock::now();
-                ret_expl = solver_expl.value().solve(info_expl.value(), jacobian_expl.value(), hessian_expl.value(), D_x_expl.value(), D_s_expl.value(), rhs_x_expl.value(), rhs_g_expl.value(), x_expl.value(), mult_expl.value());
-                stop_expl = std::chrono::steady_clock::now();
+                // // explicit //
+                // // std::cout << "Running explicit solver..." << std::endl;
+                // start_expl = std::chrono::steady_clock::now();
+                // ret_expl = solver_expl.value().solve(info_expl.value(), jacobian_expl.value(), hessian_expl.value(), D_x_expl.value(), D_s_expl.value(), rhs_x_expl.value(), rhs_g_expl.value(), x_expl.value(), mult_expl.value());
+                // stop_expl = std::chrono::steady_clock::now();
             } else if (idx == 2) {
-                // reformulated //
-                std::cout << "Running reformulated solver..." << std::endl;
-                start_reform = std::chrono::steady_clock::now();
-                ret_reform = solver_reform.value().solve(info_reform.value(), jacobian_reform.value(), hessian_reform.value(), D_x_reform.value(), D_s_reform.value(), rhs_x_reform.value(), rhs_g_reform.value(), x_reform.value(), mult_reform.value());
-                stop_reform = std::chrono::steady_clock::now();
+                // // reformulated //
+                // // std::cout << "Running reformulated solver..." << std::endl;
+                // start_reform = std::chrono::steady_clock::now();
+                // ret_reform = solver_reform.value().solve(info_reform.value(), jacobian_reform.value(), hessian_reform.value(), D_x_reform.value(), D_s_reform.value(), rhs_x_reform.value(), rhs_g_reform.value(), x_reform.value(), mult_reform.value());
+                // stop_reform = std::chrono::steady_clock::now();
             } else {
-                // accelerated
-                std::cout << "Running accelerated solver..." << std::endl;
-                start_accel = std::chrono::steady_clock::now();
-                ret_accel = solver_accel.value().solve(info_accel.value(), jacobian_accel.value(), hessian_accel.value(), D_x_accel.value(), D_s_accel.value(), rhs_x_accel.value(), rhs_g_accel.value(), x_accel.value(), mult_accel.value());
-                stop_accel = std::chrono::steady_clock::now();
-                std::cout << "acclerated solver returned with flag " << ret_accel << std::endl;
+                // // accelerated
+                // // std::cout << "Running accelerated solver..." << std::endl;
+                // start_accel = std::chrono::steady_clock::now();
+                // ret_accel = solver_accel.value().solve(info_accel.value(), jacobian_accel.value(), hessian_accel.value(), D_x_accel.value(), D_s_accel.value(), rhs_x_accel.value(), rhs_g_accel.value(), x_accel.value(), mult_accel.value());
+                // stop_accel = std::chrono::steady_clock::now();
+                // // std::cout << "acclerated solver returned with flag " << ret_accel << std::endl;
             }
-            std::cout << "Done." << std::endl;
+            // std::cout << "Done." << std::endl;
         }
         } catch (const std::exception& e){
             std::cout << "Exception caught: " << e.what() << std::endl;
@@ -921,8 +921,7 @@ TEST_F(RandomBenchmarkTest, Test)
         if (write_csv){
             f << K << "," << nu[0] << "," << nx[0] << "," << r[0] << "," << ng[0] << "," << ng_ineq[0];
             f << "," << ns_expl << "," << ns_impl << "," << ns_impl_preprocess << "," << ns_impl_solve << "," << ns_impl_postprocess << "," << ns_reform << "," << ns_accel << "," << ns_lu_impl << "," << ns_lu_reform << "," << ns_lu_accel << "," << ns_decomp_decomp << "\n";
-        }
-        
+        }       
     }
 
     std::cout << "Average time explicit:     " << timings["total_ns_expl"] / nb_runs_completed << " ns (";
@@ -960,9 +959,10 @@ TEST_F(RandomBenchmarkTest, Test)
         {"implicit postprocess", {"total_ns_impl_postprocess"}}
     };
 
-    // std::cout << "Time spent in LU factorization: " << std::endl;
-    // PrintLine("Implicit", total_lu_impl, total_ns_impl);
-    // PrintLine("Reformulated", total_lu_reform, total_ns_reform);
+    std::cout << "Time spent in LU factorization: " << std::endl;
+    PrintLine("Implicit", timings["total_lu_impl"], timings["total_ns_impl"]);
+    PrintLine("Reformulated", timings["total_lu_reform"], timings["total_ns_reform"]);
+    PrintLine("Accelerated", timings["total_lu_accel"], timings["total_ns_accel"]);
     
     PrintBreakdown(timings, "implicit preprocess", breakdowns, breakdown_totals);
     PrintBreakdown(timings, "implicit preprocess decomp", breakdowns, breakdown_totals);

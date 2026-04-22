@@ -236,7 +236,7 @@ class FlopCounter:
                 self.gemv(nu + nx, rho)
                 if self.implicit and not self.ignore_FuFx_GuGx and k > 0 and self.r[k-1] < self.nx[k]:
                     f = self.flops
-                    self.gemv(nunxm1, rho)
+                    self.gemv(self.nu[k-1] + self.nx[k-1], rho)
                     self.flops_forward_substitution_implicit_specific += self.flops - f
                 self.trsv(rho)
                 self.trsv(rho)
