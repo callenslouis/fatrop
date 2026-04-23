@@ -22,7 +22,7 @@ class RandomBenchmarkTest : public ::testing::Test
 {
 // protected:
 public:
-    bool full_rank = false;
+    bool full_rank = true;
     bool constant_dimensions = true;
 
     int K;
@@ -703,7 +703,7 @@ void PrintBreakdown(const std::map<std::string, long int>& timings,
 
 TEST_F(RandomBenchmarkTest, Test)
 {
-    int nb_runs = 1000;
+    int nb_runs = 20000;
     int nb_runs_completed = 0;
     bool write_csv = false;
 
@@ -760,7 +760,12 @@ TEST_F(RandomBenchmarkTest, Test)
     std::ofstream f;    
     if (write_csv){
         f.open("random_benchmark_results_extended.csv");
-        f << "K,nu,nx,r,ng,ng_ineq,t_expl,t_impl,t_impl_pre,t_impl_solve,t_impl_post,t_reform,t_accel,lu_impl,lu_reform,lu_accel,impl_decomp\n";
+        f << "K,nu,nx,r,ng,ng_ineq,";
+        f << "t_expl,t_expl_backward,t_expl_solve,t_expl_forward,";
+        f << "t_impl,t_impl_backward,t_impl_solve,t_impl_forward,t_impl_pre,t_impl_solve,t_impl_post,";
+        f << "t_reform,t_reform_backward,t_reform_solve,t_reform_forward,";
+        f << "t_accel,t_accel_backward,t_accel_solve,t_accel_forward,";
+        f << "lu_expl,lu_impl,lu_reform,lu_accel,impl_decomp\n";
     }
     
     int nb_consecutive_failures = 0;
@@ -811,24 +816,24 @@ TEST_F(RandomBenchmarkTest, Test)
                 ret_impl = solver_impl.value().solve(info_impl.value(), jacobian_impl.value(), hessian_impl.value(), D_x_impl.value(), D_s_impl.value(), rhs_x_impl.value(), rhs_g_impl.value(), x_impl.value(), mult_impl.value());
                 stop_impl = std::chrono::steady_clock::now();
             } else if (idx == 1) {
-                // // explicit //
-                // // std::cout << "Running explicit solver..." << std::endl;
-                // start_expl = std::chrono::steady_clock::now();
-                // ret_expl = solver_expl.value().solve(info_expl.value(), jacobian_expl.value(), hessian_expl.value(), D_x_expl.value(), D_s_expl.value(), rhs_x_expl.value(), rhs_g_expl.value(), x_expl.value(), mult_expl.value());
-                // stop_expl = std::chrono::steady_clock::now();
+                // explicit //
+                // std::cout << "Running explicit solver..." << std::endl;
+                start_expl = std::chrono::steady_clock::now();
+                ret_expl = solver_expl.value().solve(info_expl.value(), jacobian_expl.value(), hessian_expl.value(), D_x_expl.value(), D_s_expl.value(), rhs_x_expl.value(), rhs_g_expl.value(), x_expl.value(), mult_expl.value());
+                stop_expl = std::chrono::steady_clock::now();
             } else if (idx == 2) {
-                // // reformulated //
-                // // std::cout << "Running reformulated solver..." << std::endl;
-                // start_reform = std::chrono::steady_clock::now();
-                // ret_reform = solver_reform.value().solve(info_reform.value(), jacobian_reform.value(), hessian_reform.value(), D_x_reform.value(), D_s_reform.value(), rhs_x_reform.value(), rhs_g_reform.value(), x_reform.value(), mult_reform.value());
-                // stop_reform = std::chrono::steady_clock::now();
+                // reformulated //
+                // std::cout << "Running reformulated solver..." << std::endl;
+                start_reform = std::chrono::steady_clock::now();
+                ret_reform = solver_reform.value().solve(info_reform.value(), jacobian_reform.value(), hessian_reform.value(), D_x_reform.value(), D_s_reform.value(), rhs_x_reform.value(), rhs_g_reform.value(), x_reform.value(), mult_reform.value());
+                stop_reform = std::chrono::steady_clock::now();
             } else {
-                // // accelerated
-                // // std::cout << "Running accelerated solver..." << std::endl;
-                // start_accel = std::chrono::steady_clock::now();
-                // ret_accel = solver_accel.value().solve(info_accel.value(), jacobian_accel.value(), hessian_accel.value(), D_x_accel.value(), D_s_accel.value(), rhs_x_accel.value(), rhs_g_accel.value(), x_accel.value(), mult_accel.value());
-                // stop_accel = std::chrono::steady_clock::now();
-                // // std::cout << "acclerated solver returned with flag " << ret_accel << std::endl;
+                // accelerated
+                // std::cout << "Running accelerated solver..." << std::endl;
+                start_accel = std::chrono::steady_clock::now();
+                ret_accel = solver_accel.value().solve(info_accel.value(), jacobian_accel.value(), hessian_accel.value(), D_x_accel.value(), D_s_accel.value(), rhs_x_accel.value(), rhs_g_accel.value(), x_accel.value(), mult_accel.value());
+                stop_accel = std::chrono::steady_clock::now();
+                // std::cout << "acclerated solver returned with flag " << ret_accel << std::endl;
             }
             // std::cout << "Done." << std::endl;
         }
@@ -885,9 +890,11 @@ TEST_F(RandomBenchmarkTest, Test)
         timings["total_solve_lambdatilde_addition"] += solver_impl.value().duration_lambdatilde_addition.count();
         timings["total_solve_FuFx_addition_forward"] += solver_impl.value().duration_FuFx_addition_forward.count();
         
+        long int ns_lu_expl = solver_expl.value().duration_lu_factorization.count();
         long int ns_lu_impl = solver_impl.value().duration_lu_factorization.count() + solver_impl.value().duration_decomp_decomp.count();
         long int ns_lu_reform = solver_reform.value().duration_lu_factorization.count();
         long int ns_lu_accel = solver_accel.value().duration_lu_factorization.count();
+        timings["ns_lu_expl"] = ns_lu_expl;
         timings["ns_lu_impl"] = ns_lu_impl;
         timings["ns_lu_reform"] = ns_lu_reform;
         timings["ns_lu_accel"] = ns_lu_accel;
@@ -919,8 +926,32 @@ TEST_F(RandomBenchmarkTest, Test)
         nb_consecutive_failures = 0;
 
         if (write_csv){
-            f << K << "," << nu[0] << "," << nx[0] << "," << r[0] << "," << ng[0] << "," << ng_ineq[0];
-            f << "," << ns_expl << "," << ns_impl << "," << ns_impl_preprocess << "," << ns_impl_solve << "," << ns_impl_postprocess << "," << ns_reform << "," << ns_accel << "," << ns_lu_impl << "," << ns_lu_reform << "," << ns_lu_accel << "," << ns_decomp_decomp << "\n";
+            // parameters
+            f << K << "," << nu[0] << "," << nx[0] << "," << r[0] << "," << ng[0] << "," << ng_ineq[0] << ",";
+
+            // timings expl
+            f << ns_expl << "," << solver_expl.value().duration_backward_recursion.count() << ",";
+            f << solver_expl.value().duration_initial_stage.count() << ",";
+            f << solver_expl.value().duration_forward_recursion.count() << ",";
+
+            // timings impl
+            f << ns_impl << "," << solver_impl.value().duration_backward_recursion.count() << ",";
+            f << solver_impl.value().duration_initial_stage.count() << ",";
+            f << solver_impl.value().duration_forward_recursion.count() << ",";
+            f << ns_impl_preprocess << "," << ns_impl_solve << "," << ns_impl_postprocess << ",";
+
+            // timings reform
+            f << ns_reform << "," << solver_reform.value().duration_backward_recursion.count() << ",";
+            f << solver_reform.value().duration_initial_stage.count() << ",";
+            f << solver_reform.value().duration_forward_recursion.count() << ",";
+
+            // timings accel
+            f << ns_accel << "," << solver_accel.value().duration_backward_recursion.count() << ",";
+            f << solver_accel.value().duration_initial_stage.count() << ",";
+            f << solver_accel.value().duration_forward_recursion.count() << ",";
+
+            // timings lu
+            f << ns_lu_expl << "," << ns_lu_impl << "," << ns_lu_reform << "," << ns_lu_accel << "," << ns_decomp_decomp << "\n";
         }       
     }
 

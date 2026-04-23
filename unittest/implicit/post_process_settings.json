@@ -1,3 +1,4 @@
 {
-    "latexify": true
+    "latexify": true,
+    "figure_folder":"unittest/implicit/figures_linear_system"
 }

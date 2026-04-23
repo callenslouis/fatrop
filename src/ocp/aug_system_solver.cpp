@@ -3435,14 +3435,10 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
                 gamma_k_values[k] = gamma_k;
                 gecp(nu, gamma_k, Ggt_stripe[0], 0, 0, Ggt_eq[k], 0, 0);
             }
-            #ifdef PROFILE
             auto start = std::chrono::steady_clock::now();
-            #endif
             lu_fact_transposed(gamma_k, nu + nx + 1, nu, rank_k, Ggt_stripe[0], Pl[k], Pr[k], lu_fact_tol);
-            #ifdef PROFILE
             auto stop = std::chrono::steady_clock::now();
             duration_lu_factorization += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
-            #endif
             if (write_factorization_file){
                 rank_k_values[k] = rank_k;
                 gecp(nu, gamma_k, Ggt_stripe[0], 0, 0, LU[k], 0, 0);
@@ -4789,8 +4785,8 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
 {
     if (print_debug) {std::cout << "AugSystemSolver<ImplicitOcpType> solve start" << std::endl;}
     // copy the rhs since they are altered during preprocessing and are needed for checking the solution
-    #ifdef PROFILE
     auto start = std::chrono::high_resolution_clock::now();
+    #ifdef PROFILE
     #endif
     veccp(info.number_of_primal_variables, f, 0, f_copy[0], 0);
     veccp(info.number_of_eq_constraints, g, 0, g_copy[0], 0);
@@ -4804,19 +4800,15 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
     #endif
 
     ProblemInfo modified_info = PreProcess(info, jacobian, hessian, f_copy[0], g_copy[0], &(D_x_copy[0]), nullptr, &(D_s_copy[0]));
-    #ifdef PROFILE
-    stop = std::chrono::high_resolution_clock::now();
+    auto stop = std::chrono::high_resolution_clock::now();
     duration_preprocess = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
 
     start = std::chrono::high_resolution_clock::now();
-    #endif
     LinsolReturnFlag flag = ModifiedAugSystemSolver::solve(modified_info, jacobian, hessian, D_x_copy[0], D_s_copy[0], f_copy[0], g_copy[0], x, eq_mult);
-    #ifdef PROFILE
     auto end = std::chrono::high_resolution_clock::now();
     duration_solve = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
 
     start = std::chrono::high_resolution_clock::now();
-    #endif
     if (write_preprocessing_file){
         PrintPreProcessNpInfo(info, modified_info, hessian, jacobian, x, eq_mult, D_x, preprocessing_file_name);
     }
@@ -4844,10 +4836,8 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
     start = std::chrono::high_resolution_clock::now();
     #endif
     PostProcess(info, modified_info, jacobian, hessian, x, eq_mult, &D_s, nullptr, g);
-    #ifdef PROFILE
     stop = std::chrono::high_resolution_clock::now();
     duration_postprocess = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
-    #endif
 
     if (print_final_solution){
         std::string file = "final_solution.py";
@@ -5107,18 +5097,14 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
         #endif
 
         // decompose J matrix
-        #ifdef PROFILE
-        inner_start = std::chrono::high_resolution_clock::now();
-        #endif
+        auto inner_start = std::chrono::high_resolution_clock::now();
         lu_fact_transposed(nx_next, nx_next + nu + nx + 1, nx_next, rank, JBAbt[0], jacobian.Pl_pre[k], jacobian.Pr_pre[k], lu_fact_tol);
         gecp(rank, rank, JBAbt[0], 0, 0, jacobian.U1t[k], 0, 0);
         // PrintLuInfo(JBAbt, jacobian.Jt[k], jacobian.Pl_pre[k], jacobian.Pr_pre[k]);
         // rank = nx_next;
-        #ifdef PROFILE
-        inner_stop = std::chrono::high_resolution_clock::now();
+        auto inner_stop = std::chrono::high_resolution_clock::now();
         duration_decomp_decomp += std::chrono::duration_cast<std::chrono::nanoseconds>(inner_stop - inner_start);
         inner_start = std::chrono::high_resolution_clock::now();
-        #endif
         if (nu + nx < info.dims.number_of_eq_constraints[k] + nx_next - rank){
             // there will be more constraints at this stage than can be
             // satisfied using the constrols and the states.
