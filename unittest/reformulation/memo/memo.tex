@@ -215,8 +215,8 @@ Finally, the decomposition of is given by
     \begin{bNiceMatrix}[first-row, first-col, last-col=3]
         & \rho & n_u - \rho + n_x & \\
         & V_1 & \tilde{V}_2 & \rho \\
-        & & U_2 & n_x\\
-        & & \bm{0} & n_u - \rho
+        & & U_2 & n_x + n_c\\
+        & & \bm{0} & n_g - \rho
     \end{bNiceMatrix}
     \label{eq:final_decomposition-carry}
 \end{equation}
@@ -263,14 +263,14 @@ To verify \eqref{eq:final_decomposition-carry}, compute both the left and right-
     \begin{bNiceMatrix}[first-row, first-col, last-col=3]
         & \rho & n_u - \rho + n_x & \\
         & V_1 & \tilde{V}_2 & \rho \\
-        & & U_2 & n_x\\
-        & & \bm{0} & n_u - \rho
+        & & U_2 & n_x + n_c\\
+        & & \bm{0} & n_g - \rho
     \end{bNiceMatrix}
     = 
     \begin{bNiceMatrix}[first-row, first-col, last-col=3]
         & \rho & n_u - \rho + n_x & \\
         & K_1 V_1 & K_1 \tilde{V}_2 & \rho \\
-        & \tilde{K}_3 V_1 & \tilde{K}_3 \tilde{V}_2 + L_2 U_2 & n_x\\
+        & \tilde{K}_3 V_1 & \tilde{K}_3 \tilde{V}_2 + L_2 U_2 & n_x + n_c\\
         & K_2 V_1 & K_2 \tilde{V}_2 & n_u - \rho
     \end{bNiceMatrix}
     \label{eq:right-hand-side-carry}
