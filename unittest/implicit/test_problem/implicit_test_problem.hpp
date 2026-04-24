@@ -441,7 +441,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                                     const Scalar *lam_eq_k, 
                                     const Scalar *lam_eq_ineq_k, 
                                     MAT *res, MAT *res_kp1, 
-                                    MAT *res_FuFxt, const Index k)
+                                    MAT *res_FuFx, const Index k)
         {
             if (DEBUG_PRINT){
                 std::cout << "entering " << __func__ << " [" << k << "]" << std::endl;
@@ -454,7 +454,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
             blasfeo_gese_wrap(1, res->n, 0.0, res, get_nu(k) + get_nx(k), 0);
 
             if (res_kp1){blasfeo_gese_wrap(res_kp1->m, res_kp1->n, 0.0, res_kp1, 0, 0);}
-            if (res_FuFxt){blasfeo_gese_wrap(res_FuFxt->m, res_FuFxt->n, 0.0, res_FuFxt, 0, 0);}
+            if (res_FuFx){blasfeo_gese_wrap(res_FuFx->m, res_FuFx->n, 0.0, res_FuFx, 0, 0);}
 
             // contribution of obj(uk, xk), equality and inequality constraints
             Function lag_hess = (k == 0) ? lag_hess_0_gc_ : (k == K_ - 1) ? lag_hess_K_gc_ : lag_hess_k_gc_;
@@ -522,7 +522,7 @@ class ImplicitTestProblem : public ImplicitOcpAbstract{
                             blasfeo_matel_wrap(res, r - get_nx(k+1), i - get_nx(k+1)) += scratch_[scratch_ptr_dyn];
                         } else if (i < get_nx(k+1)){
                             // contribution to res_FuFxt
-                            blasfeo_matel_wrap(res_FuFxt, r - get_nx(k+1), i) = scratch_[scratch_ptr_dyn];
+                            blasfeo_matel_wrap(res_FuFx, i, r - get_nx(k+1)) = scratch_[scratch_ptr_dyn];
                         } // otherwise discard contribution to res_FuFx
                         // blasfeo_matel_wrap(res, dyn_hess_kp_sp_.row(el), i) = scratch_[scratch_ptr_dyn];
                         scratch_ptr_dyn++;

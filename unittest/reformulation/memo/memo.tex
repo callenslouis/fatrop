@@ -83,7 +83,15 @@ where $M_1 \in \mathbb{R}^{n_x \times n_x}$, $M_2 \in \mathbb{R}^{n_x \times n_u
 
 In some cases, constraints on $x_{k+1}$ are transferred to stage $k$ using the dynamics equations. If the definition of \eqref{eq:Hu} is used, that leads to an augmented matrix 
 \begin{equation}
-    H_u = \begin{bNiceMatrix}[first-row, first-col, last-col=3]
+    H_u = 
+    \begin{bNiceMatrix}
+        \nabla_{u_k} g_\mathrm{eq}(x_k, u_k) & \nabla_{z_k} g_\mathrm{eq}(x_k, u_k)\\
+        \nabla_{u_k} f(x_k, u_k, z_k) & \nabla_{z_k} f(x_k, u_k, z_k)\\
+        % \Block{1-2}{\nabla_{x_{k+1}} g_\mathrm{eq}(x_{k+1}, u_{k+1}) \nabla_{u_{k+1}}f(x_k, u_k, z_k)}
+        \Block{1-2}{H_{k+1} B_k}
+    \end{bNiceMatrix}
+    =
+    \begin{bNiceMatrix}[first-row, first-col, last-col=3]
         & n_u & n_x & \\
         & M_1 &     & n_g\\ 
         & M_2 & M_3 & n_x\\ 
