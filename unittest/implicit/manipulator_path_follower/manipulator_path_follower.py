@@ -37,9 +37,10 @@ opti = Opti()
 N = 70
 T = 3.0
 dt = T/N
+print(f"dt: {dt}")
 accel_bound = 3
 path_tol = 0.05
-control_penalty = 0.001
+control_penalty = 1.0
 
 with_slack = 1
 with_progress_variable = 1
@@ -72,7 +73,7 @@ if with_progress_variable:
     p = hcat(p)
     dp = hcat(dp)
 else:
-    p = transpose(linspace(0, T, N))
+    p = transpose(linspace(0, T, N+1))
     dp = MX.ones(1, N)
 
 # initial state
@@ -84,7 +85,7 @@ if with_progress_variable:
 path_func = get_path_function(fk, n)
 obj = 0.0
 for k in range(N):
-    opti.subject_to(q[:,k+1] == q[:,k] + qd[:,k]*dp[:,k] + 0.5*qdd[:,k]*dp[:,k]**2)
+    opti.subject_to(q[:,k+1] == q[:,k] + qd[:,k]*dp[:,k] + 0*0.5*qdd[:,k]*dp[:,k]**2)
     opti.subject_to(qd[:,k+1] == qd[:,k] + qdd[:,k]*dp[:,k])
     if with_progress_variable:
         opti.subject_to(p[:,k+1] == p[:,k] + dp[:,k])
@@ -92,32 +93,32 @@ for k in range(N):
     ee_pos_k = path_func(p[:,k])
 
     if with_slack:
-        opti.subject_to(s[:,k] == ee_pos(q[:,k], fk) - ee_pos_k)
+        opti.subject_to(ee_pos(q[:,k], fk) - ee_pos_k - s[:,k] == 0)
     else:
         s[:,k] = ee_pos(q[:,k], fk) - ee_pos_k
 
-    opti.subject_to(sumsqr(s[:,k]) <= path_tol**2)
+    opti.subject_to(-1 <= (sumsqr(s[:,k]) <= path_tol**2))
     opti.subject_to(-accel_bound <= (qdd[:,k] <= accel_bound))
     if with_progress_variable:
         opti.subject_to(0.5*dt <= (dp[:,k] <= 1.5*dt))
         # opti.subject_to(dp[:,k] == dt)
 
-    obj += sumsqr(s[:,k]) + control_penalty*sumsqr(qdd[:,k])
+    obj += 0*sumsqr(s[:,k]) + control_penalty*sumsqr(qdd[:,k])
 
 if with_progress_variable:
-    # opti.subject_to(0.5*T <= (p[-1,-1] <= 1.5*T))
     opti.subject_to(p[-1,-1] == T)
     opti.set_initial(p, transpose(linspace(0, T, N+1)))
     opti.set_initial(dp, dt)
 
 opti.minimize(obj)
 opti.solver('fatrop', {'structure_detection':'auto', 'debug':True}, {})
+# opti.solver('ipopt', {}, {})
 
 sol = opti.solve()
+exit()
 
 # t_sol = linspace(0, T, N+1)
 t_sol = sol.value(p)
-print(t_sol[-1])
 q_sol = sol.value(q)
 qd_sol = sol.value(qd)
 qdd_sol = sol.value(qdd)
@@ -162,6 +163,18 @@ for i in range(n):
     axs[0].plot(t_sol, q_sol[i, :], label=f"joint {i} position")
     axs[1].plot(t_sol, qd_sol[i, :], label=f"joint {i} velocity")
     axs[2].plot(t_sol[:-1], qdd_sol[i, :], label=f"joint {i} acceleration")
+axs[2].axhline(accel_bound, color='r', linestyle='-', label="acceleration bound")
+axs[2].axhline(-accel_bound, color='r', linestyle='-')
+    
+# show progress variable over time
+fig, ax = plt.subplots()
+if with_progress_variable:
+    ax.plot(linspace(0, T, len(t_sol)), t_sol, label="progress variable")
+    ax.plot([0, T], [0, T], '--', label="ideal progress")
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("Progress Variable")
+    ax.set_title("Progress Variable Over Time")
+    ax.legend()
 
 plt.show()
 

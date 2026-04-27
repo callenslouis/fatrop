@@ -23,6 +23,7 @@
 #include "generators/quadruped_generator.hpp"
 #include "generators/batch_reactor_generator.hpp"
 #include "generators/solar_receiver_reactor_generator.hpp"
+#include "generators/manipulator_path_follower_generator.hpp"
 
 #include "json/single_include/nlohmann/json.hpp"
 
@@ -87,10 +88,15 @@ json add_json_data(std::shared_ptr<IpData<ProblemType>> data, std::string proble
 
 void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     bool STORE_SOLUTION = true;
+    bool USE_CODEGEN = true;
     auto tp_impl = std::make_shared<ImplicitTestProblem>(generator->PrepareImplicit());
     auto tp_rf = std::make_shared<ExplicitTestProblem>(generator->PrepareRootFinder());
     auto tp_reform = std::make_shared<ExplicitTestProblem>(generator->PrepareReformulated());
     auto tp_expl = std::make_shared<ExplicitTestProblem>(generator->PrepareExplicit());
+    tp_impl->use_codegen(USE_CODEGEN);
+    // tp_rf->use_codegen(USE_CODEGEN);
+    tp_reform->use_codegen(USE_CODEGEN);
+    tp_expl->use_codegen(USE_CODEGEN);
     ImplicitTestProblem tp_interface_impl = *tp_impl;
     ExplicitTestProblem tp_interface_rf = *tp_rf;
     ExplicitTestProblem tp_interface_expl = *tp_expl;
@@ -365,6 +371,10 @@ int main(int argc, char **argv)
     // }
     // return 0;
 
+    ManipulatorPathFollower pf;
+    pf.SolveOptiInstance();
+    // return 0;
+
 
     if (argc < 3){
         std::cout << "Please provide the following arguments to this executable:" << std::endl;
@@ -412,8 +422,10 @@ int main(int argc, char **argv)
             int n = 0;
             if (argc > 3){ n = std::stoi(argv[3]);}
             generator = std::make_unique<SolarReceiverReactorGenerator>(n);
+        } else if (std::string(argv[2]) == "path_follower"){
+            generator = std::make_unique<ManipulatorPathFollower>();
         } else {
-            std::cout << "Second argument should be either \"truck_trailer\", \"bycicle\", \"example_static\", \"holonomic\", \"planar_robot\", \"quadruped\", \"batch_reactor\" or \"solar_receiver_reactor\" when first argument is \"single\"" << std::endl;
+            std::cout << "Second argument should be either \"truck_trailer\", \"bycicle\", \"example_static\", \"holonomic\", \"planar_robot\", \"quadruped\", \"batch_reactor\" \"solar_receiver_reactor\" or \"path_follower\" when first argument is \"single\"" << std::endl;
             return 0;
         }
 

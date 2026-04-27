@@ -599,7 +599,12 @@ class ExplicitTestProblem : public OcpAbstract{
         }
 
         void use_codegen(const bool use_codegen){
-            USE_CODEGEN_ = use_codegen;
+            if (use_codegen && !USE_CODEGEN_){
+                USE_CODEGEN_ = use_codegen;
+                CodeGenerateAll();
+            } else {
+                USE_CODEGEN_ = use_codegen;
+            }
         }
 
     private:
@@ -609,9 +614,15 @@ class ExplicitTestProblem : public OcpAbstract{
             std::string compile_command = "gcc -fPIC -shared -O3 " + name + ".c -o " + name + ".so";
             // std::string compile_command = "gcc -fPIC -shared " + name + ".c -o " + name + ".so";
             // std::string compile_command = "gcc -fPIC -shared -march=native -ffast-math " + name + ".c -o " + name + ".so";
-            int flag = system(compile_command.c_str());
+            int flag;
+            try{
+                flag = system(compile_command.c_str());
+            } catch (const std::exception& e){
+                return f;
+            }
             if (flag != 0){
-                throw std::runtime_error("Error in CodeGenerateFunction: could not compile " + name + ".so");
+                // throw std::runtime_error("Error in CodeGenerateFunction: could not compile " + name + ".so");
+                return f;
             }
             Function f_cg = external(name);
 
@@ -619,7 +630,8 @@ class ExplicitTestProblem : public OcpAbstract{
             std::string remove_command = "rm " + name + ".c " + name + ".so";
             flag = system(remove_command.c_str());
             if (flag != 0){
-                throw std::runtime_error("Error in CodeGenerateFunction: could not remove generated files for " + name);
+                // throw std::runtime_error("Error in CodeGenerateFunction: could not remove generated files for " + name);
+                return f;
             }
             return f_cg;
         }
