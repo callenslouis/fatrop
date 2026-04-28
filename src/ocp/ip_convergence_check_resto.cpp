@@ -9,3 +9,4 @@ using namespace fatrop;
 // explicit template instantiation
 template class fatrop::IpConvergenceCheckResto<OcpType>;
 template class fatrop::IpConvergenceCheckResto<ImplicitOcpType>;
+template class fatrop::IpConvergenceCheckResto<AcceleratedOcpType>;

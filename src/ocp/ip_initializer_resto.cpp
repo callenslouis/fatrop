@@ -8,3 +8,4 @@ using namespace fatrop;
 // explicit template instantiation
 template class fatrop::IpInitializerResto<OcpType>;
 template class fatrop::IpInitializerResto<ImplicitOcpType>;
+template class fatrop::IpInitializerResto<AcceleratedOcpType>;

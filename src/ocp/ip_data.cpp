@@ -10,3 +10,4 @@ using namespace fatrop;
 // explicit template instantiation
 template class fatrop::IpData<OcpType>; 
 template class fatrop::IpData<ImplicitOcpType>; 
+template class fatrop::IpData<AcceleratedOcpType>;

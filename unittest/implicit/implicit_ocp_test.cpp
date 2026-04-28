@@ -86,6 +86,145 @@ json add_json_data(std::shared_ptr<IpData<ProblemType>> data, std::string proble
     return my_json;
 };
 
+// void PrintStatistics(std::vector<bool> solved_flags, std::vector<json> results){
+//     std::cout << "\n\n==================== Summary ====================" << std::endl;
+//     std::cout << "Number of iterations:\n";
+//     for (size_t i = 0; i < results.size(); i++){
+//         if (solved_flags[i]){
+//             std::cout << "\t" << std::setw(30) << results[i]["method_name"] << ": " << results[i]["metadata"]["iterations"] << std::endl;
+//         }
+//     }
+//     std::cout << "Total computation time (s) - Time per iteration (s):\n";
+//     for (size_t i = 0; i < results.size(); i++){
+//         if (solved_flags[i]){
+//             std::cout << "\t" << std::setw(30) << results[i]["method_name"] << ": ";
+//             std::cout << std::setw(30) << std::setprecision(2) << results[i]["metadata"]["timing_statistics"]["total"];
+//             double time_per_iter = double(results[i]["metadata"]["timing_statistics"]["total"]) / int(results[i]["metadata"]["iterations"]);
+//             std::cout << " - " << std::setw(15) << std::setprecision(2) << time_per_iter << std::endl;
+//         }
+//     }
+//     std::cout << "Function evaluation time (s) - Time per iteration (s):\n";
+//     for (size_t i = 0; i < results.size(); i++){
+//         if (solved_flags[i]){
+//             std::cout << "\t" << std::setw(30) << results[i]["method_name"] << ": ";
+//             std::cout << std::setw(30) << std::setprecision(2) << results[i]["metadata"]["timing_statistics"]["function evaluation"];
+//             double time_per_iter = double(results[i]["metadata"]["timing_statistics"]["function evaluation"]) / int(results[i]["metadata"]["iterations"]);
+//             std::cout << " - " << std::setw(15) << std::setprecision(2) << time_per_iter << std::endl;
+//         }
+//     }
+//     std::cout << "Fatrop time (s) - Time per iteration (s):\n";
+//     for (size_t i = 0; i < results.size(); i++){
+//         if (solved_flags[i]){
+//             std::cout << "\t" << std::setw(30) << results[i]["method_name"] << ": ";
+//             std::cout << std::setw(30) << std::setprecision(2) << results[i]["metadata"]["timing_statistics"]["fatrop"];
+//             double time_per_iter = double(results[i]["metadata"]["timing_statistics"]["fatrop"]) / int(results[i]["metadata"]["iterations"]);
+//             std::cout << " - " << std::setw(15) << std::setprecision(2) << time_per_iter << std::endl;
+//         }
+//     }
+// }
+void PrintStatistics(std::vector<bool> solved_flags, std::vector<json> results) {
+    // Collect only solved methods
+    std::vector<size_t> solved_idx;
+    for (size_t i = 0; i < results.size(); i++)
+        if (solved_flags[i]) solved_idx.push_back(i);
+
+    if (solved_idx.empty()) {
+        std::cout << "\n\nNo solved methods to display.\n";
+        return;
+    }
+
+    // --- Column width configuration ---
+    const int ROW_LABEL_W = 40;   // width of the leftmost label column
+    const int COL_W       = 16;   // width of each method column
+    const int PRECISION   =  4;   // decimal places for floats
+
+    // Helper: format a double as a fixed-precision string
+    auto fmt = [&](double v) {
+        std::ostringstream oss;
+        oss << std::fixed << std::setprecision(PRECISION) << v;
+        return oss.str();
+    };
+
+    // Helper: center a string within a field of given width
+    auto center = [](const std::string& s, int w) {
+        int pad = w - (int)s.size();
+        int lpad = pad / 2, rpad = pad - lpad;
+        return std::string(lpad, ' ') + s + std::string(rpad, ' ');
+    };
+
+    int total_width = ROW_LABEL_W + (int)solved_idx.size() * (COL_W + 1) + 1;
+    std::string separator(total_width, '-');
+
+    std::cout << "\n\n==================== Summary ====================\n";
+
+    // --- Header row ---
+    std::cout << std::string(ROW_LABEL_W, ' ') << "|";
+    for (size_t i : solved_idx) {
+        std::string name = results[i]["method_name"];
+        // Truncate if too long
+        if ((int)name.size() > COL_W - 1) name = name.substr(0, COL_W - 1);
+        std::cout << center(name, COL_W) << "|";
+    }
+    std::cout << "\n" << separator << "\n";
+
+    // --- Row definitions ---
+    // Each row: { label, lambda returning cell string for result index i }
+    using RowFn = std::function<std::string(size_t)>;
+    std::vector<std::pair<std::string, RowFn>> rows = {
+        {
+            "Iterations",
+            [&](size_t i) { return std::to_string(int(results[i]["metadata"]["iterations"])); }
+        },
+        {
+            "Total time (s)",
+            [&](size_t i) { return fmt(double(results[i]["metadata"]["timing_statistics"]["total"])); }
+        },
+        {
+            "Func eval time (s)",
+            [&](size_t i) { return fmt(double(results[i]["metadata"]["timing_statistics"]["function evaluation"])); }
+        },
+        {
+            "Fatrop time (s)",
+            [&](size_t i) { return fmt(double(results[i]["metadata"]["timing_statistics"]["fatrop"])); }
+        },
+        {
+            "Total time / iter (ms)",
+            [&](size_t i) {
+                double t = double(results[i]["metadata"]["timing_statistics"]["total"]);
+                int   it = int  (results[i]["metadata"]["iterations"]);
+                return fmt(1000 * t / it);
+            }
+        },
+        {
+            "Func eval time / iter (ms)",
+            [&](size_t i) {
+                double t = double(results[i]["metadata"]["timing_statistics"]["function evaluation"]);
+                int   it = int  (results[i]["metadata"]["iterations"]);
+                return fmt(1000 * t / it);
+            }
+        },
+        {
+            "Fatrop time / iter (ms)",
+            [&](size_t i) {
+                double t = double(results[i]["metadata"]["timing_statistics"]["fatrop"]);
+                int   it = int  (results[i]["metadata"]["iterations"]);
+                return fmt(1000 * t / it);
+            }
+        },
+    };
+
+    // --- Data rows ---
+    for (auto& [label, fn] : rows) {
+        std::cout << std::left << std::setw(ROW_LABEL_W) << label << "|";
+        for (size_t i : solved_idx) {
+            std::cout << center(fn(i), COL_W) << "|";
+        }
+        std::cout << "\n";
+    }
+
+    std::cout << separator << "\n";
+}
+
 void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     bool STORE_SOLUTION = true;
     bool USE_CODEGEN = true;
@@ -93,14 +232,17 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     auto tp_rf = std::make_shared<ExplicitTestProblem>(generator->PrepareRootFinder());
     auto tp_reform = std::make_shared<ExplicitTestProblem>(generator->PrepareReformulated());
     auto tp_expl = std::make_shared<ExplicitTestProblem>(generator->PrepareExplicit());
+    auto tp_accel = std::make_shared<ExplicitTestProblem>(generator->PrepareReformulated());
     tp_impl->use_codegen(USE_CODEGEN);
     // tp_rf->use_codegen(USE_CODEGEN);
     tp_reform->use_codegen(USE_CODEGEN);
     tp_expl->use_codegen(USE_CODEGEN);
+    tp_accel->use_codegen(USE_CODEGEN);
     ImplicitTestProblem tp_interface_impl = *tp_impl;
     ExplicitTestProblem tp_interface_rf = *tp_rf;
     ExplicitTestProblem tp_interface_expl = *tp_expl;
     ExplicitTestProblem tp_interface_reform = *tp_reform;
+    ExplicitTestProblem tp_interface_accel = *tp_accel;
     // show_implicit_interface_output(tp_interface_impl, "output_interface_implicit.txt");
     // show_interface_output(tp_interface_rf, "output_interface_rootfinder.txt");
     // show_interface_output(tp_interface_expl, "output_interface_explicit.txt");
@@ -114,24 +256,28 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     IpAlgBuilder<ImplicitOcpType> builder_impl(std::make_shared<ImplicitNlpOcp>(tp_impl));
     IpAlgBuilder<OcpType> builder_rf(std::make_shared<NlpOcp>(tp_rf));
     IpAlgBuilder<OcpType> builder_expl(std::make_shared<NlpOcp>(tp_expl));
-    IpAlgBuilder<OcpType> builder_reform(std::make_shared<NlpOcp>(tp_reform));    
+    IpAlgBuilder<OcpType> builder_reform(std::make_shared<NlpOcp>(tp_reform));
+    IpAlgBuilder<AcceleratedOcpType> builder_accel(std::make_shared<AcceleratedNlpOcp>(tp_accel));    
 
     std::shared_ptr<IpAlgorithm<ImplicitOcpType>> ipalg_impl = builder_impl.with_options_registry(&options).build();
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_rf = builder_rf.with_options_registry(&options).build();
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_expl = builder_expl.with_options_registry(&options).build();
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_reform = builder_reform.with_options_registry(&options).build();
+    std::shared_ptr<IpAlgorithm<AcceleratedOcpType>> ipalg_accel = builder_accel.with_options_registry(&options).build();
     // options.set_option("mu_init", 100.0);
     options.set_option("max_iter", 1000);
-    // options.set_option("print_level", 12);
+    // options.set_option("print_level", 0);
+    // options.set_option("tolerance", 1e-4);
     std::cout << "built ip algorithms" << std::endl;
 
-    json result_expl, result_reform, result_impl, result_rf;
-    bool solved_expl = false, solved_reform = false, solved_impl = false, solved_rf = false;
+    json result_expl, result_reform, result_impl, result_rf, result_accel;
+    bool solved_expl = false, solved_reform = false, solved_impl = false, solved_rf = false, solved_accel = false;
     
     bool skip_expl = false;
     bool skip_reform = false;
-    bool skip_impl = false;
-    bool skip_rf = false;
+    bool skip_impl = true;
+    bool skip_rf = true;
+    bool skip_accel = false;
 
     // EXPLICIT
     if (!skip_expl){
@@ -142,6 +288,7 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
         std::cout << "Elapsed time: " << timer_expl.stop() << std::endl;
         auto data_expl = builder_expl.get_ipdata();
         result_expl = add_json_data(data_expl, "explicit");
+        result_expl["method_name"] = "explicit";
         result_expl["generator_data"] = generator->GetJsonData();
         if (STORE_SOLUTION){
             std::ofstream file2("ocp_results/ocp_result_explicit_" + gen_type + "_" + file_name_appendix + ".json");
@@ -166,6 +313,7 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
         std::cout << "Elapsed time: " << timer_impl.stop() << std::endl;
         auto data_impl = builder_impl.get_ipdata();
         result_impl = add_json_data(data_impl, "implicit");
+        result_impl["method_name"] = "implicit";
         result_impl["generator_data"] = generator->GetJsonData();
         std::ofstream file("ocp_results/ocp_result_implicit_" + gen_type + "_" + file_name_appendix + ".json");
         if (STORE_SOLUTION){
@@ -190,6 +338,7 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
         std::cout << "Elapsed time: " << timer_reform.stop() << std::endl;
         auto data_reform = builder_reform.get_ipdata();
         result_reform = add_json_data(data_reform, "reformulated");
+        result_reform["method_name"] = "reformulated";
         result_reform["generator_data"] = generator->GetJsonData();
         std::ofstream file3("ocp_results/ocp_result_reformulated_" + gen_type + "_" + file_name_appendix + ".json");
         if (STORE_SOLUTION){
@@ -214,6 +363,7 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
         std::cout << "Elapsed time: " << timer_rf.stop() << std::endl;
         auto data_rf = builder_rf.get_ipdata();
         result_rf = add_json_data(data_rf, "rootfinder");
+        result_rf["method_name"] = "rootfinder";
         result_rf["generator_data"] = generator->GetJsonData();
         std::ofstream file4("ocp_results/ocp_result_rootfinder_" + gen_type + "_" + file_name_appendix + ".json");
         if (STORE_SOLUTION){
@@ -229,36 +379,67 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     }
     }
 
-    std::cout << "Finished solving problem" << std::endl;
-    std::cout << "nb iterations: " << std::endl;
-    if (solved_expl){std::cout << "\texplicit:     " << result_expl["metadata"]["iterations"] << std::endl;}
-    if (solved_reform){std::cout << "\treformulated: " << result_reform["metadata"]["iterations"] << std::endl;}
-    if (solved_impl){std::cout << "\timplicit:     " << result_impl["metadata"]["iterations"] << std::endl;}
-    if (solved_rf){std::cout << "\trootfinder:   " << result_rf["metadata"]["iterations"] << std::endl;}
+    // Accelerated
+    if (!skip_accel){
+    try{
+        std::cout << "solving accelerated test problem" << std::endl;
+        Timer timer_accel; timer_accel.start();
+        IpSolverReturnFlag ret_accel = ipalg_accel->optimize();
+        std::cout << "Elapsed time: " << timer_accel.stop() << std::endl;
+        auto data_accel = builder_accel.get_ipdata();
+        result_accel = add_json_data(data_accel, "accelerated");
+        result_accel["method_name"] = "accelerated";
+        result_accel["generator_data"] = generator->GetJsonData();
+        std::ofstream file5("ocp_results/ocp_result_accelerated_" + gen_type + "_" + file_name_appendix + ".json");
+        if (STORE_SOLUTION){
+            if (file5.is_open())
+            {
+                file5 << result_accel.dump(4);
+                file5.close();
+            }
+        }
+        solved_accel = true;
+    } catch (std::exception& e){
+        std::cout << "Exception caught during accelerated solve: " << e.what() << std::endl;
+    }
+    }
 
-    std::cout << "t_total: " << std::endl;
-    if (solved_expl){std::cout << "\texplicit:     " << result_expl["metadata"]["timing_statistics"]["total"] << std::endl;}
-    if (solved_reform){std::cout << "\treformulated: " << result_reform["metadata"]["timing_statistics"]["total"] << std::endl;}
-    if (solved_impl){std::cout << "\timplicit:     " << result_impl["metadata"]["timing_statistics"]["total"] << std::endl;}
-    if (solved_rf){std::cout << "\trootfinder:   " << result_rf["metadata"]["timing_statistics"]["total"] << std::endl;}
+    // std::cout << "Finished solving problem" << std::endl;
+    // std::cout << "nb iterations: " << std::endl;
+    // if (solved_expl){std::cout << "\texplicit:     " << result_expl["metadata"]["iterations"] << std::endl;}
+    // if (solved_reform){std::cout << "\treformulated: " << result_reform["metadata"]["iterations"] << std::endl;}
+    // if (solved_accel){std::cout << "\taccelerated:  " << result_accel["metadata"]["iterations"] << std::endl;}
+    // if (solved_impl){std::cout << "\timplicit:     " << result_impl["metadata"]["iterations"] << std::endl;}
+    // if (solved_rf){std::cout << "\trootfinder:   " << result_rf["metadata"]["iterations"] << std::endl;}
 
-    std::cout << "t_func: " << std::endl;
-    if (solved_expl){std::cout << "\texplicit:     " << result_expl["metadata"]["timing_statistics"]["function evaluation"] << std::endl;}
-    if (solved_reform){std::cout << "\treformulated: " << result_reform["metadata"]["timing_statistics"]["function evaluation"] << std::endl;}
-    if (solved_impl){std::cout << "\timplicit:     " << result_impl["metadata"]["timing_statistics"]["function evaluation"] << std::endl;}
-    if (solved_rf){std::cout << "\trootfinder:   " << result_rf["metadata"]["timing_statistics"]["function evaluation"] << std::endl;}
+    // std::cout << "t_total: " << std::endl;
+    // if (solved_expl){std::cout << "\texplicit:     " << result_expl["metadata"]["timing_statistics"]["total"] << std::endl;}
+    // if (solved_reform){std::cout << "\treformulated: " << result_reform["metadata"]["timing_statistics"]["total"] << std::endl;}
+    // if (solved_accel){std::cout << "\taccelerated:  " << result_accel["metadata"]["timing_statistics"]["total"] << std::endl;}
+    // if (solved_impl){std::cout << "\timplicit:     " << result_impl["metadata"]["timing_statistics"]["total"] << std::endl;}
+    // if (solved_rf){std::cout << "\trootfinder:   " << result_rf["metadata"]["timing_statistics"]["total"] << std::endl;}
 
-    std::cout << "t_fatrop: " << std::endl;
-    if (solved_expl){std::cout << "\texplicit:     " << result_expl["metadata"]["timing_statistics"]["fatrop"] << std::endl;}
-    if (solved_reform){std::cout << "\treformulated: " << result_reform["metadata"]["timing_statistics"]["fatrop"] << std::endl;}
-    if (solved_impl){std::cout << "\timplicit:     " << result_impl["metadata"]["timing_statistics"]["fatrop"] << std::endl;}
-    if (solved_rf){std::cout << "\trootfinder:   " << result_rf["metadata"]["timing_statistics"]["fatrop"] << std::endl;}
+    // std::cout << "t_func: " << std::endl;
+    // if (solved_expl){std::cout << "\texplicit:     " << result_expl["metadata"]["timing_statistics"]["function evaluation"] << std::endl;}
+    // if (solved_reform){std::cout << "\treformulated: " << result_reform["metadata"]["timing_statistics"]["function evaluation"] << std::endl;}
+    // if (solved_accel){std::cout << "\taccelerated:  " << result_accel["metadata"]["timing_statistics"]["function evaluation"] << std::endl;}
+    // if (solved_impl){std::cout << "\timplicit:     " << result_impl["metadata"]["timing_statistics"]["function evaluation"] << std::endl;}
+    // if (solved_rf){std::cout << "\trootfinder:   " << result_rf["metadata"]["timing_statistics"]["function evaluation"] << std::endl;}
 
-    std::cout << "hessian eval time breakdown:" << std::endl;
-    if (solved_expl){std::cout << "explicit:" << std::endl; tp_expl->get_hess_time_breakdown(result_expl["metadata"]["iterations"]);}
-    if (solved_reform){std::cout << "reformulated:" << std::endl; tp_reform->get_hess_time_breakdown(result_reform["metadata"]["iterations"]);}
-    if (solved_impl){std::cout << "implicit:" << std::endl; tp_impl->get_hess_time_breakdown(result_impl["metadata"]["iterations"]);}
-    if (solved_rf){std::cout << "rootfinder:" << std::endl; tp_rf->get_hess_time_breakdown(result_rf["metadata"]["iterations"]);}
+    // std::cout << "t_fatrop: " << std::endl;
+    // if (solved_expl){std::cout << "\texplicit:     " << result_expl["metadata"]["timing_statistics"]["fatrop"] << std::endl;}
+    // if (solved_reform){std::cout << "\treformulated: " << result_reform["metadata"]["timing_statistics"]["fatrop"] << std::endl;}
+    // if (solved_accel){std::cout << "\taccelerated:  " << result_accel["metadata"]["timing_statistics"]["fatrop"] << std::endl;}
+    // if (solved_impl){std::cout << "\timplicit:     " << result_impl["metadata"]["timing_statistics"]["fatrop"] << std::endl;}
+    // if (solved_rf){std::cout << "\trootfinder:   " << result_rf["metadata"]["timing_statistics"]["fatrop"] << std::endl;}
+
+    // std::cout << "hessian eval time breakdown:" << std::endl;
+    // if (solved_expl){std::cout << "explicit:" << std::endl; tp_expl->get_hess_time_breakdown(result_expl["metadata"]["iterations"]);}
+    // if (solved_reform){std::cout << "reformulated:" << std::endl; tp_reform->get_hess_time_breakdown(result_reform["metadata"]["iterations"]);}
+    // if (solved_accel){std::cout << "accelerated:" << std::endl; tp_accel->get_hess_time_breakdown(result_accel["metadata"]["iterations"]);}
+    // if (solved_impl){std::cout << "implicit:" << std::endl; tp_impl->get_hess_time_breakdown(result_impl["metadata"]["iterations"]);}
+    // if (solved_rf){std::cout << "rootfinder:" << std::endl; tp_rf->get_hess_time_breakdown(result_rf["metadata"]["iterations"]);}
+    PrintStatistics({solved_expl, solved_reform, solved_accel, solved_impl, solved_rf}, {result_expl, result_reform, result_accel, result_impl, result_rf});
 }
 
 void SolveSingleProblemTruckTrailer(int n_trailers){
@@ -372,7 +553,8 @@ int main(int argc, char **argv)
     // return 0;
 
     ManipulatorPathFollower pf;
-    pf.SolveOptiInstance();
+    pf.PrintDimensions();
+    // pf.SolveOptiInstance();
     // return 0;
 
 

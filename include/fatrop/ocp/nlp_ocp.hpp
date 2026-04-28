@@ -59,6 +59,7 @@ namespace fatrop
 
     typedef NlpOcpTpl<OcpAbstractDynamic, OcpType> NlpOcp;
     typedef NlpOcpTpl<ImplicitOcpAbstractDynamic, ImplicitOcpType> ImplicitNlpOcp;
+    typedef NlpOcpTpl<OcpAbstractDynamic, AcceleratedOcpType> AcceleratedNlpOcp;
 
 } // namespace fatrop
 

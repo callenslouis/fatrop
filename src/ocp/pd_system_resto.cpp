@@ -144,3 +144,4 @@ void LinearSystem<PdSystemResto<ProblemType>>::apply_on_right(const VecRealView 
 
 template class fatrop::LinearSystem<fatrop::PdSystemResto<fatrop::OcpType>>;
 template class fatrop::LinearSystem<fatrop::PdSystemResto<fatrop::ImplicitOcpType>>;
+template class fatrop::LinearSystem<fatrop::PdSystemResto<fatrop::AcceleratedOcpType>>;

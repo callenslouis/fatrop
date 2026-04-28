@@ -7,3 +7,4 @@
 
 template class fatrop::IpIterationOutputResto<fatrop::OcpType>;
 template class fatrop::IpIterationOutputResto<fatrop::ImplicitOcpType>;
+template class fatrop::IpIterationOutputResto<fatrop::AcceleratedOcpType>;

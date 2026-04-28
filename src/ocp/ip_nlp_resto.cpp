@@ -7,3 +7,4 @@ using namespace fatrop;
 
 template class fatrop::IpNlpResto<OcpType>;
 template class fatrop::IpNlpResto<ImplicitOcpType>;
+template class fatrop::IpNlpResto<AcceleratedOcpType>;

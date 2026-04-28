@@ -43,7 +43,8 @@ def translate_label(label):
 
 def get_data():
     # file = 'build_docker/random_benchmark_results_extended_10000.csv'
-    file = 'build_docker/random_benchmark_results_extended.csv'
+    file = 'build_docker/random_benchmark_results_extended_20000.csv'
+    # file = 'build_docker/random_benchmark_results_extended.csv'
     # file = 'build_docker/random_benchmark_results.csv'
     # file = 'build_docker/random_benchmark_results_benelux.csv'
     # file = 'build_docker/random_benchmark_results_huge.csv'
@@ -483,10 +484,30 @@ def check_out_parameter_distributions():
         # plt.savefig(f'{settings['figure_folder']}/distribution_{param}.png', dpi=300)
     plt.show()
 
-# check_out_parameter_distributions()
-# exit()
+def get_expected_speedup_from_benchmark_data(data, nx, nu, ng):
+    # mask = (data['nx'] == nx) & (data['nu'] == nu) & (data['ng'] == ng)
+    tolerance = 1
+    mask = (data['nx'] >= nx - tolerance) & (data['nx'] <= nx + tolerance) & \
+           (data['nu'] >= nu - tolerance) & (data['nu'] <= nu + tolerance) & \
+              (data['ng'] >= ng - tolerance) & (data['ng'] <= ng + tolerance)
+    print(f"Found {mask.sum()} data points for nx={nx}, nu={nu}, ng={ng} with tolerance {tolerance}")
+    if mask.sum() == 0:
+        print(f"No data points found for nx={nx}, nu={nu}, ng={ng}")
+        return None
+    accel_time = np.mean(data['t_accel'][mask])
+    reform_time = np.mean(data['t_reform'][mask])
+    if reform_time == 0:
+        print(f"Reformulation time is zero for nx={nx}, nu={nu}, ng={ng}")
+        return None
+    
+    rel_difference = (accel_time - reform_time) / reform_time
+    print(f"Relative difference for nx={nx}, nu={nu}, ng={ng}: {100*rel_difference:.2f}%")
+    return
 
 data = get_data()
+get_expected_speedup_from_benchmark_data(data, 13, 16, 9)
+get_expected_speedup_from_benchmark_data(data, 17, 18, 10)
+exit()
 
 # add flops
 data = add_flops_to_data(data)

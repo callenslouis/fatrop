@@ -86,8 +86,8 @@ public:
     /// Accelerated case ///
     std::optional<ProblemDims> dims_accel;
     std::optional<ProblemInfo> info_accel;
-    std::optional<Jacobian<OcpType>> jacobian_accel;
-    std::optional<Hessian<OcpType>> hessian_accel;
+    std::optional<Jacobian<AcceleratedOcpType>> jacobian_accel;
+    std::optional<Hessian<AcceleratedOcpType>> hessian_accel;
     std::optional<MatRealAllocated> full_matrix_jacobian_accel;
     std::optional<MatRealAllocated> full_matrix_hessian_accel;
     std::optional<VecRealAllocated> x_accel;
@@ -98,7 +98,7 @@ public:
     std::optional<VecRealAllocated> D_s_accel;
     std::optional<VecRealAllocated> D_eq_accel;
     std::optional<MatRealAllocated> full_kkt_matrix_accel;
-    std::optional<AcceleratedAugSystemSolver> solver_accel;
+    std::optional<AugSystemSolver<AcceleratedOcpType>> solver_accel;
 
     std::vector<int> RandomVector(int size, int min_val, int max_val)
     {
@@ -327,10 +327,10 @@ public:
 
         dims_accel.emplace(ProblemDims{K, nu_accel, nx, ng_accel, ng_ineq});
         info_accel.emplace(ProblemInfo(dims_accel.value()));
-        jacobian_accel.emplace(Jacobian<OcpType>(dims_accel.value()));
+        jacobian_accel.emplace(Jacobian<AcceleratedOcpType>(dims_accel.value()));
         full_matrix_jacobian_accel =
             MatRealAllocated(info_accel->number_of_eq_constraints, info_accel->number_of_primal_variables);
-        hessian_accel.emplace(Hessian<OcpType>(dims_accel.value()));
+        hessian_accel.emplace(Hessian<AcceleratedOcpType>(dims_accel.value()));
         full_matrix_hessian_accel =
             MatRealAllocated(info_accel->number_of_primal_variables, info_accel->number_of_primal_variables);
         x_accel = VecRealAllocated(info_accel->number_of_primal_variables);
@@ -343,7 +343,7 @@ public:
         full_kkt_matrix_accel =
             MatRealAllocated(info_accel->number_of_primal_variables + info_accel->number_of_eq_constraints,
                              info_accel->number_of_primal_variables + info_accel->number_of_eq_constraints);
-        solver_accel.emplace(AcceleratedAugSystemSolver(info_accel.value()));
+        solver_accel.emplace(AugSystemSolver<AcceleratedOcpType>(info_accel.value()));
     }
 
     void FillExplicitSolver(){

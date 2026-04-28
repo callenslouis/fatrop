@@ -16,4 +16,5 @@ namespace fatrop
 {
     template class IpAlgBuilder<OcpType>;
     template class IpAlgBuilder<ImplicitOcpType>;
+    template class IpAlgBuilder<AcceleratedOcpType>;
 } // namespace fatrop

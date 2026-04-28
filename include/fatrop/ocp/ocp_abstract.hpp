@@ -265,10 +265,6 @@ namespace fatrop
     };
 
     typedef OcpAbstractTpl<OcpAbstractDynamic> OcpAbstract;
-
-
-    
-    
     
     
     

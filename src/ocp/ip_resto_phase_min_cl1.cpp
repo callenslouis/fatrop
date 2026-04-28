@@ -7,3 +7,4 @@
 
 template class fatrop::IpRestoPhaseMinCl1<fatrop::OcpType>;
 template class fatrop::IpRestoPhaseMinCl1<fatrop::ImplicitOcpType>;
+template class fatrop::IpRestoPhaseMinCl1<fatrop::AcceleratedOcpType>;

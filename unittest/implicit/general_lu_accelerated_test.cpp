@@ -32,8 +32,10 @@ public:
     std::vector<Index> ng_ineq;
     std::optional<ProblemDims> dims;
     std::optional<ProblemInfo> info;
-    std::optional<Jacobian<OcpType>> jacobian;
-    std::optional<Hessian<OcpType>> hessian;
+    std::optional<Jacobian<OcpType>> jacobian_reference;
+    std::optional<Hessian<OcpType>> hessian_reference;
+    std::optional<Jacobian<AcceleratedOcpType>> jacobian;
+    std::optional<Hessian<AcceleratedOcpType>> hessian;
     std::optional<MatRealAllocated> full_matrix_jacobian;
     std::optional<MatRealAllocated> full_matrix_hessian;
     std::optional<VecRealAllocated> x;
@@ -45,7 +47,7 @@ public:
     std::optional<VecRealAllocated> D_eq;
     std::optional<MatRealAllocated> full_kkt_matrix;
     std::optional<AugSystemSolver<OcpType>> solver_reference;
-    std::optional<AcceleratedAugSystemSolver> solver;
+    std::optional<AugSystemSolver<AcceleratedOcpType>> solver;
 
     std::vector<int> RandomVector(int size, int min_val, int max_val)
     {
@@ -58,7 +60,10 @@ public:
 
     void ClearOptionals(){
         std::cout << "clearing optionals" << std::endl;
+        solver_reference.reset();
         solver.reset();
+        hessian_reference.reset();
+        jacobian_reference.reset();
         hessian.reset();
         jacobian.reset();
         info.reset();
@@ -143,10 +148,14 @@ public:
 
         dims.emplace(ProblemDims{K, nu, nx, ng, ng_ineq});
         info.emplace(ProblemInfo(dims.value()));
-        jacobian.emplace(Jacobian<OcpType>(dims.value()));
+        jacobian_reference.emplace(Jacobian<OcpType>(dims.value()));
         full_matrix_jacobian =
             MatRealAllocated(info->number_of_eq_constraints, info->number_of_primal_variables);
-        hessian.emplace(Hessian<OcpType>(dims.value()));
+        hessian_reference.emplace(Hessian<OcpType>(dims.value()));
+        jacobian.emplace(Jacobian<AcceleratedOcpType>(dims.value()));
+        full_matrix_jacobian =
+            MatRealAllocated(info->number_of_eq_constraints, info->number_of_primal_variables);
+        hessian.emplace(Hessian<AcceleratedOcpType>(dims.value()));
         full_matrix_hessian =
             MatRealAllocated(info->number_of_primal_variables, info->number_of_primal_variables);
         x = VecRealAllocated(info->number_of_primal_variables);
@@ -160,7 +169,7 @@ public:
             MatRealAllocated(info->number_of_primal_variables + info->number_of_eq_constraints,
                              info->number_of_primal_variables + info->number_of_eq_constraints);
         solver_reference.emplace(AugSystemSolver<OcpType>(info.value()));
-        solver.emplace(AcceleratedAugSystemSolver(info.value()));
+        solver.emplace(AugSystemSolver<AcceleratedOcpType>(info.value()));
     }
 
     void Randomize(){

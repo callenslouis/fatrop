@@ -1124,7 +1124,7 @@ LinsolReturnFlag AugSystemSolver<OcpType>::solve_rhs(const ProblemInfo &info,
 
 
 
-AcceleratedAugSystemSolver::AcceleratedAugSystemSolver(const ProblemInfo &info)
+AugSystemSolver<AcceleratedOcpType>::AugSystemSolver(const ProblemInfo &info)
 {
     Index max_number_of_controls =
         *std::max_element(info.dims.number_of_controls.begin(), info.dims.number_of_controls.end());
@@ -1231,8 +1231,8 @@ AcceleratedAugSystemSolver::AcceleratedAugSystemSolver(const ProblemInfo &info)
     rho2.resize(info.dims.K);
 };
 
-LinsolReturnFlag AcceleratedAugSystemSolver::solve(const ProblemInfo &info,
-                                           Jacobian<OcpType> &jacobian, Hessian<OcpType> &hessian,
+LinsolReturnFlag AugSystemSolver<AcceleratedOcpType>::solve(const ProblemInfo &info,
+                                           Jacobian<AcceleratedOcpType> &jacobian, Hessian<AcceleratedOcpType> &hessian,
                                            const VecRealView &D_x, const VecRealView &D_s,
                                            const VecRealView &f, const VecRealView &g,
                                            VecRealView &x, VecRealView &eq_mult)
@@ -1692,8 +1692,8 @@ LinsolReturnFlag AcceleratedAugSystemSolver::solve(const ProblemInfo &info,
     duration_forward_recursion += std::chrono::duration_cast<std::chrono::nanoseconds>(intermediate_stop - intermediate_start);
     return LinsolReturnFlag::SUCCESS;
 }
-LinsolReturnFlag AcceleratedAugSystemSolver::solve(const ProblemInfo &info,
-                                           Jacobian<OcpType> &jacobian, Hessian<OcpType> &hessian,
+LinsolReturnFlag AugSystemSolver<AcceleratedOcpType>::solve(const ProblemInfo &info,
+                                           Jacobian<AcceleratedOcpType> &jacobian, Hessian<AcceleratedOcpType> &hessian,
                                            const VecRealView &D_x, const VecRealView &D_eq,
                                            const VecRealView &D_s, const VecRealView &f,
                                            const VecRealView &g, VecRealView &x,
@@ -1856,9 +1856,9 @@ LinsolReturnFlag AcceleratedAugSystemSolver::solve(const ProblemInfo &info,
     return LinsolReturnFlag::SUCCESS;
 }
 
-LinsolReturnFlag AcceleratedAugSystemSolver::solve_rhs(const ProblemInfo &info,
-                                               const Jacobian<OcpType> &jacobian,
-                                               const Hessian<OcpType> &hessian,
+LinsolReturnFlag AugSystemSolver<AcceleratedOcpType>::solve_rhs(const ProblemInfo &info,
+                                               const Jacobian<AcceleratedOcpType> &jacobian,
+                                               const Hessian<AcceleratedOcpType> &hessian,
                                                const VecRealView &D_s, const VecRealView &f,
                                                const VecRealView &g, VecRealView &x,
                                                VecRealView &eq_mult)
@@ -2102,9 +2102,9 @@ LinsolReturnFlag AcceleratedAugSystemSolver::solve_rhs(const ProblemInfo &info,
     }
     return LinsolReturnFlag::SUCCESS;
 }
-LinsolReturnFlag AcceleratedAugSystemSolver::solve_rhs(const ProblemInfo &info,
-                                               const Jacobian<OcpType> &jacobian,
-                                               const Hessian<OcpType> &hessian,
+LinsolReturnFlag AugSystemSolver<AcceleratedOcpType>::solve_rhs(const ProblemInfo &info,
+                                               const Jacobian<AcceleratedOcpType> &jacobian,
+                                               const Hessian<AcceleratedOcpType> &hessian,
                                                const VecRealView &D_eq, const VecRealView &D_s,
                                                const VecRealView &f, const VecRealView &g,
                                                VecRealView &x, VecRealView &eq_mult)
@@ -2238,7 +2238,7 @@ LinsolReturnFlag AcceleratedAugSystemSolver::solve_rhs(const ProblemInfo &info,
     return LinsolReturnFlag::SUCCESS;
 }
 
-void AcceleratedAugSystemSolver::TestPermutationFunctions(const ProblemInfo& info, int k){
+void AugSystemSolver<AcceleratedOcpType>::TestPermutationFunctions(const ProblemInfo& info, int k){
     std::cout << "starting test of permutation functions..." << std::endl;
     // generate some permutation vectors
     Index m, n_max, n, r1, r2, r;
@@ -2345,7 +2345,7 @@ void AcceleratedAugSystemSolver::TestPermutationFunctions(const ProblemInfo& inf
     std::cout << "Finished test of permutation functions." << std::endl;
 }
 
-void AcceleratedAugSystemSolver::fatrop_lu_fact_blocked_transposed(
+void AugSystemSolver<AcceleratedOcpType>::fatrop_lu_fact_blocked_transposed(
         const ProblemDims& dims, const Index k, MAT *At, bool avoid_additional_perms){
 
     Index nu = dims.number_of_controls[k];
@@ -2477,7 +2477,7 @@ void extract_U(const MatRealAllocated &LU, MatRealAllocated &U, int m, int n, in
         }
     }
 }
-bool AcceleratedAugSystemSolver::verify_blocked_lu_new(const MatRealAllocated& LU, 
+bool AugSystemSolver<AcceleratedOcpType>::verify_blocked_lu_new(const MatRealAllocated& LU, 
         const MatRealAllocated& A_original,
         PermutationMatrix& Pl1, PermutationMatrix& Pr1, int rank1,
         PermutationMatrix& Pl_rank,
@@ -2545,7 +2545,7 @@ bool AcceleratedAugSystemSolver::verify_blocked_lu_new(const MatRealAllocated& L
     return true;
 }
 
-void AcceleratedAugSystemSolver::apply_Pl_on_cols(
+void AugSystemSolver<AcceleratedOcpType>::apply_Pl_on_cols(
         PermutationMatrix& Pl1, PermutationMatrix& Pl_rank, PermutationMatrix& Pl2, 
         const Index r1, const Index r2, const Index m, MAT* A, const Index row_start){
     // if (row_start != 0){ throw std::runtime_error("Error in apply_Pl_on_cols: row_start is not supported yet");}
@@ -2559,7 +2559,7 @@ void AcceleratedAugSystemSolver::apply_Pl_on_cols(
         Pl2.apply_on_cols(r1+r2, A, row_start, 0, A->m-row_start);
     #endif
 }
-void AcceleratedAugSystemSolver::apply_Pl(PermutationMatrix& Pl1, 
+void AugSystemSolver<AcceleratedOcpType>::apply_Pl(PermutationMatrix& Pl1, 
         PermutationMatrix& Pl_rank, PermutationMatrix& Pl2, 
         const Index r1, const Index r2, const Index m, VEC *vec, const Index ai){
     Pl1.apply(r1, vec, ai);
@@ -2571,7 +2571,7 @@ void AcceleratedAugSystemSolver::apply_Pl(PermutationMatrix& Pl1,
         Pl2.apply(r1+r2, vec, ai);
     #endif
 }
-void AcceleratedAugSystemSolver::apply_Pl_inverse(PermutationMatrix& Pl1, 
+void AugSystemSolver<AcceleratedOcpType>::apply_Pl_inverse(PermutationMatrix& Pl1, 
         PermutationMatrix& Pl_rank, PermutationMatrix& Pl2, const Index r1, 
         const Index r2, const Index m, VEC *vec, const Index ai){
     #ifndef OFFSET_FREE_P2
@@ -2584,7 +2584,7 @@ void AcceleratedAugSystemSolver::apply_Pl_inverse(PermutationMatrix& Pl1,
     Pl1.apply_inverse(r1, vec, ai);
 }
 
-void AcceleratedAugSystemSolver::apply_Pr_on_rows(PermutationMatrix& Pr1, 
+void AugSystemSolver<AcceleratedOcpType>::apply_Pr_on_rows(PermutationMatrix& Pr1, 
         PermutationMatrix& Pr2, const Index r1, const Index r2, MAT* A){
     Pr1.apply_on_rows(r1, A);
     #ifndef OFFSET_FREE_P2
@@ -2594,7 +2594,7 @@ void AcceleratedAugSystemSolver::apply_Pr_on_rows(PermutationMatrix& Pr1,
     #endif
 }
 
-void AcceleratedAugSystemSolver::apply_Pr_on_cols(PermutationMatrix& Pr1,
+void AugSystemSolver<AcceleratedOcpType>::apply_Pr_on_cols(PermutationMatrix& Pr1,
         PermutationMatrix& Pr2, const Index r1, const Index r2, MAT* A){
     Pr1.apply_on_cols(r1, A);
     #ifndef OFFSET_FREE_P2
@@ -2604,7 +2604,7 @@ void AcceleratedAugSystemSolver::apply_Pr_on_cols(PermutationMatrix& Pr1,
     #endif
 }
 
-void AcceleratedAugSystemSolver::apply_Pr(PermutationMatrix& Pr1, 
+void AugSystemSolver<AcceleratedOcpType>::apply_Pr(PermutationMatrix& Pr1, 
         PermutationMatrix& Pr2, const Index r1, const Index r2, VEC *vec, const Index ai){
     Pr1.apply(r1, vec, ai);
     #ifndef OFFSET_FREE_P2
@@ -2614,7 +2614,7 @@ void AcceleratedAugSystemSolver::apply_Pr(PermutationMatrix& Pr1,
     #endif
 }
 
-void AcceleratedAugSystemSolver::apply_Pr_inverse(PermutationMatrix& Pr1, 
+void AugSystemSolver<AcceleratedOcpType>::apply_Pr_inverse(PermutationMatrix& Pr1, 
         PermutationMatrix& Pr2, const Index r1, const Index r2, VEC *vec, const Index ai){
     #ifndef OFFSET_FREE_P2
         Pr2.apply_inverse(r2, vec, ai+r1);

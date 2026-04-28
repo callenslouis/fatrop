@@ -14,3 +14,5 @@ template class fatrop::IpSearchDirImpl<PdSolverOrig<OcpType>, OcpType>;
 template class fatrop::IpSearchDirImpl<PdSolverResto<OcpType>, OcpType>; 
 template class fatrop::IpSearchDirImpl<PdSolverOrig<ImplicitOcpType>, ImplicitOcpType>; 
 template class fatrop::IpSearchDirImpl<PdSolverResto<ImplicitOcpType>, ImplicitOcpType>; 
+template class fatrop::IpSearchDirImpl<PdSolverOrig<AcceleratedOcpType>, AcceleratedOcpType>;
+template class fatrop::IpSearchDirImpl<PdSolverResto<AcceleratedOcpType>, AcceleratedOcpType>;

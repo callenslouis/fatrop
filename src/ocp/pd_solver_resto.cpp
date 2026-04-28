@@ -23,9 +23,11 @@ using namespace fatrop;
 // instantiate the template class
 template class fatrop::PdSystemResto<OcpType>;
 template class fatrop::PdSystemResto<ImplicitOcpType>;
+template class fatrop::PdSystemResto<AcceleratedOcpType>;
 
 template class fatrop::LinearSolver<PdSolverResto<OcpType>, PdSystemResto<OcpType>>;
 template class fatrop::LinearSolver<PdSolverResto<ImplicitOcpType>, PdSystemResto<ImplicitOcpType>>;
+template class fatrop::LinearSolver<PdSolverResto<AcceleratedOcpType>, PdSystemResto<AcceleratedOcpType>>;
 
 template <typename ProblemType>
 PdSolverResto<ProblemType>::PdSolverResto(const ProblemInfo &info,
@@ -207,3 +209,4 @@ void PdSolverResto<ProblemType>::solve_rhs_impl(LinearSystem<PdSystemResto<Probl
 
 template class fatrop::PdSolverResto<OcpType>;
 template class fatrop::PdSolverResto<ImplicitOcpType>;
+template class fatrop::PdSolverResto<AcceleratedOcpType>;

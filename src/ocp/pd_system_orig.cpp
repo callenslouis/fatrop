@@ -114,3 +114,4 @@ void LinearSystem<PdSystemType<OcpTag>>::apply_on_right(const VecRealView &x, Sc
 
 template class fatrop::LinearSystem<fatrop::PdSystemType<fatrop::OcpType>>;
 template class fatrop::LinearSystem<fatrop::PdSystemType<fatrop::ImplicitOcpType>>;
+template class fatrop::LinearSystem<fatrop::PdSystemType<fatrop::AcceleratedOcpType>>;

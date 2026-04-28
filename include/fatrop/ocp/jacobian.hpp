@@ -101,6 +101,10 @@ namespace fatrop
         // make printable 
         friend std::ostream &operator<<(std::ostream &os, const Jacobian &jac);
     };
+    template <> struct Jacobian<AcceleratedOcpType> : public Jacobian<OcpType> 
+    {
+        using Jacobian<OcpType>::Jacobian; // inherit constructor
+    };
 
     template<>
     struct Jacobian<ImplicitOcpType> : public Jacobian<OcpType>

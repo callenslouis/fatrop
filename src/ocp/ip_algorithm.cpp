@@ -7,3 +7,4 @@
 
 template class fatrop::IpAlgorithm<fatrop::OcpType>;
 template class fatrop::IpAlgorithm<fatrop::ImplicitOcpType>;
+template class fatrop::IpAlgorithm<fatrop::AcceleratedOcpType>;

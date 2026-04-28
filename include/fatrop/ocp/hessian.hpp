@@ -74,6 +74,9 @@ namespace fatrop
         // make printable
         friend std::ostream& operator<<(std::ostream& os, const Hessian<OcpType>& hess);
     };
+    template <> struct Hessian<AcceleratedOcpType> : public Hessian<OcpType> {
+        using Hessian<OcpType>::Hessian; // inherit constructor
+    };
 
     /**
      * @brief Specialization of the Hessian structure for Implicit Optimal Control Problems.

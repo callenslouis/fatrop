@@ -16,7 +16,6 @@
 
 namespace fatrop
 {
-
     /**
      * @class AugSystemSolver<OcpType>
      * @brief Solves a system of equations for optimal control problems with augmented system
@@ -203,15 +202,15 @@ namespace fatrop
 
 
 
-
-    class AcceleratedAugSystemSolver
+    template<>
+    class AugSystemSolver<AcceleratedOcpType>
     {
     public:
         /**
          * @brief Constructs an AugSystemSolver<OcpType> object.
          * @param info Problem information for the optimal control problem.
          */
-        AcceleratedAugSystemSolver(const ProblemInfo &info);
+        AugSystemSolver<AcceleratedOcpType>(const ProblemInfo &info);
 
         /**
          * @brief Solves the augmented system without path equality constraint regularization.
@@ -226,8 +225,8 @@ namespace fatrop
          * @param eq_mult [out] Solution vector for equality constraint multipliers.
          * @return Status flag indicating the outcome of the solve operation.
          */
-        virtual LinsolReturnFlag solve(const ProblemInfo &info, Jacobian<OcpType> &jacobian,
-                                       Hessian<OcpType> &hessian, const VecRealView &D_x,
+        virtual LinsolReturnFlag solve(const ProblemInfo &info, Jacobian<AcceleratedOcpType> &jacobian,
+                                       Hessian<AcceleratedOcpType> &hessian, const VecRealView &D_x,
                                        const VecRealView &D_s, const VecRealView &f, const VecRealView &g,
                                        VecRealView &x, VecRealView &eq_mult);
 
@@ -245,8 +244,8 @@ namespace fatrop
          * @param eq_mult [out] Solution vector for equality constraint multipliers.
          * @return Status flag indicating the outcome of the solve operation.
          */
-        virtual LinsolReturnFlag solve(const ProblemInfo &info, Jacobian<OcpType> &jacobian,
-                                       Hessian<OcpType> &hessian, const VecRealView &D_x,
+        virtual LinsolReturnFlag solve(const ProblemInfo &info, Jacobian<AcceleratedOcpType> &jacobian,
+                                       Hessian<AcceleratedOcpType> &hessian, const VecRealView &D_x,
                                        const VecRealView &D_eq, const VecRealView &D_s,
                                        const VecRealView &f, const VecRealView &g, VecRealView &x,
                                        VecRealView &eq_mult);
@@ -264,8 +263,8 @@ namespace fatrop
          * @return Status flag indicating the outcome of the solve operation.
          */
         virtual LinsolReturnFlag solve_rhs(const ProblemInfo &info,
-                                           const Jacobian<OcpType> &jacobian,
-                                           const Hessian<OcpType> &hessian, const VecRealView &D_s,
+                                           const Jacobian<AcceleratedOcpType> &jacobian,
+                                           const Hessian<AcceleratedOcpType> &hessian, const VecRealView &D_s,
                                            const VecRealView &f, const VecRealView &g, VecRealView &x,
                                            VecRealView &eq_mult);
 
@@ -283,8 +282,8 @@ namespace fatrop
          * @return Status flag indicating the outcome of the solve operation.
          */
         virtual LinsolReturnFlag solve_rhs(const ProblemInfo &info,
-                                           const Jacobian<OcpType> &jacobian,
-                                           const Hessian<OcpType> &hessian, const VecRealView &D_eq,
+                                           const Jacobian<AcceleratedOcpType> &jacobian,
+                                           const Hessian<AcceleratedOcpType> &hessian, const VecRealView &D_eq,
                                            const VecRealView &D_s, const VecRealView &f,
                                            const VecRealView &g, VecRealView &x, VecRealView &eq_mult);
 
