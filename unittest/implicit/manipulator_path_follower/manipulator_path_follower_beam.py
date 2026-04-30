@@ -68,7 +68,7 @@ def get_path_function(functions, q0, L, th_eq=0.0, T=2):
 
 ### Main
 # define parameters
-wn = 18 #18
+wn = 18*2 #18
 zeta = 0.005
 L = 0.3
 T = 1.0
@@ -88,7 +88,7 @@ n = 7
 
 with_slack = 1
 with_progress_variable = 1
-with_accel_variables = 1
+with_accel_variables = 0
 with_implicit_integrator = 1
 
 # define variables

@@ -379,6 +379,13 @@ def show_robot_with_surface(ax, q, floor_height):
     q  : array-like, shape (7,) – joint angles in radians
     """
     ax.cla()
+    # ── Draw surface ───────────────────────────────────────────────────────────
+    x = np.linspace(0.1, 0.5, 20)
+    y = np.linspace(-0.2, 0.4, 20)
+    x, y = np.meshgrid(x, y)
+    z = np.full_like(x, floor_height)
+    ax.plot_surface(x, y, z, color="#27ae60", alpha=0.2, zorder=-100)
+
     q = np.asarray(q, dtype=float)
 
     frames = forward_kinematics(q)
@@ -388,12 +395,6 @@ def show_robot_with_surface(ax, q, floor_height):
 
     _draw_robot_cylinders(ax, joint_positions)
 
-    # ── Draw surface ───────────────────────────────────────────────────────────
-    x = np.linspace(axes_limits["x"][0], axes_limits["x"][1], 20)
-    y = np.linspace(axes_limits["y"][0], axes_limits["y"][1], 20)
-    x, y = np.meshgrid(x, y)
-    z = np.full_like(x, floor_height)
-    ax.plot_surface(x, y, z, color="#27ae60", alpha=0.8, zorder=0)
 
     # EE frame axes
     draw_frame_axes(ax, T_ee, scale=0.07)

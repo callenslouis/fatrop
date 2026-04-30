@@ -484,29 +484,38 @@ def check_out_parameter_distributions():
         # plt.savefig(f'{settings['figure_folder']}/distribution_{param}.png', dpi=300)
     plt.show()
 
-def get_expected_speedup_from_benchmark_data(data, nx, nu, ng):
+def get_expected_speedup_from_benchmark_data(data, nx, nu, ng, **kwargs):
     # mask = (data['nx'] == nx) & (data['nu'] == nu) & (data['ng'] == ng)
-    tolerance = 1
+    tolerance = kwargs.get('tolerance', 2)
     mask = (data['nx'] >= nx - tolerance) & (data['nx'] <= nx + tolerance) & \
            (data['nu'] >= nu - tolerance) & (data['nu'] <= nu + tolerance) & \
               (data['ng'] >= ng - tolerance) & (data['ng'] <= ng + tolerance)
-    print(f"Found {mask.sum()} data points for nx={nx}, nu={nu}, ng={ng} with tolerance {tolerance}")
-    if mask.sum() == 0:
+    nb_data_points = mask.sum()
+    # print(f"Found {mask.sum()} data points for nx={nx}, nu={nu}, ng={ng} with tolerance {tolerance}")
+    if nb_data_points == 0:
         print(f"No data points found for nx={nx}, nu={nu}, ng={ng}")
         return None
-    accel_time = np.mean(data['t_accel'][mask])
-    reform_time = np.mean(data['t_reform'][mask])
+    lu_only = kwargs.get('lu_only', False)
+    key_prefix = 't' if not lu_only else 'lu'
+    accel_time = np.mean(data[f'{key_prefix}_accel'][mask])
+    reform_time = np.mean(data[f'{key_prefix}_reform'][mask])
     if reform_time == 0:
         print(f"Reformulation time is zero for nx={nx}, nu={nu}, ng={ng}")
         return None
     
     rel_difference = (accel_time - reform_time) / reform_time
-    print(f"Relative difference for nx={nx}, nu={nu}, ng={ng}: {100*rel_difference:.2f}%")
+    print(f"Relative difference for nx={nx}, nu={nu}, ng={ng} (nb data points: {nb_data_points}): {100*rel_difference:.2f}%")
     return
 
 data = get_data()
-get_expected_speedup_from_benchmark_data(data, 13, 16, 9)
-get_expected_speedup_from_benchmark_data(data, 17, 18, 10)
+# get_expected_speedup_from_benchmark_data(data, 13, 16, 9)
+# get_expected_speedup_from_benchmark_data(data, 17, 18, 10)
+n = 7
+robot_x = 2*n + 3+2 + 1; robot_u = n + 1; robot_g = 3+2
+lu_only = False
+tolerance = 1
+get_expected_speedup_from_benchmark_data(data, robot_x, robot_u, robot_g, lu_only=lu_only, tolerance=tolerance)
+get_expected_speedup_from_benchmark_data(data, 2*robot_x, 2*robot_u, 2*robot_g, lu_only=lu_only, tolerance=tolerance)
 exit()
 
 # add flops

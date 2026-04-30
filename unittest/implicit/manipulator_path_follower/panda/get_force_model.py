@@ -44,11 +44,11 @@ print("inverse_dynamics_contact:", inverse_dynamics_contact)
 inverse_dynamics_contact.save("panda_id_contact.casadi")
 
 tau = ca.SX.sym("tau", 7)
-tau_extended = tau - J.T @ ca.vertcat(0, 0, normal_force)
+tau_extended = tau + J.T @ ca.vertcat(0, 0, normal_force)
 # tau_extended = tau
 foward_dynamics_contact = ca.Function("forward_dynamics_contact",
                                     [q, qd, tau, floor_height, k, alpha, d], 
-                                    [id(q, qd, tau_extended)],
+                                    [fd(q, qd, tau_extended)],
                                     ["q", "qd", "tau", "floor_height", "k", "alpha", "d"],
                                     ["qdd_contact"])
 print("forward_dynamics_contact:", foward_dynamics_contact)
