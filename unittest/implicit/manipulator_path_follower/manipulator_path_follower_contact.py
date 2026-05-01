@@ -42,8 +42,13 @@ def get_path_function(functions, q0, floor_height):
     t = MX.sym("t", 1)
     circle_radius = 0.1
     ee_end_pos = functions['fkpos_ee'](q0)
-    center = vertcat(ee_end_pos[0] + circle_radius, ee_end_pos[1], floor_height)
-    return Function("eval_path", [t], [center + vertcat(-circle_radius*cos(2*np.pi*t/T), circle_radius*sin(2*np.pi*t/T), 0)])
+    center = vertcat(ee_end_pos[0] + circle_radius, ee_end_pos[1], floor_height - 0.01)
+    return Function("eval_path", [t], 
+                    [center + vertcat(
+                        -circle_radius*cos(2*np.pi*t/T), 
+                        circle_radius*sin(4*np.pi*t/T), 
+                        0)])
+
 
 
 ### Main
@@ -57,7 +62,7 @@ tau_eq = get_full_equilibrium(functions, q0)
 path_func = get_path_function(functions, q0, floor_height)
 
 opti = Opti()
-N = 40
+N = 30
 dt = T/N
 floor_k = 1000
 floor_alpha = 1000
@@ -68,13 +73,13 @@ force_min = -1 - 1000
 force_max = 200 + 1000
 desired_force = 50
 path_tol = 0.01
-control_penalty = 1.0e-4
+control_penalty = 1.0e-2
 n = 7
 
 with_slack = 1
 with_progress_variable = 1
 with_accel_variables = 0
-with_implicit_integrator = 0
+with_implicit_integrator = 1
 with_perpendicular_constraint = 0
 with_force_variables = 0
 
@@ -131,7 +136,7 @@ obj = 0.0
 for k in range(N):
     # dymamics
     rhs_idx = k if not with_implicit_integrator else k+1
-    opti.subject_to(q[:,k+1] == q[:,k] + qd[:,k]*dp[:,k])
+    opti.subject_to(q[:,k+1] == q[:,k] + qd[:,rhs_idx]*dp[:,k])
     if with_accel_variables:
         opti.subject_to(qd[:,k+1] == qd[:,k] + qdd[:,k]*dp[:,k])
     else:

@@ -510,12 +510,19 @@ def get_expected_speedup_from_benchmark_data(data, nx, nu, ng, **kwargs):
 data = get_data()
 # get_expected_speedup_from_benchmark_data(data, 13, 16, 9)
 # get_expected_speedup_from_benchmark_data(data, 17, 18, 10)
-n = 7
-robot_x = 2*n + 3+2 + 1; robot_u = n + 1; robot_g = 3+2
-lu_only = False
-tolerance = 1
-get_expected_speedup_from_benchmark_data(data, robot_x, robot_u, robot_g, lu_only=lu_only, tolerance=tolerance)
-get_expected_speedup_from_benchmark_data(data, 2*robot_x, 2*robot_u, 2*robot_g, lu_only=lu_only, tolerance=tolerance)
+
+get_expected_speedup_from_benchmark_data(data, 12, 5, 2)
+get_expected_speedup_from_benchmark_data(data, 12, 8, 5)
+
+get_expected_speedup_from_benchmark_data(data, 18, 6, 3)
+get_expected_speedup_from_benchmark_data(data, 18, 6+3, 3+3)
+
+# n = 7
+# robot_x = 2*n + 3+2 + 1; robot_u = n + 1; robot_g = 3+2
+# lu_only = False
+# tolerance = 1
+# get_expected_speedup_from_benchmark_data(data, robot_x, robot_u, robot_g, lu_only=lu_only, tolerance=tolerance)
+# get_expected_speedup_from_benchmark_data(data, 2*robot_x, 2*robot_u, 2*robot_g, lu_only=lu_only, tolerance=tolerance)
 exit()
 
 # add flops

@@ -41,10 +41,28 @@ actual_tip = get_actual_endpoint_positions(t_uniform, uniform_ocp_vars, scenario
 
 
 ### True visualisations ###
+marker = 'o'
+markersize = 2.5
+
+# plot joint positions
+fig = plt.figure()
+plt.plot(t_uniform, uniform_ocp_vars['q'].T, marker=marker, markersize=markersize)
+plt.xlim(min(t_uniform), max(t_uniform))
+plt.xlabel("t (s)")
+plt.ylabel("joint positions (rad)")
+plt.savefig("visualization_output/joint_positions.png", dpi=300)
+
+# plot joint velocities
+fig = plt.figure()
+plt.plot(t_uniform, uniform_ocp_vars['qd'].T, marker=marker, markersize=markersize)
+plt.xlim(min(t_uniform), max(t_uniform))
+plt.xlabel("t (s)")
+plt.ylabel("joint velocities (rad/s)")
+plt.savefig("visualization_output/joint_velocities.png", dpi=300)
 
 # plot torques
 fig = plt.figure()
-plt.plot(t_uniform, uniform_ocp_vars['tau'].T)
+plt.plot(t_uniform, uniform_ocp_vars['tau'].T, marker=marker, markersize=markersize)
 plt.xlim(min(t_uniform), max(t_uniform))
 plt.xlabel("t (s)")
 plt.ylabel("joint torques (Nm)")
@@ -53,7 +71,7 @@ plt.savefig("visualization_output/torques.png", dpi=300)
 # plot normal force
 if scenario == "contact":
     fig = plt.figure()
-    plt.plot(t_uniform, uniform_ocp_vars['force'].T)
+    plt.plot(t_uniform, uniform_ocp_vars['force'].T, marker=marker, markersize=markersize)
     plt.xlim(min(t_uniform), max(t_uniform))
     plt.xlabel("t (s)")
     plt.ylabel("Contact normal force (N)")
@@ -80,6 +98,7 @@ plt.plot(t_uniform, uniform_ocp_vars['dp'].T)
 plt.savefig("visualization_output/progress_variable", dpi=300)
 
 # Animation
+plt.close()
 fig = plt.figure(figsize=(10, 8))
 ax  = fig.add_subplot(111, projection="3d")
 interval_ms = int(1000 / FPS)
@@ -95,3 +114,5 @@ ani = animation.FuncAnimation(
 
 plt.tight_layout()
 ani.save("visualization_output/path_follower_animation.mp4", writer="ffmpeg", fps=FPS, dpi=150)
+print("saved animation")
+exit()

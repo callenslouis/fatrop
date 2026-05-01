@@ -3,6 +3,7 @@ import numpy as np
 
 # load foward kinematics
 fk = ca.Function.load("panda_fk.casadi")
+fkpos_ee = ca.Function.load("panda_fkpos_ee.casadi")
 
 # load dynamics
 fd = ca.Function.load("panda_fd.casadi")
@@ -32,7 +33,7 @@ normal_force_func = ca.Function("normal_force_func", [q, qd, floor_height, k, al
 normal_force_func.save("panda_normal_force.casadi")
 
 # construct force jacobian of end effector
-J = ca.jacobian(fk(q)[-1][:3, 3], q)
+J = ca.jacobian(fkpos_ee(q), q)
 
 # update dynamics with contact force tau = tau_original + J^T * [0, 0, normal_force]
 inverse_dynamics_contact = ca.Function("inverse_dynamics_contact", 
