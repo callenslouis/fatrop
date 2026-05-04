@@ -17,19 +17,28 @@ solver.set_path_tracking_scenario()
 
 T = 4.0
 N = 200
+use_backed = True
+
 q0 = model.get_init_vector(randomize=False)
 solver.implicit = False
 nb_iter_expl = None
 try:
-    # q_sol_expl, v_sol_expl, F_sol_expl, z_sol_expl = \
-    #     solver.solve_trajectory(q0=q0, v0=np.zeros(3*n), T=T, N=N)
-    solver.solve_backed_trajectory(q0=q0, v0=np.zeros(3*n), T=T, N=N)
+    if use_backed:
+        q_sol_expl, v_sol_expl, F_sol_expl, z_sol_expl = \
+            solver.solve_backed_trajectory(q0=q0, v0=np.zeros(3*n), T=T, N=N)
+    else:
+        q_sol_expl, v_sol_expl, F_sol_expl, z_sol_expl = \
+            solver.solve_trajectory(q0=q0, v0=np.zeros(3*n), T=T, N=N)
     nb_iter_expl = solver.get_nb_iters()
 except RuntimeError as e:
     print("Explicit solver failed with error:", e)
+
 solver.implicit = True
-# q_sol, v_sol, F_sol, z_sol = solver.solve_trajectory(q0=q0, v0=np.zeros(3*n), T=T, N=N)
-solver.solve_backed_trajectory(q0=q0, v0=np.zeros(3*n), T=T, N=N)
+if use_backed:
+    q_sol, v_sol, F_sol, z_sol = \
+        solver.solve_backed_trajectory(q0=q0, v0=np.zeros(3*n), T=T, N=N)
+else:
+    q_sol, v_sol, F_sol, z_sol = solver.solve_trajectory(q0=q0, v0=np.zeros(3*n), T=T, N=N)
 nb_iter_impl = solver.get_nb_iters()
 
 print(f"Explicit solver iterations: {nb_iter_expl if nb_iter_expl is not None else 'N/A'}")

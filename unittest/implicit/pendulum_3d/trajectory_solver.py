@@ -157,6 +157,15 @@ class TrajectorySolver():
         opti.solver('ipopt', {}, {'max_iter':400, 'tol':1e-4})
         self.sol = opti.solve()
 
+        xx_sol = self.sol.value(xx)
+        uu_sol = self.sol.value(uu)
+        q_sol = xx_sol[:3*self.model.nb_pendulums, :]
+        v_sol = xx_sol[3*self.model.nb_pendulums:6*self.model.nb_pendulums, :]
+        p_sol = xx_sol[6*self.model.nb_pendulums:, :]
+        F_sol = uu_sol[3*self.tracking + 1:, :]
+        z_sol = uu_sol[3*self.tracking:3*self.tracking + self.model.nb_pendulums, :]
+        return q_sol, v_sol, F_sol, z_sol
+
 
     def solve_trajectory(self, q0, v0, T, N):
         assert len(q0) == 3*self.model.nb_pendulums, "Length of q0 must match 3 times the number of pendulums"
