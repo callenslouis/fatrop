@@ -511,11 +511,8 @@ data = get_data()
 # get_expected_speedup_from_benchmark_data(data, 13, 16, 9)
 # get_expected_speedup_from_benchmark_data(data, 17, 18, 10)
 
-get_expected_speedup_from_benchmark_data(data, 12, 5, 2)
-get_expected_speedup_from_benchmark_data(data, 12, 8, 5)
-
-get_expected_speedup_from_benchmark_data(data, 18, 6, 3)
-get_expected_speedup_from_benchmark_data(data, 18, 6+3, 3+3)
+get_expected_speedup_from_benchmark_data(data, 18, 9, 3+3, lu_only=True)
+get_expected_speedup_from_benchmark_data(data, 18, 9, 3+3)
 
 # n = 7
 # robot_x = 2*n + 3+2 + 1; robot_u = n + 1; robot_g = 3+2
