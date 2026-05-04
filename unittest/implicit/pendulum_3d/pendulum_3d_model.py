@@ -11,15 +11,57 @@ class Pendulum3DModel():
         self.L = L
         self.g = g
 
-        self.set_model()
+        self.actuated_joint_idxs = [self.nb_pendulums-1, self.nb_pendulums-2]
+
+        # self.set_model()
         self.stabilizer = None
+        self.with_stiff_joints = False
+
+    def set_stiff_joints(self, joint_stiffness, joint_damping):
+        self.with_stiff_joints = True
+        self.joint_stiffness = joint_stiffness
+        self.joint_damping = joint_damping
+
+    def get_joint_pos(self, q, i):
+        if i < 0:
+            return ca.vertcat(ca.SX.zeros(2), self.L[0]*(-(i+1)))
+        
+        return q[3*i:3*i+3]
+    
+    def get_pendulum_vector(self, q, i):
+        return self.get_joint_pos(q, i) - self.get_joint_pos(q, i-1)
+    
+    def get_normalized_pendulum_vector(self, q, i):
+        L = self.L[i] if i >= 0 else self.L[0]
+        return self.get_pendulum_vector(q, i) / L
+    
+    def phi(self, q, i):
+        return ca.sumsqr(self.get_normalized_pendulum_vector(q, i) - self.get_normalized_pendulum_vector(q, i-1))
+    
+    def phi_dot(self, q, v, i):
+        return ca.sumsqr(self.get_normalized_pendulum_vector(v, i) - self.get_normalized_pendulum_vector(v, i-1))
+
+    def Rayleigh_dissipation(self, q, v):
+        if not self.with_stiff_joints:
+            return 0
+        
+        R = 0
+        for i in range(self.nb_pendulums):
+            R += 0.5 * self.joint_damping * self.phi_dot(q, v, i)
+        return R        
+
+    def get_damping_force(self, q, v, i):
+        R = self.Rayleigh_dissipation(q, v)
+        vi = self.get_joint_pos(v, i)
+        return -ca.jacobian(R, vi).T
 
     def set_model(self):
         # define q and v
         q = ca.SX.sym("q", 3*self.nb_pendulums)
         v = ca.SX.sym("v", 3*self.nb_pendulums)
         z = ca.SX.sym("z", 1*self.nb_pendulums)
-        F = ca.SX.sym("F", 3)
+        F = ca.SX.sym("F", 3*len(self.actuated_joint_idxs))
+
         M = ca.SX.eye(3*self.nb_pendulums)
         for i in range(self.nb_pendulums):
             M[3*i:3*i+3, 3*i:3*i+3] = self.m[i] * ca.SX.eye(3)
@@ -27,14 +69,34 @@ class Pendulum3DModel():
         # define dynamics
         T = 0.5 * v.T @ M @ v
         V = 0
-        c = ca.sumsqr(q[:3]) - self.L[0]**2
+        c = ca.SX.zeros(0,1)
+        external_forces = ca.SX.zeros(3*(self.nb_pendulums),1)
+        for i, idx in enumerate(self.actuated_joint_idxs):
+            external_forces[3*idx:3*idx+3] += F[3*i:3*i+3]
+
         for i in range(self.nb_pendulums):
-            V += self.m[i] * self.g * (q[3*i + 2])
-            if i > 0:
-                c = ca.vertcat(c, ca.sumsqr(q[3*i:3*i+3] - q[3*(i-1):3*(i-1)+3]) - self.L[i]**2)
+            # gravity potential energy
+            V += self.m[i] * self.g * self.get_joint_pos(q, i)[2]
+
+            # joint stiffness
+            if self.with_stiff_joints:
+                V += 0.5 * self.joint_stiffness * self.phi(q, i)
+
+                F_damp = self.get_damping_force(q, v, i)
+                print(f"F_damp {i}: {F_damp}")
+                external_forces[3*i:3*i+3] += F_damp
+
+            # pendulum length constraint
+            c = ca.vertcat(c, ca.sumsqr(self.get_joint_pos(q, i) - self.get_joint_pos(q, i-1)) - self.L[i]**2)
+
         Jc = ca.jacobian(c, q)
 
-        qdd = ca.inv(M) @ (ca.vertcat(ca.SX.zeros(3*(self.nb_pendulums - 1),1), F) + ca.jacobian(T - V, q).T - ca.transpose(Jc) @ z) # assuming Mdot is 0
+        self.T = ca.Function("T", [q, v], [T], ["q", "v"], ["T"])
+        self.V = ca.Function("V", [q], [V], ["q"], ["V"])
+        self.E_total = ca.Function("E_total", [q, v], [T + V], ["q", "v"], ["E_total"])
+
+        print(f"external_forces: {external_forces}")
+        qdd = ca.inv(M) @ (external_forces + ca.jacobian(T - V, q).T - ca.transpose(Jc) @ z) # assuming Mdot is 0
         self.f = ca.Function("f", [q, v, z, F], [v, qdd], ["q", "v", "z", "F"], ["qdot", "vdot"])
 
         eq = Jc @ qdd + ca.jacobian(Jc @ v, q) @ v
@@ -51,12 +113,18 @@ class Pendulum3DModel():
 
         stabilizer = ca.SX.zeros(0,1)
         for i in range(self.nb_pendulums):
-            qi = q[3*i:3*i+3]
-            vi = v[3*i:3*i+3]
-            qi_prev = q[3*(i-1):3*(i-1)+3] if i > 0 else ca.SX.zeros(3)
+            # qi = q[3*i:3*i+3]
+            # vi = v[3*i:3*i+3]
+            # qi_prev = q[3*(i-1):3*(i-1)+3] if i > 0 else ca.SX.zeros(3)
+
+            qi = self.get_joint_pos(q, i)
+            vi = self.get_joint_pos(v, i)
+            qi_prev = self.get_joint_pos(q, i-1)
+            # if i == 0:
+            #     qi_prev = ca.SX.zeros(3)
 
             stabilizer = ca.vertcat(stabilizer,
-                                -gamma_1*qi.T @ vi - gamma_2*(ca.sumsqr(qi - qi_prev) - self.L[i]**2)**2)
+                                -gamma_1*qi.T @ vi - gamma_2*(ca.sumsqr(qi - qi_prev) - self.L[i]**2))
 
         self.stabilizer = ca.Function("stabilizer", [q, v], [-stabilizer], ["q", "v"], ["stabilizer"])
         self.stabilizer.save("casadi_functions/pendulum_3d_stabilizer.casadi")
@@ -97,9 +165,9 @@ class Pendulum3DModel():
                 theta_y = np.random.uniform(-0.3, 0.3)
                 theta_z = np.random.uniform(-0.3, 0.3)
             else:
-                theta_x = 0.4 - 0.1*i
-                theta_y = 0.2 - 0.1*i
-                theta_z = 0.1 - 0.1*i
+                theta_x = 0.4 if i <= 0 else -0.4
+                theta_y = 0.0 if i == 0 else 0
+                theta_z = 0.0 if i == 0 else 0
             R = get_rotation_matrix(theta_x, theta_y, theta_z)
 
             p += R @ ca.vertcat(0, 0, -self.L[i])    

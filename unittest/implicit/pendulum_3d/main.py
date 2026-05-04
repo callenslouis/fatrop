@@ -5,23 +5,38 @@ import numpy as np
 
 n = 3
 model = Pendulum3DModel(nb_pendulums=n, m=[1]*n, L=[1]*n, g=9.81)
-model.add_stabilizer(gamma_1=5000, gamma_2=5000)
+# model.add_stabilizer(gamma_1=500, gamma_2=50000)
+# model.set_stiff_joints(joint_stiffness=5, joint_damping=5)
+model.add_stabilizer(gamma_1=20, gamma_2=2000)
+model.set_stiff_joints(joint_stiffness=1, joint_damping=4)
+model.set_model()
+
 model.print_model_dimensions()
 solver = TrajectorySolver(model)
+solver.set_path_tracking_scenario()
 
-T = 2.0
-q0 = model.get_init_vector(randomize=True)
+T = 4.0
+N = 200
+q0 = model.get_init_vector(randomize=False)
 solver.implicit = False
+nb_iter_expl = None
 try:
-    q_sol, v_sol, F_sol, z_sol = solver.solve_trajectory(q0=q0, v0=np.zeros(3*n), T=T, N=100)
+    # q_sol_expl, v_sol_expl, F_sol_expl, z_sol_expl = \
+    #     solver.solve_trajectory(q0=q0, v0=np.zeros(3*n), T=T, N=N)
+    solver.solve_backed_trajectory(q0=q0, v0=np.zeros(3*n), T=T, N=N)
+    nb_iter_expl = solver.get_nb_iters()
 except RuntimeError as e:
     print("Explicit solver failed with error:", e)
 solver.implicit = True
-q_sol, v_sol, F_sol, z_sol = solver.solve_trajectory(q0=q0, v0=np.zeros(3*n), T=T, N=100)
+# q_sol, v_sol, F_sol, z_sol = solver.solve_trajectory(q0=q0, v0=np.zeros(3*n), T=T, N=N)
+solver.solve_backed_trajectory(q0=q0, v0=np.zeros(3*n), T=T, N=N)
+nb_iter_impl = solver.get_nb_iters()
 
-visualizer = TrajectoryVisualizer(model)
+print(f"Explicit solver iterations: {nb_iter_expl if nb_iter_expl is not None else 'N/A'}")
+print(f"Implicit solver iterations: {nb_iter_impl}")
+
+visualizer = TrajectoryVisualizer(model, solver)
 visualizer.add_data(T=T, q_sol=q_sol, v_sol=v_sol, F_sol=F_sol, z_sol=z_sol)
-visualizer.visualize_all()
-# visualizer.show()
-# input("Press Enter to close visualizations...")
-# visualizer.close()
+visualizer.visualize_all(appendix="impl")
+visualizer.add_data(T=T, q_sol=q_sol_expl, v_sol=v_sol_expl, F_sol=F_sol_expl, z_sol=z_sol_expl)
+visualizer.visualize_all(appendix="expl")

@@ -4,8 +4,9 @@ import matplotlib.pyplot as plt
 from matplotlib import animation
 
 class TrajectoryVisualizer():
-    def __init__(self, model):
+    def __init__(self, model, solver):
         self.model = model
+        self.solver = solver
 
     def add_data(self, T, q_sol, v_sol, F_sol, z_sol):
         self.T = T
@@ -16,10 +17,13 @@ class TrajectoryVisualizer():
         self.F_sol = F_sol
         self.z_sol = z_sol
 
-    def visualize_all(self):
+    def visualize_all(self, appendix=""):
+        self.file_name_appendix = appendix
         self.visualize_trajectory()
         self.visualize_forces()
         self.visualize_pendulum_length()
+        self.visualize_z_vars()
+        self.visualize_energy()
         self.animate_trajectory()
 
     def get_point(self, q, i, slice_min=0, slice_max=None):
@@ -50,7 +54,7 @@ class TrajectoryVisualizer():
         ax.set_zlabel('Z Position (m)')
         plt.legend()
 
-        plt.savefig("visualization_output/pendulum_trajectory.png", dpi=300)
+        plt.savefig(f"visualization_output/pendulum_trajectory_{self.file_name_appendix}.png", dpi=300)
 
     def show_pendulum_projection(self, ax, frame, plane_x, plane_y, plane_z):
         all_points = np.zeros((self.model.nb_pendulums + 1, 3))
@@ -66,6 +70,12 @@ class TrajectoryVisualizer():
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
 
+        # compute reference path if it exists
+        if self.solver.tracking:
+            ref_path = np.zeros((3, self.N+1))
+            for k in range(self.N+1):
+                ref_path[:, k] = self.solver.path_func(k*self.T/self.N, self.T, self.q_sol[:, 0]).full().flatten()
+
         # animation function
         def update(frame):
             ax.clear()
@@ -76,23 +86,26 @@ class TrajectoryVisualizer():
                 plt.plot(point[0], point[1], point[2], marker='.', color='r', label=f'Pendulum {i}')
 
                 # show traced path
-                # points = self.get_point(self.q_sol, i, slice_min=0, slice_max=frame)
-                # plt.plot(self.q_sol[3*i, :frame], self.q_sol[3*i+1, :frame], self.q_sol[3*i+2, :frame], color='k', alpha=0.5)
                 plt.plot(*self.get_point(self.q_sol, i, slice_min=0, slice_max=frame), color='k', alpha=0.5)
 
+                # show reference path if it exists
+                if self.solver.tracking:
+                    plt.plot(ref_path[0, :frame], ref_path[1, :frame], ref_path[2, :frame], color='g', alpha=0.5, label='Reference Path')
+
                 # show pendulum itself
-                # prev_point = [0, 0, 0] if i == 0 else [self.q_sol[3*(i-1), frame], self.q_sol[3*(i-1)+1, frame], self.q_sol[3*(i-1)+2, frame]]
                 prev_point = self.get_point(self.q_sol, i-1, slice_min=frame, slice_max=frame+1)
                 ax.plot([prev_point[0], point[0]], [prev_point[1], point[1]], [prev_point[2], point[2]], color='r')
 
             # show forces
             if frame < self.N:
                 max_force = np.max(np.linalg.norm(self.F_sol, axis=0))
-                force_scale = 0.5 / max_force if max_force > 0 else 1.0
-                # point = [self.q_sol[-3, frame], self.q_sol[-2, frame], self.q_sol[-1, frame]]
-                point = self.get_point(self.q_sol, self.model.nb_pendulums-1, slice_min=frame, slice_max=frame+1)
-                force_vector = self.F_sol[:, frame] * force_scale
-                ax.quiver(point[0], point[1], point[2], force_vector[0], force_vector[1], force_vector[2], color='b', length=0.5, normalize=True)
+                max_force_vector_length = 1.0
+                force_scale = max_force_vector_length / max_force if max_force > 0 else 1.0
+
+                for i, idx in enumerate(self.model.actuated_joint_idxs):
+                    point = self.get_point(self.q_sol, idx, slice_min=frame, slice_max=frame+1)
+                    force_vector = self.F_sol[3*i:3*i+3, frame] * force_scale
+                    ax.quiver(point[0], point[1], point[2], force_vector[0], force_vector[1], force_vector[2], color='b')#, normalize=True)
 
             ax.set_xlim(-1.5, 1.5)
             ax.set_ylim(-1.5, 1.5)
@@ -105,9 +118,9 @@ class TrajectoryVisualizer():
             ax.set_zlabel('Z Position (m)')
             # ax.legend(loc="upper right")
 
-        interval_ms = int(1000 / 25)
-        ani = animation.FuncAnimation(fig, update, frames=self.N+1, interval=interval_ms, blit=False)
-        ani.save("visualization_output/pendulum_trajectory_animation.mp4", writer='ffmpeg', fps=25, dpi=150)
+        interval_ms = self.T / self.N * 1000
+        ani = animation.FuncAnimation(fig, update, frames=self.N+1, interval=interval_ms)
+        ani.save(f"visualization_output/pendulum_trajectory_animation_{self.file_name_appendix}.mp4", writer='ffmpeg', fps=self.N/self.T, dpi=150)
 
     def visualize_forces(self):
         fig = plt.figure()
@@ -116,21 +129,23 @@ class TrajectoryVisualizer():
         plt.ylabel("Control Forces (N)")
         plt.title("Control Forces over Time")
         plt.legend(['Fx', 'Fy', 'Fz'])
-        plt.savefig("visualization_output/control_forces.png", dpi=300)
+        plt.savefig(f"visualization_output/control_forces_{self.file_name_appendix}.png", dpi=300)
 
     def visualize_pendulum_length(self):
+        fig = plt.figure()
         lengths = np.zeros((self.model.nb_pendulums, self.N+1))
         for i in range(self.model.nb_pendulums):
             point = self.get_point(self.q_sol, i)
             prev_point = self.get_point(self.q_sol, i-1)
             lengths[i, :] = np.linalg.norm(np.array(point) - np.array(prev_point), axis=0)
+            # plt.plot(self.t_sol, lengths.T)
+            plt.plot(self.t_sol, lengths[i, :], label=f'Pendulum {i} Length')
 
-        fig = plt.figure()
-        plt.plot(self.t_sol, lengths.T)
         plt.xlabel("Time (s)")
         plt.ylabel("Pendulum Length (m)")
         plt.title("Pendulum Length over Time")
-        plt.savefig("visualization_output/pendulum_length.png", dpi=300)
+        plt.legend()
+        plt.savefig(f"visualization_output/pendulum_length_{self.file_name_appendix}.png", dpi=300)
 
     def visualize_z_vars(self):
         fig = plt.figure()
@@ -138,7 +153,28 @@ class TrajectoryVisualizer():
         plt.xlabel("Time (s)")
         plt.ylabel("Slack Variables")
         plt.title("z Variables over Time")
-        plt.savefig("visualization_output/z_variables.png", dpi=300)
+        plt.savefig(f"visualization_output/z_variables_{self.file_name_appendix}.png", dpi=300)
+
+    def visualize_energy(self):
+        fig = plt.figure()
+        T = np.zeros(self.N+1)
+        V = np.zeros(self.N+1)
+        E = np.zeros(self.N+1)
+        for k in range(self.N+1):
+            q_k = self.q_sol[:, k]
+            v_k = self.v_sol[:, k]
+            T[k] = self.model.T(q_k, v_k)
+            V[k] = self.model.V(q_k)
+            E[k] = self.model.E_total(q_k, v_k)
+
+        plt.plot(self.t_sol, T, label='Kinetic Energy')
+        plt.plot(self.t_sol, V, label='Potential Energy')
+        plt.plot(self.t_sol, E, label='Total Energy')
+        plt.xlabel("Time (s)")
+        plt.ylabel("Energy (J)")
+        plt.title("Energy over Time")
+        plt.legend()
+        plt.savefig(f"visualization_output/energy_{self.file_name_appendix}.png", dpi=300)
 
     def show(self):
         plt.show()
