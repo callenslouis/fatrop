@@ -202,9 +202,13 @@ class TrajectorySolver():
             opti.set_initial(uu[:,k], u_init()['u_init'])
         opti.set_initial(xx[:,N], x_init(N))
 
-        # opti.solver('ipopt', {}, {'max_iter':400, 'tol':1e-4})
-        opti.solver('fatrop', {'structure_detection':'auto', 'debug':True}, {'max_iter':400, 'tol':1e-4})
-        self.sol = opti.solve()
+        opti.solver('ipopt', {}, {'max_iter':400, 'tol':1e-4})
+        # opti.solver('fatrop', {'structure_detection':'auto', 'debug':True}, {'max_iter':400, 'tol':1e-4})
+        try:
+            self.sol = opti.solve()
+        except RuntimeError as e:
+            print("Solver failed with error:", e)
+            return False, None, None, None, None
 
         xx_sol = self.sol.value(xx)
         uu_sol = self.sol.value(uu)
@@ -213,7 +217,7 @@ class TrajectorySolver():
         p_sol = xx_sol[6*self.model.nb_pendulums:, :]
         F_sol = uu_sol[3*self.tracking + 1:, :]
         z_sol = uu_sol[3*self.tracking:3*self.tracking + self.model.nb_pendulums, :]
-        return q_sol, v_sol, F_sol, z_sol
+        return True, q_sol, v_sol, F_sol, z_sol
 
 
     def solve_trajectory(self, q0, v0, T, N):
@@ -278,13 +282,20 @@ class TrajectorySolver():
         opti.set_initial(p, np.linspace(0, T, N+1))
 
         opti.solver('ipopt', {}, {'max_iter':400, 'tol':1e-4})
-        self.sol = opti.solve()
+        try:
+            self.sol = opti.solve()
+        except RuntimeError as e:
+            print("Solver failed with error:", e)
+            return False, None, None, None, None
 
         q_sol = self.sol.value(q)
         v_sol = self.sol.value(v)
         F_sol = self.sol.value(F)
         z_sol = self.sol.value(z)
-        return q_sol, v_sol, F_sol, z_sol
-    
+        return True, q_sol, v_sol, F_sol, z_sol
+
     def get_nb_iters(self):
-        return self.sol.stats()['iter_count']
+        try:
+            return self.sol.stats()['iter_count']
+        except AttributeError:
+            return None

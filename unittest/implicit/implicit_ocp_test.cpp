@@ -189,6 +189,10 @@ void PrintStatistics(std::vector<bool> solved_flags, std::vector<json> results) 
             [&](size_t i) { return fmt(double(results[i]["metadata"]["timing_statistics"]["fatrop"])); }
         },
         {
+            "Search dir time (s)",
+            [&](size_t i) { return fmt(double(results[i]["metadata"]["timing_statistics"]["compute search dir"])); }
+        },
+        {
             "Total time / iter (ms)",
             [&](size_t i) {
                 double t = double(results[i]["metadata"]["timing_statistics"]["total"]);
@@ -212,6 +216,14 @@ void PrintStatistics(std::vector<bool> solved_flags, std::vector<json> results) 
                 return fmt(1000 * t / it);
             }
         },
+        {
+            "Search dir time / iter (ms)",
+            [&](size_t i) {
+                double t = double(results[i]["metadata"]["timing_statistics"]["compute search dir"]);
+                int   it = int  (results[i]["metadata"]["iterations"]);
+                return fmt(1000 * t / it);
+            }
+        }
     };
 
     // --- Data rows ---
