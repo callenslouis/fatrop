@@ -1,7 +1,14 @@
 //
-// Copyright (C) 2024 Lander Vanroye, KU Leuven
+// Copyright (c) Lander Vanroye, KU Leuven.
+// This file is part of fatrop.
 //
-
+// This file contains work derived from Ipopt (https://github.com/coin-or/Ipopt),
+// Copyright (C) 2004, 2010 International Business Machines and others.
+// Ipopt is licensed under the Eclipse Public License 2.0 (EPL-2.0).
+//
+// This file is licensed under the Eclipse Public License 2.0.
+// See LICENSE-EPL-2.0.txt for the full license text.
+//
 #ifndef __fatrop_ip_algorithm_ip_algorithm_hpp__
 #define __fatrop_ip_algorithm_ip_algorithm_hpp__
 #include "fatrop/context/context.hpp"
@@ -20,15 +27,10 @@ namespace fatrop
     {
         Success,                ///< Optimization successful
         MaxIterExceeded,        ///< Maximum number of iterations exceeded
-        StopAtTinyStep,         ///< Algorithm stopped due to tiny step size
         StopAtAcceptablePoint,  ///< Algorithm stopped at an acceptable point
         LocalInfeasibility,     ///< Problem is locally infeasible
-        LineSearchFailed,
-        FeasiblePointFound,     ///< A feasible point was found
-        DivergingIterates,      ///< Iterates are diverging
+        LineSearchFailed,       ///< Line search failed to find acceptable point
         ErrorInStepComputation, ///< Error occurred during step computation
-        InvalidOption,          ///< An invalid option was provided
-        InternalError,          ///< An internal error occurred
         Unknown                 ///< Unknown error or status
     };
 
@@ -68,11 +70,6 @@ namespace fatrop
                     const IpEqMultInitializerSp &eq_mult_initializer,
                     const IpConvergenceCheckSp &convergence_check,
                     const IpIterationOutputSp &iteration_output, const IpDataSp &ip_data);
-
-        /**
-         * @brief Print version.
-         */
-        static void print_version();
 
         /**
          * @brief Reset the algorithm to its initial state.

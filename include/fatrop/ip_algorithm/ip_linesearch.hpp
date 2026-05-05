@@ -1,5 +1,13 @@
 //
-// Copyright (C) 2024 Lander Vanroye, KU Leuven
+// Copyright (c) Lander Vanroye, KU Leuven.
+// This file is part of fatrop.
+//
+// This file contains work derived from Ipopt (https://github.com/coin-or/Ipopt),
+// Copyright (C) 2004, 2010 International Business Machines and others.
+// Ipopt is licensed under the Eclipse Public License 2.0 (EPL-2.0).
+//
+// This file is licensed under the Eclipse Public License 2.0.
+// See LICENSE-EPL-2.0.txt for the full license text.
 //
 
 #ifndef __fatrop_ip_algorithm_ip_linesearch_hpp__
@@ -168,7 +176,7 @@ namespace fatrop
         Scalar eta_phi_ = 1e-8;
         Scalar alpha_min_frac_ = 0.05;
         Scalar theta_max_fact_ = 1e4;
-        Index max_filter_resets_ = 5;
+        Index max_filter_resets_ = -1; 
         Index filter_reset_trigger_ = 5;
         Scalar obj_max_incr_ = 5.;
         Index watchdog_shortened_iter_trigger_ = 10;

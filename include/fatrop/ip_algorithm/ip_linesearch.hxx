@@ -1,5 +1,13 @@
 //
-// Copyright (C) 2024 Lander Vanroye, KU Leuven
+// Copyright (c) Lander Vanroye, KU Leuven.
+// This file is part of fatrop.
+//
+// This file contains work derived from Ipopt (https://github.com/coin-or/Ipopt),
+// Copyright (C) 2004, 2010 International Business Machines and others.
+// Ipopt is licensed under the Eclipse Public License 2.0 (EPL-2.0).
+//
+// This file is licensed under the Eclipse Public License 2.0.
+// See LICENSE-EPL-2.0.txt for the full license text.
 //
 
 #ifndef __fatrop_ip_algorithm_ip_linesearch_hxx__
@@ -335,9 +343,12 @@ namespace fatrop
             }
             if (!accept) // go to restoration phase
             {
-                fatrop_assert_msg(restoration_phase_,
-                                  "Restoration phase not set in line search object. Maybe called "
-                                  "from restoration phase algorithm.");
+                if (!restoration_phase_)
+                {
+                    PRINT_DEBUG << "Restoration phase not set in line search object. "
+                                   "Maybe called from restoration phase algorithm." << std::endl;
+                    return false;
+                }
                 /**
                  * todo set the step info
                  */
@@ -405,6 +416,7 @@ namespace fatrop
         char info_alpha_primal_char;
         if (!is_f_type(alpha_primal_test) || !armijo_holds(alpha_primal_test))
         {
+            augment_filter();
             info_alpha_primal_char = 'h';
         }
         else
@@ -696,8 +708,6 @@ namespace fatrop
             accept = armijo_holds(alpha_primal);
         else
             accept = is_acceptable_to_current_iterate(trial_barr, trial_theta);
-
-        last_rejection_due_to_filter_ = false;
         if (!accept)
         {
             return false;
@@ -711,28 +721,26 @@ namespace fatrop
         }
         // accept == true
         // Filter reset heuristic
-        if (max_filter_resets_ <= 0 || filter_reset_count_ <= max_filter_resets_ ||
-            filter_reject_count_ <= filter_reset_trigger_)
+        if (max_filter_resets_ > 0 || max_filter_resets_ == -1)
         {
-            return true;
+            if (filter_reset_count_ < max_filter_resets_ || max_filter_resets_ == -1)
+            {
+                if (last_rejection_due_to_filter_)
+                {
+                    filter_reject_count_++;
+                    if (filter_reject_count_ >= filter_reset_trigger_)
+                    {
+                        filter().reset();
+                        filter_reset_count_++;
+                    }
+                }
+                else
+                {
+                    filter_reject_count_ = 0;
+                }
+            }
         }
-
-        if (!last_rejection_due_to_filter_)
-        {
-            filter_reject_count_ = 0;
-            return true;
-        }
-        else
-        {
-            filter_reject_count_++;
-        }
-
-        if (filter_reject_count_ >= filter_reset_trigger_)
-        {
-            filter().reset();
-            // filter_reset_count_++; // TODO: Ipopt implementation does not seem to
-            // increment this while I would expect it to
-        }
+        last_rejection_due_to_filter_ = false;
         return true;
     }
 

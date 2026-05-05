@@ -1,6 +1,13 @@
-
 //
-// Copyright (C) 2024 Lander Vanroye, KU Leuven
+// Copyright (c) Lander Vanroye, KU Leuven.
+// This file is part of fatrop.
+//
+// This file contains work derived from Ipopt (https://github.com/coin-or/Ipopt),
+// Copyright (C) 2004, 2010 International Business Machines and others.
+// Ipopt is licensed under the Eclipse Public License 2.0 (EPL-2.0).
+//
+// This file is licensed under the Eclipse Public License 2.0.
+// See LICENSE-EPL-2.0.txt for the full license text.
 //
 
 #ifndef __fatrop_ip_algorithm_ip_algorithm_hxx__
@@ -17,7 +24,6 @@
 #include "fatrop/ip_algorithm/ip_timings.hpp"
 #include "fatrop/nlp/nlp.hpp"
 #include "fatrop/ocp/type.hpp"
-#include "fatrop/version.hpp"
 namespace fatrop
 {
 
@@ -46,12 +52,6 @@ void print_dimensions(std::shared_ptr<IpData<ProblemType>> &ip_data_, std::strin
     {
     }
 
-    template <typename ProblemType> void IpAlgorithm<ProblemType>::print_version()
-    {
-        PRINT_ITERATIONS << "This is Fatrop version " << project_version << "." << std::endl;
-        // Note: would be nice to extend with additional information, e.g., ... with BLASFEO target ...
-    }
-
     template <typename ProblemType> void IpAlgorithm<ProblemType>::reset(bool is_resto /* = false*/)
     {
         // todo who resets the ipdata?
@@ -74,7 +74,6 @@ void print_dimensions(std::shared_ptr<IpData<ProblemType>> &ip_data_, std::strin
         IpSolverReturnFlag retval = IpSolverReturnFlag::Unknown;
         IpConvergenceStatus conv_status = convergence_check_->check_converged();
 
-        print_version(); // Note: can be moved to another location if printing at every optimize call is not preferred
         iteration_output_->print_header();
 
         while (conv_status == IpConvergenceStatus::Continue)
@@ -82,7 +81,11 @@ void print_dimensions(std::shared_ptr<IpData<ProblemType>> &ip_data_, std::strin
             ip_data_->get_nlp()->callback(*ip_data_);
             iteration_output_->output_current_iteration();
             mu_update_->update_barrier_parameter();
-            search_dir_->compute_search_dir();
+            {
+                LinsolReturnFlag sd_ret = search_dir_->compute_search_dir();
+                if (sd_ret == LinsolReturnFlag::UNKNOWN || sd_ret == LinsolReturnFlag::NAN_SOLUTION)
+                    return IpSolverReturnFlag::ErrorInStepComputation;
+            }
             bool success = linesearch_->find_acceptable_trial_point();
             if(!success) return IpSolverReturnFlag::LineSearchFailed;
             ip_data_->accept_trial_iterate();
@@ -92,8 +95,12 @@ void print_dimensions(std::shared_ptr<IpData<ProblemType>> &ip_data_, std::strin
         iteration_output_->output_current_iteration();
         if (conv_status == IpConvergenceStatus::Converged)
             retval = IpSolverReturnFlag::Success;
-        if (conv_status == IpConvergenceStatus::ConvergedToAcceptablePoint)
+        else if (conv_status == IpConvergenceStatus::ConvergedToAcceptablePoint)
             retval = IpSolverReturnFlag::StopAtAcceptablePoint;
+        else if (conv_status == IpConvergenceStatus::MaxIterExceeded)
+            retval = IpSolverReturnFlag::MaxIterExceeded;
+        else if (conv_status == IpConvergenceStatus::RestoFail)
+            retval = IpSolverReturnFlag::LocalInfeasibility;
         ip_data_->timing_statistics().full_algorithm.pause();
         return retval;
     }

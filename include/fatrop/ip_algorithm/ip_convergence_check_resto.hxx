@@ -1,5 +1,13 @@
 //
-// Copyright (c) 2024 Lander Vanroye, KU Leuven
+// Copyright (c) Lander Vanroye, KU Leuven.
+// This file is part of fatrop.
+//
+// This file contains work derived from Ipopt (https://github.com/coin-or/Ipopt),
+// Copyright (C) 2004, 2010 International Business Machines and others.
+// Ipopt is licensed under the Eclipse Public License 2.0 (EPL-2.0).
+//
+// This file is licensed under the Eclipse Public License 2.0.
+// See LICENSE-EPL-2.0.txt for the full license text.
 //
 
 #ifndef __fatrop_ip_convergence_check_resto_hxx__
@@ -57,14 +65,15 @@ namespace fatrop
         else
         {
             Scalar orig_trial_barr = trial_it_orig.obj_value() + trial_it_orig.barrier_value();
+            auto line_search_orig = line_search_orig_.lock();
             fatrop_assert_msg(
-                line_search_orig_,
+                line_search_orig,
                 "No line search object set for original problem in resto convergence check.");
-            if (!line_search_orig_->is_acceptable_to_filter(orig_trial_barr, orig_trial_theta))
+            if (!line_search_orig->is_acceptable_to_filter(orig_trial_barr, orig_trial_theta))
             {
                 status = IpConvergenceStatus::Continue;
             }
-            else if (!line_search_orig_->is_acceptable_to_current_iterate(orig_trial_barr,
+            else if (!line_search_orig->is_acceptable_to_current_iterate(orig_trial_barr,
                                                                           orig_trial_theta, true))
             {
                 status = IpConvergenceStatus::Continue;

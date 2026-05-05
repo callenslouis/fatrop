@@ -1,5 +1,15 @@
 ## FATROP
+
 Fatrop is a constrained nonlinear optimal control problem solver that is fast and achieves a high numerical robustness.
+
+$$
+\begin{align}
+\underset{\mathbf{x}_k, \mathbf{u}_k}{\min} \quad & \sum_{k=0}^{K-1} l_k(\mathbf{u}_k, \mathbf{x}_k) \\
+\text{subject to} \quad & \mathbf{x}_{k+1} = \mathbf{f}_k(\mathbf{u}_k, \mathbf{x}_k), \quad k = 0, \dots, K-2 \\
+& \mathbf{L}_k \leq \mathbf{g}_k(\mathbf{u}_k, \mathbf{x}_k) \leq \mathbf{U}_k \\
+& \mathbf{h}_k(\mathbf{u}_k, \mathbf{x}_k) = \mathbf{0}, \quad k = 0, \dots, K-1
+\end{align}
+$$
 
 The main features of the solver are:
 - high numerical robustness thanks to advanced numerical optimization techniques, inspired by [Ipopt](https://coin-or.github.io/Ipopt/)

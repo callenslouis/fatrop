@@ -10,6 +10,7 @@
 #include "fatrop/linear_algebra/matrix.hpp"
 #include "fatrop/ocp/fwd.hpp"
 #include "fatrop/linear_algebra/linear_solver_return_flags.hpp"
+#include "fatrop/common/options.hpp"
 #include <vector>
 #include <chrono>
 #include <memory>
@@ -144,6 +145,20 @@ namespace fatrop
                                            const VecRealView &D_s, const VecRealView &f,
                                            const VecRealView &g, VecRealView &x, VecRealView &eq_mult);
 
+        /**
+         * @brief Registers the solver options with the provided options registry.
+         * @param registry The options registry to register with.
+         */
+        void register_options(OptionRegistry &registry);
+
+        // Option setters
+        void set_it_ref(const bool &value) { it_ref = value; }
+        void set_perturbed_mode(const bool &value) { perturbed_mode = value; }
+        void set_perturbed_mode_param(const double &value) { perturbed_mode_param = value; }
+        void set_lu_fact_tol(const Scalar &value) { lu_fact_tol = value; }
+        void set_diagnostic(const bool &value) { diagnostic = value; }
+        void set_increased_accuracy(const bool &value) { increased_accuracy = value; }
+
         std::chrono::nanoseconds duration_lu_factorization = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_backward_recursion = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_initial_stage = std::chrono::nanoseconds(0);
@@ -194,7 +209,6 @@ namespace fatrop
         bool it_ref = true;
         bool perturbed_mode = false;
         double perturbed_mode_param = 1e-6;
-        Scalar it_ref_acc = 1e-8;
         Scalar lu_fact_tol = 1e-5;
         bool diagnostic = false;
         bool increased_accuracy = true;
@@ -288,6 +302,20 @@ namespace fatrop
                                            const VecRealView &g, VecRealView &x, VecRealView &eq_mult);
 
         void TestPermutationFunctions(const ProblemInfo& info, int k=-1);
+
+        /**
+         * @brief Registers the solver options with the provided options registry.
+         * @param registry The options registry to register with.
+         */
+        void register_options(OptionRegistry &registry);
+
+        // Option setters
+        void set_it_ref(const bool &value) { it_ref = value; }
+        void set_perturbed_mode(const bool &value) { perturbed_mode = value; }
+        void set_perturbed_mode_param(const double &value) { perturbed_mode_param = value; }
+        void set_lu_fact_tol(const Scalar &value) { lu_fact_tol = value; }
+        void set_diagnostic(const bool &value) { diagnostic = value; }
+        void set_increased_accuracy(const bool &value) { increased_accuracy = value; }
 
         std::chrono::nanoseconds duration_lu_factorization = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_backward_recursion = std::chrono::nanoseconds(0);
@@ -465,6 +493,7 @@ namespace fatrop
         void set_performance_mode(bool set);
         void set_factorization_file_name(const std::string &name){factorization_file_name = name;};
 
+
         std::chrono::nanoseconds duration_lu_factorization = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_RSQrqt_copy = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_FuFx_addition = std::chrono::nanoseconds(0);
@@ -638,6 +667,20 @@ namespace fatrop
 
         void set_performance_mode(bool set);
         void set_preprocessing_file_name(const std::string &name){preprocessing_file_name = name;};
+
+        /**
+         * @brief Registers the solver options with the provided options registry.
+         * @param registry The options registry to register with.
+         */
+        void register_options(OptionRegistry &registry);
+
+        // Option setters
+        void set_it_ref(const bool &value) { it_ref = value; }
+        void set_perturbed_mode(const bool &value) { perturbed_mode = value; }
+        void set_perturbed_mode_param(const double &value) { perturbed_mode_param = value; }
+        void set_lu_fact_tol(const Scalar &value) { lu_fact_tol = value; }
+        void set_diagnostic(const bool &value) { diagnostic = value; }
+        void set_increased_accuracy(const bool &value) { increased_accuracy = value; }
 
         std::chrono::nanoseconds duration_preprocess = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_preprocess_jac = std::chrono::nanoseconds(0);

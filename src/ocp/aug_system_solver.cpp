@@ -162,6 +162,16 @@ AugSystemSolver<OcpType>::AugSystemSolver(const ProblemInfo &info)
     rho.resize(info.dims.K);
 };
 
+void AugSystemSolver<OcpType>::register_options(OptionRegistry &registry)
+{
+    registry.register_option("linsol_it_ref", &AugSystemSolver<OcpType>::set_it_ref, this);
+    registry.register_option("linsol_perturbed_mode", &AugSystemSolver<OcpType>::set_perturbed_mode, this);
+    registry.register_option("linsol_perturbed_mode_param", &AugSystemSolver<OcpType>::set_perturbed_mode_param, this);
+    registry.register_option("linsol_lu_fact_tol", &AugSystemSolver<OcpType>::set_lu_fact_tol, this);
+    registry.register_option("linsol_diagnostic", &AugSystemSolver<OcpType>::set_diagnostic, this);
+    registry.register_option("linsol_increased_accuracy", &AugSystemSolver<OcpType>::set_increased_accuracy, this);
+}
+
 LinsolReturnFlag AugSystemSolver<OcpType>::solve(const ProblemInfo &info,
                                            Jacobian<OcpType> &jacobian, Hessian<OcpType> &hessian,
                                            const VecRealView &D_x, const VecRealView &D_s,
@@ -1230,6 +1240,16 @@ AugSystemSolver<AcceleratedOcpType>::AugSystemSolver(const ProblemInfo &info)
     rho1.resize(info.dims.K);
     rho2.resize(info.dims.K);
 };
+
+void AugSystemSolver<AcceleratedOcpType>::register_options(OptionRegistry &registry)
+{
+    registry.register_option("linsol_it_ref", &AugSystemSolver<AcceleratedOcpType>::set_it_ref, this);
+    registry.register_option("linsol_perturbed_mode", &AugSystemSolver<AcceleratedOcpType>::set_perturbed_mode, this);
+    registry.register_option("linsol_perturbed_mode_param", &AugSystemSolver<AcceleratedOcpType>::set_perturbed_mode_param, this);
+    registry.register_option("linsol_lu_fact_tol", &AugSystemSolver<AcceleratedOcpType>::set_lu_fact_tol, this);
+    registry.register_option("linsol_diagnostic", &AugSystemSolver<AcceleratedOcpType>::set_diagnostic, this);
+    registry.register_option("linsol_increased_accuracy", &AugSystemSolver<AcceleratedOcpType>::set_increased_accuracy, this);
+}
 
 LinsolReturnFlag AugSystemSolver<AcceleratedOcpType>::solve(const ProblemInfo &info,
                                            Jacobian<AcceleratedOcpType> &jacobian, Hessian<AcceleratedOcpType> &hessian,
@@ -4776,6 +4796,16 @@ AugSystemSolver<ImplicitOcpType>::AugSystemSolver(const ProblemInfo &info) : Mod
     JBAbt.emplace_back(dim + max_nx, max_nx);
     JBAbt_modified.emplace_back(dim + max_nx, max_nx);
 };
+
+void AugSystemSolver<ImplicitOcpType>::register_options(OptionRegistry &registry)
+{
+    registry.register_option("linsol_it_ref", &AugSystemSolver<ImplicitOcpType>::set_it_ref, this);
+    registry.register_option("linsol_perturbed_mode", &AugSystemSolver<ImplicitOcpType>::set_perturbed_mode, this);
+    registry.register_option("linsol_perturbed_mode_param", &AugSystemSolver<ImplicitOcpType>::set_perturbed_mode_param, this);
+    registry.register_option("linsol_lu_fact_tol", &AugSystemSolver<ImplicitOcpType>::set_lu_fact_tol, this);
+    registry.register_option("linsol_diagnostic", &AugSystemSolver<ImplicitOcpType>::set_diagnostic, this);
+    registry.register_option("linsol_increased_accuracy", &AugSystemSolver<ImplicitOcpType>::set_increased_accuracy, this);
+}
 
 LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info,
                                            Jacobian<ImplicitOcpType> &jacobian, Hessian<ImplicitOcpType> &hessian,

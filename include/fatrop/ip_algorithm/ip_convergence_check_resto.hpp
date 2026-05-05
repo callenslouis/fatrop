@@ -1,5 +1,13 @@
 //
-// Copyright (c) 2024 Lander Vanroye, KU Leuven
+// Copyright (c) Lander Vanroye, KU Leuven.
+// This file is part of fatrop.
+//
+// This file contains work derived from Ipopt (https://github.com/coin-or/Ipopt),
+// Copyright (C) 2004, 2010 International Business Machines and others.
+// Ipopt is licensed under the Eclipse Public License 2.0 (EPL-2.0).
+//
+// This file is licensed under the Eclipse Public License 2.0.
+// See LICENSE-EPL-2.0.txt for the full license text.
 //
 
 #ifndef __fatrop_ip_convergence_check_resto_hpp__
@@ -20,6 +28,7 @@ namespace fatrop
         typedef ProblemInfo ProblemInfoType;
         typedef IpIterate<ProblemType> IpIterateType;
         typedef std::shared_ptr<IpLineSearchBase> IpLineSearchSp;
+        typedef std::weak_ptr<IpLineSearchBase> IpLineSearchWp;
 
     public:
         IpConvergenceCheckResto(const IpDataSp &data_orig, const IpDataSp &data_resto);
@@ -37,7 +46,7 @@ namespace fatrop
         Index successive_resto_iter_;
         IpDataSp data_orig_;
         IpDataSp data_resto_;
-        IpLineSearchSp line_search_orig_;
+        IpLineSearchWp line_search_orig_;
     };
 
     template <typename ProblemType>
