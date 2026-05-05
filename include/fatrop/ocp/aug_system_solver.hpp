@@ -493,6 +493,20 @@ namespace fatrop
         void set_performance_mode(bool set);
         void set_factorization_file_name(const std::string &name){factorization_file_name = name;};
 
+        /**
+         * @brief Registers the solver options with the provided options registry.
+         * @param registry The options registry to register with.
+         */
+        void register_options(OptionRegistry &registry);
+
+        // Option setters
+        void set_it_ref(const bool &value) { it_ref = value; }
+        void set_perturbed_mode(const bool &value) { perturbed_mode = value; }
+        void set_perturbed_mode_param(const double &value) { perturbed_mode_param = value; }
+        void set_lu_fact_tol(const Scalar &value) { lu_fact_tol = value; }
+        void set_diagnostic(const bool &value) { diagnostic = value; }
+        void set_increased_accuracy(const bool &value) { increased_accuracy = value; }
+
 
         std::chrono::nanoseconds duration_lu_factorization = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_RSQrqt_copy = std::chrono::nanoseconds(0);
@@ -667,20 +681,6 @@ namespace fatrop
 
         void set_performance_mode(bool set);
         void set_preprocessing_file_name(const std::string &name){preprocessing_file_name = name;};
-
-        /**
-         * @brief Registers the solver options with the provided options registry.
-         * @param registry The options registry to register with.
-         */
-        void register_options(OptionRegistry &registry);
-
-        // Option setters
-        void set_it_ref(const bool &value) { it_ref = value; }
-        void set_perturbed_mode(const bool &value) { perturbed_mode = value; }
-        void set_perturbed_mode_param(const double &value) { perturbed_mode_param = value; }
-        void set_lu_fact_tol(const Scalar &value) { lu_fact_tol = value; }
-        void set_diagnostic(const bool &value) { diagnostic = value; }
-        void set_increased_accuracy(const bool &value) { increased_accuracy = value; }
 
         std::chrono::nanoseconds duration_preprocess = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_preprocess_jac = std::chrono::nanoseconds(0);

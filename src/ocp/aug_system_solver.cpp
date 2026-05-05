@@ -3278,6 +3278,16 @@ ModifiedAugSystemSolver::ModifiedAugSystemSolver(const ProblemInfo &info)
     }
 };
 
+void ModifiedAugSystemSolver::register_options(OptionRegistry &registry)
+{
+    registry.register_option("linsol_it_ref", &ModifiedAugSystemSolver::set_it_ref, this);
+    registry.register_option("linsol_perturbed_mode", &ModifiedAugSystemSolver::set_perturbed_mode, this);
+    registry.register_option("linsol_perturbed_mode_param", &ModifiedAugSystemSolver::set_perturbed_mode_param, this);
+    registry.register_option("linsol_lu_fact_tol", &ModifiedAugSystemSolver::set_lu_fact_tol, this);
+    registry.register_option("linsol_diagnostic", &ModifiedAugSystemSolver::set_diagnostic, this);
+    registry.register_option("linsol_increased_accuracy", &ModifiedAugSystemSolver::set_increased_accuracy, this);
+}
+
 LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
                                            Jacobian<ImplicitOcpType> &jacobian, Hessian<ImplicitOcpType> &hessian,
                                            const VecRealView &D_x, const VecRealView &D_s,
@@ -4796,16 +4806,6 @@ AugSystemSolver<ImplicitOcpType>::AugSystemSolver(const ProblemInfo &info) : Mod
     JBAbt.emplace_back(dim + max_nx, max_nx);
     JBAbt_modified.emplace_back(dim + max_nx, max_nx);
 };
-
-void AugSystemSolver<ImplicitOcpType>::register_options(OptionRegistry &registry)
-{
-    registry.register_option("linsol_it_ref", &AugSystemSolver<ImplicitOcpType>::set_it_ref, this);
-    registry.register_option("linsol_perturbed_mode", &AugSystemSolver<ImplicitOcpType>::set_perturbed_mode, this);
-    registry.register_option("linsol_perturbed_mode_param", &AugSystemSolver<ImplicitOcpType>::set_perturbed_mode_param, this);
-    registry.register_option("linsol_lu_fact_tol", &AugSystemSolver<ImplicitOcpType>::set_lu_fact_tol, this);
-    registry.register_option("linsol_diagnostic", &AugSystemSolver<ImplicitOcpType>::set_diagnostic, this);
-    registry.register_option("linsol_increased_accuracy", &AugSystemSolver<ImplicitOcpType>::set_increased_accuracy, this);
-}
 
 LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info,
                                            Jacobian<ImplicitOcpType> &jacobian, Hessian<ImplicitOcpType> &hessian,
