@@ -17,6 +17,17 @@ class TrajectoryVisualizer():
         self.F_sol = F_sol
         self.z_sol = z_sol
 
+    def add_data_from_ocp_json_file(self, data):
+        self.N = data['generator_data']['K'] - 1
+        self.T = data['generator_data']['dt']*self.N
+        uu_sol = np.array(data['inputs']).T
+        xx_sol = np.array(data['states']).T
+        self.q_sol = xx_sol[:3*self.model.nb_pendulums, :]
+        self.v_sol = xx_sol[3*self.model.nb_pendulums:-1, :]
+        self.F_sol = uu_sol[:3*self.model.nb_pendulums, :]
+        self.z_sol = uu_sol[3*self.model.nb_pendulums:, :]
+        self.t_sol = np.linspace(0, self.T, self.N+1)
+
     def visualize_all(self, appendix=""):
         self.file_name_appendix = appendix
         self.visualize_trajectory()

@@ -1,5 +1,7 @@
 from casadi import *
 import numpy as np
+import json
+import yaml
 
 class TrajectorySolver():
     def __init__(self, model, implicit=False):
@@ -37,6 +39,14 @@ class TrajectorySolver():
         for i in range(1, self.model.nb_pendulums):
             q_rest[3*i + 2] = q_rest[3*(i-1) + 2] - self.model.L[i]
         return q_rest
+    
+    def extract_solution(self, xx, uu):
+        q_sol = xx[:3*self.model.nb_pendulums, :]
+        v_sol = xx[3*self.model.nb_pendulums:6*self.model.nb_pendulums, :]
+        p_sol = xx[6*self.model.nb_pendulums:, :]
+        F_sol = uu[3*self.tracking + 1:, :]
+        z_sol = uu[3*self.tracking:3*self.tracking + self.model.nb_pendulums, :]
+        return q_sol, v_sol, F_sol, z_sol
 
     def bake(self, q0, v0, T, N):
         # xk
@@ -63,25 +73,27 @@ class TrajectorySolver():
         self.funcs = {}
 
         # objective
-        objk = 1e-2*sumsqr(F) + (1e2*sumsqr(s) if self.tracking else 0)
+        objk = 1e-2*sumsqr(F) + (1e2*sumsqr(s) if self.tracking else 0) + 1e-2*sumsqr(xk) + 1e-2*sumsqr(uk)
         self.funcs['eval_objk'] = Function("eval_objk", [uk, xk], [objk], ['uk', 'xk'], ['objk'])
 
-        objK = 0.0 if self.tracking else sumsqr(v) + 1e1*sumsqr(q - self.get_q_rest())
-        self.funcs['eval_objK'] = Function("eval_objK", [uk, xk], [objK], ['uk', 'xk'], ['objK'])
+        objK = 0.0 if self.tracking else sumsqr(v) + 1e1*sumsqr(q - self.get_q_rest()) + 1e-2*sumsqr(xk)
+        self.funcs['eval_objK'] = Function("eval_objK", [xk], [objK], ['xk'], ['objK'])
 
         # equality constraints
-        self.funcs['eval_g0'] = Function("eval_g0", [uk, xk], [vertcat(q - q0, v - v0)], ['uk', 'xk'], ['g0'])
+        self.funcs['eval_g0'] = Function("eval_g0", [uk, xk], [vertcat(q - q0, v - v0, p)], ['uk', 'xk'], ['g0'])
 
         gk = self.model.g_eq(q, v, z, F) + (self.model.stabilizer(q, v) if self.model.stabilizer is not None else 0)
         if self.tracking:
             ref_point = self.path_func(p, T, q0)
             gk = vertcat(gk, s - (q[:3] - ref_point))
         self.funcs['eval_gk'] = Function("eval_gk", [uk, xk], [gk], ['uk', 'xk'], ['gk'])
-        self.funcs['eval_gK'] = Function("eval_gK", [uk, xk], [vertcat(p - T)], ['uk', 'xk'], ['gK'])
+        self.funcs['eval_gK'] = Function("eval_gK", [xk], [vertcat(p - T)], ['xk'], ['gK'])
+        # self.funcs['eval_gk'] = Function("eval_gk", [uk, xk], [vertcat()], ['uk', 'xk'], ['gk'])
+        # self.funcs['eval_gK'] = Function("eval_gK", [xk], [vertcat()], ['xk'], ['gK'])
 
         # inequality constraints
         self.funcs['eval_gk_ineq'] = Function("eval_gk_ineq", [uk, xk], [F], ['uk', 'xk'], ['ineqk'])
-        self.funcs['eval_gK_ineq'] = Function("eval_gK_ineq", [uk, xk], [vertcat()], ['uk', 'xk'], ['ineqK'])
+        self.funcs['eval_gK_ineq'] = Function("eval_gK_ineq", [xk], [vertcat()], ['xk'], ['ineqK'])
         self.funcs["lb"] = Function("lb", [], [-self.force_bounds*SX.ones(F.size1(), 1)], [], ['lb'])
         self.funcs["ub"] = Function("ub", [], [self.force_bounds*SX.ones(F.size1(), 1)], [], ['ub'])
         self.funcs["lbK"] = Function("lbK", [], [vertcat()], [], ['lbK'])
@@ -98,10 +110,34 @@ class TrajectorySolver():
         self.funcs["x_init"] = Function("x_init", [k], [vertcat(q0, v0, k*dt)], [], ['x_init'])
         self.funcs["u_init"] = Function("u_init", [], [0*uk], [], ['u_init'])
 
-        for name, func in self.funcs.items():
-            func.save(f"casadi_functions/{name}.casadi")
+        # metadata
+        data = {
+            "nx": xk.size1(),
+            "nu": uk.size1(),
+            "N": N,
+            "T": T,
+            "dt": dt,
+            "x0": vertcat(q0, v0, 0).full().flatten().tolist(),
+            "lb": self.funcs["lb"]()["lb"].full().flatten().tolist(),
+            "ub": self.funcs["ub"]()["ub"].full().flatten().tolist(),
+            "lbK": self.funcs["lbK"]()["lbK"].full().flatten().tolist(),
+            "ubK": self.funcs["ubK"]()["ubK"].full().flatten().tolist(),
+            "u_init": [self.funcs["u_init"]()["u_init"].full().flatten().tolist() for _ in range(N)],
+            "x_init": [self.funcs["x_init"](k).full().flatten().tolist() for k in range(N+1)]
+        }
 
-    def solve_backed_trajectory(self, q0, v0, T, N):
+        folder = "casadi_functions/"
+        build_folder = "../../../build_docker/casadi_functions/"
+        with open(f"{folder}metadata.json", "w") as f:
+            json.dump(data, f, indent=4)
+        with open(f"{build_folder}metadata.json", "w") as f:
+            json.dump(data, f, indent=4)
+
+        for name, func in self.funcs.items():
+            func.save(f"{folder}{name}.casadi")
+            func.save(f"{build_folder}{name}.casadi")
+
+    def solve_baked_trajectory(self, q0, v0, T, N):
         self.bake(q0, v0, T, N)
 
         eval_objk = Function.load("casadi_functions/eval_objk.casadi")
@@ -125,27 +161,39 @@ class TrajectorySolver():
         nx = eval_objk.sparsity_in(1).size1()
 
         opti = Opti()
-        xx = opti.variable(nx, N+1)
-        uu = opti.variable(nu, N)
+        # xx = opti.variable(nx, N+1)
+        # uu = opti.variable(nu, N)
+        # define variables in a stage-wise way
+        xx = []; uu = []
+        for k in range(N):
+            xx.append(opti.variable(nx))
+            uu.append(opti.variable(nu))
+        xx.append(opti.variable(nx))
+        xx = hcat(xx)
+        uu = hcat(uu)
 
-        opti.subject_to(eval_g0(uu[:, 0], xx[:, 0]) == 0)
+        if eval_g0.sparsity_out(0).size1() > 0:
+            opti.subject_to(eval_g0(uu[:, 0], xx[:, 0]) == 0)
 
         obj = 0
         for k in range(N):
             if self.implicit:
                 opti.subject_to(impl_dyn(uu[:,k], xx[:,k], xx[:,k+1]) == 0)
             else:
-                opti.subject_to(expl_dyn(uu[:,k], xx[:,k]) - xx[:,k+1] == 0)
+                opti.subject_to(xx[:,k+1] == expl_dyn(uu[:,k], xx[:,k]))
 
-            opti.subject_to(eval_gk(uu[:,k], xx[:,k]) == 0)
-            opti.subject_to(lb()['lb'] <= (eval_gk_ineq(uu[:,k], xx[:,k]) <= ub()['ub']))
+            if eval_gk.sparsity_out(0).size1() > 0:
+                opti.subject_to(eval_gk(uu[:,k], xx[:,k]) == 0)
+            if eval_gk_ineq.sparsity_out(0).size1() > 0:
+                opti.subject_to(lb()['lb'] <= (eval_gk_ineq(uu[:,k], xx[:,k]) <= ub()['ub']))
 
             obj += eval_objk(uu[:,k], xx[:,k])
 
-        opti.subject_to(eval_gK(uu[:,N-1], xx[:,N]) == 0)
-        if eval_gK_ineq(uu[:,N-1], xx[:,N]).size1() > 0:
-            opti.subject_to(lbK()['lbK'] <= (eval_gK_ineq(uu[:,N-1], xx[:,N]) <= ubK()['ubK']))
-        obj += eval_objK(uu[:,N-1], xx[:,N])
+        if eval_gK.sparsity_out(0).size1() > 0:
+            opti.subject_to(eval_gK(xx[:,N]) == 0)
+        if eval_gK_ineq.sparsity_out(0).size1() > 0:
+            opti.subject_to(lbK()['lbK'] <= (eval_gK_ineq(xx[:,N]) <= ubK()['ubK']))
+        obj += eval_objK(xx[:,N])
 
         opti.minimize(obj)
 
@@ -154,7 +202,8 @@ class TrajectorySolver():
             opti.set_initial(uu[:,k], u_init()['u_init'])
         opti.set_initial(xx[:,N], x_init(N))
 
-        opti.solver('ipopt', {}, {'max_iter':400, 'tol':1e-4})
+        # opti.solver('ipopt', {}, {'max_iter':400, 'tol':1e-4})
+        opti.solver('fatrop', {'structure_detection':'auto', 'debug':True}, {'max_iter':400, 'tol':1e-4})
         self.sol = opti.solve()
 
         xx_sol = self.sol.value(xx)
@@ -211,7 +260,7 @@ class TrajectorySolver():
             opti.subject_to(-self.force_bounds <= (F[:,k] <= self.force_bounds))
 
             # objective
-            obj += 1e-2*sumsqr(F[:,k])
+            obj += 1e-2*sumsqr(F[:,k])*0
             if self.tracking:
                 obj += 1e2*sumsqr(s[:,k])
 

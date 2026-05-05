@@ -24,6 +24,7 @@
 #include "generators/batch_reactor_generator.hpp"
 #include "generators/solar_receiver_reactor_generator.hpp"
 #include "generators/manipulator_path_follower_generator.hpp"
+#include "generators/pendulum_generator.hpp"
 
 #include "json/single_include/nlohmann/json.hpp"
 
@@ -265,9 +266,9 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     std::shared_ptr<IpAlgorithm<OcpType>> ipalg_reform = builder_reform.with_options_registry(&options).build();
     std::shared_ptr<IpAlgorithm<AcceleratedOcpType>> ipalg_accel = builder_accel.with_options_registry(&options).build();
     // options.set_option("mu_init", 100.0);
-    options.set_option("max_iter", 1000);
+    options.set_option("max_iter", 400);
     // options.set_option("print_level", 0);
-    // options.set_option("tolerance", 1e-4);
+    options.set_option("tolerance", 1e-4);
     std::cout << "built ip algorithms" << std::endl;
 
     json result_expl, result_reform, result_impl, result_rf, result_accel;
@@ -298,7 +299,7 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
                 file2.close();
             }
         }
-        solved_expl = true;
+        solved_expl = ret_expl == IpSolverReturnFlag::Success;
     } catch (std::exception& e){
         std::cout << "Exception caught during explicit solve: " << e.what() << std::endl;
     }
@@ -323,7 +324,7 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
                 file.close();
             }
         }
-        solved_impl = true;
+        solved_impl = ret_impl == IpSolverReturnFlag::Success;
     } catch (std::exception& e){
         std::cout << "Exception caught during implicit solve: " << e.what() << std::endl;
     }
@@ -348,7 +349,7 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
                 file3.close();
             }
         }
-        solved_reform = true;
+        solved_reform = ret_reform == IpSolverReturnFlag::Success;
     } catch (std::exception& e){
         std::cout << "Exception caught during reformulated solve: " << e.what() << std::endl;
     }
@@ -373,7 +374,7 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
                 file4.close();
             }
         }
-        solved_rf = true;
+        solved_rf = ret_rf == IpSolverReturnFlag::Success;
     } catch (std::exception& e){
         std::cout << "Exception caught during rootfinder solve: " << e.what() << std::endl;
     }
@@ -398,47 +399,11 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
                 file5.close();
             }
         }
-        solved_accel = true;
+        solved_accel = ret_accel == IpSolverReturnFlag::Success;
     } catch (std::exception& e){
         std::cout << "Exception caught during accelerated solve: " << e.what() << std::endl;
     }
     }
-
-    // std::cout << "Finished solving problem" << std::endl;
-    // std::cout << "nb iterations: " << std::endl;
-    // if (solved_expl){std::cout << "\texplicit:     " << result_expl["metadata"]["iterations"] << std::endl;}
-    // if (solved_reform){std::cout << "\treformulated: " << result_reform["metadata"]["iterations"] << std::endl;}
-    // if (solved_accel){std::cout << "\taccelerated:  " << result_accel["metadata"]["iterations"] << std::endl;}
-    // if (solved_impl){std::cout << "\timplicit:     " << result_impl["metadata"]["iterations"] << std::endl;}
-    // if (solved_rf){std::cout << "\trootfinder:   " << result_rf["metadata"]["iterations"] << std::endl;}
-
-    // std::cout << "t_total: " << std::endl;
-    // if (solved_expl){std::cout << "\texplicit:     " << result_expl["metadata"]["timing_statistics"]["total"] << std::endl;}
-    // if (solved_reform){std::cout << "\treformulated: " << result_reform["metadata"]["timing_statistics"]["total"] << std::endl;}
-    // if (solved_accel){std::cout << "\taccelerated:  " << result_accel["metadata"]["timing_statistics"]["total"] << std::endl;}
-    // if (solved_impl){std::cout << "\timplicit:     " << result_impl["metadata"]["timing_statistics"]["total"] << std::endl;}
-    // if (solved_rf){std::cout << "\trootfinder:   " << result_rf["metadata"]["timing_statistics"]["total"] << std::endl;}
-
-    // std::cout << "t_func: " << std::endl;
-    // if (solved_expl){std::cout << "\texplicit:     " << result_expl["metadata"]["timing_statistics"]["function evaluation"] << std::endl;}
-    // if (solved_reform){std::cout << "\treformulated: " << result_reform["metadata"]["timing_statistics"]["function evaluation"] << std::endl;}
-    // if (solved_accel){std::cout << "\taccelerated:  " << result_accel["metadata"]["timing_statistics"]["function evaluation"] << std::endl;}
-    // if (solved_impl){std::cout << "\timplicit:     " << result_impl["metadata"]["timing_statistics"]["function evaluation"] << std::endl;}
-    // if (solved_rf){std::cout << "\trootfinder:   " << result_rf["metadata"]["timing_statistics"]["function evaluation"] << std::endl;}
-
-    // std::cout << "t_fatrop: " << std::endl;
-    // if (solved_expl){std::cout << "\texplicit:     " << result_expl["metadata"]["timing_statistics"]["fatrop"] << std::endl;}
-    // if (solved_reform){std::cout << "\treformulated: " << result_reform["metadata"]["timing_statistics"]["fatrop"] << std::endl;}
-    // if (solved_accel){std::cout << "\taccelerated:  " << result_accel["metadata"]["timing_statistics"]["fatrop"] << std::endl;}
-    // if (solved_impl){std::cout << "\timplicit:     " << result_impl["metadata"]["timing_statistics"]["fatrop"] << std::endl;}
-    // if (solved_rf){std::cout << "\trootfinder:   " << result_rf["metadata"]["timing_statistics"]["fatrop"] << std::endl;}
-
-    // std::cout << "hessian eval time breakdown:" << std::endl;
-    // if (solved_expl){std::cout << "explicit:" << std::endl; tp_expl->get_hess_time_breakdown(result_expl["metadata"]["iterations"]);}
-    // if (solved_reform){std::cout << "reformulated:" << std::endl; tp_reform->get_hess_time_breakdown(result_reform["metadata"]["iterations"]);}
-    // if (solved_accel){std::cout << "accelerated:" << std::endl; tp_accel->get_hess_time_breakdown(result_accel["metadata"]["iterations"]);}
-    // if (solved_impl){std::cout << "implicit:" << std::endl; tp_impl->get_hess_time_breakdown(result_impl["metadata"]["iterations"]);}
-    // if (solved_rf){std::cout << "rootfinder:" << std::endl; tp_rf->get_hess_time_breakdown(result_rf["metadata"]["iterations"]);}
     PrintStatistics({solved_expl, solved_reform, solved_accel, solved_impl, solved_rf}, {result_expl, result_reform, result_accel, result_impl, result_rf});
 }
 
@@ -552,9 +517,13 @@ int main(int argc, char **argv)
     // }
     // return 0;
 
-    ManipulatorPathFollower pf;
-    pf.PrintDimensions();
+    // ManipulatorPathFollower pf;
+    // pf.PrintDimensions();
     // pf.SolveOptiInstance();
+    // return 0;
+
+    // PendulumGenerator pg;
+    // pg.SolveOptiInstance();
     // return 0;
 
 
@@ -606,6 +575,8 @@ int main(int argc, char **argv)
             generator = std::make_unique<SolarReceiverReactorGenerator>(n);
         } else if (std::string(argv[2]) == "path_follower"){
             generator = std::make_unique<ManipulatorPathFollower>();
+        } else if (std::string(argv[2]) == "pendulum"){
+            generator = std::make_unique<PendulumGenerator>();
         } else {
             std::cout << "Second argument should be either \"truck_trailer\", \"bycicle\", \"example_static\", \"holonomic\", \"planar_robot\", \"quadruped\", \"batch_reactor\" \"solar_receiver_reactor\" or \"path_follower\" when first argument is \"single\"" << std::endl;
             return 0;

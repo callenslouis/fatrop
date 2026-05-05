@@ -12,6 +12,8 @@ class Pendulum3DModel():
         self.g = g
 
         self.actuated_joint_idxs = [self.nb_pendulums-1, self.nb_pendulums-2]
+        if self.nb_pendulums <= 2:
+            self.actuated_joint_idxs = [self.nb_pendulums-1]
 
         # self.set_model()
         self.stabilizer = None
@@ -83,7 +85,6 @@ class Pendulum3DModel():
                 V += 0.5 * self.joint_stiffness * self.phi(q, i)
 
                 F_damp = self.get_damping_force(q, v, i)
-                print(f"F_damp {i}: {F_damp}")
                 external_forces[3*i:3*i+3] += F_damp
 
             # pendulum length constraint
@@ -95,7 +96,6 @@ class Pendulum3DModel():
         self.V = ca.Function("V", [q], [V], ["q"], ["V"])
         self.E_total = ca.Function("E_total", [q, v], [T + V], ["q", "v"], ["E_total"])
 
-        print(f"external_forces: {external_forces}")
         qdd = ca.inv(M) @ (external_forces + ca.jacobian(T - V, q).T - ca.transpose(Jc) @ z) # assuming Mdot is 0
         self.f = ca.Function("f", [q, v, z, F], [v, qdd], ["q", "v", "z", "F"], ["qdot", "vdot"])
 
@@ -128,6 +128,29 @@ class Pendulum3DModel():
 
         self.stabilizer = ca.Function("stabilizer", [q, v], [-stabilizer], ["q", "v"], ["stabilizer"])
         self.stabilizer.save("casadi_functions/pendulum_3d_stabilizer.casadi")
+
+    def simulate_step(self, q, v, F, dt, z_init):
+        z = ca.SX.sym("z", self.nb_pendulums)
+        qdot, vdot = self.f(q, v, z, F)
+        g_eq = self.g_eq(q, v, z, F)
+
+        # solve for z using g_eq = 0
+        # solver = ca.rootfinder("solver", "newton", self.g_eq)
+        # z_sol = solver(q=q, v=v, z=ca.SX.zeros(self.nb_pendulums), F=F)
+        opti = ca.Opti()
+        z_var = opti.variable(self.nb_pendulums)
+        opti.minimize(ca.sumsqr(self.g_eq(q, v, z_var, F)))
+        opti.set_initial(z_var, z_init)
+        opti.solver('ipopt')
+        sol = opti.solve()
+        z_sol = sol.value(z_var)
+        qdot = sol.value(qdot)
+        vdot = sol.value(vdot)
+
+        q_next = q + qdot * dt
+        v_next = v + vdot * dt
+
+        return q_next, v_next
 
     def print_model_dimensions(self):
         print(f"Number of pendulums: {self.nb_pendulums}")

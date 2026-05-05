@@ -17,6 +17,15 @@ using namespace fatrop;
 ////                             ////
 /////////////////////////////////////
 /////////////////////////////////////
+// Expected signatures:
+// eval_objk(uk, xk) -> objk
+// eval_objK(xk) -> objK
+// eval_g0(uk, xk) -> g0
+// eval_gk(uk, xk) -> gk
+// eval_gK(xk) -> gK
+// eval_gk_ineq(uk, xk) -> gk_ineq
+// eval_gK_ineq(xk) -> gK_ineq
+// eval_dynamics_equation(uk, xk, xkp) -> f(uk, xk, xkp) == 0
 class ImplicitTestProblem : public ImplicitOcpAbstract{
     public:
         ImplicitTestProblem(Index K, const Index nx, const Index nu, 
