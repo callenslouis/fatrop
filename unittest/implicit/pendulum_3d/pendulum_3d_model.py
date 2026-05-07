@@ -11,9 +11,12 @@ class Pendulum3DModel():
         self.L = L
         self.g = g
 
-        self.actuated_joint_idxs = [self.nb_pendulums-1, self.nb_pendulums-2]
-        if self.nb_pendulums <= 2:
-            self.actuated_joint_idxs = [self.nb_pendulums-1]
+        # self.actuated_joint_idxs = [self.nb_pendulums-1, self.nb_pendulums-2]
+        # if self.nb_pendulums <= 2:
+        #     self.actuated_joint_idxs = [self.nb_pendulums-1]
+        self.actuated_joint_idxs = []
+        for i in range(min(2, self.nb_pendulums)):
+            self.actuated_joint_idxs.append(i)
 
         # self.set_model()
         self.stabilizer = None

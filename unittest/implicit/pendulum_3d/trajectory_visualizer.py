@@ -36,6 +36,15 @@ class TrajectoryVisualizer():
         self.visualize_z_vars()
         self.visualize_energy()
         self.animate_trajectory()
+        
+    def visualize_result(self, T, result, appendix=""):
+        if not result['success']:
+            print(f"Result ({appendix}) was not successful, skipping visualization.")
+            return
+    
+        print(f"Visualizing result ({appendix})...")
+        self.add_data(T=T, q_sol=result['q_sol'], v_sol=result['v_sol'], F_sol=result['F_sol'], z_sol=result['z_sol'])
+        self.visualize_all(appendix=appendix)
 
     def get_point(self, q, i, slice_min=0, slice_max=None):
         if slice_max is None:
@@ -118,12 +127,20 @@ class TrajectoryVisualizer():
                     force_vector = self.F_sol[3*i:3*i+3, frame] * force_scale
                     ax.quiver(point[0], point[1], point[2], force_vector[0], force_vector[1], force_vector[2], color='b')#, normalize=True)
 
-            ax.set_xlim(-1.5, 1.5)
-            ax.set_ylim(-1.5, 1.5)
+            xlim = (-1.5, 1.5)
+            ylim = (-1.5, 1.5)
+            zlim = (-self.model.nb_pendulums-0.5, 0.5)
+            center = ((xlim[0]+xlim[1])/2, (ylim[0]+ylim[1])/2, (zlim[0]+zlim[1])/2)
+            max_range = max(xlim[1]-xlim[0], ylim[1]-ylim[0], zlim[1]-zlim[0]) / 2
+            
+            xlim = (center[0] - max_range, center[0] + max_range)
+            ylim = (center[1] - max_range, center[1] + max_range)
+            ax.set_xlim(*xlim)
+            ax.set_ylim(*ylim)
             ax.set_zlim(-self.model.nb_pendulums-0.5, 0.5)
 
             # show pendulum projection on XZ, YZ and XY planes
-            self.show_pendulum_projection(ax, frame, plane_x=-1.5, plane_y=1.5, plane_z=-self.model.nb_pendulums-0.5)
+            self.show_pendulum_projection(ax, frame, plane_x=xlim[0], plane_y=ylim[1], plane_z=-self.model.nb_pendulums-0.5)
             ax.set_xlabel('X Position (m)')
             ax.set_ylabel('Y Position (m)')
             ax.set_zlabel('Z Position (m)')

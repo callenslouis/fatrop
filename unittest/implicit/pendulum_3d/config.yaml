@@ -1,0 +1,31 @@
+# 3D Pendulum Configuration Parameters
+
+# Problem dimensions
+n: 4   # Number of pendulums
+m: 1   # Default mass
+L: 1   # Default length of pendulum segment
+g: 9.81  # Gravitational acceleration (m/s^2)
+
+# Length stabilization
+stabilizer:
+  use: true  # Whether to add a stabilizer to enforce length constraints
+  gamma_1: 20.0        # Stabilizer gain for position error
+  gamma_2: 2000.0      # Stabilizer gain for velocity error
+
+# Joint stiffness and damping
+stiff_joints:
+  use: true  # Whether to add stiffness and damping to the joints
+  joint_stiffness: 1  # Stiffness coefficient for the joints
+  joint_damping: 4    # Damping coefficient for the joints
+
+# Scenario settings
+scenario:
+  T: 4 # 1   # Total time horizon for the trajectory
+  N: 200 # 200    # Number of time steps in the trajectory
+  tracking: true  # Whether to include tracking terms in the cost function
+
+# visualizations
+visualize: true  # Whether to visualize the results
+
+# simulations
+simulate: false  # Does not work well
