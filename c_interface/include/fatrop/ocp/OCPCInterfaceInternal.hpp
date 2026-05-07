@@ -11,7 +11,8 @@ namespace fatrop
 #include "fatrop/ocp/problem_info.hpp"
 namespace fatrop
 {
-    class FatropOcpCMapping : public Nlp<OcpType>
+    template <typename ProblemType>
+    class FatropOcpCMapping : public Nlp<ProblemType>
     {
     public:
         FatropOcpCInterface *ocp;
@@ -21,9 +22,9 @@ namespace fatrop
         const ProblemDims &problem_dims() const override;
         Index eval_lag_hess(const ProblemInfo &info, const Scalar objective_scale,
                             const VecRealView &primal_x, const VecRealView &primal_s,
-                            const VecRealView &lam, Hessian<OcpType> &hess) override;
+                            const VecRealView &lam, Hessian<ProblemType> &hess) override;
         Index eval_constr_jac(const ProblemInfo &info, const VecRealView &primal_x,
-                              const VecRealView &primal_s, Jacobian<OcpType> &jac) override;
+                              const VecRealView &primal_s, Jacobian<ProblemType> &jac) override;
         Index eval_constraint_violation(const ProblemInfo &info,
                                         const VecRealView &primal_x, const VecRealView &primal_s,
                                         VecRealView &res) override;

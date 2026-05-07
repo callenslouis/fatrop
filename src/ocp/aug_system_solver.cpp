@@ -16,6 +16,8 @@
 #include <chrono>
 #include <fstream>
 using namespace fatrop;
+
+
 void PrintNpArray(MatRealAllocated const &A, std::string name, int m=-1, int n=-1, bool with_name=true, std::ostream& o = std::cout){
     if (m < 0){m = A.m();}
     if (n < 0){n = A.n();}
@@ -41,14 +43,73 @@ void PrintNpArray(MatRealAllocated const &A, std::string name, int m=-1, int n=-
     o << "])" << std::endl;
 }
 
-void PrintNpArray(VecRealAllocated const &v, std::string name){
-    std::cout << name << " = np.transpose(np.array([[";
+void PrintNpArray(VecRealAllocated const &v, std::string name, std::ostream& o = std::cout){
+    o << name << " = np.transpose(np.array([[";
     for (int i = 0; i < v.m(); i++){
-        std::cout << v(i);
-        if (i < v.m() - 1){ std::cout << ",";}
-        std::cout << " ";
+        o << v(i);
+        if (i < v.m() - 1){ o << ",";}
+        o << " ";
     }
-    std::cout << "]]))" << std::endl;
+    o << "]]))" << std::endl;
+}
+
+void WriteJacobianHessianToFile(const ProblemInfo &info, const Jacobian<OcpType> &jac, 
+    const Hessian<OcpType> &hess, const VecRealView& f, const VecRealView& g, 
+    const VecRealView& x, const VecRealView& mult,
+    const std::string &filename_prefix)
+{
+    std::string file_folder = "";
+    std::ofstream jac_file(file_folder + filename_prefix + "_jacobian.py");
+    std::ofstream hess_file(file_folder + filename_prefix + "_hessian.py");
+    std::ofstream f_file(file_folder + filename_prefix + "_f.py");
+    std::ofstream g_file(file_folder + filename_prefix + "_g.py");
+    std::ofstream x_file(file_folder + filename_prefix + "_x.py");
+    std::ofstream mult_file(file_folder + filename_prefix + "_mult.py");
+
+    if (!jac_file.is_open() || !hess_file.is_open() || !f_file.is_open() || !g_file.is_open() || !x_file.is_open() || !mult_file.is_open())
+    {
+        std::cerr << "Error opening file for writing Jacobian or Hessian." << std::endl;
+        return;
+    }
+    jac_file << "import numpy as np" << std::endl;
+    hess_file << "import numpy as np" << std::endl;
+    f_file << "import numpy as np" << std::endl;
+    g_file << "import numpy as np" << std::endl;
+    x_file << "import numpy as np" << std::endl;
+    mult_file << "import numpy as np" << std::endl;
+
+    // Write Jacobian
+    for (Index k = 0; k < info.dims.K; k++)
+    {
+        jac_file << "# Jacobian at stage " << k << ":\n";
+        if (k < info.dims.K - 1){
+            PrintNpArray(jac.BAbt[k], "BAbt_" + std::to_string(k), -1, -1, true, jac_file);
+        }
+        PrintNpArray(jac.Gg_eqt[k], "Gg_eqt_" + std::to_string(k), -1, -1, true, jac_file);
+        PrintNpArray(jac.Gg_ineqt[k], "Gg_ineqt_" + std::to_string(k), -1, -1, true, jac_file);
+        jac_file << "\n";
+    }
+
+    // Write Hessian
+    for (Index k = 0; k < info.dims.K; k++)
+    {
+        hess_file << "# Hessian at stage " << k << ":\n";
+        PrintNpArray(hess.RSQrqt[k], "RSQrqt_" + std::to_string(k), -1, -1, true, hess_file);
+        hess_file << "\n";
+    }
+
+    // Write f, g, x and mult
+    PrintNpArray(f, "f", f_file);
+    PrintNpArray(g, "g", g_file);
+    PrintNpArray(x, "x", x_file);
+    PrintNpArray(mult, "mult", mult_file);
+
+    jac_file.close();
+    hess_file.close();
+    f_file.close();
+    g_file.close();
+    x_file.close();
+    mult_file.close();
 }
 
 void PrintNpArray(VecRealAllocated const &v, int offset, int length, std::string name){
@@ -178,6 +239,15 @@ LinsolReturnFlag AugSystemSolver<OcpType>::solve(const ProblemInfo &info,
                                            const VecRealView &f, const VecRealView &g,
                                            VecRealView &x, VecRealView &eq_mult)
 {
+    // std::cout << "solving here" << std::endl;
+    // WriteJacobianHessianToFile(info, jacobian, hessian, f, g, x, eq_mult, "my_interface");
+    // throw std::runtime_error("aborting");
+    // std::cout << "dims:\n";
+    // std::cout << "\tnx: "; for (auto e : info.dims.number_of_states) { std::cout << e << " ";}
+    // std::cout << "\n\tnu: "; for (auto e : info.dims.number_of_controls) { std::cout << e << " ";}
+    // std::cout << "\n\tng_eq: "; for (auto e : info.dims.number_of_eq_constraints) { std::cout << e << " ";}
+    // std::cout << "\n\tng_ineq: "; for (auto e : info.dims.number_of_ineq_constraints) { std::cout << e << " ";}
+    // std::cout << std::endl;
     MatRealView *RSQrq_hat_curr_p;
     Index rank_k;
     auto intermediate_start = std::chrono::high_resolution_clock::now();
@@ -209,7 +279,7 @@ LinsolReturnFlag AugSystemSolver<OcpType>::solve(const ProblemInfo &info,
             const Index nxp1 = info.dims.number_of_states[k + 1];
             const Index Hp1_size = gamma[k + 1] - rho[k + 1];
             if (Hp1_size + ng > nu + nx)
-                return LinsolReturnFlag::NOFULL_RANK;
+            return LinsolReturnFlag::NOFULL_RANK;
             gamma_k = Hp1_size + ng;
             // AL <- [BAb]^T_k P_kp1
             rowin(nxp1, 1.0, g, offset_eq_dyn, jacobian.BAbt[k], nu + nx, 0);
@@ -577,6 +647,11 @@ LinsolReturnFlag AugSystemSolver<OcpType>::solve(const ProblemInfo &info,
     }
     intermediate_stop = std::chrono::high_resolution_clock::now();
     duration_forward_recursion += std::chrono::duration_cast<std::chrono::nanoseconds>(intermediate_stop - intermediate_start);
+
+    // save solution to a file
+    // WriteJacobianHessianToFile(info, jacobian, hessian, f, g, x, eq_mult, "my_interface");
+    // throw std::runtime_error("aborting");
+
     return LinsolReturnFlag::SUCCESS;
 }
 LinsolReturnFlag AugSystemSolver<OcpType>::solve(const ProblemInfo &info,
@@ -1257,6 +1332,7 @@ LinsolReturnFlag AugSystemSolver<AcceleratedOcpType>::solve(const ProblemInfo &i
                                            const VecRealView &f, const VecRealView &g,
                                            VecRealView &x, VecRealView &eq_mult)
 {
+    // std::cout << "solving AcceleratedOcpType!!" << std::endl;
     // for (Index k = info.dims.K - 1; k >= 0; --k){
     //     std::cout << "Gg_eqt[" << k << "]:\n" << jacobian.Gg_eqt[k] << "\n";
     // }

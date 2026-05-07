@@ -27,11 +27,34 @@
 namespace fatrop
 {
 
-    class OcpSolverDriver;
+    struct PendingOption
+    {
+        std::string name;
+        enum class Type { Double, Int, Bool, String } type;
+        union {
+            double d;
+            int i;
+            bool b;
+        };
+        std::string s; // can't be in union
+    };
+
+    class OcpSolverDriverBase;
 
     struct FatropOcpCSolver
     {
-        OcpSolverDriver *driver;
+        OcpSolverDriverBase *driver;
+        
+        // store driver args
+        FatropOcpCInterface *ocp_interface;
+        FatropOcpCWrite write;
+        FatropOcpCFlush flush;
+
+        std::string problem_type = "unknown";
+        std::vector<PendingOption> pending_options; // options can only be added once ocp type is known, so we store them here until then
+
+
+        void set_problem_type(const std::string &problem_type);
     };
 
 #define FATROP_OCP_SOLVER_IMPLEMENTATION
@@ -76,7 +99,8 @@ namespace fatrop
 
     }
 
-    FatropOcpCMapping::FatropOcpCMapping(FatropOcpCInterface *ocp)
+    template <typename ProblemType>
+    FatropOcpCMapping<ProblemType>::FatropOcpCMapping(FatropOcpCInterface *ocp)
         : ocp(ocp), ocp_dims_(FatropOcpCAuxiliary::get_ocp_dims(*ocp)),
           nlp_dims_(FatropOcpCAuxiliary::get_nlp_dims(ocp_dims_)), K_(ocp_dims_.K),
           matrix_buffer_{std::vector<MAT *>(K_), std::vector<MAT *>(K_), std::vector<MAT *>(K_)}
@@ -95,12 +119,15 @@ namespace fatrop
         }
     }
 
-    const NlpDims &FatropOcpCMapping::nlp_dims() const { return nlp_dims_; };
-    const ProblemDims &FatropOcpCMapping::problem_dims() const { return ocp_dims_; };
-    Index FatropOcpCMapping::eval_lag_hess(const ProblemInfo &info,
+    template <typename ProblemType>
+    const NlpDims &FatropOcpCMapping<ProblemType>::nlp_dims() const { return nlp_dims_; };
+    template <typename ProblemType>
+    const ProblemDims &FatropOcpCMapping<ProblemType>::problem_dims() const { return ocp_dims_; };
+    template <typename ProblemType>
+    Index FatropOcpCMapping<ProblemType>::eval_lag_hess(const ProblemInfo &info,
                                            const Scalar objective_scale,
                                            const VecRealView &primal_x, const VecRealView &primal_s,
-                                           const VecRealView &lam, Hessian<OcpType> &hess)
+                                           const VecRealView &lam, Hessian<ProblemType> &hess)
     {
         // take the matrices from hess and put them in the buffer
         std::vector<MAT *> &RSQrqt_buff = matrix_buffer_[0];
@@ -135,9 +162,10 @@ namespace fatrop
         }
         return 0;
     }
-    Index FatropOcpCMapping::eval_constr_jac(const ProblemInfo &info,
+    template <typename ProblemType>
+    Index FatropOcpCMapping<ProblemType>::eval_constr_jac(const ProblemInfo &info,
                                              const VecRealView &primal_x,
-                                             const VecRealView &primal_s, Jacobian<OcpType> &jac)
+                                             const VecRealView &primal_s, Jacobian<ProblemType> &jac)
     {
         // take the matrices from jac and put them in the buffer
         std::vector<MAT *> &BAbt_buff = matrix_buffer_[0];
@@ -180,7 +208,8 @@ namespace fatrop
         }
         return 0;
     }
-    Index FatropOcpCMapping::eval_constraint_violation(const ProblemInfo &info,
+    template <typename ProblemType>
+    Index FatropOcpCMapping<ProblemType>::eval_constraint_violation(const ProblemInfo &info,
                                                        const VecRealView &primal_x,
                                                        const VecRealView &primal_s,
                                                        VecRealView &res)
@@ -223,11 +252,12 @@ namespace fatrop
             primal_s.block(info.number_of_g_eq_slack, 0);
         return 0;
     }
-    Index FatropOcpCMapping::eval_objective_gradient(const ProblemInfo &info,
-                                                     const Scalar objective_scale,
-                                                     const VecRealView &primal_x,
-                                                     const VecRealView &primal_s,
-                                                     VecRealView &grad_x, VecRealView &grad_s)
+    template <typename ProblemType>
+    Index FatropOcpCMapping<ProblemType>::eval_objective_gradient(const ProblemInfo &info,
+                                                                     const Scalar objective_scale,
+                                                                     const VecRealView &primal_x,
+                                                                     const VecRealView &primal_s,
+                                                                     VecRealView &grad_x, VecRealView &grad_s)
     {
         // get the double pointers for the vector views
         const Scalar *primal_x_ptr = primal_x.data();
@@ -254,7 +284,8 @@ namespace fatrop
         }
         return 0;
     }
-    Index FatropOcpCMapping::eval_objective(const ProblemInfo &info,
+    template <typename ProblemType>
+    Index FatropOcpCMapping<ProblemType>::eval_objective(const ProblemInfo &info,
                                             const Scalar objective_scale,
                                             const VecRealView &primal_x,
                                             const VecRealView &primal_s, Scalar &res)
@@ -284,8 +315,9 @@ namespace fatrop
         }
         return 0;
     }
-    Index FatropOcpCMapping::get_bounds(const ProblemInfo &info, VecRealView &lower_bounds,
-                                        VecRealView &upper_bounds)
+    template <typename ProblemType>
+    Index FatropOcpCMapping<ProblemType>::get_bounds(const ProblemInfo &info, VecRealView &lower_bounds,
+                                                     VecRealView &upper_bounds)
     {
         if (info.number_of_slack_variables == 0)
             return 0;
@@ -299,8 +331,9 @@ namespace fatrop
         }
         return 0;
     }
-    Index FatropOcpCMapping::get_initial_primal(const ProblemInfo &info,
-                                                VecRealView &primal_x)
+    template <typename ProblemType>
+    Index FatropOcpCMapping<ProblemType>::get_initial_primal(const ProblemInfo &info,
+                                                             VecRealView &primal_x)
     {
         Scalar *primal_x_ptr = primal_x.data();
         for (Index k = 0; k < info.dims.K; k++)
@@ -312,15 +345,17 @@ namespace fatrop
         }
         return 0;
     }
-    void FatropOcpCMapping::get_primal_damping(const ProblemInfo &info,
-                                               VecRealView &damping)
+    template <typename ProblemType>
+    void FatropOcpCMapping<ProblemType>::get_primal_damping(const ProblemInfo &info,
+                                                            VecRealView &damping)
     {
         damping = 0.0;
     }
-    void FatropOcpCMapping::apply_jacobian_s_transpose(const ProblemInfo &info,
-                                                       const VecRealView &multipliers,
-                                                       const Scalar alpha, const VecRealView &y,
-                                                       VecRealView &out)
+    template <typename ProblemType>
+    void FatropOcpCMapping<ProblemType>::apply_jacobian_s_transpose(const ProblemInfo &info,
+                                                                    const VecRealView &multipliers,
+                                                                    const Scalar alpha, const VecRealView &y,
+                                                                    VecRealView &out)
     {
         out = alpha * y;
         out.block(info.number_of_slack_variables, 0) =
@@ -386,19 +421,47 @@ namespace fatrop
         }
     };
 
-    class OcpSolverDriver
+    struct OcpSolverDriverBase
+    {
+        // constructor
+        OcpSolverDriverBase(FatropOcpCInterface *ocp_interface, FatropOcpCWrite write,
+                            FatropOcpCFlush flush)
+            : stream(write, flush)
+        {
+        }
+
+        virtual fatrop_int solve() = 0;
+        virtual ~OcpSolverDriverBase() = default;
+
+        virtual const VecRealView &solution_primal() const = 0;
+        virtual const VecRealView &solution_dual() const = 0;
+
+        virtual IpTimingStatistics &timing_statistics() const = 0;
+        virtual Index iteration_number() const = 0;
+
+        virtual FatropOcpCDims& s() const = 0;
+
+
+        OptionRegistry options;
+        FatropOcpCStream stream;
+        FatropOcpCStats stats;
+        IpSolverReturnFlag flag;
+    };
+
+    template <typename ProblemType>
+    class OcpSolverDriver : public OcpSolverDriverBase
     {
     public:
         OcpSolverDriver(FatropOcpCInterface *ocp_interface, FatropOcpCWrite write,
                         FatropOcpCFlush flush)
-            : stream(write, flush), m(std::make_shared<FatropOcpCMapping>(ocp_interface))
+            : OcpSolverDriverBase(ocp_interface, write, flush), m(std::make_shared<FatropOcpCMapping<ProblemType>>(ocp_interface))
         {
             // set the stream
             if (write != 0)
             {
                 OutputStreamManager::set_stream(std::make_unique<FatropOcpCStream>(write, flush));
             }
-            IpAlgBuilder<OcpType> builder(m);
+            IpAlgBuilder<ProblemType> builder(m);
             algo = builder.with_options_registry(&options).build();
             ip_data = builder.get_ipdata();
             m->s.nx = algo->info().dims.number_of_states.data();
@@ -432,26 +495,41 @@ namespace fatrop
             }
             return 1;
         }
+
+        const VecRealView &solution_primal() const override { return algo->solution_primal(); }
+        const VecRealView &solution_dual() const override { return algo->solution_dual(); }
+        IpTimingStatistics &timing_statistics() const override { return ip_data->timing_statistics(); }
+        Index iteration_number() const override { return ip_data->iteration_number(); }
+        FatropOcpCDims& s() const override { return m->s; }
+
         // std::shared_ptr<FatropPrinter> printer() { return app.printer_; }
-        FatropOcpCStream stream;
-        std::shared_ptr<FatropOcpCMapping> m;
-        FatropOcpCStats stats;
-        OptionRegistry options;
-        std::shared_ptr<IpAlgorithm<OcpType>> algo;
-        std::shared_ptr<IpData<OcpType>> ip_data;
-        IpSolverReturnFlag flag;
+        std::shared_ptr<FatropOcpCMapping<ProblemType>> m;
+        std::shared_ptr<IpAlgorithm<ProblemType>> algo;
+        std::shared_ptr<IpData<ProblemType>> ip_data;
     };
 
     FatropOcpCSolver *fatrop_ocp_c_create(FatropOcpCInterface *ocp_interface, FatropOcpCWrite write,
                                           FatropOcpCFlush flush)
     {
         FatropOcpCSolver *ret = new FatropOcpCSolver();
-        ret->driver = new OcpSolverDriver(ocp_interface, write, flush);
+        // skip construction of driver since we do not know yet which ocp type is used
+        // instead, store the arguments
+        ret->ocp_interface = ocp_interface;
+        ret->write = write;
+        ret->flush = flush;
+
+        // ret->driver = new OcpSolverDriver<OcpType>(ocp_interface, write, flush);
+        // ret->driver = new OcpSolverDriver<AcceleratedOcpType>(ocp_interface, write, flush);
         return ret;
     }
 
     int fatrop_ocp_c_set_option_double(FatropOcpCSolver *s, const char *name, double val)
     {
+        if (!s->driver){
+            // driver is not yet constructed, so we store the option for later
+            s->pending_options.push_back(PendingOption{std::string(name), PendingOption::Type::Double, .d = val});
+            return 0;
+        }
         // Backwards compatibility with v0.0.4
         if (std::string(name)=="tol") {
             s->driver->options.set_option<double>("tolerance", val);
@@ -463,18 +541,42 @@ namespace fatrop
 
     int fatrop_ocp_c_set_option_bool(FatropOcpCSolver *s, const char *name, int val)
     {
+        if (!s->driver){
+            // driver is not yet constructed, so we store the option for later
+            s->pending_options.push_back(PendingOption{std::string(name), PendingOption::Type::Bool, .b = static_cast<bool>(val)});
+            return 0;
+        }
         s->driver->options.set_option<bool>(name, val);
         return 0;
     }
 
     int fatrop_ocp_c_set_option_int(FatropOcpCSolver *s, const char *name, int val)
     {
+        if (!s->driver){
+            // driver is not yet constructed, so we store the option for later
+            s->pending_options.push_back(PendingOption{std::string(name), PendingOption::Type::Int, .i = val});
+            return 0;
+        }
         s->driver->options.set_option<int>(name, val);
         return 0;
     }
 
     int fatrop_ocp_c_set_option_string(FatropOcpCSolver *s, const char *name, const char *val)
     {
+        if (std::string(name)=="problem_type") {
+            // we can set the driver
+            if (s->driver) {
+                std::cerr << "Error: problem type seems to be set multiple times" << std::endl;
+                return -1;
+            }
+            s->set_problem_type(std::string(val));
+            return 0;
+        }
+        if (!s->driver){
+            // driver is not yet constructed, so we store the option for later
+            s->pending_options.push_back(PendingOption{std::string(name), PendingOption::Type::String, .s = std::string(val)});
+            return 0;
+        }
         s->driver->options.set_option<std::string>(name, std::string(val));
         return 0;
     }
@@ -482,17 +584,21 @@ namespace fatrop
     const blasfeo_dvec *fatrop_ocp_c_get_primal(FatropOcpCSolver *s)
     {
         // todo implement
-        return static_cast<const blasfeo_dvec *>(&s->driver->algo->solution_primal().vec());
+        return static_cast<const blasfeo_dvec *>(&s->driver->solution_primal().vec());
     }
 
     const blasfeo_dvec *fatrop_ocp_c_get_dual(FatropOcpCSolver *s)
     {
         // todo implement
-        return static_cast<const blasfeo_dvec *>(&s->driver->algo->solution_dual().vec());
+        return static_cast<const blasfeo_dvec *>(&s->driver->solution_dual().vec());
     }
 
     int fatrop_ocp_c_solve(FatropOcpCSolver *s)
     {
+        if (!s->driver){
+            // driver has not yet been constructed, do it now
+            s->set_problem_type("ocp_type");
+        }
         try
         {
             return s->driver->solve();
@@ -625,36 +731,74 @@ namespace fatrop
             return 2;
         if (n == "linsol_increased_accuracy")
             return 2;
+        if (n == "problem_type")
+            return 3;
         return -1;
     }
 
     const struct FatropOcpCDims *fatrop_ocp_c_get_dims(struct FatropOcpCSolver *s)
     {
-        return &s->driver->m->s;
+        return &s->driver->s();
     }
 
     const FatropOcpCStats *fatrop_ocp_c_get_stats(struct FatropOcpCSolver *s)
     {
         FatropOcpCStats *stats = &s->driver->stats;
 
-        stats->compute_sd_time = s->driver->ip_data->timing_statistics().compute_search_dir.elapsed();
+        stats->compute_sd_time = s->driver->timing_statistics().compute_search_dir.elapsed();
         stats->duinf_time = 0.;
-        stats->eval_hess_time = s->driver->ip_data->timing_statistics().eval_hessian.elapsed();
-        stats->eval_jac_time = s->driver->ip_data->timing_statistics().eval_jacobian.elapsed();
-        stats->eval_cv_time = s->driver->ip_data->timing_statistics().eval_constraint_violation.elapsed();
-        stats->eval_grad_time = s->driver->ip_data->timing_statistics().eval_gradient.elapsed();
-        stats->eval_obj_time = s->driver->ip_data->timing_statistics().eval_objective.elapsed();
-        stats->initialization_time = s->driver->ip_data->timing_statistics().initialization.elapsed();
-        stats->time_total = s->driver->ip_data->timing_statistics().full_algorithm.elapsed();
+        stats->eval_hess_time = s->driver->timing_statistics().eval_hessian.elapsed();
+        stats->eval_jac_time = s->driver->timing_statistics().eval_jacobian.elapsed();
+        stats->eval_cv_time = s->driver->timing_statistics().eval_constraint_violation.elapsed();
+        stats->eval_grad_time = s->driver->timing_statistics().eval_gradient.elapsed();
+        stats->eval_obj_time = s->driver->timing_statistics().eval_objective.elapsed();
+        stats->initialization_time = s->driver->timing_statistics().initialization.elapsed();
+        stats->time_total = s->driver->timing_statistics().full_algorithm.elapsed();
         stats->eval_hess_count = 0.;
         stats->eval_jac_count = 0.;
         stats->eval_cv_count = 0.;
         stats->eval_grad_count = 0.;
         stats->eval_obj_count = 0.;
-        stats->iterations_count = s->driver->ip_data->iteration_number();
+        stats->iterations_count = s->driver->iteration_number();
         stats->return_flag = int(s->driver->flag);
 
         return stats;
     }
+
+        inline void FatropOcpCSolver::set_problem_type(const std::string &problem_type){
+        this->problem_type = problem_type;
+        std::cout << "Creating OcpSolver Driver for problem type: " << problem_type << std::endl;
+        if (problem_type == "ocp_type"){
+            this->driver = new OcpSolverDriver<OcpType>(ocp_interface, write, flush);
+        } else if (problem_type == "accelerated_ocp_type"){
+            this->driver = new OcpSolverDriver<AcceleratedOcpType>(ocp_interface, write, flush);
+        } else {
+            throw std::runtime_error("Unknown problem type: " + problem_type);
+        }
+        // set the pending options
+        for (const auto &option : pending_options){
+            switch (option.type){
+                case PendingOption::Type::Double:
+                    fatrop_ocp_c_set_option_double(this, option.name.c_str(), option.d);
+                    break;
+                case PendingOption::Type::Int:
+                    fatrop_ocp_c_set_option_int(this, option.name.c_str(), option.i);
+                    break;
+                case PendingOption::Type::Bool:
+                    fatrop_ocp_c_set_option_bool(this, option.name.c_str(), option.b);
+                    break;
+                case PendingOption::Type::String:
+                    fatrop_ocp_c_set_option_string(this, option.name.c_str(), option.s.c_str());
+                    break;
+            }
+        }
+        // clear pending options
+        pending_options.clear();
+    };
+
+    template class FatropOcpCMapping<OcpType>;
+    template class FatropOcpCMapping<AcceleratedOcpType>;
+    template class OcpSolverDriver<OcpType>;
+    template class OcpSolverDriver<AcceleratedOcpType>;
 
 }
