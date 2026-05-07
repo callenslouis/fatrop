@@ -240,11 +240,16 @@ void PrintStatistics(std::vector<bool> solved_flags, std::vector<json> results) 
 
 void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     bool STORE_SOLUTION = true;
-    bool USE_CODEGEN = true;
+    bool USE_CODEGEN = false;
+    std::cout << "preparing implicit" << std::endl;
     auto tp_impl = std::make_shared<ImplicitTestProblem>(generator->PrepareImplicit());
+    std::cout << "preparing root finder" << std::endl;
     auto tp_rf = std::make_shared<ExplicitTestProblem>(generator->PrepareRootFinder());
+    std::cout << "preparing reformulated" << std::endl;
     auto tp_reform = std::make_shared<ExplicitTestProblem>(generator->PrepareReformulated());
+    std::cout << "preparing explicit" << std::endl;
     auto tp_expl = std::make_shared<ExplicitTestProblem>(generator->PrepareExplicit());
+    std::cout << "preparing accelerated" << std::endl;
     auto tp_accel = std::make_shared<ExplicitTestProblem>(generator->PrepareReformulated());
     tp_impl->use_codegen(USE_CODEGEN);
     // tp_rf->use_codegen(USE_CODEGEN);
@@ -287,10 +292,10 @@ void SolveProblem(std::unique_ptr<InterfaceGenerator> &generator){
     bool solved_expl = false, solved_reform = false, solved_impl = false, solved_rf = false, solved_accel = false;
     
     bool skip_expl = false;
-    bool skip_reform = false;
+    bool skip_reform = true;
     bool skip_impl = true;
     bool skip_rf = true;
-    bool skip_accel = false;
+    bool skip_accel = true;
 
     // EXPLICIT
     if (!skip_expl){
