@@ -57,11 +57,11 @@ which leads to a specific structure in the stage-wise equality constraint jacobi
     \begin{bNiceMatrix}[first-row, first-col, last-col=3]
         & n_u & n_x & \\
         & M_1 &     & n_g\\ 
-        & M_2 & M_3 & n_x
+        & M_2 & M_3 & n_f
     \end{bNiceMatrix}
     \label{eq:Hu}
 \end{align}
-where $M_1 \in \mathbb{R}^{n_g \times n_u}$, $M_2 \in \mathbb{R}^{n_x \times n_u}$, and $M_3 \in \mathbb{R}^{n_x \times n_x}$.
+where $M_1 \in \mathbb{R}^{n_g \times n_u}$, $M_2 \in \mathbb{R}^{n_f \times n_u}$, and $M_3 \in \mathbb{R}^{n_f \times n_x}$.
 
 Instead of a lower triangular structure, an upper triangulare structure for $H_u$ is also possible, in which case we write
 \begin{align}
@@ -74,12 +74,12 @@ Instead of a lower triangular structure, an upper triangulare structure for $H_u
     % \begin{bmatrix} M_1 & M_2\\ & M_3 \end{bmatrix}
     \begin{bNiceMatrix}[first-row, first-col, last-col=3]
         & n_x & n_u & \\
-        & M_1 &     & n_x\\ 
-        & M_2 & M_3 & n_g\\ 
+        & M_1 & M_2 & n_f\\ 
+        &     & M_3 & n_g\\ 
     \end{bNiceMatrix}
     \label{eq:Hu-upper}
 \end{align}
-where $M_1 \in \mathbb{R}^{n_x \times n_x}$, $M_2 \in \mathbb{R}^{n_x \times n_u}$, and $M_3 \in \mathbb{R}^{n_g \times n_u}$.
+where $M_1 \in \mathbb{R}^{n_f \times n_x}$, $M_2 \in \mathbb{R}^{n_f \times n_u}$, and $M_3 \in \mathbb{R}^{n_g \times n_u}$.
 
 In some cases, constraints on $x_{k+1}$ are transferred to stage $k$ using the dynamics equations. If the definition of \eqref{eq:Hu} is used, that leads to an augmented matrix 
 \begin{equation}
@@ -94,7 +94,7 @@ In some cases, constraints on $x_{k+1}$ are transferred to stage $k$ using the d
     \begin{bNiceMatrix}[first-row, first-col, last-col=3]
         & n_u & n_x & \\
         & M_1 &     & n_g\\ 
-        & M_2 & M_3 & n_x\\ 
+        & M_2 & M_3 & n_f\\ 
         & & M_4 & n_c
     \end{bNiceMatrix} \label{eq:Hu-carry}
 \end{equation}
@@ -139,67 +139,67 @@ where
 \end{align}
 Define 
 \begin{align}
-    \tilde{L} &\coloneqq \begin{bmatrix} K_1 & & \\ K_2 & \bm{I}_{n_g-\rho} & \\ & & \bm{I}_{n_x+n_c} \end{bmatrix}
+    \tilde{L} &\coloneqq \begin{bmatrix} K_1 & & \\ K_2 & \bm{I}_{n_g-\rho} & \\ & & \bm{I}_{n_f+n_c} \end{bmatrix}
     & &\text{such that} &
-    \tilde{L}^{-1} &= \begin{bmatrix} K_1^{-1} & & \\ -K_2 K_1^{-1} & \bm{I}_{n_g-\rho} & \\ & & \bm{I}_{n_x+n_c} \end{bmatrix}
+    \tilde{L}^{-1} &= \begin{bmatrix} K_1^{-1} & & \\ -K_2 K_1^{-1} & \bm{I}_{n_g-\rho} & \\ & & \bm{I}_{n_f+n_c} \end{bmatrix}
 \end{align}
 which leads to
 \begin{equation}
     \tilde{L}^{-1} 
-    \begin{bmatrix} P_1 & \\ & \bm{I}_{n_x+n_c} \end{bmatrix} 
+    \begin{bmatrix} P_1 & \\ & \bm{I}_{n_f+n_c} \end{bmatrix} 
     H_u
     \begin{bmatrix} Q_1 & \\ & \bm{I}_{n_x} \end{bmatrix} 
     = \begin{bNiceMatrix}[first-row, first-col, last-col=4]
         & \rho & n_u - \rho & n_x & \\
         & V_1 & V_2 & & \rho \\
         & &  & & n_g-\rho\\ 
-        & (\tilde{M}_2)_1 & (\tilde{M}_2)_2 & M_3 & n_x\\ 
+        & (\tilde{M}_2)_1 & (\tilde{M}_2)_2 & M_3 & n_f\\ 
         & & & M_4 & n_c
     \end{bNiceMatrix}
 \end{equation}
-where $\begin{bmatrix} (\tilde{M}_2)_1 &(\tilde{M}_2)_2 \end{bmatrix} = M_2 Q_1$ with $(\tilde{M}_2)_1 \in \mathbb{R}^{n_x \times \rho}$ and $(\tilde{M}_2)_2 \in \mathbb{R}^{n_x \times n_x - \rho}$.
+where $\begin{bmatrix} (\tilde{M}_2)_1 &(\tilde{M}_2)_2 \end{bmatrix} = M_2 Q_1$ with $(\tilde{M}_2)_1 \in \mathbb{R}^{n_f \times \rho}$ and $(\tilde{M}_2)_2 \in \mathbb{R}^{n_f \times n_x - \rho}$.
 
 Continuing gaussian elimination, we can obtain
 \begin{align}
-    \hat{L} &\coloneqq \begin{bmatrix} K_1 & & & \\ K_2 & \bm{I}_{n_g-\rho} & & \\ K_3 & & \bm{I}_{n_x} & \\ & & & \bm{I}_{n_c}\end{bmatrix}
+    \hat{L} &\coloneqq \begin{bmatrix} K_1 & & & \\ K_2 & \bm{I}_{n_g-\rho} & & \\ K_3 & & \bm{I}_{n_f} & \\ & & & \bm{I}_{n_c}\end{bmatrix}
     & &\text{such that} &
-    \hat{L}^{-1} &= \begin{bmatrix} K_1^{-1} & & &\\ -K_2 K_1^{-1} & \bm{I}_{n_g-\rho} & &\\ -K_3 K_1^{-1} & & \bm{I}_{n_x}& \\ & & & \bm{I}_{n_c} \end{bmatrix}
+    \hat{L}^{-1} &= \begin{bmatrix} K_1^{-1} & & &\\ -K_2 K_1^{-1} & \bm{I}_{n_g-\rho} & &\\ -K_3 K_1^{-1} & & \bm{I}_{n_f}& \\ & & & \bm{I}_{n_c} \end{bmatrix}
 \end{align}
 using $K_3 \coloneqq (\tilde{M}_2)_1 V_1^{-1}$, which leads to
 \begin{equation}
     \hat{L}^{-1} 
-    \begin{bmatrix} P_1 & \\ & \bm{I}_{n_x+n_c} \end{bmatrix} 
+    \begin{bmatrix} P_1 & \\ & \bm{I}_{n_f+n_c} \end{bmatrix} 
     H_u
     \begin{bmatrix} Q_1 & \\ & \bm{I}_{n_x} \end{bmatrix} 
     = \begin{bNiceMatrix}[first-row, first-col, last-col=4]
         & \rho & n_u - \rho & n_x & \\
         & V_1 & V_2 & & \rho\\
         & &  & & n_g - \rho\\
-        & & K_4 & M_3 & n_x\\
+        & & K_4 & M_3 & n_f\\
         & & & M_4 & n_c
     \end{bNiceMatrix}
 \end{equation}
 where $K_4 \coloneqq (\tilde{M}_2)_2 - K_3 V_2$. Because of the zero-row, we must perform row pivoting in order to continue the decomposition. Hence, define
 \begin{equation}
-    \tilde{P} \coloneqq \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_x+n_c}\\ & \bm{I}_{n_g-\rho} & \end{bmatrix}
+    \tilde{P} \coloneqq \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_f+n_c}\\ & \bm{I}_{n_g-\rho} & \end{bmatrix}
 \end{equation}
 leading to
 \begin{equation}
     \tilde{P}
     \hat{L}^{-1}
     \tilde{P}^\top \tilde{P} 
-    \begin{bmatrix} P_1 & \\ & \bm{I}_{n_x+n_c} \end{bmatrix} 
+    \begin{bmatrix} P_1 & \\ & \bm{I}_{n_f+n_c} \end{bmatrix} 
     H_u
     \begin{bmatrix} Q_1 & \\ & \bm{I}_{n_x} \end{bmatrix} 
     = \begin{bNiceMatrix}[first-row, first-col, last-col=4]
         & \rho & n_u - \rho & n_x & \\
         & V_1 & V_2 & & \rho\\
-        & & K_4 & M_3 & n_x\\
+        & & K_4 & M_3 & n_f\\
         & & & M_4 & n_c\\
         & &  & & n_g-\rho\\
     \end{bNiceMatrix}
 \end{equation}
-using the fact that $\tilde{P}^\top \tilde{P} = \bm{I}_{n_x + n_c + n_g}$. Now, a remaining LU-decomposition should be performed on the matrix $\begin{bmatrix} K_4 & M_3\\ & M_4\end{bmatrix}$ such that
+using the fact that $\tilde{P}^\top \tilde{P} = \bm{I}_{n_f + n_c + n_g}$. Now, a remaining LU-decomposition should be performed on the matrix $\begin{bmatrix} K_4 & M_3\\ & M_4\end{bmatrix}$ such that
 \begin{equation}
     P_2 \begin{bmatrix} K_4 & M_3\\ & M_4\end{bmatrix} Q_2 = L_2 U_2
 \end{equation}
@@ -215,15 +215,15 @@ Finally, the decomposition of is given by
 \begin{equation}
     P H_u Q = 
     \begin{bNiceMatrix}[first-row, first-col]
-        & \rho & n_x + n_c & n_g-\rho\\ 
+        & \rho & n_f + n_c & n_g-\rho\\ 
         \rho & K_1 & & \\
-        n_x + n_c & \tilde{K}_3 & L_2 & \\ 
+        n_f + n_c & \tilde{K}_3 & L_2 & \\ 
         n_g-\rho & K_2 &  & \bm{I}_{n_g-\rho}
     \end{bNiceMatrix}
     \begin{bNiceMatrix}[first-row, first-col, last-col=3]
         & \rho & n_u - \rho + n_x & \\
         & V_1 & \tilde{V}_2 & \rho \\
-        & & U_2 & n_x + n_c\\
+        & & U_2 & n_f + n_c\\
         & & \bm{0} & n_g - \rho
     \end{bNiceMatrix}
     \label{eq:final_decomposition-carry}
@@ -232,8 +232,8 @@ and
 \begin{align}
     P &= 
     \begin{bmatrix} \bm{I}_\rho & & \\ & P_2 & \\ & & \bm{I}_{n_g-\rho} \end{bmatrix}
-    \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_x+n_c} \\ & \bm{I}_{n_g-\rho} & \end{bmatrix}
-    \begin{bmatrix} P_1 & \\ & \bm{I}_{n_x+n_c} \end{bmatrix}\\
+    \begin{bmatrix} \bm{I}_\rho & & \\ & & \bm{I}_{n_f+n_c} \\ & \bm{I}_{n_g-\rho} & \end{bmatrix}
+    \begin{bmatrix} P_1 & \\ & \bm{I}_{n_f+n_c} \end{bmatrix}\\
     Q &= \begin{bmatrix} Q_1 & \\ & \bm{I}_{n_x}\end{bmatrix} \begin{bmatrix}\bm{I}_\rho &\\ & Q_2 \end{bmatrix}
 \end{align}
 
@@ -263,22 +263,22 @@ and
 To verify \eqref{eq:final_decomposition-carry}, compute both the left and right-hand side. The right-hand side is given by
 \begin{equation}
     \begin{bNiceMatrix}[first-row, first-col]
-        & \rho & n_x + n_c & n_g-\rho\\ 
+        & \rho & n_f + n_c & n_g-\rho\\ 
         \rho & K_1 & & \\
-        n_x + n_c & \tilde{K}_3 & L_2 & \\ 
+        n_f + n_c & \tilde{K}_3 & L_2 & \\ 
         n_g-\rho & K_2 &  & \bm{I}_{n_g-\rho}
     \end{bNiceMatrix}
     \begin{bNiceMatrix}[first-row, first-col, last-col=3]
         & \rho & n_u - \rho + n_x & \\
         & V_1 & \tilde{V}_2 & \rho \\
-        & & U_2 & n_x + n_c\\
+        & & U_2 & n_f + n_c\\
         & & \bm{0} & n_g - \rho
     \end{bNiceMatrix}
     = 
     \begin{bNiceMatrix}[first-row, first-col, last-col=3]
         & \rho & n_u - \rho + n_x & \\
         & K_1 V_1 & K_1 \tilde{V}_2 & \rho \\
-        & \tilde{K}_3 V_1 & \tilde{K}_3 \tilde{V}_2 + L_2 U_2 & n_x + n_c\\
+        & \tilde{K}_3 V_1 & \tilde{K}_3 \tilde{V}_2 + L_2 U_2 & n_f + n_c\\
         & K_2 V_1 & K_2 \tilde{V}_2 & n_u - \rho
     \end{bNiceMatrix}
     \label{eq:right-hand-side-carry}
@@ -292,7 +292,7 @@ where
 
 The left-hand side can be using the definitions
 \begin{align}
-    X_1 \coloneqq \begin{bmatrix} P_1 & \\ & \bm{I}_{n_x} \end{bmatrix}
+    X_1 \coloneqq \begin{bmatrix} P_1 & \\ & \bm{I}_{n_f + n_c} \end{bmatrix}
     H_u
     \begin{bmatrix} Q_1 & \\ & \bm{I}_{n_x}\end{bmatrix}
     &= \begin{bmatrix} P_1 M_1 Q_1 & P_1 M_2 \\ & M_3 \end{bmatrix}
