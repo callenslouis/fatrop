@@ -1,3 +1,5 @@
+from asyncio import subprocess
+
 from casadi import *
 import numpy as np
 import json
@@ -32,7 +34,7 @@ def SolveAccelerated(solver, q0, v0, T, N):
     return solver.solve_baked_trajectory(q0=q0, v0=v0, T=T, N=N)
 
 class TrajectorySolver():
-    def __init__(self, model, implicit=False):
+    def __init__(self, model, config, implicit=False):
         # load models
         self.model = model
         self.implicit = implicit
@@ -40,7 +42,11 @@ class TrajectorySolver():
         self.accelerated = False
 
         # ocp params
-        self.force_bounds = 50
+        self.force_bounds = config['scenario']['force_bounds']
+        
+        # opti params
+        self.opti_to_function = config['opti']['to_function']
+        self.opti_code_generate = config['opti']['code_generate']
 
         # ocp scenario
         self.tracking = False
@@ -55,16 +61,29 @@ class TrajectorySolver():
         t = SX.sym("t")
         T = SX.sym("T")
         q0 = SX.sym("q0", 3*self.model.nb_pendulums)
-        R_sq = 0.25*sumsqr(self.model.get_joint_pos(q0, self.tracking_mass_index)[:2])
+        
+        ### circle
+        # R_sq = sumsqr(self.model.get_joint_pos(q0, self.tracking_mass_index)[:2])
+        # center = vertcat(0, 0, self.model.get_joint_pos(q0, self.tracking_mass_index)[2])
+        # phase_0 = atan2(self.model.get_joint_pos(q0, self.tracking_mass_index)[1], self.model.get_joint_pos(q0, self.tracking_mass_index)[0])
+
+        # nb_circles = 0.5
+        # ref_point = center + \
+        #     vertcat(cos(2*np.pi*t/T*nb_circles + phase_0), 
+        #                sin(2*np.pi*t/T*nb_circles + phase_0), 
+        #                0)*sqrt(R_sq)
+        
+        ### lemniscate
+        R = 0.5
         center = vertcat(0, 0, self.model.get_joint_pos(q0, self.tracking_mass_index)[2])
-        phase_0 = atan2(self.model.get_joint_pos(q0, self.tracking_mass_index)[1], self.model.get_joint_pos(q0, self.tracking_mass_index)[0])
-
-        nb_circles = 1.0
-        ref_point = center + \
-            vertcat(cos(2*np.pi*t/T*nb_circles*2 + phase_0), 
-                       sin(2*np.pi*t/T*nb_circles + phase_0), 
-                       0)*sqrt(R_sq)
-
+        phase_0 = pi/2
+        nb_lemniscates = 0.5
+        s = sin(2*pi*t/T*nb_lemniscates + phase_0)
+        c = cos(2*pi*t/T*nb_lemniscates + phase_0)
+        x = R*c/(1+ s**2)
+        y = R*s*c/(1+ s**2)
+        ref_point = center + vertcat(x, y, 0)
+        
         self.path_func = Function("path_func", [t, T, q0], [ref_point], ['t', 'T', 'q0'], ['ref_point'])
 
     def get_q_rest(self):
@@ -78,7 +97,7 @@ class TrajectorySolver():
         q_sol = xx[:3*self.model.nb_pendulums, :]
         v_sol = xx[3*self.model.nb_pendulums:6*self.model.nb_pendulums, :]
         p_sol = xx[6*self.model.nb_pendulums:, :]
-        F_sol = uu[3*self.tracking + 1:, :]
+        F_sol = uu[3*self.tracking + 1:3*self.tracking + 1 + 3*len(self.model.actuated_joint_idxs), :]
         z_sol = uu[3*self.tracking:3*self.tracking + self.model.nb_pendulums, :]
         return q_sol, v_sol, F_sol, z_sol
     
@@ -99,7 +118,8 @@ class TrajectorySolver():
         s = SX.sym("s", 3*self.tracking)
         z = SX.sym("z", 1*self.model.nb_pendulums)
         F = SX.sym("F", 3*len(self.model.actuated_joint_idxs))
-        uk = vertcat(s, z, F)
+        dp = SX.sym("dp", 0*1*self.tracking)
+        uk = vertcat(s, z, F, dp)
         uk_true = uk
         
         # reformulation trick
@@ -113,10 +133,11 @@ class TrajectorySolver():
         self.funcs = {}
 
         # objective
-        objk = 1e-2*sumsqr(F) + (1e2*sumsqr(s) if self.tracking else 0) + 0*1e-6*sumsqr(xk) + 0*1e-6*sumsqr(uk)
+        objk = 1e-5*sumsqr(F) + (1e2*sumsqr(s) if self.tracking else 0)
         self.funcs['eval_objk'] = Function("eval_objk", [uk, xk], [objk], ['uk', 'xk'], ['objk'])
 
-        objK = 0.0 if self.tracking else sumsqr(v) + 1e1*sumsqr(q - self.get_q_rest()) + 0*1e-6*sumsqr(xk)
+        objK = 0.0 if self.tracking else sumsqr(v) + 1e2*sumsqr(q - self.get_q_rest())
+        # objK = sumsqr(v) + 1e2*sumsqr(q - self.get_q_rest())
         self.funcs['eval_objK'] = Function("eval_objK", [xk], [objK], ['xk'], ['objK'])
 
         # equality constraints
@@ -127,14 +148,14 @@ class TrajectorySolver():
         self.funcs['eval_g0'] = Function("eval_g0", [uk, xk], [vertcat(vertcat(q - q0, v - v0, p), gk)], ['uk', 'xk'], ['g0'])
         self.funcs['eval_gk'] = Function("eval_gk", [uk, xk], [gk], ['uk', 'xk'], ['gk'])
         self.funcs['eval_gK'] = Function("eval_gK", [xk], [vertcat(p - T) if self.tracking else vertcat()], ['xk'], ['gK'])
-        # self.funcs['eval_gk'] = Function("eval_gk", [uk, xk], [vertcat()], ['uk', 'xk'], ['gk'])
-        # self.funcs['eval_gK'] = Function("eval_gK", [xk], [vertcat()], ['xk'], ['gK'])
 
         # inequality constraints
-        self.funcs['eval_gk_ineq'] = Function("eval_gk_ineq", [uk, xk], [F], ['uk', 'xk'], ['ineqk'])
+        self.funcs['eval_gk_ineq'] = Function("eval_gk_ineq", [uk, xk], [vertcat(F, dp)], ['uk', 'xk'], ['ineqk'])
         self.funcs['eval_gK_ineq'] = Function("eval_gK_ineq", [xk], [vertcat()], ['xk'], ['ineqK'])
-        self.funcs["lb"] = Function("lb", [], [-self.force_bounds*SX.ones(F.size1(), 1)], [], ['lb'])
-        self.funcs["ub"] = Function("ub", [], [self.force_bounds*SX.ones(F.size1(), 1)], [], ['ub'])
+        ub = vertcat(self.force_bounds*SX.ones(F.size1(), 1), 1.5*SX.ones(dp.size1(), 1))
+        lb = vertcat(-self.force_bounds*SX.ones(F.size1(), 1), 0.5*SX.ones(dp.size1(), 1))
+        self.funcs["lb"] = Function("lb", [], [lb], [], ['lb'])
+        self.funcs["ub"] = Function("ub", [], [ub], [], ['ub'])
         self.funcs["lbK"] = Function("lbK", [], [vertcat()], [], ['lbK'])
         self.funcs["ubK"] = Function("ubK", [], [vertcat()], [], ['ubK'])
 
@@ -151,10 +172,12 @@ class TrajectorySolver():
         # initialization
         k = SX.sym("k")
         x_init = vertcat(q0, v0)
+        u_init = 0*uk_true
         if self.tracking:
             x_init = vertcat(x_init, k*dt)
+            u_init = vertcat(u_init[:-1,:], 1)
         self.funcs["x_init"] = Function("x_init", [k], [x_init], ['k'], ['x_init'])
-        self.funcs["u_init"] = Function("u_init", [k], [0*uk_true], ['k'], ['u_init'])
+        self.funcs["u_init"] = Function("u_init", [k], [u_init], ['k'], ['u_init'])
         
         # reformulated
         if self.reformulate:
@@ -281,19 +304,41 @@ class TrajectorySolver():
 
         opti.minimize(obj)
 
+        uu_init = []; xx_init = []
         for k in range(N):
             opti.set_initial(xx[:,k], x_init(k))
             opti.set_initial(uu[:,k], u_init(k))
+            uu_init.append(u_init(k))
+            xx_init.append(x_init(k))
         opti.set_initial(xx[:,N], x_init(N))
 
         if self.implicit and not self.reformulate:
-            opti.solver('ipopt', {}, {'max_iter':400, 'tol':1e-4})
+            opti.solver('ipopt', {'error_on_fail': True}, {'max_iter':400, 'tol':1e-4})
         else:
             problem_type = 'ocp_type' if not self.accelerated else 'accelerated_ocp_type'
-            opti.solver('fatrop', {'structure_detection':'auto', 'debug':True}, {'max_iter':400, 'tol':1e-4, 'problem_type': problem_type})
+            opti.solver('fatrop', {'error_on_fail': True, 'structure_detection': 'auto', 'debug': True}, {'max_iter':400, 'tol':1e-4, 'problem_type': problem_type})
+            
             
         try:
-            self.sol = opti.solve()
+            if self.opti_to_function:
+                opti_f = opti.to_function("ocp_solver", [], [uu, xx], [], ['uu', 'xx'])
+                if self.opti_code_generate:
+                    opti_f.generate("ocp_solver", {"with_header": True, "cpp": True})
+                    print("Compiled C++ solver generated successfully.")
+                    import subprocess
+                    subprocess.run(["gcc", "-shared", "-fPIC", "-o", "ocp_solver.so", "ocp_solver.cpp"])
+                    print("Shared library compiled successfully.")
+                    opti_f = external("ocp_solver", "ocp_solver.so")
+                    print("External function loaded successfully.")
+                
+                sol = opti_f()
+                uu_sol = sol['uu']
+                xx_sol = sol['xx']
+            else:
+                self.sol = opti.solve()
+                xx_sol = self.sol.value(xx)
+                uu_sol = self.sol.value(uu)
+            
         except RuntimeError as e:
             print("Solver failed with error:", e)
             return {
@@ -301,8 +346,8 @@ class TrajectorySolver():
                 'v_sol': None, 'F_sol': None, 'z_sol': None
             }
 
-        xx_sol = self.sol.value(xx)
-        uu_sol = self.sol.value(uu)
+        # xx_sol = self.sol.value(xx)
+        # uu_sol = self.sol.value(uu)
         result = {
             'success': True,
             'nb_iter': self.get_nb_iters(),

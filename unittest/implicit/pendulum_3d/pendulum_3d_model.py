@@ -1,22 +1,39 @@
 import casadi as ca
 import numpy as np
 
-class Pendulum3DModel():
-    def __init__(self, nb_pendulums=1, m=[1], L=[1], g=9.81):
-        # define model parameters
-        self.nb_pendulums = nb_pendulums
-        assert len(m) == nb_pendulums, "Length of mass list must match number of pendulums"
-        assert len(L) == nb_pendulums, "Length of length list must match number of pendulums"
-        self.m = m
-        self.L = L
-        self.g = g
+def SetupModel(config):
+    model = Pendulum3DModel(config)
+    if config['stabilizer']['use']:
+        model.add_stabilizer(gamma_1=config['stabilizer']['gamma_1'], 
+                             gamma_2=config['stabilizer']['gamma_2'])
+    if config['stiff_joints']['use']:
+        model.set_stiff_joints(joint_stiffness=config['stiff_joints']['joint_stiffness'], 
+                               joint_damping=config['stiff_joints']['joint_damping'])
+    model.set_model()
+    model.print_model_dimensions()
+    q0 = model.get_init_vector(randomize=config['scenario']['initialization']['randomize'], 
+                               at_rest=config['scenario']['initialization']['at_rest'])
+    v0 = 0*q0
+    return model, q0, v0
 
-        # self.actuated_joint_idxs = [self.nb_pendulums-1, self.nb_pendulums-2]
-        # if self.nb_pendulums <= 2:
-        #     self.actuated_joint_idxs = [self.nb_pendulums-1]
+class Pendulum3DModel():
+    def __init__(self, config):
+        # define model parameters
+        self.nb_pendulums = config['n']
+        self.m = [config['m']] * self.nb_pendulums
+        self.L = [config['L']] * self.nb_pendulums
+        self.g = config['g']
+
+        # define actuated joints
         self.actuated_joint_idxs = []
-        for i in range(min(2, self.nb_pendulums)):
-            self.actuated_joint_idxs.append(i)
+        for idx in config['scenario']['actuation_idxs']:
+            true_idx = idx
+            if true_idx < 0:
+                true_idx = self.nb_pendulums + idx
+            assert true_idx >= 0 and true_idx < self.nb_pendulums, f"Actuated joint index {idx} is out of bounds for number of pendulums {self.nb_pendulums}"
+            
+            if idx not in self.actuated_joint_idxs:
+                self.actuated_joint_idxs.append(idx)
 
         # self.set_model()
         self.stabilizer = None
@@ -164,7 +181,7 @@ class Pendulum3DModel():
         ng = self.g_eq.sparsity_out(0).size1()
         print(f"nx: {nx}\nnu: {nu}\nng: {ng}")
 
-    def get_init_vector(self, randomize=False):
+    def get_init_vector(self, randomize=False, at_rest=False):
         def get_rotation_matrix(theta_x, theta_y, theta_z):
             Rx = ca.vertcat(
                 ca.horzcat(1, 0, 0),
@@ -182,7 +199,7 @@ class Pendulum3DModel():
                 ca.horzcat(0, 0, 1)
             )
             return Rz @ Ry @ Rx
-        
+                
         q0 = np.zeros(3*self.nb_pendulums)
         p = q0[:3]
         for i in range(self.nb_pendulums):
@@ -190,10 +207,15 @@ class Pendulum3DModel():
                 theta_x = np.random.uniform(-0.3, 0.3)
                 theta_y = np.random.uniform(-0.3, 0.3)
                 theta_z = np.random.uniform(-0.3, 0.3)
+            elif at_rest:
+                theta_x = 0.0
+                theta_y = 0.0
+                theta_z = 0.0
             else:
                 theta_x = 0.4 if i <= 0 else -0.4
                 theta_y = 0.0 if i == 0 else 0
                 theta_z = 0.0 if i == 0 else 0
+            
             R = get_rotation_matrix(theta_x, theta_y, theta_z)
 
             p += R @ ca.vertcat(0, 0, -self.L[i])    

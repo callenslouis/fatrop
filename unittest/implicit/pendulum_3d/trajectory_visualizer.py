@@ -8,14 +8,15 @@ class TrajectoryVisualizer():
         self.model = model
         self.solver = solver
 
-    def add_data(self, T, q_sol, v_sol, F_sol, z_sol):
+    def add_data(self, T, solution):
         self.T = T
-        self.N = q_sol.shape[1] - 1
-        self.t_sol = np.linspace(0, T, self.N+1)
-        self.q_sol = q_sol
-        self.v_sol = v_sol
-        self.F_sol = F_sol
-        self.z_sol = z_sol
+        self.N = solution['q_sol'].shape[1] - 1
+        self.t_sol = np.linspace(0, self.T, self.N+1)
+        self.q_sol = solution['q_sol']
+        self.v_sol = solution['v_sol']
+        self.F_sol = solution['F_sol']
+        self.z_sol = solution['z_sol']
+        self.p_sol = solution['p_sol'] if self.solver.tracking else None
 
     def add_data_from_ocp_json_file(self, data):
         self.N = data['generator_data']['K'] - 1
@@ -43,7 +44,7 @@ class TrajectoryVisualizer():
             return
     
         print(f"Visualizing result ({appendix})...")
-        self.add_data(T=T, q_sol=result['q_sol'], v_sol=result['v_sol'], F_sol=result['F_sol'], z_sol=result['z_sol'])
+        self.add_data(T=T, solution=result)
         self.visualize_all(appendix=appendix)
 
     def get_point(self, q, i, slice_min=0, slice_max=None):
@@ -94,7 +95,7 @@ class TrajectoryVisualizer():
         if self.solver.tracking:
             ref_path = np.zeros((3, self.N+1))
             for k in range(self.N+1):
-                ref_path[:, k] = self.solver.path_func(k*self.T/self.N, self.T, self.q_sol[:, 0]).full().flatten()
+                ref_path[:, k] = self.solver.path_func(self.p_sol[:,k], self.T, self.q_sol[:, 0]).full().flatten()
 
         # animation function
         def update(frame):
@@ -106,7 +107,8 @@ class TrajectoryVisualizer():
                 plt.plot(point[0], point[1], point[2], marker='.', color='r', label=f'Pendulum {i}')
 
                 # show traced path
-                plt.plot(*self.get_point(self.q_sol, i, slice_min=0, slice_max=frame), color='k', alpha=0.5)
+                if self.solver.tracking and i == self.solver.tracking_mass_index:
+                    plt.plot(*self.get_point(self.q_sol, i, slice_min=0, slice_max=frame), color='k', alpha=0.5)
 
                 # show reference path if it exists
                 if self.solver.tracking:

@@ -87,6 +87,7 @@ elif n_coords == 9:
 # Check if the casadi function file exists
 if os.path.exists(casadi_func_file):
     f_sysdyn = casadi.Function.load(casadi_func_file)
+    f_sysdyn.save("temp.casadi")
 else:
     print(f"Warning: {casadi_func_file} not found. Skipping dynamics loading.")
     f_sysdyn = None
@@ -128,6 +129,7 @@ u_mesh_k_SX = casadi.vertcat(act_mesh_k_SX,
                               q_coll_k_SX.reshape((-1, 1)),
                               qdot_coll_k_SX.reshape((-1, 1)),
                               qddot_coll_k_SX.reshape((-1, 1)))
+print(f"u_mesh_k_SX: {u_mesh_k_SX}")
 
 nx = x_mesh_k_SX.shape[0]
 nu = u_mesh_k_SX.shape[0]
@@ -336,6 +338,8 @@ if solver != 'fatrop':
 # =============================================================================
 # Based on https://github.com/jgillis/fatrop_demo/blob/master/fatrop_opti.m
 
+### printing some info
+
 opti = casadi.Opti()
 
 X = []
@@ -360,8 +364,7 @@ for k in range(N_mesh):
             # States on kth mesh point are equal to states on 1st mesh point
             # because here k=1 (0-indexed)
             idx_keep_indices = np.setdiff1d(np.arange(n_coords * 2), [idx_q_fwd])
-            for i in idx_keep_indices:
-                opti.subject_to(X[0][i] == X[0][n_coords * 2 + (i if i < n_coords else i - n_coords)])
+            opti.subject_to(X[0][idx_keep_indices] == X[0][n_coords * 2:])
 
     # Path constraint
     opti.subject_to(f_path(X[k], U[k]) == 0)
@@ -414,6 +417,7 @@ options = {
 
 options[solver] = {
     'tol': 1e-4,
+    'max_iter': 1
 }
 
 if solver == 'fatrop':
@@ -435,6 +439,8 @@ except Exception as e:
     print(f"Solver failed with error: {e}")
     sol = opti.debug
     warnings.warn(str(e))
+
+    
 
 # =============================================================================
 # EXTRACT AND VISUALIZE SOLUTION
