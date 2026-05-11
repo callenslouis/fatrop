@@ -40,7 +40,7 @@ xk = SX.sym('xk', nx)
 #                                                                                                                       --------------------
 # such that zk variables are at the back
 n_act_mesh = 18
-n_coll = 3
+n_coll = 1
 n_coords = 9
 dt = (1.0/0.9/2.0)/N
 act_mesh = SX.sym('act_mesh_k', n_act_mesh)
@@ -52,7 +52,7 @@ assert uk_orig.shape[0] == nu
 
 introduce_periodicity_vars = True
 periodicity_vars = SX.sym('periodicity_vars', introduce_periodicity_vars*(n_coords * 2 - 1)) # all q and qdot variables except for the forward foot x position
-zk = vertcat(q_coll[2*n_coords:3*n_coords], qdot_coll[2*n_coords:3*n_coords], periodicity_vars)
+zk = vertcat(q_coll[(n_coll-1)*n_coords:n_coll*n_coords], qdot_coll[(n_coll-1)*n_coords:n_coll*n_coords], periodicity_vars)
 print(f"zk: {zk.shape}")
 if introduce_periodicity_vars:
     assert zk.shape[0] == nx
@@ -60,11 +60,15 @@ if introduce_periodicity_vars:
 else:
     periodicity_constraint = periodicity_vars
 
-uk  = vertcat(act_mesh, 
-              q_coll[0:n_coords], qdot_coll[0:n_coords], qddot_coll[0:n_coords],
-              q_coll[n_coords:2*n_coords], qdot_coll[n_coords:2*n_coords], qddot_coll[n_coords:2*n_coords],
-              qddot_coll[2*n_coords:3*n_coords], # accelerations are still controls
-              zk)
+uk = act_mesh
+for i in range(n_coll-1):
+    uk = vertcat(uk, q_coll[i*n_coords:(i+1)*n_coords], qdot_coll[i*n_coords:(i+1)*n_coords], qddot_coll[i*n_coords:(i+1)*n_coords])
+uk = vertcat(uk, qddot_coll[(n_coll-1)*n_coords:n_coll*n_coords], zk) # keep the last q_coll and qdot_coll as zk variables to enforce periodicity
+# uk  = vertcat(act_mesh, 
+#               q_coll[0:n_coords], qdot_coll[0:n_coords], qddot_coll[0:n_coords],
+#               q_coll[n_coords:2*n_coords], qdot_coll[n_coords:2*n_coords], qddot_coll[n_coords:2*n_coords],
+#               qddot_coll[2*n_coords:3*n_coords], # accelerations are still controls
+#               zk)
 f_objk = Function('f_objk', [xk, uk], [f_objk_orig(xk, uk_orig)])
 f_g0 = Function('f_g0', [xk, uk], [vertcat(f_g0_orig(xk, uk_orig), periodicity_constraint)])
 f_gk = Function('f_gk', [xk, uk], [vertcat(f_gk_orig(xk, uk_orig), periodicity_constraint)])
@@ -90,14 +94,19 @@ q_coll_init = uu_init[n_act_mesh:n_act_mesh+n_coll*n_coords, :]
 qdot_coll_init = uu_init[n_act_mesh+n_coll*n_coords:n_act_mesh+2*n_coll*n_coords, :]
 qddot_coll_init = uu_init[n_act_mesh+2*n_coll*n_coords:n_act_mesh+3*n_coll*n_coords, :]
 
-uu_init_reordered = np.vstack([
-    act_init,
-    q_coll_init[0:n_coords, :], qdot_coll_init[0:n_coords, :], qddot_coll_init[0:n_coords, :],
-    q_coll_init[n_coords:2*n_coords, :], qdot_coll_init[n_coords:2*n_coords, :], qddot_coll_init[n_coords:2*n_coords, :],
-    qddot_coll_init[2*n_coords:3*n_coords, :], # accelerations are still controls
-    q_coll_init[2*n_coords:3*n_coords, :], qdot_coll_init[2*n_coords:3*n_coords, :],
-    xx_init[n_coords * 2:, :-1]
-])
+uu_init_reordered = act_init
+for i in range(n_coll-1):
+    uu_init_reordered = vertcat(uu_init_reordered, q_coll_init[i*n_coords:(i+1)*n_coords, :], qdot_coll_init[i*n_coords:(i+1)*n_coords, :], qddot_coll_init[i*n_coords:(i+1)*n_coords, :])
+uu_init_reordered = vertcat(uu_init_reordered, qddot_coll_init[(n_coll-1)*n_coords:n_coll*n_coords, :], q_coll_init[(n_coll-1)*n_coords:n_coll*n_coords, :], qdot_coll_init[(n_coll-1)*n_coords:n_coll*n_coords, :], xx_init[n_coords * 2:, :-1])
+
+# uu_init_reordered = np.vstack([
+#     act_init,
+#     q_coll_init[0:n_coords, :], qdot_coll_init[0:n_coords, :], qddot_coll_init[0:n_coords, :],
+#     q_coll_init[n_coords:2*n_coords, :], qdot_coll_init[n_coords:2*n_coords, :], qddot_coll_init[n_coords:2*n_coords, :],
+#     qddot_coll_init[2*n_coords:3*n_coords, :], # accelerations are still controls
+#     q_coll_init[2*n_coords:3*n_coords, :], qdot_coll_init[2*n_coords:3*n_coords, :],
+#     xx_init[n_coords * 2:, :-1]
+# ])
 assert uu_init_reordered.shape[0] == nu + 2*n_coords - 1
 
 
@@ -142,18 +151,21 @@ for k in range(N):
     
 opti.minimize(obj)
 
+# ocp_type = 'ocp_type'
+ocp_type = 'accelerated_ocp_type'
 opti.solver('fatrop', 
             {'expand': True, 
              'detect_simple_bounds': True,
              'structure_detection': 'auto'},
             {'tol': 1e-4,
              'mu_init': 0.1,
-             'max_iter': 300})
+             'max_iter': 300,
+             'problem_type': ocp_type})
 
-# print(f"creating opti to function object")
-# opti_f = opti.to_function('opti_f', [], [hcat(xx), hcat(uu)], [], ['xx', 'uu'])
-# print(f"saving opti to function object")
-# opti_f.save('casadi_funcs/test_gait_shortcut_python_reformulated.casadi')
-print(f"solving")
-sol = opti.solve()
+print(f"creating opti to function object")
+opti_f = opti.to_function('opti_f', [], [hcat(xx), hcat(uu)], [], ['xx', 'uu'])
+print(f"saving opti to function object")
+opti_f.save(f'casadi_funcs/test_gait_shortcut_python_reformulated_{ocp_type}.casadi')
+# print(f"solving")
+# sol = opti.solve()
 
