@@ -5,7 +5,8 @@ from reformulator import Reformulator
 ######################
 ### load functions ###
 ######################
-folder = "casadi_funcs"
+n_coll = 3
+folder = f"casadi_funcs/n_coll_{n_coll}"
 f_objk_orig = Function.load(f"{folder}/f_objk.casadi")
 f_g0_orig = Function.load(f"{folder}/f_g0.casadi")
 f_gk_orig = Function.load(f"{folder}/f_gk.casadi")
@@ -40,7 +41,6 @@ xk = SX.sym('xk', nx)
 #                                                                                                                       --------------------
 # such that zk variables are at the back
 n_act_mesh = 18
-n_coll = 1
 n_coords = 9
 dt = (1.0/0.9/2.0)/N
 act_mesh = SX.sym('act_mesh_k', n_act_mesh)
@@ -162,10 +162,10 @@ opti.solver('fatrop',
              'max_iter': 300,
              'problem_type': ocp_type})
 
-print(f"creating opti to function object")
-opti_f = opti.to_function('opti_f', [], [hcat(xx), hcat(uu)], [], ['xx', 'uu'])
-print(f"saving opti to function object")
-opti_f.save(f'casadi_funcs/test_gait_shortcut_python_reformulated_{ocp_type}.casadi')
+# print(f"creating opti to function object")
+# opti_f = opti.to_function('opti_f', [], [hcat(xx), hcat(uu)], [], ['xx', 'uu'])
+# print(f"saving opti to function object")
+# opti_f.save(f'casadi_funcs/test_gait_shortcut_python_reformulated_{ocp_type}.casadi')
 # print(f"solving")
 # sol = opti.solve()
 
