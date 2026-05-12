@@ -1,0 +1,16 @@
+# ocp parameters
+n_coll: 3
+introduce_periodicity_vars: False
+
+# fatrop options
+problem_type: 'ocp_type'
+
+# solution management
+save_opti_f: False
+load_opti_f: True
+perform_code_generation: True # not supported well (takes too long and too much memory)
+solve: True
+store_solution: True
+file_name_appendix: ''
+load_solution: False
+visualize_solution: False

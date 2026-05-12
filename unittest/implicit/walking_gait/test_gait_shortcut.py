@@ -71,3 +71,65 @@ opti.solver('fatrop',
 # opti_f.save('casadi_funcs/test_gait_shortcut_python.casadi')
 sol = opti.solve()
 
+xx_sol = sol.value(hcat(xx))
+uu_sol = sol.value(hcat(uu))
+import matplotlib.pyplot as plt
+n_coords = 9
+q_mesh = xx_sol[:n_coords, :]
+qdot_mesh = xx_sol[n_coords:2*n_coords, :]
+
+step_time = 1.0 / 0.9 / 2.0
+dt = step_time / N
+step_length = 1.2 * step_time
+
+plt.figure()
+plt.plot(xx_sol.T)
+plt.show()
+
+# Construct full cycle from solution for half cycle
+q_GC = np.hstack([q_mesh[:, :], q_mesh[[0, 2, 1, 4, 3, 6, 5, 8, 7],:]])
+q_GC[1, N:] = q_GC[1, N:] + step_length
+
+t_GC = np.linspace(0, 2*dt*N, 2*N+1)
+
+fig, axs = plt.subplots(2, 3, figsize=(15, 10))
+fig.suptitle('Walking Gait Simulation Results')
+
+# Torso Angle
+axs[0, 0].plot(t_GC, q_GC[0, :-1] * 180 / np.pi)
+axs[0, 0].set_title('Torso Angle')
+axs[0, 0].set_xlabel('Time (s)')
+axs[0, 0].set_ylabel('Angle (°)')
+
+# Forward Position
+axs[0, 1].plot(t_GC, q_GC[1, :-1])
+axs[0, 1].set_title('Forward Position')
+axs[0, 1].set_xlabel('Time (s)')
+axs[0, 1].set_ylabel('Position (m)')
+
+# Vertical Position
+axs[0, 2].plot(t_GC, q_GC[2, :-1])
+axs[0, 2].set_title('Vertical Position')
+axs[0, 2].set_xlabel('Time (s)')
+axs[0, 2].set_ylabel('Position (m)')
+
+# Hip Angle
+axs[1, 0].plot(t_GC, q_GC[4, :-1] * 180 / np.pi)
+axs[1, 0].set_title('Hip Angle')
+axs[1, 0].set_xlabel('Time (s)')
+axs[1, 0].set_ylabel('Angle (°)')
+
+# Knee Angle
+axs[1, 1].plot(t_GC, q_GC[6, :-1] * 180 / np.pi)
+axs[1, 1].set_title('Knee Angle')
+axs[1, 1].set_xlabel('Time (s)')
+axs[1, 1].set_ylabel('Angle (°)')
+
+# Ankle Angle
+axs[1, 2].plot(t_GC, q_GC[8, :-1] * 180 / np.pi)
+axs[1, 2].set_title('Ankle Angle')
+axs[1, 2].set_xlabel('Time (s)')
+axs[1, 2].set_ylabel('Angle (°)')
+
+plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+plt.show()

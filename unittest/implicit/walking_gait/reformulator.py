@@ -76,6 +76,13 @@ class Reformulator:
         
 
     def reconstruct_err_coll_general(self):
+        if not self.substitute_q and not self.substitute_qdot:
+            err_coll_q_func = Function.load(f'casadi_funcs/n_coll_{self.n_coll}/err_coll_q_func.casadi')
+            err_coll_qdot_func = Function.load(f'casadi_funcs/n_coll_{self.n_coll}/err_coll_qdot_func.casadi')
+            self.err_coll = Function('err_coll', [self.xk, self.uk], [vertcat(err_coll_q_func(self.xk, self.uk_orig), err_coll_qdot_func(self.xk, self.uk_orig)/self.scale_qdots)])
+            self.uk_subs = Function('uk_subs', [self.xk, self.uk], [self.uk])
+            return
+        
         q_coll_list = [self.q_coll[i*self.n_coords:(i+1)*self.n_coords] for i in range(self.n_coll)]
         qdot_coll_list = [self.qdot_coll[i*self.n_coords:(i+1)*self.n_coords] for i in range(self.n_coll)]
         qddot_coll_list = [self.qddot_coll[i*self.n_coords:(i+1)*self.n_coords] for i in range(self.n_coll)]
@@ -164,72 +171,7 @@ class Reformulator:
         uk_test = [1 + i*0.1 for i in range(self.uk.shape[0])]
         temp = self.err_coll(xk_test, self.uk_subs(xk_test, uk_test)).full()
         # assert max(abs(temp)) < 1e-10, "Error in reconstruct_err_coll_general"
-        
-    def reconstruct_err_coll(self):
-        qc1 = self.q_coll[:self.n_coords]
-        qc2 = self.q_coll[self.n_coords:2*self.n_coords]
-        qc3 = self.q_coll[2*self.n_coords:3*self.n_coords]
-        qc1dot = self.qdot_coll[:self.n_coords]
-        qc2dot = self.qdot_coll[self.n_coords:2*self.n_coords]
-        qc3dot = self.qdot_coll[2*self.n_coords:3*self.n_coords]
-        qc1ddot = self.qddot_coll[:self.n_coords]
-        qc2ddot = self.qddot_coll[self.n_coords:2*self.n_coords]
-        qc3ddot = self.qddot_coll[2*self.n_coords:3*self.n_coords]
-        
-        scale_qdots = self.scale_qdots
-        scale_qddots =  self.scale_qddots
-        if self.substitute_q:
-            qc3_subs = -1.0/self.C[3,0] * (self.C[0,0]*self.q_mesh + self.C[1,0]*qc1 + self.C[2,0]*qc2 - scale_qdots*self.dt*qc1dot)
-        else:
-            qc3_subs = qc3
-        
-        if self.substitute_qdot:
-            qc3dot_subs = -1.0/self.C[3,0] * (self.C[0,0]*self.qdot_mesh + self.C[1,0]*qc1dot + self.C[2,0]*qc2dot - scale_qddots*self.dt*qc1ddot/scale_qdots)
-        else:
-            qc3dot_subs = qc3dot
-
-        err_coll_q_reconstructed = vertcat(
-            self.C[0,0]*self.q_mesh + self.C[1,0]*qc1 + self.C[2,0]*qc2 + self.C[3,0]*qc3 - scale_qdots*self.dt*qc1dot,
-            self.C[0,1]*self.q_mesh + self.C[1,1]*qc1 + self.C[2,1]*qc2 + self.C[3,1]*qc3_subs - scale_qdots*self.dt*qc2dot,
-            self.C[0,2]*self.q_mesh + self.C[1,2]*qc1 + self.C[2,2]*qc2 + self.C[3,2]*qc3_subs - scale_qdots*self.dt*qc3dot_subs
-        )
-        
-        err_coll_qdot_reconstructed = vertcat(
-            scale_qdots*self.C[0,0]*self.qdot_mesh + 
-                scale_qdots*self.C[1,0]*qc1dot + 
-                scale_qdots*self.C[2,0]*qc2dot + 
-                scale_qdots*self.C[3,0]*qc3dot - 
-                scale_qddots*self.dt*qc1ddot, 
-            scale_qdots*self.C[0,1]*self.qdot_mesh + 
-                scale_qdots*self.C[1,1]*qc1dot + 
-                scale_qdots*self.C[2,1]*qc2dot + 
-                scale_qdots*self.C[3,1]*qc3dot_subs - 
-                scale_qddots*self.dt*qc2ddot,
-            scale_qdots*self.C[0,2]*self.qdot_mesh + 
-                scale_qdots*self.C[1,2]*qc1dot + 
-                scale_qdots*self.C[2,2]*qc2dot + 
-                scale_qdots*self.C[3,2]*qc3dot_subs - 
-                scale_qddots*self.dt*qc3ddot
-        )
-        
-        self.err_coll = Function('err_coll', [self.xk, self.uk], [vertcat(err_coll_q_reconstructed, err_coll_qdot_reconstructed/self.scale_qdots)])
-        
-        uk_substituted = vertcat(
-            self.uk[:self.n_act_mesh],
-            qc1,
-            qc1dot,
-            qc1ddot,
-            qc2,
-            qc2dot,
-            qc2ddot,
-            qc3ddot,
-            qc3_subs,
-            qc3dot_subs,
-            self.uk[self.n_act_mesh + 3*self.n_coll*self.n_coords:] # the rest of the controls that are not collocation variables
-        )
-        
-        self.uk_subs = Function('uk_subs', [self.xk, self.uk], [uk_substituted])
-                
+                        
     def get_f_gk_reformulated(self, f_gk):
         if self.eliminate_in_dynamics_equations:
             err_sysdyn_rewritten = f_gk(self.xk, self.uk_subs(self.xk, self.uk))[self.n_coll*self.n_coords*2:self.n_coll*self.n_coords*3]

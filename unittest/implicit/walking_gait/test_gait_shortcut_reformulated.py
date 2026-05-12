@@ -1,19 +1,28 @@
 from casadi import *
 from collocation_scheme import collocation_scheme
 from reformulator import Reformulator
+import matplotlib.pyplot as plt
+import numpy as np
+import pickle as pkl
+import yaml
 
 ######################
 ### Set parameters ###
 ######################
-n_coll = 3
+config_file = "config.yaml"
+with open(config_file, 'r') as f:
+    config = yaml.safe_load(f)
 
-introduce_periodicity_vars = False
+print(config)
 
-# problem_type = 'ocp_type'
-problem_type = 'accelerated_ocp_type'
-save_opti_f = False
-solve = True
-
+n_coll = config['n_coll']
+introduce_periodicity_vars = config['introduce_periodicity_vars']
+problem_type = config['problem_type']
+save_opti_f = config['save_opti_f']
+solve = config['solve']
+store_solution = config['store_solution']
+load_solution = config['load_solution']
+visualize_solution = config['visualize_solution']
 
 ######################
 ### load functions ###
@@ -85,14 +94,14 @@ f_gk = Function('f_gk', [xk, uk], [vertcat(f_gk_orig(xk, uk_orig), periodicity_c
 f_gK = Function('f_gK', [xk], [f_gK_orig(xk)])
 f_gk_ineq = Function('f_gk_ineq', [xk, uk], [f_gk_ineq_orig(xk, uk_orig)])
 f_gap = Function('f_gap', [xk, uk], [zk if introduce_periodicity_vars else vertcat(zk, xk[n_coords*2:])])
-f_g0_unqique = Function('f_g0_unique', [xk, uk], [f_g0_orig_unique(xk, uk_orig)])
+f_g0_unique = Function('f_g0_unique', [xk, uk], [f_g0_orig_unique(xk, uk_orig)])
 
 ###############################
 ### Update path constraints ###
 ###############################
 reformulator = Reformulator(n_coll, n_coords, n_act_mesh, dt, xk, uk, uk_orig, q_coll, qdot_coll, qddot_coll)
 f_gk_reformulated = reformulator.get_f_gk_reformulated(f_gk)
-f_g0_reformulated = Function('f_g0_reformulated', [xk, uk], [vertcat(f_g0_unqique(xk, uk), f_gk_reformulated(xk, uk))])
+f_g0_reformulated = Function('f_g0_reformulated', [xk, uk], [vertcat(f_g0_unique(xk, uk), f_gk_reformulated(xk, uk))])
 reformulator.show_gk_jacobian_structure_for_debugging(f_gk)
 reformulator.show_gk_jacobian_structure_for_debugging(f_gk_reformulated)
 
@@ -120,6 +129,19 @@ if introduce_periodicity_vars:
     uu_init_reordered = vertcat(uu_init_reordered, xx_init[n_coords * 2:, :-1]) # periodicity vars initial guess
 
 assert uu_init_reordered.shape[0] == nu + (2*n_coords - 1 if introduce_periodicity_vars else 0)
+
+######################################
+### Code generate casadi functions ###
+######################################
+# if config['perform_code_generation']:
+#     from code_generator import get_code_generated_function
+    
+#     f_objk = get_code_generated_function(f_objk)
+#     f_g0_reformulated = get_code_generated_function(f_g0_reformulated)
+#     f_gk_reformulated = get_code_generated_function(f_gk_reformulated)
+#     f_gK = get_code_generated_function(f_gK)
+#     f_gk_ineq = get_code_generated_function(f_gk_ineq)
+#     f_gap = get_code_generated_function(f_gap)
 
 
 ###########################
@@ -182,10 +204,184 @@ opti.solver('fatrop', opts_casadi, opts_fatrop)
 
 if save_opti_f:
     print(f"creating opti to function object")
-    opti_f = opti.to_function('opti_f', [], [hcat(xx), hcat(uu)], [], ['xx', 'uu'])
-    print(f"saving opti to function object")
-    opti_f.save(f'casadi_funcs/test_gait_shortcut_python_reformulated_{problem_type}.casadi')
-if solve:
-    print(f"solving")
-    sol = opti.solve()
+    opti_f = opti.to_function(
+        f'test_gait_shortcut_python_reformulated_{problem_type}', 
+        [], [hcat(xx), hcat(uu)], [], ['xx', 'uu'])
+    
+    if False and config['perform_code_generation']: ### disables since the problem is too big to be code generated
+        from code_generator import get_code_generated_function
+        print(f"code generating opti_f")
+        opti_f_cg = get_code_generated_function(opti_f) # will save automatically
+    else:
+        print(f"saving opti to function object")
+        opti_f.save(f'casadi_funcs/test_gait_shortcut_python_reformulated_{problem_type}.casadi')
 
+if solve and not load_solution:
+    print(f"solving")
+    if config['load_opti_f']:
+        opti_f = Function.load(f'casadi_funcs/test_gait_shortcut_python_reformulated_{problem_type}.casadi')
+        xx_sol, uu_sol = opti_f()
+        stats = opti_f.stats()
+        
+    elif save_opti_f:
+        xx_sol, uu_sol = opti_f()
+        stats = opti_f.stats()
+    else:
+        sol = opti.solve()
+        xx_sol = sol.value(hcat(xx))
+        uu_sol = sol.value(hcat(uu))
+        stats = sol.stats()
+    
+    if store_solution:
+        with open(f'stored_solutions/solution_gait_shortcut_reformulated_{problem_type}{config["file_name_appendix"]}.pkl', 'wb') as f:
+            pkl.dump({'xx_sol': xx_sol, 'uu_sol': uu_sol, 'stats': stats}, f)
+            
+if load_solution:
+    print(f"loading solution")
+    with open(f'stored_solutions/solution_gait_shortcut_reformulated_{problem_type}{config["file_name_appendix"]}.pkl', 'rb') as f:
+        data = pkl.load(f)
+        xx_sol = data['xx_sol']
+        uu_sol = data['uu_sol']
+        stats = data['stats']
+
+if (solve or load_solution) and visualize_solution:   
+    q_mesh = xx_sol[:n_coords, :]
+    qdot_mesh = xx_sol[n_coords:2*n_coords, :]
+
+    step_time = 1.0 / 0.9 / 2.0
+    step_length = 1.2 * step_time
+        
+    # joints:
+    # pelvis_tilt, pelvis_tx, pelvis_ty, hip_r, hip_l, knee_r, knee_l,
+    # ankle_r, ankle_l
+    # k = 0         k = N
+    # ------------------------
+    # pelvis_tx     pelvis_tx
+    # pelvis_ty     pelvis_ty
+    # hip_r         hip_l
+    # hip_l         hip_r
+    # knee_r        knee_l
+    # knee_l        knee_r
+    second_period_copy_idxs = [0, 1, 2, 4, 3, 6, 5, 8, 7] # swap left and right leg joints for the second half of the gait cycle
+    
+    # Construct full cycle from solution for half cycle
+    q_GC = np.hstack([q_mesh[:, :], q_mesh[second_period_copy_idxs,1:]])
+    q_GC[1, N+1:] = q_GC[1, N+1:] + step_length
+
+    t_GC = np.linspace(0, 2*dt*N, 2*N+1)
+
+    fig, axs = plt.subplots(2, 3, figsize=(15, 10))
+    fig.suptitle('Walking Gait Simulation Results')
+
+    # Torso Angle
+    axs[0, 0].plot(t_GC, q_GC[0, :] * 180 / np.pi)
+    axs[0, 0].set_title('Torso Angle')
+    axs[0, 0].set_xlabel('Time (s)')
+    axs[0, 0].set_ylabel('Angle (°)')
+
+    # Forward Position
+    axs[0, 1].plot(t_GC, q_GC[1, :])
+    axs[0, 1].set_title('Forward Position')
+    axs[0, 1].set_xlabel('Time (s)')
+    axs[0, 1].set_ylabel('Position (m)')
+
+    # Vertical Position
+    axs[0, 2].plot(t_GC, q_GC[2, :])
+    axs[0, 2].set_title('Vertical Position')
+    axs[0, 2].set_xlabel('Time (s)')
+    axs[0, 2].set_ylabel('Position (m)')
+
+    # Hip Angle
+    axs[1, 0].plot(t_GC, q_GC[4, :] * 180 / np.pi)
+    axs[1, 0].set_title('Hip Angle')
+    axs[1, 0].set_xlabel('Time (s)')
+    axs[1, 0].set_ylabel('Angle (°)')
+
+    # Knee Angle
+    axs[1, 1].plot(t_GC, q_GC[6, :] * 180 / np.pi)
+    axs[1, 1].set_title('Knee Angle')
+    axs[1, 1].set_xlabel('Time (s)')
+    axs[1, 1].set_ylabel('Angle (°)')
+
+    # Ankle Angle
+    axs[1, 2].plot(t_GC, q_GC[8, :] * 180 / np.pi)
+    axs[1, 2].set_title('Ankle Angle')
+    axs[1, 2].set_xlabel('Time (s)')
+    axs[1, 2].set_ylabel('Angle (°)')
+    
+
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    # plt.show()
+
+    def show_skeleton(ax, q):
+        # segment lengths
+        L_thigh = 0.44
+        L_shank = 0.45
+
+        # Pelvis
+        pelvis_tx = q[1]
+        pelvis_ty = q[2]
+        pelvis_tilt = q[0]
+        
+        # Joint angles
+        hip_r_angle = q[3]
+        hip_l_angle = q[4]
+        knee_r_angle = q[5]
+        knee_l_angle = q[6]
+        ankle_r_angle = q[7]
+        ankle_l_angle = q[8]
+
+        # Joint positions
+        pelvis_pos = np.array([pelvis_tx, pelvis_ty])
+        
+        # Hip positions (relative to pelvis)
+        hip_r_pos = pelvis_pos
+        hip_l_pos = pelvis_pos
+        
+        # Knee positions
+        knee_r_pos = hip_r_pos + L_thigh * np.array([np.sin(pelvis_tilt + hip_r_angle), -np.cos(pelvis_tilt + hip_r_angle)])
+        knee_l_pos = hip_l_pos + L_thigh * np.array([np.sin(pelvis_tilt + hip_l_angle), -np.cos(pelvis_tilt + hip_l_angle)])
+        
+        # Ankle positions
+        ankle_r_pos = knee_r_pos + L_shank * np.array([np.sin(pelvis_tilt + hip_r_angle + knee_r_angle), -np.cos(pelvis_tilt + hip_r_angle + knee_r_angle)])
+        ankle_l_pos = knee_l_pos + L_shank * np.array([np.sin(pelvis_tilt + hip_l_angle + knee_l_angle), -np.cos(pelvis_tilt + hip_l_angle + knee_l_angle)])
+
+        # Plot skeleton
+        ax.plot([hip_r_pos[0], knee_r_pos[0]], [hip_r_pos[1], knee_r_pos[1]], 'r-') # Right thigh
+        ax.plot([hip_l_pos[0], knee_l_pos[0]], [hip_l_pos[1], knee_l_pos[1]], 'b-') # Left thigh
+        ax.plot([knee_r_pos[0], ankle_r_pos[0]], [knee_r_pos[1], ankle_r_pos[1]], 'r-') # Right shank
+        ax.plot([knee_l_pos[0], ankle_l_pos[0]], [knee_l_pos[1], ankle_l_pos[1]], 'b-') # Left shank
+
+        # Plot joints
+        ax.plot(pelvis_pos[0], pelvis_pos[1], 'ko', markersize=10, label='Pelvis')
+        ax.plot(knee_r_pos[0], knee_r_pos[1], 'ro', markersize=5, label='Right Knee')
+        ax.plot(knee_l_pos[0], knee_l_pos[1], 'bo', markersize=5, label='Left Knee')
+        ax.plot(ankle_r_pos[0], ankle_r_pos[1], 'ro', markersize=5, label='Right Ankle')
+        ax.plot(ankle_l_pos[0], ankle_l_pos[1], 'bo', markersize=5, label='Left Ankle')
+        
+        # ax.legend()
+        return pelvis_pos[0] # return forward position of the pelvis for setting x limits in animation
+        
+    # animate skeleton
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    def update(frame):
+        ax.clear()
+        x_pos = show_skeleton(ax, q_GC[:, frame])
+        ax.set_xlim(x_pos - 0.5, x_pos + 1)
+        ax.set_ylim(-0.5, 1.5)
+        ax.axhline(0, color='k', linestyle='-', lw=2)
+        # show small lines at distance half steplength to highlight motion
+        for k in range(-5, 5):
+            ax.plot([k*step_length/2, k*step_length/2], 
+                    [0, -0.01], color='k', linestyle='-', alpha=1)
+        
+        ax.set_aspect('equal')
+        ax.set_xlabel('Forward Position (m)')
+        ax.set_ylabel('Vertical Position (m)')
+
+    from matplotlib.animation import FuncAnimation
+    nb_frames = q_GC.shape[1]
+    fps = 1/dt
+    ani = FuncAnimation(fig, update, frames=nb_frames, repeat=True)
+    ani.save(f"visualization_output/walking_gait_skeleton_{problem_type}.gif", writer='pillow', fps=30)
