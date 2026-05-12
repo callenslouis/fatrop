@@ -151,8 +151,8 @@ for k in range(N):
     
 opti.minimize(obj)
 
-# ocp_type = 'ocp_type'
-ocp_type = 'accelerated_ocp_type'
+ocp_type = 'ocp_type'
+# ocp_type = 'accelerated_ocp_type'
 opti.solver('fatrop', 
             {'expand': True, 
              'detect_simple_bounds': True,
@@ -160,12 +160,14 @@ opti.solver('fatrop',
             {'tol': 1e-4,
              'mu_init': 0.1,
              'max_iter': 300,
-             'problem_type': ocp_type})
+             'problem_type': ocp_type,
+            #  'linsol_nb_of_dynamics_constraints': reformulator.number_of_constraints_with_zk
+             })
 
 # print(f"creating opti to function object")
 # opti_f = opti.to_function('opti_f', [], [hcat(xx), hcat(uu)], [], ['xx', 'uu'])
 # print(f"saving opti to function object")
 # opti_f.save(f'casadi_funcs/test_gait_shortcut_python_reformulated_{ocp_type}.casadi')
-# print(f"solving")
-# sol = opti.solve()
+print(f"solving")
+sol = opti.solve()
 

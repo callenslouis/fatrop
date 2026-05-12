@@ -1304,8 +1304,8 @@ AugSystemSolver<AcceleratedOcpType>::AugSystemSolver(const ProblemInfo &info)
         // Pr1.emplace_back(nu + nx + 1);
         // Pr2.emplace_back(nu + nx + 1);
         Pl1.emplace_back(nu + nx + 1);
-        Pl_rank.emplace_back(nu + nx + 1);
-        Pl2.emplace_back(nu + nx + 1);
+        Pl_rank.emplace_back(nu + (nx + nu + 1) + 1);
+        Pl2.emplace_back(nu + (nx + nu + 1) + 1);
         Pr1.emplace_back(nu + nx + 1);
         Pr2.emplace_back(nu + nx + 1);
     }
@@ -1324,6 +1324,7 @@ void AugSystemSolver<AcceleratedOcpType>::register_options(OptionRegistry &regis
     registry.register_option("linsol_lu_fact_tol", &AugSystemSolver<AcceleratedOcpType>::set_lu_fact_tol, this);
     registry.register_option("linsol_diagnostic", &AugSystemSolver<AcceleratedOcpType>::set_diagnostic, this);
     registry.register_option("linsol_increased_accuracy", &AugSystemSolver<AcceleratedOcpType>::set_increased_accuracy, this);
+    registry.register_option("linsol_nb_of_dynamics_constraints", &AugSystemSolver<AcceleratedOcpType>::set_nb_of_dynamics_constraints, this);
 }
 
 LinsolReturnFlag AugSystemSolver<AcceleratedOcpType>::solve(const ProblemInfo &info,
@@ -2448,9 +2449,11 @@ void AugSystemSolver<AcceleratedOcpType>::fatrop_lu_fact_blocked_transposed(
     Index nx = dims.number_of_states[k];
     Index ng = dims.number_of_eq_constraints[k];
     Index nx_next = (k < dims.K - 1) ? dims.number_of_states[k + 1] : 0;
+    Index nf = (k < dims.K - 1) ? nb_of_dynamics_constraints : 0;
+    if (nf < 0){ nf = nx_next;}
 
     Index nu_true = nu - nx_next;
-    Index ng_true = ng - nx_next;
+    Index ng_true = ng - nb_of_dynamics_constraints;
 
     Index m = gamma[k];
     Index nc = m - ng;
@@ -2475,7 +2478,7 @@ void AugSystemSolver<AcceleratedOcpType>::fatrop_lu_fact_blocked_transposed(
     }
 
     // scaling bottom-left
-    blasfeo_dgecp(nu_true, nx_next, At, 0, rho1[k], &scratch[0].mat(), 0, 0);   // M2 to B
+    blasfeo_dgecp(nu_true, nf, At, 0, rho1[k], &scratch[0].mat(), 0, 0);   // M2 to B
     // NOTE: this operation can be performed in the lu decomposition by 
     // applying the permutation to the full matrix already
     if (!avoid_additional_perms){
@@ -2483,42 +2486,42 @@ void AugSystemSolver<AcceleratedOcpType>::fatrop_lu_fact_blocked_transposed(
     }
 
     // compute K3 and K4
-    blasfeo_dtrsm_llnn(rho1[k], nx_next, 1.0, At, 0, 0, &scratch[0].mat(), 0, 0, 
-                       At, 0, rho1[k]);
-    blasfeo_dgemm_nn(n_max-nx_next-rho1[k], nx_next, rho1[k], -1.0, 
+    blasfeo_dtrsm_llnn(rho1[k], nf, 1.0, At, 0, 0, &scratch[0].mat(), 0, 0, 
+                       At, 0, rho1[k]); // K3 <-- M2_1 V1^-1
+    blasfeo_dgemm_nn(n_max-nx_next-rho1[k], nf, rho1[k], -1.0, 
                      At, rho1[k], 0, At, 0, rho1[k], 0.0, 
-                     At, rho1[k], rho1[k], At, rho1[k], rho1[k]);
+                     At, rho1[k], rho1[k], At, rho1[k], rho1[k]); // K4 <-- M2_2 - K3*V2
     if (rho1[k] > 0){
-        blasfeo_dgead(nu_true-rho1[k], nx_next, 1.0, &scratch[0].mat(), rho1[k], 0, At, rho1[k], rho1[k]);
+        blasfeo_dgead(nu_true-rho1[k], nf, 1.0, &scratch[0].mat(), rho1[k], 0, At, rho1[k], rho1[k]);
     } else {
-        blasfeo_dgecp(nu_true-rho1[k], nx_next, &scratch[0].mat(), rho1[k], 0, At, rho1[k], rho1[k]);
+        blasfeo_dgecp(nu_true-rho1[k], nf, &scratch[0].mat(), rho1[k], 0, At, rho1[k], rho1[k]);
     }
 
     // second LU decomposition
     if (avoid_additional_perms){
         // NOTE: offset lu factorization seems to show bugs in blasfeo_dcolsw
-        fatrop_lu_fact_transposed(nx_next + nc, nu-rho1[k], nu-rho1[k], rho2[k], 
+        fatrop_lu_fact_transposed(nf + nc, nu-rho1[k], nu-rho1[k], rho2[k], 
                                 At, rho1[k], rho1[k], Pl2[k], Pr2[k], 
                                 lu_fact_tol, n, m);
     } else {
         #ifndef OFFSET_FREE_P2
-            blasfeo_dgecp(nu-rho1[k], nx_next + nc, At, rho1[k], rho1[k], &scratch[0].mat(), 0, 0);
-            fatrop_lu_fact_transposed(nx_next + nc, nu-rho1[k], nu-rho1[k], rho2[k], &scratch[0].mat(), Pl2[k], Pr2[k], lu_fact_tol);
-            blasfeo_dgecp(nu-rho1[k], nx_next + nc, &scratch[0].mat(), 0, 0, At, rho1[k], rho1[k]);
+            blasfeo_dgecp(nu-rho1[k], nf + nc, At, rho1[k], rho1[k], &scratch[0].mat(), 0, 0);
+            fatrop_lu_fact_transposed(nf + nc, nu-rho1[k], nu-rho1[k], rho2[k], &scratch[0].mat(), Pl2[k], Pr2[k], lu_fact_tol);
+            blasfeo_dgecp(nu-rho1[k], nf + nc, &scratch[0].mat(), 0, 0, At, rho1[k], rho1[k]);
             // NOTE: these operations can be performed in the lu decompositions by
             // applying those permutations to the full matrix already
             Pl2[k].apply_on_cols(rho2[k], At, 0, rho1[k], rho1[k]); // permute K3
             Pr2[k].apply_on_rows(rho2[k], At, rho1[k], rho1[k]); // permute V2
         #else
-            blasfeo_dgecp(nu-rho1[k], nx_next + nc, At, rho1[k], rho1[k], &scratch[0].mat(), 0, 0);
+            blasfeo_dgecp(nu-rho1[k], nf + nc, At, rho1[k], rho1[k], &scratch[0].mat(), 0, 0);
             PermutationMatrix Pl2_temp(Pl2[k].size());
             PermutationMatrix Pr2_temp(Pr2[k].size());
-            fatrop_lu_fact_transposed(nx_next + nc, nu-rho1[k], nu-rho1[k], rho2[k], &scratch[0].mat(), Pl2_temp, Pr2_temp, lu_fact_tol);
+            fatrop_lu_fact_transposed(nf + nc, nu-rho1[k], nu-rho1[k], rho2[k], &scratch[0].mat(), Pl2_temp, Pr2_temp, lu_fact_tol);
             for (int i = 0; i < rho2[k]; i++){
                 Pl2[k][rho1[k] + i] = Pl2_temp[i] + rho1[k];
                 Pr2[k][rho1[k] + i] = Pr2_temp[i] + rho1[k];
             }
-            blasfeo_dgecp(nu-rho1[k], nx_next + nc, &scratch[0].mat(), 0, 0, At, rho1[k], rho1[k]);
+            blasfeo_dgecp(nu-rho1[k], nf + nc, &scratch[0].mat(), 0, 0, At, rho1[k], rho1[k]);
             // NOTE: these operations can be performed in the lu decompositions by
             // applying those permutations to the full matrix already
             Pl2[k].apply_on_cols(rho1[k]+rho2[k], At, 0, 0, rho1[k]); // permute K3

@@ -18,9 +18,9 @@ class Reformulator:
         self.n_act_mesh = n_act_mesh
         
         self.keep_orginal_constraint_order = False
-        self.substitute_q = True
-        self.substitute_qdot = True
-        self.eliminate_in_dynamics_equations = True
+        self.substitute_q = False
+        self.substitute_qdot = False
+        self.eliminate_in_dynamics_equations = False
         
         self.q_mesh = self.xk[:self.n_coords]
         self.qdot_mesh = self.xk[self.n_coords:2*self.n_coords]
@@ -259,19 +259,26 @@ class Reformulator:
         
         periodic_constraints = f_gk(self.xk, self.uk)[self.n_coll*self.n_coords*3:]
         if self.keep_orginal_constraint_order:
-            self.f_gk_reformulated = Function('f_gk_reformulated', 
-                                                [self.xk, self.uk], 
-                                                [vertcat(
-                                                    err_coll_arranged,        # desired order
-                                                    err_sysdyn_rewritten, 
-                                                    periodic_constraints
-                                                    )])
+            output = vertcat(err_coll_arranged,        # desired order
+                             err_sysdyn_rewritten, 
+                             periodic_constraints)
         else:
-            self.f_gk_reformulated = Function('f_gk_reformulated', 
-                                                [self.xk, self.uk], 
-                                                [vertcat(
-                                                    err_sysdyn_rewritten,     # desired order
-                                                    err_coll_arranged,
-                                                    periodic_constraints
-                                                    )])
+            output = vertcat(err_sysdyn_rewritten,     # desired order
+                             err_coll_arranged,
+                             periodic_constraints)
+            
+        self.f_gk_reformulated = Function('f_gk_reformulated', [self.xk, self.uk], [output])
+        
+        nb_constraints_without_zk = self.n_coords*(self.n_coll - 1)
+        if self.substitute_q:
+            nb_constraints_without_zk += self.n_coords*(self.n_coll - 1)
+        if self.substitute_qdot:
+            nb_constraints_without_zk += self.n_coords*(self.n_coll - 1)
+        if self.eliminate_in_dynamics_equations and self.substitute_q and self.substitute_qdot:
+            nb_constraints_without_zk += self.n_coords
+            
+        print(f"Number of constraints without zk: {nb_constraints_without_zk}")
+        print(f"Number of constraints in f_gk_reformulated: {self.f_gk_reformulated(self.xk, self.uk).shape[0]}")
+        self.number_of_constraints_with_zk = self.f_gk_reformulated(self.xk, self.uk).shape[0] - nb_constraints_without_zk
+        print(f"Number of constraints with zk: {self.number_of_constraints_with_zk}")
         return self.f_gk_reformulated

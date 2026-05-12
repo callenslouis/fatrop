@@ -731,6 +731,8 @@ namespace fatrop
             return 2;
         if (n == "linsol_increased_accuracy")
             return 2;
+        if (n == "linsol_nb_of_dynamics_constraints")
+            return 1;
         if (n == "problem_type")
             return 3;
         return -1;
