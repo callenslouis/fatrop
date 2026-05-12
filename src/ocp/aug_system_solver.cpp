@@ -1325,6 +1325,7 @@ void AugSystemSolver<AcceleratedOcpType>::register_options(OptionRegistry &regis
     registry.register_option("linsol_diagnostic", &AugSystemSolver<AcceleratedOcpType>::set_diagnostic, this);
     registry.register_option("linsol_increased_accuracy", &AugSystemSolver<AcceleratedOcpType>::set_increased_accuracy, this);
     registry.register_option("linsol_nb_of_dynamics_constraints", &AugSystemSolver<AcceleratedOcpType>::set_nb_of_dynamics_constraints, this);
+    registry.register_option("linsol_nb_of_zk_vars", &AugSystemSolver<AcceleratedOcpType>::set_nb_of_zk_vars, this);
 }
 
 LinsolReturnFlag AugSystemSolver<AcceleratedOcpType>::solve(const ProblemInfo &info,
@@ -2448,9 +2449,10 @@ void AugSystemSolver<AcceleratedOcpType>::fatrop_lu_fact_blocked_transposed(
     Index nu = dims.number_of_controls[k];
     Index nx = dims.number_of_states[k];
     Index ng = dims.number_of_eq_constraints[k];
-    Index nx_next = (k < dims.K - 1) ? dims.number_of_states[k + 1] : 0;
+    Index nx_next = (k < dims.K - 1) ? nb_of_zk_vars : 0;
     Index nf = (k < dims.K - 1) ? nb_of_dynamics_constraints : 0;
     if (nf < 0){ nf = nx_next;}
+    if (nx_next < 0){ nx_next = dims.number_of_states[k + 1];}
 
     Index nu_true = nu - nx_next;
     Index ng_true = ng - nb_of_dynamics_constraints;

@@ -3,9 +3,21 @@ from collocation_scheme import collocation_scheme
 from reformulator import Reformulator
 
 ######################
-### load functions ###
+### Set parameters ###
 ######################
 n_coll = 3
+
+introduce_periodicity_vars = False
+
+# problem_type = 'ocp_type'
+problem_type = 'accelerated_ocp_type'
+save_opti_f = False
+solve = True
+
+
+######################
+### load functions ###
+######################
 folder = f"casadi_funcs/n_coll_{n_coll}"
 f_objk_orig = Function.load(f"{folder}/f_objk.casadi")
 f_g0_orig = Function.load(f"{folder}/f_g0.casadi")
@@ -50,15 +62,13 @@ qddot_coll = SX.sym('qddot_coll_k', n_coll * n_coords)
 uk_orig = vertcat(act_mesh, q_coll, qdot_coll, qddot_coll)
 assert uk_orig.shape[0] == nu
 
-introduce_periodicity_vars = True
 periodicity_vars = SX.sym('periodicity_vars', introduce_periodicity_vars*(n_coords * 2 - 1)) # all q and qdot variables except for the forward foot x position
 zk = vertcat(q_coll[(n_coll-1)*n_coords:n_coll*n_coords], qdot_coll[(n_coll-1)*n_coords:n_coll*n_coords], periodicity_vars)
-print(f"zk: {zk.shape}")
 if introduce_periodicity_vars:
     assert zk.shape[0] == nx
     periodicity_constraint = periodicity_vars - xk[n_coords * 2:]
 else:
-    periodicity_constraint = periodicity_vars
+    periodicity_constraint = SX.zeros(0,1)
 
 uk = act_mesh
 for i in range(n_coll-1):
@@ -74,7 +84,7 @@ f_g0 = Function('f_g0', [xk, uk], [vertcat(f_g0_orig(xk, uk_orig), periodicity_c
 f_gk = Function('f_gk', [xk, uk], [vertcat(f_gk_orig(xk, uk_orig), periodicity_constraint)])
 f_gK = Function('f_gK', [xk], [f_gK_orig(xk)])
 f_gk_ineq = Function('f_gk_ineq', [xk, uk], [f_gk_ineq_orig(xk, uk_orig)])
-f_gap = Function('f_gap', [xk, uk], [zk])
+f_gap = Function('f_gap', [xk, uk], [zk if introduce_periodicity_vars else vertcat(zk, xk[n_coords*2:])])
 f_g0_unqique = Function('f_g0_unique', [xk, uk], [f_g0_orig_unique(xk, uk_orig)])
 
 ###############################
@@ -94,20 +104,22 @@ q_coll_init = uu_init[n_act_mesh:n_act_mesh+n_coll*n_coords, :]
 qdot_coll_init = uu_init[n_act_mesh+n_coll*n_coords:n_act_mesh+2*n_coll*n_coords, :]
 qddot_coll_init = uu_init[n_act_mesh+2*n_coll*n_coords:n_act_mesh+3*n_coll*n_coords, :]
 
+# actual controls
 uu_init_reordered = act_init
+
+# collocation points
 for i in range(n_coll-1):
     uu_init_reordered = vertcat(uu_init_reordered, q_coll_init[i*n_coords:(i+1)*n_coords, :], qdot_coll_init[i*n_coords:(i+1)*n_coords, :], qddot_coll_init[i*n_coords:(i+1)*n_coords, :])
-uu_init_reordered = vertcat(uu_init_reordered, qddot_coll_init[(n_coll-1)*n_coords:n_coll*n_coords, :], q_coll_init[(n_coll-1)*n_coords:n_coll*n_coords, :], qdot_coll_init[(n_coll-1)*n_coords:n_coll*n_coords, :], xx_init[n_coords * 2:, :-1])
 
-# uu_init_reordered = np.vstack([
-#     act_init,
-#     q_coll_init[0:n_coords, :], qdot_coll_init[0:n_coords, :], qddot_coll_init[0:n_coords, :],
-#     q_coll_init[n_coords:2*n_coords, :], qdot_coll_init[n_coords:2*n_coords, :], qddot_coll_init[n_coords:2*n_coords, :],
-#     qddot_coll_init[2*n_coords:3*n_coords, :], # accelerations are still controls
-#     q_coll_init[2*n_coords:3*n_coords, :], qdot_coll_init[2*n_coords:3*n_coords, :],
-#     xx_init[n_coords * 2:, :-1]
-# ])
-assert uu_init_reordered.shape[0] == nu + 2*n_coords - 1
+# last collocation point qddot and zk values
+uu_init_reordered = vertcat(uu_init_reordered, 
+                            qddot_coll_init[(n_coll-1)*n_coords:n_coll*n_coords, :], 
+                            q_coll_init[(n_coll-1)*n_coords:n_coll*n_coords, :], 
+                            qdot_coll_init[(n_coll-1)*n_coords:n_coll*n_coords, :])
+if introduce_periodicity_vars:
+    uu_init_reordered = vertcat(uu_init_reordered, xx_init[n_coords * 2:, :-1]) # periodicity vars initial guess
+
+assert uu_init_reordered.shape[0] == nu + (2*n_coords - 1 if introduce_periodicity_vars else 0)
 
 
 ###########################
@@ -118,7 +130,7 @@ xx = []
 uu = []
 for k in range(N):
     xx.append(opti.variable(nx, 1))
-    uu.append(opti.variable(nu + 2*n_coords - 1, 1))
+    uu.append(opti.variable(nu + (2*n_coords - 1 if introduce_periodicity_vars else 0), 1))
 xx.append(opti.variable(nx, 1))  # add state at mesh point N
 
 obj = 0
@@ -151,23 +163,29 @@ for k in range(N):
     
 opti.minimize(obj)
 
-ocp_type = 'ocp_type'
-# ocp_type = 'accelerated_ocp_type'
-opti.solver('fatrop', 
-            {'expand': True, 
-             'detect_simple_bounds': True,
-             'structure_detection': 'auto'},
-            {'tol': 1e-4,
-             'mu_init': 0.1,
-             'max_iter': 300,
-             'problem_type': ocp_type,
-            #  'linsol_nb_of_dynamics_constraints': reformulator.number_of_constraints_with_zk
-             })
+opts_casadi = {
+    'expand': True, 
+    'detect_simple_bounds': True,
+    'structure_detection': 'auto'
+}
+opts_fatrop = {
+    'tol': 1e-4,
+    'mu_init': 0.1,
+    'max_iter': 300,
+    'problem_type': problem_type,
+}
+if problem_type == 'accelerated_ocp_type':
+    opts_fatrop['linsol_nb_of_dynamics_constraints'] = reformulator.number_of_constraints_with_zk
+    opts_fatrop['linsol_nb_of_zk_vars'] = zk.shape[0]
 
-# print(f"creating opti to function object")
-# opti_f = opti.to_function('opti_f', [], [hcat(xx), hcat(uu)], [], ['xx', 'uu'])
-# print(f"saving opti to function object")
-# opti_f.save(f'casadi_funcs/test_gait_shortcut_python_reformulated_{ocp_type}.casadi')
-print(f"solving")
-sol = opti.solve()
+opti.solver('fatrop', opts_casadi, opts_fatrop)
+
+if save_opti_f:
+    print(f"creating opti to function object")
+    opti_f = opti.to_function('opti_f', [], [hcat(xx), hcat(uu)], [], ['xx', 'uu'])
+    print(f"saving opti to function object")
+    opti_f.save(f'casadi_funcs/test_gait_shortcut_python_reformulated_{problem_type}.casadi')
+if solve:
+    print(f"solving")
+    sol = opti.solve()
 

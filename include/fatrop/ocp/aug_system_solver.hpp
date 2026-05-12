@@ -317,6 +317,7 @@ namespace fatrop
         void set_diagnostic(const bool &value) { diagnostic = value; }
         void set_increased_accuracy(const bool &value) { increased_accuracy = value; }
         void set_nb_of_dynamics_constraints(const Index &value) { nb_of_dynamics_constraints = value; }
+        void set_nb_of_zk_vars(const Index &value) { nb_of_zk_vars = value; }
 
         std::chrono::nanoseconds duration_lu_factorization = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_backward_recursion = std::chrono::nanoseconds(0);
@@ -406,7 +407,8 @@ namespace fatrop
         Scalar lu_fact_tol = 1e-5;
         bool diagnostic = false;
         bool increased_accuracy = true;
-        Scalar nb_of_dynamics_constraints = -1; // default value -1, nx will be used in this case
+        Index nb_of_dynamics_constraints = -1; // default value -1, nx will be used in this case
+        Index nb_of_zk_vars = -1; // default value -1, nx will be used in this case
 
         private:
     };

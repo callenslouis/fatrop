@@ -733,6 +733,8 @@ namespace fatrop
             return 2;
         if (n == "linsol_nb_of_dynamics_constraints")
             return 1;
+        if (n == "linsol_nb_of_zk_vars")
+            return 1;
         if (n == "problem_type")
             return 3;
         return -1;

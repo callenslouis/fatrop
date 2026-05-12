@@ -1,7 +1,7 @@
 from casadi import *
 
 # load functions
-folder = "casadi_funcs"
+folder = "casadi_funcs/n_coll_3"
 f_objk = Function.load(f"{folder}/f_objk.casadi")
 f_g0 = Function.load(f"{folder}/f_g0.casadi")
 f_gk = Function.load(f"{folder}/f_gk.casadi")
@@ -13,9 +13,6 @@ f_lb = Function.load(f"{folder}/f_lb.casadi")
 f_ub = Function.load(f"{folder}/f_ub.casadi")
 f_x_init = Function.load(f"{folder}/f_init_x.casadi")
 f_u_init = Function.load(f"{folder}/f_init_u.casadi")
-
-print(f_gk)
-print(f_gK)
 
 # derive dimensions
 xx_init = f_x_init()['x_init']
@@ -31,14 +28,12 @@ opti = Opti()
 xx = []
 uu = []
 for k in range(N):
-    print(k)
     xx.append(opti.variable(nx, 1))
     uu.append(opti.variable(nu, 1))
 xx.append(opti.variable(nx, 1))  # add state at mesh point N
 
 obj = 0
 for k in range(N):
-    print(k)
     # gap-closing constraint
     opti.subject_to(xx[k+1] == f_gap(xx[k], uu[k]))
     
@@ -72,7 +67,7 @@ opti.solver('fatrop',
             {'tol': 1e-4,
              'mu_init': 0.1})
 
-opti_f = opti.to_function('opti_f', [], [hcat(xx), hcat(uu)], [], ['xx', 'uu'])
-opti_f.save('casadi_funcs/test_gait_shortcut_python.casadi')
+# opti_f = opti.to_function('opti_f', [], [hcat(xx), hcat(uu)], [], ['xx', 'uu'])
+# opti_f.save('casadi_funcs/test_gait_shortcut_python.casadi')
 sol = opti.solve()
 
