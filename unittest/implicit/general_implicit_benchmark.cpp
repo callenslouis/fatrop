@@ -24,6 +24,7 @@ class RandomBenchmarkTest : public ::testing::Test
 public:
     bool full_rank = true;
     bool constant_dimensions = true;
+    bool use_generalization = true;
 
     int K;
     std::vector<Index> nx;
@@ -31,6 +32,9 @@ public:
     std::vector<Index> nu;
     std::vector<Index> ng;
     std::vector<Index> ng_ineq;
+    
+    std::vector<Index> nv;
+    std::vector<Index> nz;
 
     /// Explicit case ///
     std::optional<ProblemDims> dims_expl;
@@ -234,6 +238,36 @@ public:
 
     }
 
+    void GetRandomGeneralizedDimensions(){
+        if (!constant_dimensions){ throw std::runtime_error("Invalid settings for Generalized Dimensions")}
+        int max_val = 40;
+        K = rand() % 30 + 2;
+        nz = RandomVector(K, 0, max_val);
+        nz[K-1] = 0;
+        std::vector<Index> ng_true = RandomVector(K, 0, max_val);
+        std::vector<Index> nu_true = RandomVector(K, 0, max_val);
+        nx = RandomVector(K, nz, nz[0] + max_val);
+        ng_ineq = RandomVector(K, 0, max_val);
+
+        nu = nu_true;
+        ng = ng_true;
+
+        for (int i = 0; i < K - 1; ++i){
+            if (nx[i] + nu_true[i] + nx[i+1] < nv[i] + (nx[i] - nz[i]) ||
+                nx[i] + nu_true[i] + nz[i] < ng_true[i] + nv[i] ||
+                nx[i+1] < nz[i]){
+            // try again
+            return GetRandomGeneralizedDimensions();
+            }
+        }
+        if (ng_true[K-1] > nx[K-1] + nu_true[K-1]){
+            // try again
+            return GetRandomGeneralizedDimensions();
+        }
+
+        return;
+    }
+
     void AllocateSolvers(){
         AllocateExplicitSolver();
         AllocateImplicitSolver();
@@ -292,8 +326,13 @@ public:
         std::vector<Index> nu_reform = nu;
         std::vector<Index> ng_reform = ng;
         for (int k = 0; k < K-1; ++k){
-            nu_reform[k] += nx[k+1];
-            ng_reform[k] += nx[k+1];
+            if (use_generalization){
+                nu_reform[k] += nz[k];
+                ng_reform[k] += nv[k];
+            } else {
+                nu_reform[k] += nx[k+1];
+                ng_reform[k] += nx[k+1];
+            }
         }
 
         dims_reform.emplace(ProblemDims{K, nu_reform, nx, ng_reform, ng_ineq});
@@ -321,8 +360,13 @@ public:
         std::vector<Index> nu_accel = nu;
         std::vector<Index> ng_accel = ng;
         for (int k = 0; k < K-1; ++k){
-            nu_accel[k] += nx[k+1];
-            ng_accel[k] += nx[k+1];
+            if (use_generalization){
+                nu_accel[k] += nz[k];
+                ng_accel[k] += nv[k];
+            } else {
+                nu_accel[k] += nx[k+1];
+                ng_accel[k] += nx[k+1];
+            }
         }
 
         dims_accel.emplace(ProblemDims{K, nu_accel, nx, ng_accel, ng_ineq});
@@ -410,6 +454,13 @@ public:
     }
 
     void FillImplicitSolver(){
+        if (use_generalization){
+            // the implicit algorithm assumes nx_next dynamics constraints, which is not guaranteed in the generalized case
+            // --> implicit recursion should be modified to allow for an arbitrary number of dynamics constraints
+            throw std::runtime_error("Implicit solver cannot be used when using the generalization of dimensions.")
+            return;
+        }
+
         x_impl = 0;
         full_matrix_jacobian_impl.value() = 0.;
         full_matrix_hessian_impl.value() = 0.;
@@ -499,8 +550,15 @@ public:
             Index offset_g_ineq = info_reform.value().offsets_g_eq_slack[k];
             Index ng = info_reform.value().dims.number_of_eq_constraints[k];
             Index ng_ineq = info_reform.value().dims.number_of_ineq_constraints[k];
-            Index nu_true = (k < info_reform.value().dims.K - 1) ? nu - info_reform.value().dims.number_of_states[k+1] : nu;
-            Index ng_true = (k < info_reform.value().dims.K - 1) ? ng - info_reform.value().dims.number_of_states[k+1] : ng;
+            Index nu_true;
+            Index ng_true;
+            if (use_generalization){
+                nu_true = (k < info_reform.value().dims.K - 1) ? nu - nz[k] : nu;
+                ng_true = (k < info_reform.value().dims.K - 1) ? ng - nv[k] : ng;
+            } else {
+                nu_true = (k < info_reform.value().dims.K - 1) ? nu - info_reform.value().dims.number_of_states[k+1] : nu;
+                ng_true = (k < info_reform.value().dims.K - 1) ? ng - info_reform.value().dims.number_of_states[k+1] : ng;
+            }
             if (k < info_reform.value().dims.K - 1)
             {
                 Index nx_next = info_reform.value().dims.number_of_states[k + 1];
@@ -570,8 +628,15 @@ public:
             Index offset_g_ineq = info_accel.value().offsets_g_eq_slack[k];
             Index ng = info_accel.value().dims.number_of_eq_constraints[k];
             Index ng_ineq = info_accel.value().dims.number_of_ineq_constraints[k];
-            Index nu_true = (k < info_accel.value().dims.K - 1) ? nu - info_accel.value().dims.number_of_states[k+1] : nu;
-            Index ng_true = (k < info_accel.value().dims.K - 1) ? ng - info_accel.value().dims.number_of_states[k+1] : ng;
+            Index nu_true;
+            Index ng_true;
+            if (use_generalization){
+                nu_true = (k < info_accel.value().dims.K - 1) ? nu - nz[k] : nu;
+                ng_true = (k < info_accel.value().dims.K - 1) ? ng - nv[k] : ng;
+            } else {
+                nu_true = (k < info_accel.value().dims.K - 1) ? nu - info_accel.value().dims.number_of_states[k+1] : nu;
+                ng_true = (k < info_accel.value().dims.K - 1) ? ng - info_accel.value().dims.number_of_states[k+1] : ng;
+            }
             if (k < info_accel.value().dims.K - 1)
             {
                 Index nx_next = info_accel.value().dims.number_of_states[k + 1];
@@ -759,7 +824,7 @@ TEST_F(RandomBenchmarkTest, Test)
 
     std::ofstream f;    
     if (write_csv){
-        f.open("random_benchmark_results_extended.csv");
+        f.open("random_benchmark_results_generalized_20000.csv");
         f << "K,nu,nx,r,ng,ng_ineq,";
         f << "t_expl,t_expl_backward,t_expl_solve,t_expl_forward,";
         f << "t_impl,t_impl_backward,t_impl_solve,t_impl_forward,t_impl_pre,t_impl_solve,t_impl_post,";
