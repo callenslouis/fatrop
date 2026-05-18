@@ -17,7 +17,15 @@ if __name__ == '__main__':
         
     df = pd.DataFrame(get_data())
     
-    x_func = relative_area_computer()
-    # x_func = plain_df_key('nx')
+    x_funcs = [relative_area_computer(), plain_df_key('m_rel'), plain_df_key('n_rel')]
     
-    visualize_scaling_1d(df, x_func)
+    # relative timings
+    for x_func in x_funcs:
+        visualize_scaling_1d(df, x_func, x_min_step=0.1)
+    plt.show()
+    
+    # absolute timings for each
+    y_funcs = [plain_df_key('t_accel'), plain_df_key('t_reform')] #, plain_df_key('t_impl')]
+    for x_func in x_funcs:
+        visualize_scaling_1d(df, x_func, y_funcs=y_funcs, x_min_step=0.1)
+    plt.show()

@@ -14,10 +14,16 @@ class metric_computer:
     def filter_df(self, df, x_value):
         # filter the dataframe to only include rows where the metric value is equal to x_value
         return df[self.compute_metric(df) == x_value]
+    
+    def filter_df_range(self, df, x_min, x_max):
+        # filter the dataframe to only include rows where the metric value is between x_min and x_max
+        return df[(self.compute_metric(df) >= x_min) & (self.compute_metric(df) <= x_max)]
 
     # compute all values of the metric
     def compute_unique_sorted_values(self, df):
-        return np.sort(np.unique(self.compute_metric(df)))
+        m = self.compute_metric(df)
+        m = m[~np.isnan(m)]
+        return np.sort(np.unique(m))
     
     # evaluate the metric on the given dataframe, returning mean and std
     def evaluate(self, df_filtered):

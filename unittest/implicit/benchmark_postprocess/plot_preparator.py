@@ -1,5 +1,6 @@
 from metric_computer import rel_speedup_computer
 from filter import default_filter
+import numpy as np
 
 class PlotPreparator:
     def __init__(self):
@@ -16,19 +17,31 @@ class PlotPreparator:
     def set_filter(self, filter):
         self.filter = filter
 
-    def prepare(self, df):
+    def prepare(self, df, **kwargs):
         assert self.x_metric_computer is not None, "x_metric_computer must be set before calling prepare()"
         assert self.y_metric_computer is not None, "y_metric_computer must be set before calling prepare()"
         assert self.filter is not None, "filter must be set before calling prepare()"
         
         # get all x-values
         x_values = self.x_metric_computer.compute_unique_sorted_values(df)
+        if kwargs.get('use_integer_x'):
+            x_values = [int(x) for x in x_values]
+            x_values = np.unique(x_values)
+        elif kwargs.get('x_min_step') is not None:
+            x_min = np.min(x_values)
+            x_max = np.max(x_values)
+            x_min_step = kwargs.get('x_min_step')
+            x_values = np.arange(x_min, x_max + x_min_step, x_min_step)
         
         # for each x value, compute the mean and std of the corresponding y values
         y_values_mean = []
         y_values_std = []
-        for x in x_values:
-            y_mean, y_std = self.y_metric_computer.evaluate(self.x_metric_computer.filter_df(self.filter.filter_data(df), x))
+        for i, x in enumerate(x_values):
+            df_filtered = self.filter.filter_data(df)
+            if kwargs.get('use_integer_x') or kwargs.get('x_min_step') is not None:
+                y_mean, y_std = self.y_metric_computer.evaluate(self.x_metric_computer.filter_df_range(df_filtered, x_values[i], x_values[i+1] if i+1 < len(x_values) else x_values[i]))
+            else:
+                y_mean, y_std = self.y_metric_computer.evaluate(self.x_metric_computer.filter_df(df_filtered, x))
             y_values_mean.append(y_mean)
             y_values_std.append(y_std)
 
