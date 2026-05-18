@@ -6,6 +6,21 @@ import numpy as np
 # FOLDER = 'stored_solutions'
 FOLDER = 'unittest/implicit/walking_gait/stored_solutions'
 
+# obtain all stats files for one ocp type
+def get_stats_for_ocp_type(file_appendix):
+    stats_list = []
+    files = [f for f in os.listdir(FOLDER) if f.startswith('solution_gait_shortcut_reformulated_' + file_appendix)]
+    for file in files:
+        with open(f'{FOLDER}/{file}', 'rb') as f:
+            data = pkl.load(f)
+            stats_list.append(data['stats'])
+    print(stats_list[0].keys())
+    print()
+    print(stats_list[0]['fatrop'].keys())
+    print()
+    return stats_list
+
+# get averages and std for each timing metric across all runs for each ocp type
 def average_stats(stats_list):
     stats_lists = {}
     for stats in stats_list:
@@ -18,11 +33,58 @@ def average_stats(stats_list):
     avg_stats = {}
     for key in stats_lists:
         avg_stats[key] = {}
-        avg_stats[key]['all'] = stats_lists[key]
-        avg_stats[key]['mean'] = np.mean(stats_lists[key])
-        avg_stats[key]['std'] = np.std(stats_lists[key])
+        if isinstance(stats_lists[key][0], dict):
+            avg_stats[key] = average_stats(stats_lists[key])  # recursive averaging for nested dicts
+        elif isinstance(stats_lists[key][0], (int, float)):
+            avg_stats[key]['all'] = stats_lists[key]
+            avg_stats[key]['mean'] = np.mean(stats_lists[key])
+            avg_stats[key]['std'] = np.std(stats_lists[key])
+        else:
+            # print(f"Warning: Unsupported type for averaging for key '{key}'")
+            pass
     
     return avg_stats
+
+# get all stats for both ocp types
+# multiple stats exist for each type
+def get_all_stats():
+    ocp_type_stats = get_stats_for_ocp_type('ocp_type')
+    accelerated_ocp_type_stats = get_stats_for_ocp_type('accelerated_ocp_type')
+    
+    ocp_average_stats = average_stats(ocp_type_stats)
+    accelerated_ocp_type_stats = average_stats(accelerated_ocp_type_stats)
+    
+    return ocp_type_stats, accelerated_ocp_type_stats, ocp_average_stats, accelerated_ocp_type_stats
+
+def filter(avg_stats):
+    filtered_stats = {'fatrop': {}}
+    casadi_func_keys = ['t_wall_nlp_f', 't_wall_nlp_g', 't_wall_nlp_grad', 't_wall_nlp_grad_f', 't_wall_nlp_hess_l', 't_wall_nlp_jac_g']
+    fatrop_func_keys = ['eval_cv_', 'eval_grad_', 'eval_hess_', 'eval_jac_', 'eval_obj_']
+    casadi_other_keys = ['t_wall_total']
+    fatrop_other_keys = ['compute_sd_time', 'time_total']
+    
+    for key in casadi_func_keys:
+        # if key in avg_stats:
+        filtered_stats[key] = avg_stats[key]
+    for key in casadi_other_keys:
+        if key in avg_stats:
+            filtered_stats[key] = avg_stats[key]
+    for key in fatrop_func_keys:
+        if f'{key}time' in avg_stats['fatrop']:
+            filtered_stats['fatrop'][f'{key}time'] = avg_stats['fatrop'][f'{key}time']
+            # filtered_stats['fatrop'][f'{key}count'] = avg_stats['fatrop'][f'{key}count']
+    for key in fatrop_other_keys:
+        if key in avg_stats['fatrop']:
+            filtered_stats['fatrop'][key] = avg_stats['fatrop'][key]
+            
+    # compute total function evaluation times
+    filtered_stats['func_eval'] = { 'mean': sum(avg_stats[f'{key}']['mean'] for key in casadi_func_keys),
+                                    'std': np.sqrt(sum(avg_stats[f'{key}']['std']**2 for key in casadi_func_keys)),
+                                    'all': [avg_stats[f'{key}']['all'] for key in casadi_func_keys]}
+    filtered_stats['fatrop']['func_eval'] = {'mean': sum(avg_stats['fatrop'][f'{key}time']['mean'] for key in fatrop_func_keys),
+                                             'std': np.sqrt(sum(avg_stats['fatrop'][f'{key}time']['std']**2 for key in fatrop_func_keys)),
+                                             'all': [avg_stats['fatrop'][f'{key}time']['all'] for key in fatrop_func_keys]}
+    return filtered_stats
 
 def extract_relevant_timings(stats):
     relevant_keys = [
@@ -81,16 +143,24 @@ def print_comparison(timings1, timings2, label1='OCP Type', label2='Accelerated 
         print(f"{key:<20} | {time1['mean']:11.4f} ({time1['std']:5.4f}) | {time2['mean']:12.4f} ({time2['std']:5.4f}) | {rel_diff_str:20}")
     print()
 
-timings_ocp_type, timings_accelerated_ocp_type = load_solutions()
-print_comparison(timings_ocp_type, timings_accelerated_ocp_type)
+ocp_stats, accelerated_ocp_stats, ocp_avg, accelerated_ocp_avg = get_all_stats()
+ocp_filtered, accelerated_ocp_filtered = filter(ocp_avg), filter(accelerated_ocp_avg)
+print_comparison(ocp_filtered['fatrop'], accelerated_ocp_filtered['fatrop'], label1='OCP Type', label2='Accelerated OCP Type')
+
+# timings_ocp_type, timings_accelerated_ocp_type = load_solutions()
+# print_comparison(timings_ocp_type, timings_accelerated_ocp_type)
 
 # visualize computation times
 plt.figure()
 
 # show boxplots for compute_sd_time, func_eval_time, and fatrop_time
-labels = timings_ocp_type.keys()
-data_ocp_type = [timings_ocp_type[label]['all'] for label in labels]
-data_accelerated_ocp_type = [timings_accelerated_ocp_type[label]['all'] for label in labels]
+labels = ['compute_sd_time', 'func_eval', 'time_total']
+data_ocp_type = [ocp_filtered['fatrop'][label]['all'] for label in labels]
+data_accelerated_ocp_type = [accelerated_ocp_filtered['fatrop'][label]['all'] for label in labels]
+
+print(data_ocp_type)
+print(len(data_ocp_type))
+print([len(i) for i in data_ocp_type])
 
 width = 0.6
 positions_ocp = np.array(range(len(labels)))*2.0 - width/2
