@@ -8,7 +8,7 @@ class metric_computer:
         
     # Helper function to compute the metric
     def compute_metric(self, df):
-        # compute the metric for all rows and add it as a new column to the dataframe
+        # compute the metric for all rows
         raise NotImplementedError
     
     def filter_df(self, df, x_value):
@@ -40,12 +40,16 @@ class plain_df_key(metric_computer):
     def compute_metric(self, df):
         return df[self.key]
     
-class relative_area_computer(metric_computer):
-    def __init__(self):
+class area_computer(metric_computer):
+    def __init__(self, relative=False):
         super().__init__('Relative Area')
+        self.relative = relative
         
     def compute_metric(self, df):
-        return df['m_rel'] * df['n_rel']
+        if self.relative:
+            return df['m_rel'] * df['n_rel']
+        
+        return df['m'] * df['n']
     
 class rel_speedup_computer(metric_computer):
     def __init__(self):

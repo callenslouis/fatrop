@@ -28,7 +28,7 @@ def latexify():
               'ytick.labelsize': 14,
               'text.usetex': True,
               'font.family': 'serif',
-              'figure.figsize': [4, 3],
+              'figure.figsize': [8, 6],
               'text.latex.preamble': r'\usepackage{bm}',
               }
  
