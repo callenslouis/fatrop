@@ -4,18 +4,14 @@ from plot_preparator import PlotPreparator
 from helper import translate_label
 
 def visualize_scaling_1d(df, x_func, **kwargs):
-    # add default values
-    y_funcs = kwargs.get('y_funcs', [])
-    filters = kwargs.get('filters', [])
-    y_func_linestyles = kwargs.get('y_func_linestyles', ['-', '--', '-.', ':'])
-    filter_colors = kwargs.get('filter_colors', ['blue', 'black', 'red', 'green', 'orange'])
-    
     pp = PlotPreparator()
     pp.set_x_metric_computer(x_func)
-    if len(filters) == 0:
-        filters = [pp.filter]
-    if len(y_funcs) == 0:
-        y_funcs = [pp.y_metric_computer]
+ 
+    # add default values
+    y_funcs = kwargs.get('y_funcs', [pp.y_metric_computer])
+    filters = kwargs.get('filters', [pp.filter])
+    y_func_linestyles = kwargs.get('y_func_linestyles', ['-', '--', '-.', ':'])
+    filter_colors = kwargs.get('filter_colors', ['blue', 'black', 'red', 'green', 'orange'])
     
     plt.figure()
         
@@ -23,12 +19,33 @@ def visualize_scaling_1d(df, x_func, **kwargs):
         for y_idx, y in enumerate(y_funcs):
             pp.set_filter(f)
             pp.set_y_metric_computer(y)
-            xx, yy_mean, yy_std = pp.prepare(df, **kwargs)
+            kwargs_fine = kwargs.copy()
+            kwargs_fine['x_min_step'] = None
+            kwargs_fine['use_integer_x'] = False
+            xx_fine, yy_mean_fine, yy_std_fine, y_all_fine, y_masks_fine = pp.prepare(df, **kwargs_fine)
+            xx, yy_mean, yy_std, y_all, y_masks = pp.prepare(df, **kwargs)
             color = filter_colors[f_idx % len(filter_colors)]
             linestyle = y_func_linestyles[y_idx % len(y_func_linestyles)]
-            
+
             plt.plot(xx, yy_mean, linestyle=linestyle, color=color, label=f"{y.name} ({f.name})")
-            plt.fill_between(xx, np.array(yy_mean) - 0.1*np.array(yy_std), np.array(yy_mean) + 0.1*np.array(yy_std), color=color, alpha=0.2)
+            if kwargs.get('scatter', False):
+                y_all_flat = []
+                xx_flat = []                
+                colors = []
+                for i in range(len(xx_fine)):
+                    xx_flat.extend([xx_fine[i]] * len(y_all_fine[i]))
+                    y_all_flat.extend(y_all_fine[i])
+                    if kwargs.get('scatter_color_func') is not None:
+                        df_entries = df[y_masks_fine[i]]
+                        color_for_entries = kwargs.get('scatter_color_func').compute_metric(df_entries)
+                        colors.extend(color_for_entries)
+                    else:
+                        colors.extend([color] * len(y_all_fine[i]))
+                                       
+                plt.scatter(xx_flat, y_all_flat, c=colors, s=3, linestyle=linestyle, label=f"{y.name} ({f.name})", alpha=0.15)
+                plt.colorbar(label=kwargs.get('scatter_color_func').name)
+            else:
+                plt.fill_between(xx, np.array(yy_mean) - 0.1*np.array(yy_std), np.array(yy_mean) + 0.1*np.array(yy_std), color=color, alpha=0.2)
             
     plt.axhline(0, color='k', lw=2)
         
@@ -57,3 +74,4 @@ def visualize_distribution(df, metric, **kwargs):
     plt.tight_layout()
     if kwargs.get('show', False):
         plt.show()
+        

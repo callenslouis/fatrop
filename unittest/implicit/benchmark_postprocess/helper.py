@@ -34,40 +34,40 @@ def latexify():
  
     plt.rcParams.update(params)
     
-def get_data():
-    file = '../../../build_docker/random_benchmark_results_extended_20000.csv'
+def get_data():   
+    use_generalization = True
+    if use_generalization:
+        file = '../../../build_docker/random_benchmark_results_generalized_20000.csv'
+    else:
+        file = '../../../build_docker/random_benchmark_results_extended_20000.csv'
+        
     df = pd.read_csv(file)
-
-    data = {
-        'K': np.array(df['K'].values),
-        'nx': np.array(df['nx'].values),
-        'r': np.array(df['r'].values),
-        'nu': np.array(df['nu'].values),
-        'ng': np.array(df['ng'].values),
-        'ng_ineq': np.array(df['ng_ineq'].values),
-        't_expl': np.array(df['t_expl'].values),
-        't_impl': np.array(df['t_impl'].values),
-        't_impl_pre': np.array(df['t_impl_pre'].values),
-        't_impl_solve': np.array(df['t_impl_solve'].values),
-        't_impl_post': np.array(df['t_impl_post'].values),
-        't_reform': np.array(df['t_reform'].values),
-        't_accel': np.array(df['t_accel'].values),
-        'lu_expl': np.array(df['lu_expl'].values),
-        'lu_impl': np.array(df['lu_impl'].values),
-        'lu_reform': np.array(df['lu_reform'].values),
-        'lu_accel': np.array(df['lu_accel'].values),
-        'impl_decomp': np.array(df['impl_decomp'].values),
-    }
     
-    df['nz'] = df['nx']
-    df['nf'] = df['nx']
+    if not use_generalization:
+        df['nz'] = df['nx']
+        df['nf'] = df['nx']
+        df['nv'] = df['nx']
+    else:
+        df['nf'] = df['nv'] + (df['nx'] - df['nz'])
     
-    # number of rows: ng + nf
-    df['m'] = df['ng'] + df['nf']
+    # number of rows: ng + nv
+    df['m'] = df['ng'] + df['nv']
     df['m_rel'] = df['ng'] / df['m']
     
     # number of cols: nu + nz
-    df['n'] = df['nx'] + df['nu']
+    df['n'] = df['nz'] + df['nu']
     df['n_rel'] = df['nu'] / df['n']
 
+    return df
+
+def get_lu_data():
+    file = '../../../build_docker/blocked_lu_timings_general.csv'
+    df = pd.read_csv(file)
+    df['nz'] = df['nx']
+    df['nv'] = df['nx']
+    df['nf'] = df['nv'] + (df['nx'] - df['nz'])
+    df['m'] = df['ng'] + df['nv']
+    df['m_rel'] = df['ng'] / df['m']
+    df['n'] = df['nz'] + df['nu']
+    df['n_rel'] = df['nu'] / df['n']
     return df

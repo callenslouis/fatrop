@@ -16,6 +16,8 @@
 #include <random>
 #include <fstream>
 
+static const bool USE_GENERALIZATION = true;
+
 using namespace fatrop;
 
 class RandomBenchmarkTest : public ::testing::Test
@@ -24,7 +26,7 @@ class RandomBenchmarkTest : public ::testing::Test
 public:
     bool full_rank = true;
     bool constant_dimensions = true;
-    bool use_generalization = true;
+    bool use_generalization = USE_GENERALIZATION;
 
     int K;
     std::vector<Index> nx;
@@ -137,22 +139,24 @@ public:
         D_eq_expl.reset();
         full_kkt_matrix_expl.reset();
 
-        solver_impl.reset();
-        hessian_impl.reset();
-        jacobian_impl.reset();
-        info_impl.reset();
-        dims_impl.reset();
-        full_matrix_jacobian_impl.reset();
-        full_matrix_hessian_impl.reset();
-        x_impl.reset();
-        mult_impl.reset();
-        rhs_x_impl.reset();
-        rhs_g_impl.reset();
-        D_x_impl.reset();
-        D_s_impl.reset();
-        D_eq_impl.reset();
-        full_kkt_matrix_impl.reset();
-
+        if (!use_generalization){
+            solver_impl.reset();
+            hessian_impl.reset();
+            jacobian_impl.reset();
+            info_impl.reset();
+            dims_impl.reset();
+            full_matrix_jacobian_impl.reset();
+            full_matrix_hessian_impl.reset();
+            x_impl.reset();
+            mult_impl.reset();
+            rhs_x_impl.reset();
+            rhs_g_impl.reset();
+            D_x_impl.reset();
+            D_s_impl.reset();
+            D_eq_impl.reset();
+            full_kkt_matrix_impl.reset();
+        }
+            
         solver_reform.reset();
         hessian_reform.reset();
         jacobian_reform.reset();
@@ -190,7 +194,7 @@ public:
     {
         ClearOptionals();
         int max_val = 40;
-        K = rand() % 30 + 2; // Random K between 2 and 21
+        K = rand() % 10 + 2; // Random K between 2 and 21
         nx = RandomVector(K, 0, max_val);
         if (full_rank){
             r = nx;
@@ -238,16 +242,18 @@ public:
 
     }
 
-    void GetRandomGeneralizedDimensions(){
-        if (!constant_dimensions){ throw std::runtime_error("Invalid settings for Generalized Dimensions")}
-        int max_val = 40;
-        K = rand() % 30 + 2;
+    int GetRandomGeneralizedDimensions(){
+        if (!constant_dimensions){ throw std::runtime_error("Invalid settings for Generalized Dimensions");}
+        int max_val = 30;
+        K = rand() % 10 + 2;
         nz = RandomVector(K, 0, max_val);
         nz[K-1] = 0;
         std::vector<Index> ng_true = RandomVector(K, 0, max_val);
         std::vector<Index> nu_true = RandomVector(K, 0, max_val);
-        nx = RandomVector(K, nz, nz[0] + max_val);
+        nx = RandomVector(K, nz[0], nz[0] + max_val);
+        r = nx;
         ng_ineq = RandomVector(K, 0, max_val);
+        nv = RandomVector(K, 0, max_val);
 
         nu = nu_true;
         ng = ng_true;
@@ -257,20 +263,22 @@ public:
                 nx[i] + nu_true[i] + nz[i] < ng_true[i] + nv[i] ||
                 nx[i+1] < nz[i]){
             // try again
-            return GetRandomGeneralizedDimensions();
+            return 1 + GetRandomGeneralizedDimensions();
             }
         }
         if (ng_true[K-1] > nx[K-1] + nu_true[K-1]){
             // try again
-            return GetRandomGeneralizedDimensions();
+            return 1 + GetRandomGeneralizedDimensions();
         }
 
-        return;
+        return 1;
     }
 
     void AllocateSolvers(){
         AllocateExplicitSolver();
-        AllocateImplicitSolver();
+        if (!use_generalization){
+            AllocateImplicitSolver();
+        }
         AllocateReformulatedSolver();
         AllocateAcceleratedSolver();
         // std::cout << "KKT size expl:   " << full_kkt_matrix_expl.value().m() << " x " << full_kkt_matrix_expl.value().n() << std::endl;
@@ -282,42 +290,37 @@ public:
         dims_expl.emplace(ProblemDims{K, nu, nx, ng, ng_ineq});
         info_expl.emplace(ProblemInfo(dims_expl.value()));
         jacobian_expl.emplace(Jacobian<OcpType>(dims_expl.value()));
-        full_matrix_jacobian_expl =
-            MatRealAllocated(info_expl->number_of_eq_constraints, info_expl->number_of_primal_variables);
+        full_matrix_jacobian_expl.emplace(info_expl->number_of_eq_constraints, info_expl->number_of_primal_variables);
         hessian_expl.emplace(Hessian<OcpType>(dims_expl.value()));
-        full_matrix_hessian_expl =
-            MatRealAllocated(info_expl->number_of_primal_variables, info_expl->number_of_primal_variables);
-        x_expl = VecRealAllocated(info_expl->number_of_primal_variables);
-        mult_expl = VecRealAllocated(info_expl->number_of_eq_constraints);
-        rhs_x_expl = VecRealAllocated(info_expl->number_of_primal_variables);
-        rhs_g_expl = VecRealAllocated(info_expl->number_of_eq_constraints);
-        D_x_expl = VecRealAllocated(info_expl->number_of_primal_variables);
-        D_s_expl = VecRealAllocated(info_expl->number_of_slack_variables);
-        D_eq_expl = VecRealAllocated(info_expl->number_of_g_eq_path);
-        full_kkt_matrix_expl =
-            MatRealAllocated(info_expl->number_of_primal_variables + info_expl->number_of_eq_constraints,
+        full_matrix_hessian_expl.emplace(info_expl->number_of_primal_variables, info_expl->number_of_primal_variables);
+        x_expl.emplace(info_expl->number_of_primal_variables);
+        mult_expl.emplace(info_expl->number_of_eq_constraints);
+        rhs_x_expl.emplace(info_expl->number_of_primal_variables);
+        rhs_g_expl.emplace(info_expl->number_of_eq_constraints);
+        D_x_expl.emplace(info_expl->number_of_primal_variables);
+        D_s_expl.emplace(info_expl->number_of_slack_variables);
+        D_eq_expl.emplace(info_expl->number_of_g_eq_path);
+        full_kkt_matrix_expl.emplace(info_expl->number_of_primal_variables + info_expl->number_of_eq_constraints,
                              info_expl->number_of_primal_variables + info_expl->number_of_eq_constraints);
         solver_expl.emplace(AugSystemSolver<OcpType>(info_expl.value()));
     }
 
     void AllocateImplicitSolver(){
+        if (use_generalization){ throw std::runtime_error("Generalization not supported for implicit solver"); }
         dims_impl.emplace(ProblemDims{K, nu, nx, ng, ng_ineq});
         info_impl.emplace(ProblemInfo(dims_impl.value()));
         jacobian_impl.emplace(Jacobian<ImplicitOcpType>(dims_impl.value()));
-        full_matrix_jacobian_impl =
-            MatRealAllocated(info_impl->number_of_eq_constraints, info_impl->number_of_primal_variables);
+        full_matrix_jacobian_impl.emplace(info_impl->number_of_eq_constraints, info_impl->number_of_primal_variables);
         hessian_impl.emplace(Hessian<ImplicitOcpType>(dims_impl.value()));
-        full_matrix_hessian_impl =
-            MatRealAllocated(info_impl->number_of_primal_variables, info_impl->number_of_primal_variables);
-        x_impl = VecRealAllocated(info_impl->number_of_primal_variables);
-        mult_impl = VecRealAllocated(info_impl->number_of_eq_constraints);
-        rhs_x_impl = VecRealAllocated(info_impl->number_of_primal_variables);
-        rhs_g_impl = VecRealAllocated(info_impl->number_of_eq_constraints);
-        D_x_impl = VecRealAllocated(info_impl->number_of_primal_variables);
-        D_s_impl = VecRealAllocated(info_impl->number_of_slack_variables);
-        D_eq_impl = VecRealAllocated(info_impl->number_of_g_eq_path);
-        full_kkt_matrix_impl =
-            MatRealAllocated(info_impl->number_of_primal_variables + info_impl->number_of_eq_constraints,
+        full_matrix_hessian_impl.emplace(info_impl->number_of_primal_variables, info_impl->number_of_primal_variables);
+        x_impl.emplace(info_impl->number_of_primal_variables);
+        mult_impl.emplace(info_impl->number_of_eq_constraints);
+        rhs_x_impl.emplace(info_impl->number_of_primal_variables);
+        rhs_g_impl.emplace(info_impl->number_of_eq_constraints);
+        D_x_impl.emplace(info_impl->number_of_primal_variables);
+        D_s_impl.emplace(info_impl->number_of_slack_variables);
+        D_eq_impl.emplace(info_impl->number_of_g_eq_path);
+        full_kkt_matrix_impl.emplace(info_impl->number_of_primal_variables + info_impl->number_of_eq_constraints,
                              info_impl->number_of_primal_variables + info_impl->number_of_eq_constraints);
         solver_impl.emplace(AugSystemSolver<ImplicitOcpType>(info_impl.value()));
     }
@@ -338,20 +341,17 @@ public:
         dims_reform.emplace(ProblemDims{K, nu_reform, nx, ng_reform, ng_ineq});
         info_reform.emplace(ProblemInfo(dims_reform.value()));
         jacobian_reform.emplace(Jacobian<OcpType>(dims_reform.value()));
-        full_matrix_jacobian_reform =
-            MatRealAllocated(info_reform->number_of_eq_constraints, info_reform->number_of_primal_variables);
+        full_matrix_jacobian_reform.emplace(info_reform->number_of_eq_constraints, info_reform->number_of_primal_variables);
         hessian_reform.emplace(Hessian<OcpType>(dims_reform.value()));
-        full_matrix_hessian_reform =
-            MatRealAllocated(info_reform->number_of_primal_variables, info_reform->number_of_primal_variables);
-        x_reform = VecRealAllocated(info_reform->number_of_primal_variables);
-        mult_reform = VecRealAllocated(info_reform->number_of_eq_constraints);
-        rhs_x_reform = VecRealAllocated(info_reform->number_of_primal_variables);
-        rhs_g_reform = VecRealAllocated(info_reform->number_of_eq_constraints);
-        D_x_reform = VecRealAllocated(info_reform->number_of_primal_variables);
-        D_s_reform = VecRealAllocated(info_reform->number_of_slack_variables);
-        D_eq_reform = VecRealAllocated(info_reform->number_of_g_eq_path);
-        full_kkt_matrix_reform =
-            MatRealAllocated(info_reform->number_of_primal_variables + info_reform->number_of_eq_constraints,
+        full_matrix_hessian_reform.emplace(info_reform->number_of_primal_variables, info_reform->number_of_primal_variables);
+        x_reform.emplace(info_reform->number_of_primal_variables);
+        mult_reform.emplace(info_reform->number_of_eq_constraints);
+        rhs_x_reform.emplace(info_reform->number_of_primal_variables);
+        rhs_g_reform.emplace(info_reform->number_of_eq_constraints);
+        D_x_reform.emplace(info_reform->number_of_primal_variables);
+        D_s_reform.emplace(info_reform->number_of_slack_variables);
+        D_eq_reform.emplace(info_reform->number_of_g_eq_path);
+        full_kkt_matrix_reform.emplace(info_reform->number_of_primal_variables + info_reform->number_of_eq_constraints,
                              info_reform->number_of_primal_variables + info_reform->number_of_eq_constraints);
         solver_reform.emplace(AugSystemSolver<OcpType>(info_reform.value()));
     }
@@ -372,20 +372,17 @@ public:
         dims_accel.emplace(ProblemDims{K, nu_accel, nx, ng_accel, ng_ineq});
         info_accel.emplace(ProblemInfo(dims_accel.value()));
         jacobian_accel.emplace(Jacobian<AcceleratedOcpType>(dims_accel.value()));
-        full_matrix_jacobian_accel =
-            MatRealAllocated(info_accel->number_of_eq_constraints, info_accel->number_of_primal_variables);
+        full_matrix_jacobian_accel.emplace(info_accel->number_of_eq_constraints, info_accel->number_of_primal_variables);
         hessian_accel.emplace(Hessian<AcceleratedOcpType>(dims_accel.value()));
-        full_matrix_hessian_accel =
-            MatRealAllocated(info_accel->number_of_primal_variables, info_accel->number_of_primal_variables);
-        x_accel = VecRealAllocated(info_accel->number_of_primal_variables);
-        mult_accel = VecRealAllocated(info_accel->number_of_eq_constraints);
-        rhs_x_accel = VecRealAllocated(info_accel->number_of_primal_variables);
-        rhs_g_accel = VecRealAllocated(info_accel->number_of_eq_constraints);
-        D_x_accel = VecRealAllocated(info_accel->number_of_primal_variables);
-        D_s_accel = VecRealAllocated(info_accel->number_of_slack_variables);
-        D_eq_accel = VecRealAllocated(info_accel->number_of_g_eq_path);
-        full_kkt_matrix_accel =
-            MatRealAllocated(info_accel->number_of_primal_variables + info_accel->number_of_eq_constraints,
+        full_matrix_hessian_accel.emplace(info_accel->number_of_primal_variables, info_accel->number_of_primal_variables);
+        x_accel.emplace(info_accel->number_of_primal_variables);
+        mult_accel.emplace(info_accel->number_of_eq_constraints);
+        rhs_x_accel.emplace(info_accel->number_of_primal_variables);
+        rhs_g_accel.emplace(info_accel->number_of_eq_constraints);
+        D_x_accel.emplace(info_accel->number_of_primal_variables);
+        D_s_accel.emplace(info_accel->number_of_slack_variables);
+        D_eq_accel.emplace(info_accel->number_of_g_eq_path);
+        full_kkt_matrix_accel.emplace(info_accel->number_of_primal_variables + info_accel->number_of_eq_constraints,
                              info_accel->number_of_primal_variables + info_accel->number_of_eq_constraints);
         solver_accel.emplace(AugSystemSolver<AcceleratedOcpType>(info_accel.value()));
     }
@@ -439,7 +436,7 @@ public:
 
         // fill the x vector with random values
         for (Index i = 0; i < info_expl.value().number_of_primal_variables; ++i){
-            rhs_x_expl.value()(i) = 1.0 * i; D_x_expl.value()(i) = 1.0 * (i + 0.1);
+            rhs_x_expl.value()(i) = 10 + 1.0 * i; D_x_expl.value()(i) = 1.0 * (i + 0.1);
         }
         // fill the mult vector with random values
         for (Index i = 0; i < info_expl.value().number_of_eq_constraints; ++i){
@@ -457,7 +454,7 @@ public:
         if (use_generalization){
             // the implicit algorithm assumes nx_next dynamics constraints, which is not guaranteed in the generalized case
             // --> implicit recursion should be modified to allow for an arbitrary number of dynamics constraints
-            throw std::runtime_error("Implicit solver cannot be used when using the generalization of dimensions.")
+            throw std::runtime_error("Implicit solver cannot be used when using the generalization of dimensions.");
             return;
         }
 
@@ -521,7 +518,7 @@ public:
 
         // fill the x vector with random values
         for (Index i = 0; i < info_impl.value().number_of_primal_variables; ++i){
-            rhs_x_impl.value()(i) = 1.0 * i; D_x_impl.value()(i) = 1.0 * (i + 0.1);
+            rhs_x_impl.value()(i) = 10 + 1.0 * i; D_x_impl.value()(i) = 1.0 * (i + 0.1);
         }
         // fill the mult vector with random values
         for (Index i = 0; i < info_impl.value().number_of_eq_constraints; ++i){
@@ -563,8 +560,20 @@ public:
             {
                 Index nx_next = info_reform.value().dims.number_of_states[k + 1];
                 Index offs_x_next = info_reform.value().offsets_primal_x[k + 1];
-                jacobian_reform.value().BAbt[k].block(nx_next, nx_next, nu_true, 0) =
-                    ::test::identity_matrix(nx_next, -1);
+                if (use_generalization){
+                    // Bottom part of B
+                    jacobian_reform.value().BAbt[k].block(nu_true, nx_next - nz[k], 0, nz[k]) =
+                        ::test::random_matrix(nu_true, nx_next - nz[k]);
+                    // Bottom part of A and b
+                    jacobian_reform.value().BAbt[k].block(nx + 1, nx_next - nz[k], nu, nz[k]) =
+                        ::test::random_matrix(nx + 1, nx_next - nz[k]);
+                    // identity part in B
+                    jacobian_reform.value().BAbt[k].block(nz[k], nz[k], nu_true, 0) =
+                        ::test::identity_matrix(nz[k], -1);
+                } else {
+                    jacobian_reform.value().BAbt[k].block(nx_next, nx_next, nu_true, 0) =
+                        ::test::identity_matrix(nx_next, -1);
+                }
                 full_matrix_jacobian_reform.value().block(nx_next, nu + nx, offs_eq_dyn, offs_ux) =
                     transpose(jacobian_reform.value().BAbt[k].block(nu + nx, nx_next, 0, 0));
             }
@@ -599,7 +608,7 @@ public:
 
         // fill the x vector with random values
         for (Index i = 0; i < info_reform.value().number_of_primal_variables; ++i){
-            rhs_x_reform.value()(i) = 1.0 * i; D_x_reform.value()(i) = 1.0 * (i + 0.1);
+            rhs_x_reform.value()(i) = 10 + 1.0 * i; D_x_reform.value()(i) = 1.0 * (i + 0.1);
         }
         // fill the mult vector with random values
         for (Index i = 0; i < info_reform.value().number_of_eq_constraints; ++i){
@@ -641,8 +650,20 @@ public:
             {
                 Index nx_next = info_accel.value().dims.number_of_states[k + 1];
                 Index offs_x_next = info_accel.value().offsets_primal_x[k + 1];
-                jacobian_accel.value().BAbt[k].block(nx_next, nx_next, nu_true, 0) =
-                    ::test::identity_matrix(nx_next, -1);
+                if (use_generalization){
+                    // Bottom part of B
+                    jacobian_reform.value().BAbt[k].block(nu_true, nx_next - nz[k], 0, nz[k]) =
+                        ::test::random_matrix(nu_true, nx_next - nz[k]);
+                    // Bottom part of A and b
+                    jacobian_reform.value().BAbt[k].block(nx + 1, nx_next - nz[k], nu, nz[k]) =
+                        ::test::random_matrix(nx + 1, nx_next - nz[k]);
+                    // identity part in B
+                    jacobian_reform.value().BAbt[k].block(nz[k], nz[k], nu_true, 0) =
+                        ::test::identity_matrix(nz[k], -1);
+                } else {
+                    jacobian_reform.value().BAbt[k].block(nx_next, nx_next, nu_true, 0) =
+                        ::test::identity_matrix(nx_next, -1);
+                }
                 full_matrix_jacobian_accel.value().block(nx_next, nu + nx, offs_eq_dyn, offs_ux) =
                     transpose(jacobian_accel.value().BAbt[k].block(nu + nx, nx_next, 0, 0));
             }
@@ -677,7 +698,7 @@ public:
 
         // fill the x vector with random values
         for (Index i = 0; i < info_accel.value().number_of_primal_variables; ++i){
-            rhs_x_accel.value()(i) = 1.0 * i; D_x_accel.value()(i) = 1.0 * (i + 0.1);
+            rhs_x_accel.value()(i) = 10 + 1.0 * i; D_x_accel.value()(i) = 1.0 * (i + 0.1);
         }
         // fill the mult vector with random values
         for (Index i = 0; i < info_accel.value().number_of_eq_constraints; ++i){
@@ -689,21 +710,40 @@ public:
         for (Index i = 0; i < info_accel.value().number_of_slack_variables; ++i){
             D_s_accel.value()(i) =  1.0 + 0*10.0 * (i + 0.1);
         }
+
+        // pass on options
+        if (use_generalization){
+            solver_accel.value().set_nb_of_dynamics_constraints(nv[0]);
+            solver_accel.value().set_nb_of_zk_vars(nz[0]);
+        }
     }
 
     void Randomize(){
         // std::cout << "randomizing dimensions" << std::endl;
-        GetRandomDimensions();
+        if (use_generalization){
+            int nb_tries = GetRandomGeneralizedDimensions();
+            // std::cout << "nb_tries: " << nb_tries << std::endl;
+        } else {
+            GetRandomDimensions();
+        }
+
         // std::cout << "allocating solvers" << std::endl;
         AllocateSolvers();
+
         // std::cout << "filling solvers" << std::endl;
+        // std::cout << "\texplicit:" << std::endl;
         FillExplicitSolver();
-        FillImplicitSolver();
+        if (!use_generalization){
+            // std::cout << "\timplicit:" << std::endl;
+            FillImplicitSolver();
+            solver_impl.value().set_performance_mode(true);
+        }
+        // std::cout << "\treformulated:" << std::endl;
         FillReformulatedSolver();
+        // std::cout << "\taccelerated:" << std::endl;
         FillAcceleratedSolver();
         // std::cout << "done" << std::endl;
 
-        solver_impl.value().set_performance_mode(true);
     }
 
     void SetUp()
@@ -768,9 +808,12 @@ void PrintBreakdown(const std::map<std::string, long int>& timings,
 
 TEST_F(RandomBenchmarkTest, Test)
 {
+    std::cout << "running test" << std::endl;
     int nb_runs = 20000;
     int nb_runs_completed = 0;
     bool write_csv = false;
+
+    bool skip_impl = USE_GENERALIZATION;
 
     std::map<std::string, long int> timings = {
         {"total_ns_expl", 0},
@@ -826,11 +869,18 @@ TEST_F(RandomBenchmarkTest, Test)
     if (write_csv){
         f.open("random_benchmark_results_generalized_20000.csv");
         f << "K,nu,nx,r,ng,ng_ineq,";
+        if (skip_impl){ f << "nz,nv,";}
         f << "t_expl,t_expl_backward,t_expl_solve,t_expl_forward,";
-        f << "t_impl,t_impl_backward,t_impl_solve,t_impl_forward,t_impl_pre,t_impl_solve,t_impl_post,";
+        if (!skip_impl){
+            f << "t_impl,t_impl_backward,t_impl_solve,t_impl_forward,t_impl_pre,t_impl_solve,t_impl_post,";
+        }
         f << "t_reform,t_reform_backward,t_reform_solve,t_reform_forward,";
         f << "t_accel,t_accel_backward,t_accel_solve,t_accel_forward,";
-        f << "lu_expl,lu_impl,lu_reform,lu_accel,impl_decomp\n";
+        f << "lu_expl,";
+        if (!skip_impl){ f << "lu_impl,";}
+        f << "lu_reform,lu_accel";
+        if (!skip_impl){ f << ",impl_decomp"; }
+        f << "\n";
     }
     
     int nb_consecutive_failures = 0;
@@ -874,7 +924,7 @@ TEST_F(RandomBenchmarkTest, Test)
 
         try{
         for (int idx : order){
-            if (idx == 0){
+            if (idx == 0 && !skip_impl){
                 // implicit //
                 // std::cout << "Running implicit solver..." << std::endl;
                 start_impl = std::chrono::steady_clock::now();
@@ -910,8 +960,9 @@ TEST_F(RandomBenchmarkTest, Test)
 
         if (ret_expl != LinsolReturnFlag::SUCCESS || 
                 ret_reform != LinsolReturnFlag::SUCCESS || 
-                ret_impl != LinsolReturnFlag::SUCCESS ||
+                (ret_impl != LinsolReturnFlag::SUCCESS && !skip_impl) ||
                 ret_accel != LinsolReturnFlag::SUCCESS){
+            // std::cout << "\n" << ret_expl << " " << ret_reform << " " << ret_accel << std::endl;
             nb_consecutive_failures++;
             continue;
         }
@@ -920,72 +971,82 @@ TEST_F(RandomBenchmarkTest, Test)
         long int ns_reform = std::chrono::duration_cast<std::chrono::nanoseconds>(stop_reform - start_reform).count();
         long int ns_accel = std::chrono::duration_cast<std::chrono::nanoseconds>(stop_accel - start_accel).count();
         long int ns_impl = std::chrono::duration_cast<std::chrono::nanoseconds>(stop_impl - start_impl).count();
-        long int ns_impl_preprocess = solver_impl.value().duration_preprocess.count();
-        long int ns_impl_solve = solver_impl.value().duration_solve.count();
-        long int ns_impl_postprocess = solver_impl.value().duration_postprocess.count();
         timings["total_ns_expl"] += ns_expl;
         timings["total_ns_reform"] += ns_reform;
         timings["total_ns_accel"] += ns_accel;
-        timings["total_ns_impl"] += ns_impl;
-        timings["total_ns_impl_preprocess"] += ns_impl_preprocess;
-        timings["total_ns_impl_solve"] += ns_impl_solve;
-        timings["total_ns_impl_postprocess"] += ns_impl_postprocess;
-        timings["total_ns_impl_solve_inner"] += solver_impl.value().duration_inner_solve.count();
+        long int ns_impl_preprocess = 0;
+        long int ns_impl_solve = 0;
+        long int ns_impl_postprocess = 0;
 
-        timings["total_pre_jac"] += solver_impl.value().duration_preprocess_jac.count();
-        timings["total_pre_hess"] += solver_impl.value().duration_preprocess_hess.count();
-        timings["total_pre_reg"] += solver_impl.value().duration_preprocess_regularization.count();
-        timings["total_pre_decomp"] += solver_impl.value().duration_preprocess_decomposition.count();
-        timings["total_pre_info"] += solver_impl.value().duration_preprocess_info.count();
-        timings["total_pre_rhs"] += solver_impl.value().duration_preprocess_modify_rhs.count();
-        
-        timings["total_decomp_copies"] += solver_impl.value().duration_decomp_copies.count();
-        long int ns_decomp_decomp = solver_impl.value().duration_decomp_decomp.count();
-        timings["total_decomp_decomp"] += ns_decomp_decomp;
-        timings["total_decomp_scale1"] += solver_impl.value().duration_decomp_scale1.count();
-        timings["total_decomp_scale2"] += solver_impl.value().duration_decomp_scale2.count();
-        timings["total_decomp_permutation"] += solver_impl.value().duration_decomp_permutation.count();
-        timings["total_decomp_store"] += solver_impl.value().duration_decomp_store.count();
+        long int ns_decomp_decomp = 0;
+        long int ns_lu_impl = 0;
+        if (!skip_impl){
+            ns_impl_preprocess = solver_impl.value().duration_preprocess.count();
+            ns_impl_solve = solver_impl.value().duration_solve.count();
+            ns_impl_postprocess = solver_impl.value().duration_postprocess.count();
+            timings["total_ns_impl"] += ns_impl;
+            timings["total_ns_impl_preprocess"] += ns_impl_preprocess;
+            timings["total_ns_impl_solve"] += ns_impl_solve;
+            timings["total_ns_impl_postprocess"] += ns_impl_postprocess;
+            timings["total_ns_impl_solve_inner"] += solver_impl.value().duration_inner_solve.count();
+            
+            timings["total_pre_jac"] += solver_impl.value().duration_preprocess_jac.count();
+            timings["total_pre_hess"] += solver_impl.value().duration_preprocess_hess.count();
+            timings["total_pre_reg"] += solver_impl.value().duration_preprocess_regularization.count();
+            timings["total_pre_decomp"] += solver_impl.value().duration_preprocess_decomposition.count();
+            timings["total_pre_info"] += solver_impl.value().duration_preprocess_info.count();
+            timings["total_pre_rhs"] += solver_impl.value().duration_preprocess_modify_rhs.count();
+            
+            timings["total_decomp_copies"] += solver_impl.value().duration_decomp_copies.count();
+            ns_decomp_decomp = solver_impl.value().duration_decomp_decomp.count();
+            timings["total_decomp_decomp"] += ns_decomp_decomp;
+            timings["total_decomp_scale1"] += solver_impl.value().duration_decomp_scale1.count();
+            timings["total_decomp_scale2"] += solver_impl.value().duration_decomp_scale2.count();
+            timings["total_decomp_permutation"] += solver_impl.value().duration_decomp_permutation.count();
+            timings["total_decomp_store"] += solver_impl.value().duration_decomp_store.count();
+            
+            timings["total_solve_RSQrqt_copy"] += solver_impl.value().duration_RSQrqt_copy.count();
+            timings["total_solve_FuFx_addition"] += solver_impl.value().duration_FuFx_addition.count();
+            timings["total_solve_GuGx_addition"] += solver_impl.value().duration_GuGx_addition.count();
+            timings["total_solve_GuGx_hat_addition"] += solver_impl.value().duration_GuGx_hat_addition.count();
+            timings["total_solve_ukb_tilde_addition"] += solver_impl.value().duration_ukb_tilde_addition.count();
+            timings["total_solve_lambdatilde_addition"] += solver_impl.value().duration_lambdatilde_addition.count();
+            timings["total_solve_FuFx_addition_forward"] += solver_impl.value().duration_FuFx_addition_forward.count();
+            
+            ns_lu_impl = solver_impl.value().duration_lu_factorization.count() + solver_impl.value().duration_decomp_decomp.count();
+            timings["ns_lu_impl"] = ns_lu_impl;
+            timings["total_lu_impl"] += solver_impl.value().duration_lu_factorization.count() + solver_impl.value().duration_decomp_decomp.count();
+            timings["total_lu_reform"] += solver_reform.value().duration_lu_factorization.count();
+            timings["total_lu_accel"] += solver_accel.value().duration_lu_factorization.count();
 
-        timings["total_solve_RSQrqt_copy"] += solver_impl.value().duration_RSQrqt_copy.count();
-        timings["total_solve_FuFx_addition"] += solver_impl.value().duration_FuFx_addition.count();
-        timings["total_solve_GuGx_addition"] += solver_impl.value().duration_GuGx_addition.count();
-        timings["total_solve_GuGx_hat_addition"] += solver_impl.value().duration_GuGx_hat_addition.count();
-        timings["total_solve_ukb_tilde_addition"] += solver_impl.value().duration_ukb_tilde_addition.count();
-        timings["total_solve_lambdatilde_addition"] += solver_impl.value().duration_lambdatilde_addition.count();
-        timings["total_solve_FuFx_addition_forward"] += solver_impl.value().duration_FuFx_addition_forward.count();
+            timings["total_impl_backward"] += solver_impl.value().duration_backward_recursion.count();
+            timings["total_impl_initial"] += solver_impl.value().duration_initial_stage.count();
+            timings["total_impl_forward"] += solver_impl.value().duration_forward_recursion.count();
+
+            timings["total_post_rearrange_solution"] += solver_impl.value().duration_post_rearrange_solution.count();
+            timings["total_post_scale_solution"] += solver_impl.value().duration_post_scale_solution.count();
+            timings["total_post_reset_jacobian_pre"] += solver_impl.value().duration_post_reset_jacobian_pre.count();
+            timings["total_post_reset_hessian_pre"] += solver_impl.value().duration_post_reset_hessian_pre.count();
+            timings["total_post_regularization"] += solver_impl.value().duration_post_regularization.count();
+        }
         
         long int ns_lu_expl = solver_expl.value().duration_lu_factorization.count();
-        long int ns_lu_impl = solver_impl.value().duration_lu_factorization.count() + solver_impl.value().duration_decomp_decomp.count();
         long int ns_lu_reform = solver_reform.value().duration_lu_factorization.count();
         long int ns_lu_accel = solver_accel.value().duration_lu_factorization.count();
         timings["ns_lu_expl"] = ns_lu_expl;
-        timings["ns_lu_impl"] = ns_lu_impl;
         timings["ns_lu_reform"] = ns_lu_reform;
         timings["ns_lu_accel"] = ns_lu_accel;
         
-        timings["total_lu_impl"] += solver_impl.value().duration_lu_factorization.count() + solver_impl.value().duration_decomp_decomp.count();
-        timings["total_lu_reform"] += solver_reform.value().duration_lu_factorization.count();
-        timings["total_lu_accel"] += solver_accel.value().duration_lu_factorization.count();
 
         timings["total_expl_backward"] += solver_expl.value().duration_backward_recursion.count();
-        timings["total_impl_backward"] += solver_impl.value().duration_backward_recursion.count();
         timings["total_reform_backward"] += solver_reform.value().duration_backward_recursion.count();
         timings["total_accel_backward"] += solver_accel.value().duration_backward_recursion.count();
         timings["total_expl_initial"] += solver_expl.value().duration_initial_stage.count();
-        timings["total_impl_initial"] += solver_impl.value().duration_initial_stage.count();
         timings["total_reform_initial"] += solver_reform.value().duration_initial_stage.count();
         timings["total_accel_initial"] += solver_accel.value().duration_initial_stage.count();
         timings["total_expl_forward"] += solver_expl.value().duration_forward_recursion.count();
-        timings["total_impl_forward"] += solver_impl.value().duration_forward_recursion.count();
         timings["total_reform_forward"] += solver_reform.value().duration_forward_recursion.count();
         timings["total_accel_forward"] += solver_accel.value().duration_forward_recursion.count();
-
-        timings["total_post_rearrange_solution"] += solver_impl.value().duration_post_rearrange_solution.count();
-        timings["total_post_scale_solution"] += solver_impl.value().duration_post_scale_solution.count();
-        timings["total_post_reset_jacobian_pre"] += solver_impl.value().duration_post_reset_jacobian_pre.count();
-        timings["total_post_reset_hessian_pre"] += solver_impl.value().duration_post_reset_hessian_pre.count();
-        timings["total_post_regularization"] += solver_impl.value().duration_post_regularization.count();
 
         nb_runs_completed++;
         nb_consecutive_failures = 0;
@@ -993,6 +1054,7 @@ TEST_F(RandomBenchmarkTest, Test)
         if (write_csv){
             // parameters
             f << K << "," << nu[0] << "," << nx[0] << "," << r[0] << "," << ng[0] << "," << ng_ineq[0] << ",";
+            if (skip_impl){ f << nz[0] << "," << nv[0] << ",";}
 
             // timings expl
             f << ns_expl << "," << solver_expl.value().duration_backward_recursion.count() << ",";
@@ -1000,10 +1062,12 @@ TEST_F(RandomBenchmarkTest, Test)
             f << solver_expl.value().duration_forward_recursion.count() << ",";
 
             // timings impl
-            f << ns_impl << "," << solver_impl.value().duration_backward_recursion.count() << ",";
-            f << solver_impl.value().duration_initial_stage.count() << ",";
-            f << solver_impl.value().duration_forward_recursion.count() << ",";
-            f << ns_impl_preprocess << "," << ns_impl_solve << "," << ns_impl_postprocess << ",";
+            if (!skip_impl){
+                f << ns_impl << "," << solver_impl.value().duration_backward_recursion.count() << ",";
+                f << solver_impl.value().duration_initial_stage.count() << ",";
+                f << solver_impl.value().duration_forward_recursion.count() << ",";
+                f << ns_impl_preprocess << "," << ns_impl_solve << "," << ns_impl_postprocess << ",";
+            }
 
             // timings reform
             f << ns_reform << "," << solver_reform.value().duration_backward_recursion.count() << ",";
@@ -1016,7 +1080,11 @@ TEST_F(RandomBenchmarkTest, Test)
             f << solver_accel.value().duration_forward_recursion.count() << ",";
 
             // timings lu
-            f << ns_lu_expl << "," << ns_lu_impl << "," << ns_lu_reform << "," << ns_lu_accel << "," << ns_decomp_decomp << "\n";
+            f << ns_lu_expl << ",";
+            if (!skip_impl){ f << ns_lu_impl << ",";}
+            f << ns_lu_reform << "," << ns_lu_accel;
+            if (!skip_impl){ f << "," << ns_decomp_decomp;}
+            f << "\n";
         }       
     }
 
@@ -1032,13 +1100,15 @@ TEST_F(RandomBenchmarkTest, Test)
     std::cout << timings["total_accel_backward"] / nb_runs_completed << " - ";
     std::cout << timings["total_accel_initial"] / nb_runs_completed << " - ";
     std::cout << timings["total_accel_forward"] / nb_runs_completed << ")" << std::endl;
-    std::cout << "Average time implicit:     " << timings["total_ns_impl"] / nb_runs_completed << " ns (";
-    std::cout << timings["total_impl_backward"] / nb_runs_completed << " - ";
-    std::cout << timings["total_impl_initial"] / nb_runs_completed << " - ";
-    std::cout << timings["total_impl_forward"] / nb_runs_completed << ")  (";
-    std::cout << timings["total_ns_impl_preprocess"] / nb_runs_completed << " - ";
-    std::cout << timings["total_ns_impl_solve"] / nb_runs_completed << " - ";
-    std::cout << timings["total_ns_impl_postprocess"] / nb_runs_completed << ")" << std::endl;
+    if (!skip_impl){
+        std::cout << "Average time implicit:     " << timings["total_ns_impl"] / nb_runs_completed << " ns (";
+        std::cout << timings["total_impl_backward"] / nb_runs_completed << " - ";
+        std::cout << timings["total_impl_initial"] / nb_runs_completed << " - ";
+        std::cout << timings["total_impl_forward"] / nb_runs_completed << ")  (";
+        std::cout << timings["total_ns_impl_preprocess"] / nb_runs_completed << " - ";
+        std::cout << timings["total_ns_impl_solve"] / nb_runs_completed << " - ";
+        std::cout << timings["total_ns_impl_postprocess"] / nb_runs_completed << ")" << std::endl;
+    }
     
     std::map<std::string, std::vector<std::string>> breakdowns = {
         {"LU factorization", {"total_lu_impl", "total_lu_reform", "total_lu_accel"}},
@@ -1056,47 +1126,51 @@ TEST_F(RandomBenchmarkTest, Test)
     };
 
     std::cout << "Time spent in LU factorization: " << std::endl;
-    PrintLine("Implicit", timings["total_lu_impl"], timings["total_ns_impl"]);
+    if (!skip_impl){
+        PrintLine("Implicit", timings["total_lu_impl"], timings["total_ns_impl"]);
+    }
     PrintLine("Reformulated", timings["total_lu_reform"], timings["total_ns_reform"]);
     PrintLine("Accelerated", timings["total_lu_accel"], timings["total_ns_accel"]);
     
-    PrintBreakdown(timings, "implicit preprocess", breakdowns, breakdown_totals);
-    PrintBreakdown(timings, "implicit preprocess decomp", breakdowns, breakdown_totals);
-    PrintBreakdown(timings, "implicit solve modifications", breakdowns, breakdown_totals);
-    PrintBreakdown(timings, "implicit postprocess", breakdowns, breakdown_totals);
+    if (!skip_impl){
+        PrintBreakdown(timings, "implicit preprocess", breakdowns, breakdown_totals);
+        PrintBreakdown(timings, "implicit preprocess decomp", breakdowns, breakdown_totals);
+        PrintBreakdown(timings, "implicit solve modifications", breakdowns, breakdown_totals);
+        PrintBreakdown(timings, "implicit postprocess", breakdowns, breakdown_totals);
 
-    // sort keys of timings by decreasing value
-    std::vector<std::string> keys_to_sort = breakdowns["implicit preprocess"];
-    keys_to_sort.insert(keys_to_sort.end(), 
-                        breakdowns["implicit preprocess decomp"].begin(), 
-                        breakdowns["implicit preprocess decomp"].end());
-    keys_to_sort.insert(keys_to_sort.end(), 
-                        breakdowns["implicit solve modifications"].begin(), 
-                        breakdowns["implicit solve modifications"].end());
-    keys_to_sort.insert(keys_to_sort.end(), 
-                        breakdowns["implicit postprocess"].begin(), 
-                        breakdowns["implicit postprocess"].end());
-    std::vector<std::pair<std::string, long int>> sorted_timings(timings.begin(), timings.end());
-    std::sort(sorted_timings.begin(), sorted_timings.end(), [](const auto& a, const auto& b) {
-        return a.second > b.second;
-    });
+        // sort keys of timings by decreasing value
+        std::vector<std::string> keys_to_sort = breakdowns["implicit preprocess"];
+        keys_to_sort.insert(keys_to_sort.end(), 
+                            breakdowns["implicit preprocess decomp"].begin(), 
+                            breakdowns["implicit preprocess decomp"].end());
+        keys_to_sort.insert(keys_to_sort.end(), 
+                            breakdowns["implicit solve modifications"].begin(), 
+                            breakdowns["implicit solve modifications"].end());
+        keys_to_sort.insert(keys_to_sort.end(), 
+                            breakdowns["implicit postprocess"].begin(), 
+                            breakdowns["implicit postprocess"].end());
+        std::vector<std::pair<std::string, long int>> sorted_timings(timings.begin(), timings.end());
+        std::sort(sorted_timings.begin(), sorted_timings.end(), [](const auto& a, const auto& b) {
+            return a.second > b.second;
+        });
 
-    std::cout << "\nSorted time components:" << std::endl;
-    int i = 0;
-    int nb_printed = 0;
-    while (nb_printed < 100 && i < sorted_timings.size()) {
-        if (std::find(keys_to_sort.begin(), keys_to_sort.end(), sorted_timings[i].first) != keys_to_sort.end()){
-            PrintLine(sorted_timings[i].first, sorted_timings[i].second, timings["total_ns_impl"], true);
-            nb_printed++;
-        }
-        i++;
-    }   
+        std::cout << "\nSorted time components:" << std::endl;
+        int i = 0;
+        int nb_printed = 0;
+        while (nb_printed < 100 && i < sorted_timings.size()) {
+            if (std::find(keys_to_sort.begin(), keys_to_sort.end(), sorted_timings[i].first) != keys_to_sort.end()){
+                PrintLine(sorted_timings[i].first, sorted_timings[i].second, timings["total_ns_impl"], true);
+                nb_printed++;
+            }
+            i++;
+        }   
 
-    long int jacobian_pre_post = 
-        timings["total_pre_jac"] + timings["total_post_reset_jacobian_pre"];
-    long int hessian_pre_post =
-        timings["total_pre_hess"] + timings["total_post_reset_hessian_pre"];
-    std::cout << "\nJacobian and Hessian pre- and postprocessing overhead:" << std::endl;
-    PrintLine("jacobian", jacobian_pre_post, timings["total_ns_impl"], true);
-    PrintLine("hessian", hessian_pre_post, timings["total_ns_impl"], true);
+        long int jacobian_pre_post = 
+            timings["total_pre_jac"] + timings["total_post_reset_jacobian_pre"];
+        long int hessian_pre_post =
+            timings["total_pre_hess"] + timings["total_post_reset_hessian_pre"];
+        std::cout << "\nJacobian and Hessian pre- and postprocessing overhead:" << std::endl;
+        PrintLine("jacobian", jacobian_pre_post, timings["total_ns_impl"], true);
+        PrintLine("hessian", hessian_pre_post, timings["total_ns_impl"], true);
+    }
 }

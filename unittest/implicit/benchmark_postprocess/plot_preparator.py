@@ -24,7 +24,7 @@ class PlotPreparator:
         
         # get all x-values
         x_values = self.x_metric_computer.compute_unique_sorted_values(df)
-        if kwargs.get('use_integer_x'):
+        if kwargs.get('use_integer_x', False):
             x_values = [int(x) for x in x_values]
             x_values = np.unique(x_values)
         elif kwargs.get('x_min_step') is not None:
@@ -36,13 +36,19 @@ class PlotPreparator:
         # for each x value, compute the mean and std of the corresponding y values
         y_values_mean = []
         y_values_std = []
+        y_all = []
+        y_masks = []
+        df_filtered, _ = self.filter.filter_data(df)
         for i, x in enumerate(x_values):
-            df_filtered = self.filter.filter_data(df)
             if kwargs.get('use_integer_x') or kwargs.get('x_min_step') is not None:
-                y_mean, y_std = self.y_metric_computer.evaluate(self.x_metric_computer.filter_df_range(df_filtered, x_values[i], x_values[i+1] if i+1 < len(x_values) else x_values[i]))
+                df_filtered_value, mask = self.x_metric_computer.filter_df_range(df_filtered, x, x_values[i+1] if i+1 < len(x_values) else x)
             else:
-                y_mean, y_std = self.y_metric_computer.evaluate(self.x_metric_computer.filter_df(df_filtered, x))
+                df_filtered_value, mask = self.x_metric_computer.filter_df(df_filtered, x)
+                
+            y_mean, y_std, y_all_i = self.y_metric_computer.evaluate(df_filtered_value)
             y_values_mean.append(y_mean)
             y_values_std.append(y_std)
+            y_all.append(list(y_all_i))
+            y_masks.append(mask)
 
-        return x_values, y_values_mean, y_values_std
+        return x_values, y_values_mean, y_values_std, y_all, y_masks
