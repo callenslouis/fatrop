@@ -4,6 +4,7 @@ from plot_preparator import PlotPreparator
 from helper import translate_label
 
 def visualize_scaling_1d(df, x_func, **kwargs):
+    print(f"Started visualize_scaling_1d")
     pp = PlotPreparator()
     pp.set_x_metric_computer(x_func)
  
@@ -11,12 +12,13 @@ def visualize_scaling_1d(df, x_func, **kwargs):
     y_funcs = kwargs.get('y_funcs', [pp.y_metric_computer])
     filters = kwargs.get('filters', [pp.filter])
     y_func_linestyles = kwargs.get('y_func_linestyles', ['-', '--', '-.', ':'])
-    filter_colors = kwargs.get('filter_colors', ['blue', 'black', 'red', 'green', 'orange'])
+    filter_colors = kwargs.get('filter_colors', ['black', 'blue', 'red', 'green', 'orange'])
     
     plt.figure()
-        
+    
     for f_idx, f in enumerate(filters):
         for y_idx, y in enumerate(y_funcs):
+            print(f"Processing filter {f.name} and y_func {y.name}")
             pp.set_filter(f)
             pp.set_y_metric_computer(y)
             kwargs_fine = kwargs.copy()
@@ -42,19 +44,33 @@ def visualize_scaling_1d(df, x_func, **kwargs):
                     else:
                         colors.extend([color] * len(y_all_fine[i]))
                                        
-                plt.scatter(xx_flat, y_all_flat, c=colors, s=3, linestyle=linestyle, label=f"{y.name} ({f.name})", alpha=0.15)
-                plt.colorbar(label=kwargs.get('scatter_color_func').name)
+                sc = plt.scatter(xx_flat, y_all_flat, c=colors, s=0.1, linestyle=linestyle, label=f"{y.name} ({f.name})", alpha=1.0)
+                plt.colorbar(sc, label=kwargs.get('scatter_color_func').name)
+                sc.set_cmap('jet')
             else:
-                plt.fill_between(xx, np.array(yy_mean) - 0.1*np.array(yy_std), np.array(yy_mean) + 0.1*np.array(yy_std), color=color, alpha=0.2)
+                std_scale = kwargs.get('std_scale', 1.0)
+                plt.fill_between(xx, np.array(yy_mean) - std_scale*np.array(yy_std), np.array(yy_mean) + std_scale*np.array(yy_std), color=color, alpha=0.2)
             
     plt.axhline(0, color='k', lw=2)
-        
+    
+    plt.xlim(min(xx), max(xx))
+    if kwargs.get('y_lim', None) is not None:
+        print(f"Setting y limits to {kwargs.get('y_lim')}")
+        plt.ylim(kwargs.get('y_lim'))
+    if kwargs.get('cbar_lims', None) is not None:
+        print(f"Setting colorbar limits to {kwargs.get('cbar_lims')}")
+        plt.clim(kwargs.get('cbar_lims'))
     plt.xlabel(pp.x_metric_computer.name)
     plt.ylabel(pp.y_metric_computer.name)
     plt.title(kwargs.get('title', ''))
     plt.legend()
     plt.grid()
     plt.tight_layout()
+    
+    if kwargs.get('file_name', None) is not None:
+        print(f"Saving figure to {kwargs.get('file_name')}")
+        plt.savefig('figures/' + kwargs.get('file_name'), dpi=300)
+    
     if kwargs.get('show', False):
         plt.show()
         

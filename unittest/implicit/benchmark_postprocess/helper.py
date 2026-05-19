@@ -37,7 +37,9 @@ def latexify():
 def get_data():   
     use_generalization = True
     if use_generalization:
-        file = '../../../build_docker/random_benchmark_results_generalized_20000.csv'
+        # file = '../../../build_docker/random_benchmark_results_generalized_20000.csv'
+        # file = '../../../build_docker/random_benchmark_results_generalized_faked.csv'
+        file = '../../../build_docker/random_benchmark_results_generalized_20000_standalone.csv'
     else:
         file = '../../../build_docker/random_benchmark_results_extended_20000.csv'
         
@@ -58,6 +60,7 @@ def get_data():
     df['n'] = df['nz'] + df['nu']
     df['n_rel'] = df['nu'] / df['n']
 
+    print("Loaded data file")
     return df
 
 def get_lu_data():
@@ -70,4 +73,5 @@ def get_lu_data():
     df['m_rel'] = df['ng'] / df['m']
     df['n'] = df['nz'] + df['nu']
     df['n_rel'] = df['nu'] / df['n']
+    print("Loaded LU data file")
     return df

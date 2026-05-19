@@ -92,8 +92,10 @@ public:
     /// Accelerated case ///
     std::optional<ProblemDims> dims_accel;
     std::optional<ProblemInfo> info_accel;
-    std::optional<Jacobian<AcceleratedOcpType>> jacobian_accel;
-    std::optional<Hessian<AcceleratedOcpType>> hessian_accel;
+    // std::optional<Jacobian<AcceleratedOcpType>> jacobian_accel;
+    // std::optional<Hessian<AcceleratedOcpType>> hessian_accel;
+    std::optional<Jacobian<OcpType>> jacobian_accel;
+    std::optional<Hessian<OcpType>> hessian_accel;
     std::optional<MatRealAllocated> full_matrix_jacobian_accel;
     std::optional<MatRealAllocated> full_matrix_hessian_accel;
     std::optional<VecRealAllocated> x_accel;
@@ -104,7 +106,8 @@ public:
     std::optional<VecRealAllocated> D_s_accel;
     std::optional<VecRealAllocated> D_eq_accel;
     std::optional<MatRealAllocated> full_kkt_matrix_accel;
-    std::optional<AugSystemSolver<AcceleratedOcpType>> solver_accel;
+    // std::optional<AugSystemSolver<AcceleratedOcpType>> solver_accel;
+    std::optional<AugSystemSolver<OcpType>> solver_accel;
 
     std::vector<int> RandomVector(int size, int min_val, int max_val)
     {
@@ -357,6 +360,38 @@ public:
     }
 
     void AllocateAcceleratedSolver(){
+        // std::vector<Index> nu_accel = nu;
+        // std::vector<Index> ng_accel = ng;
+        // for (int k = 0; k < K-1; ++k){
+        //     if (use_generalization){
+        //         nu_accel[k] += nz[k];
+        //         ng_accel[k] += nv[k];
+        //     } else {
+        //         nu_accel[k] += nx[k+1];
+        //         ng_accel[k] += nx[k+1];
+        //     }
+        // }
+
+        // dims_accel.emplace(ProblemDims{K, nu_accel, nx, ng_accel, ng_ineq});
+        // info_accel.emplace(ProblemInfo(dims_accel.value()));
+        // // jacobian_accel.emplace(Jacobian<AcceleratedOcpType>(dims_accel.value()));
+        // jacobian_accel.emplace(Jacobian<OcpType>(dims_accel.value()));
+        // full_matrix_jacobian_accel.emplace(info_accel->number_of_eq_constraints, info_accel->number_of_primal_variables);
+        // // hessian_accel.emplace(Hessian<AcceleratedOcpType>(dims_accel.value()));
+        // hessian_accel.emplace(Hessian<OcpType>(dims_accel.value()));
+        // full_matrix_hessian_accel.emplace(info_accel->number_of_primal_variables, info_accel->number_of_primal_variables);
+        // x_accel.emplace(info_accel->number_of_primal_variables);
+        // mult_accel.emplace(info_accel->number_of_eq_constraints);
+        // rhs_x_accel.emplace(info_accel->number_of_primal_variables);
+        // rhs_g_accel.emplace(info_accel->number_of_eq_constraints);
+        // D_x_accel.emplace(info_accel->number_of_primal_variables);
+        // D_s_accel.emplace(info_accel->number_of_slack_variables);
+        // D_eq_accel.emplace(info_accel->number_of_g_eq_path);
+        // full_kkt_matrix_accel.emplace(info_accel->number_of_primal_variables + info_accel->number_of_eq_constraints,
+        //                      info_accel->number_of_primal_variables + info_accel->number_of_eq_constraints);
+        // // solver_accel.emplace(AugSystemSolver<AcceleratedOcpType>(info_accel.value()));
+        // solver_accel.emplace(AugSystemSolver<OcpType>(info_accel.value()));
+
         std::vector<Index> nu_accel = nu;
         std::vector<Index> ng_accel = ng;
         for (int k = 0; k < K-1; ++k){
@@ -371,9 +406,9 @@ public:
 
         dims_accel.emplace(ProblemDims{K, nu_accel, nx, ng_accel, ng_ineq});
         info_accel.emplace(ProblemInfo(dims_accel.value()));
-        jacobian_accel.emplace(Jacobian<AcceleratedOcpType>(dims_accel.value()));
+        jacobian_accel.emplace(Jacobian<OcpType>(dims_accel.value()));
         full_matrix_jacobian_accel.emplace(info_accel->number_of_eq_constraints, info_accel->number_of_primal_variables);
-        hessian_accel.emplace(Hessian<AcceleratedOcpType>(dims_accel.value()));
+        hessian_accel.emplace(Hessian<OcpType>(dims_accel.value()));
         full_matrix_hessian_accel.emplace(info_accel->number_of_primal_variables, info_accel->number_of_primal_variables);
         x_accel.emplace(info_accel->number_of_primal_variables);
         mult_accel.emplace(info_accel->number_of_eq_constraints);
@@ -384,7 +419,7 @@ public:
         D_eq_accel.emplace(info_accel->number_of_g_eq_path);
         full_kkt_matrix_accel.emplace(info_accel->number_of_primal_variables + info_accel->number_of_eq_constraints,
                              info_accel->number_of_primal_variables + info_accel->number_of_eq_constraints);
-        solver_accel.emplace(AugSystemSolver<AcceleratedOcpType>(info_accel.value()));
+        solver_accel.emplace(AugSystemSolver<OcpType>(info_accel.value()));
     }
 
     void FillExplicitSolver(){
@@ -623,6 +658,101 @@ public:
     }
 
     void FillAcceleratedSolver(){
+        // x_accel = 0;
+        // full_matrix_jacobian_accel.value() = 0.;
+        // full_matrix_hessian_accel.value() = 0.;
+
+        // for (Index k = 0; k < info_accel.value().dims.K; ++k)
+        // {
+        //     Index nu = info_accel.value().dims.number_of_controls[k];
+        //     Index nx = info_accel.value().dims.number_of_states[k];
+        //     Index offs_eq_dyn = info_accel.value().offsets_g_eq_dyn[k];
+        //     Index offs_ux = info_accel.value().offsets_primal_u[k];
+        //     Index offset_g_eq = info_accel.value().offsets_g_eq_path[k];
+        //     Index offset_g_ineq = info_accel.value().offsets_g_eq_slack[k];
+        //     Index ng = info_accel.value().dims.number_of_eq_constraints[k];
+        //     Index ng_ineq = info_accel.value().dims.number_of_ineq_constraints[k];
+        //     Index nu_true;
+        //     Index ng_true;
+        //     if (use_generalization){
+        //         nu_true = (k < info_accel.value().dims.K - 1) ? nu - nz[k] : nu;
+        //         ng_true = (k < info_accel.value().dims.K - 1) ? ng - nv[k] : ng;
+        //     } else {
+        //         nu_true = (k < info_accel.value().dims.K - 1) ? nu - info_accel.value().dims.number_of_states[k+1] : nu;
+        //         ng_true = (k < info_accel.value().dims.K - 1) ? ng - info_accel.value().dims.number_of_states[k+1] : ng;
+        //     }
+        //     if (k < info_accel.value().dims.K - 1)
+        //     {
+        //         Index nx_next = info_accel.value().dims.number_of_states[k + 1];
+        //         Index offs_x_next = info_accel.value().offsets_primal_x[k + 1];
+        //         if (use_generalization){
+        //             // Bottom part of B
+        //             jacobian_reform.value().BAbt[k].block(nu_true, nx_next - nz[k], 0, nz[k]) =
+        //                 ::test::random_matrix(nu_true, nx_next - nz[k]);
+        //             // Bottom part of A and b
+        //             jacobian_reform.value().BAbt[k].block(nx + 1, nx_next - nz[k], nu, nz[k]) =
+        //                 ::test::random_matrix(nx + 1, nx_next - nz[k]);
+        //             // identity part in B
+        //             jacobian_reform.value().BAbt[k].block(nz[k], nz[k], nu_true, 0) =
+        //                 ::test::identity_matrix(nz[k], -1);
+        //         } else {
+        //             jacobian_reform.value().BAbt[k].block(nx_next, nx_next, nu_true, 0) =
+        //                 ::test::identity_matrix(nx_next, -1);
+        //         }
+        //         full_matrix_jacobian_accel.value().block(nx_next, nu + nx, offs_eq_dyn, offs_ux) =
+        //             transpose(jacobian_accel.value().BAbt[k].block(nu + nx, nx_next, 0, 0));
+        //     }
+        //     jacobian_accel.value().Gg_eqt[k].block(nu + nx, info_accel.value().dims.number_of_eq_constraints[k], 0, 0) =
+        //         ::test::random_matrix(nu + nx, info_accel.value().dims.number_of_eq_constraints[k]);
+        //     jacobian_accel.value().Gg_eqt[k].block(nu - nu_true, ng_true, nu_true, 0) =
+        //         ::test::empty_matrix(nu - nu_true, ng_true);
+        //     full_matrix_jacobian_accel.value().block(ng, nu + nx, offset_g_eq, offs_ux) =
+        //         transpose(jacobian_accel.value().Gg_eqt[k].block(nu + nx, ng, 0, 0));
+
+        //     jacobian_accel.value().Gg_ineqt[k].block(nu + nx, info_accel.value().dims.number_of_ineq_constraints[k], 0, 0) =
+        //         ::test::random_matrix(nu + nx, info_accel.value().dims.number_of_ineq_constraints[k]);
+        //     jacobian_accel.value().Gg_ineqt[k].block(nu - nu_true, ng_ineq, nu_true, 0) =
+        //         ::test::empty_matrix(nu - nu_true, ng_ineq);
+        //     full_matrix_jacobian_accel.value().block(ng_ineq, nu + nx, offset_g_ineq, offs_ux) =
+        //         transpose(jacobian_accel.value().Gg_ineqt[k].block(nu + nx, ng_ineq, 0, 0));
+
+        //     hessian_accel.value().RSQrqt[k].block(nu + nx, nu + nx, 0, 0) = ::test::random_spd_matrix(nu + nx);
+        //     // hessian_accel.value().RSQrqt[k].block(nu - nu_true, nu + nx, nu_true, 0) = ::test::empty_matrix(nu_true, nu + nx);
+        //     // hessian_accel.value().RSQrqt[k].block(nu + nx, nu - nu_true, 0, nu_true) = ::test::empty_matrix(nu + nx, nu_true);
+        //     full_matrix_hessian_accel.value().block(nu + nx, nu + nx, offs_ux, offs_ux) =
+        //         hessian_accel.value().RSQrqt[k].block(nu + nx, nu + nx, 0, 0);
+        // }
+        
+        // // set up the full KKT matrix
+        // full_kkt_matrix_accel.value().block(info_accel.value().number_of_primal_variables, info_accel.value().number_of_primal_variables, 0,
+        //                       0) = full_matrix_hessian_accel.value();
+        // full_kkt_matrix_accel.value().block(info_accel.value().number_of_primal_variables, info_accel.value().number_of_eq_constraints, 0,
+        //                       info_accel.value().number_of_primal_variables) = transpose(full_matrix_jacobian_accel.value());
+        // full_kkt_matrix_accel.value().block(info_accel.value().number_of_eq_constraints, info_accel.value().number_of_primal_variables,
+        //                       info_accel.value().number_of_primal_variables, 0) = full_matrix_jacobian_accel.value();
+
+        // // fill the x vector with random values
+        // for (Index i = 0; i < info_accel.value().number_of_primal_variables; ++i){
+        //     rhs_x_accel.value()(i) = 10 + 1.0 * i; D_x_accel.value()(i) = 1.0 * (i + 0.1);
+        // }
+        // // fill the mult vector with random values
+        // for (Index i = 0; i < info_accel.value().number_of_eq_constraints; ++i){
+        //     rhs_g_accel.value()(i) = 1.0 * i;
+        // }
+        // for (Index i = 0; i < info_accel.value().number_of_g_eq_path; ++i){
+        //     D_eq_accel.value()(i) = 10.0 * (i + 1);
+        // }
+        // for (Index i = 0; i < info_accel.value().number_of_slack_variables; ++i){
+        //     D_s_accel.value()(i) =  1.0 + 0*10.0 * (i + 0.1);
+        // }
+
+        // // pass on options
+        // // if (use_generalization){
+        // //     solver_accel.value().set_nb_of_dynamics_constraints(nv[0]);
+        // //     solver_accel.value().set_nb_of_zk_vars(nz[0]);
+        // // }
+
+
         x_accel = 0;
         full_matrix_jacobian_accel.value() = 0.;
         full_matrix_hessian_accel.value() = 0.;
@@ -652,16 +782,16 @@ public:
                 Index offs_x_next = info_accel.value().offsets_primal_x[k + 1];
                 if (use_generalization){
                     // Bottom part of B
-                    jacobian_reform.value().BAbt[k].block(nu_true, nx_next - nz[k], 0, nz[k]) =
+                    jacobian_accel.value().BAbt[k].block(nu_true, nx_next - nz[k], 0, nz[k]) =
                         ::test::random_matrix(nu_true, nx_next - nz[k]);
                     // Bottom part of A and b
-                    jacobian_reform.value().BAbt[k].block(nx + 1, nx_next - nz[k], nu, nz[k]) =
+                    jacobian_accel.value().BAbt[k].block(nx + 1, nx_next - nz[k], nu, nz[k]) =
                         ::test::random_matrix(nx + 1, nx_next - nz[k]);
                     // identity part in B
-                    jacobian_reform.value().BAbt[k].block(nz[k], nz[k], nu_true, 0) =
+                    jacobian_accel.value().BAbt[k].block(nz[k], nz[k], nu_true, 0) =
                         ::test::identity_matrix(nz[k], -1);
                 } else {
-                    jacobian_reform.value().BAbt[k].block(nx_next, nx_next, nu_true, 0) =
+                    jacobian_accel.value().BAbt[k].block(nx_next, nx_next, nu_true, 0) =
                         ::test::identity_matrix(nx_next, -1);
                 }
                 full_matrix_jacobian_accel.value().block(nx_next, nu + nx, offs_eq_dyn, offs_ux) =
@@ -709,12 +839,6 @@ public:
         }
         for (Index i = 0; i < info_accel.value().number_of_slack_variables; ++i){
             D_s_accel.value()(i) =  1.0 + 0*10.0 * (i + 0.1);
-        }
-
-        // pass on options
-        if (use_generalization){
-            solver_accel.value().set_nb_of_dynamics_constraints(nv[0]);
-            solver_accel.value().set_nb_of_zk_vars(nz[0]);
         }
     }
 
@@ -809,9 +933,9 @@ void PrintBreakdown(const std::map<std::string, long int>& timings,
 TEST_F(RandomBenchmarkTest, Test)
 {
     std::cout << "running test" << std::endl;
-    int nb_runs = 20000;
+    int nb_runs = 2000;
     int nb_runs_completed = 0;
-    bool write_csv = false;
+    bool write_csv = true;
 
     bool skip_impl = USE_GENERALIZATION;
 
@@ -867,7 +991,7 @@ TEST_F(RandomBenchmarkTest, Test)
 
     std::ofstream f;    
     if (write_csv){
-        f.open("random_benchmark_results_generalized_20000.csv");
+        f.open("random_benchmark_results_generalized_faked.csv");
         f << "K,nu,nx,r,ng,ng_ineq,";
         if (skip_impl){ f << "nz,nv,";}
         f << "t_expl,t_expl_backward,t_expl_solve,t_expl_forward,";
@@ -920,6 +1044,13 @@ TEST_F(RandomBenchmarkTest, Test)
         // std::cout << "reformulated:\n" << full_kkt_matrix_reform.value() << std::endl;
         // std::cout << std::endl;
 
+        int nb_averaging_runs = 20;
+        long int ns_expl = 0;
+        long int ns_reform = 0;
+        long int ns_accel = 0;
+        long int ns_impl = 0;
+
+        for (int averaging_run_counter = 0; averaging_run_counter < nb_averaging_runs; ++averaging_run_counter){
         std::shuffle(order.begin(), order.end(), rng);
 
         try{
@@ -930,25 +1061,29 @@ TEST_F(RandomBenchmarkTest, Test)
                 start_impl = std::chrono::steady_clock::now();
                 ret_impl = solver_impl.value().solve(info_impl.value(), jacobian_impl.value(), hessian_impl.value(), D_x_impl.value(), D_s_impl.value(), rhs_x_impl.value(), rhs_g_impl.value(), x_impl.value(), mult_impl.value());
                 stop_impl = std::chrono::steady_clock::now();
+                ns_impl += std::chrono::duration_cast<std::chrono::nanoseconds>(stop_impl - start_impl).count();
             } else if (idx == 1) {
                 // explicit //
                 // std::cout << "Running explicit solver..." << std::endl;
                 start_expl = std::chrono::steady_clock::now();
                 ret_expl = solver_expl.value().solve(info_expl.value(), jacobian_expl.value(), hessian_expl.value(), D_x_expl.value(), D_s_expl.value(), rhs_x_expl.value(), rhs_g_expl.value(), x_expl.value(), mult_expl.value());
                 stop_expl = std::chrono::steady_clock::now();
+                ns_expl += std::chrono::duration_cast<std::chrono::nanoseconds>(stop_expl - start_expl).count();
             } else if (idx == 2) {
-                // reformulated //
-                // std::cout << "Running reformulated solver..." << std::endl;
-                start_reform = std::chrono::steady_clock::now();
-                ret_reform = solver_reform.value().solve(info_reform.value(), jacobian_reform.value(), hessian_reform.value(), D_x_reform.value(), D_s_reform.value(), rhs_x_reform.value(), rhs_g_reform.value(), x_reform.value(), mult_reform.value());
-                stop_reform = std::chrono::steady_clock::now();
-            } else {
                 // accelerated
                 // std::cout << "Running accelerated solver..." << std::endl;
                 start_accel = std::chrono::steady_clock::now();
                 ret_accel = solver_accel.value().solve(info_accel.value(), jacobian_accel.value(), hessian_accel.value(), D_x_accel.value(), D_s_accel.value(), rhs_x_accel.value(), rhs_g_accel.value(), x_accel.value(), mult_accel.value());
                 stop_accel = std::chrono::steady_clock::now();
+                ns_accel += std::chrono::duration_cast<std::chrono::nanoseconds>(stop_accel - start_accel).count();
                 // std::cout << "acclerated solver returned with flag " << ret_accel << std::endl;
+            } else {
+                // reformulated //
+                // std::cout << "Running reformulated solver..." << std::endl;
+                start_reform = std::chrono::steady_clock::now();
+                ret_reform = solver_reform.value().solve(info_reform.value(), jacobian_reform.value(), hessian_reform.value(), D_x_reform.value(), D_s_reform.value(), rhs_x_reform.value(), rhs_g_reform.value(), x_reform.value(), mult_reform.value());
+                stop_reform = std::chrono::steady_clock::now();
+                ns_reform += std::chrono::duration_cast<std::chrono::nanoseconds>(stop_reform - start_reform).count();
             }
             // std::cout << "Done." << std::endl;
         }
@@ -956,6 +1091,7 @@ TEST_F(RandomBenchmarkTest, Test)
             std::cout << "Exception caught: " << e.what() << std::endl;
             nb_consecutive_failures++;
             continue;
+        }
         }
 
         if (ret_expl != LinsolReturnFlag::SUCCESS || 
@@ -967,10 +1103,6 @@ TEST_F(RandomBenchmarkTest, Test)
             continue;
         }
 
-        long int ns_expl = std::chrono::duration_cast<std::chrono::nanoseconds>(stop_expl - start_expl).count();
-        long int ns_reform = std::chrono::duration_cast<std::chrono::nanoseconds>(stop_reform - start_reform).count();
-        long int ns_accel = std::chrono::duration_cast<std::chrono::nanoseconds>(stop_accel - start_accel).count();
-        long int ns_impl = std::chrono::duration_cast<std::chrono::nanoseconds>(stop_impl - start_impl).count();
         timings["total_ns_expl"] += ns_expl;
         timings["total_ns_reform"] += ns_reform;
         timings["total_ns_accel"] += ns_accel;

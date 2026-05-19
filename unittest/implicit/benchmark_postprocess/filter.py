@@ -41,3 +41,17 @@ class plain_df_key_filter(Filter):
 
     def filter_pass_condition(self, df):
         return (df[self.key] >= self.value_min) & (df[self.key] <= self.value_max)
+    
+class lu_relevance_filter(Filter):
+    def __init__(self, threshold_min, threshold_max, reformulated=False):
+        super().__init__(f'LU relevance $>$ {threshold_min:.2f} and $<$ {threshold_max:.2f}')
+        self.threshold_min = threshold_min
+        self.threshold_max = threshold_max
+        self.reformulated = reformulated
+
+    def filter_pass_condition(self, df):
+        if self.reformulated:
+            relevance = df['lu_reform'] / df['t_reform']
+        else:
+            relevance = df['lu_accel'] / df['t_accel']
+        return (relevance >= self.threshold_min) & (relevance <= self.threshold_max)

@@ -44,7 +44,7 @@ class plain_df_key(metric_computer):
     
 class area_computer(metric_computer):
     def __init__(self, relative=False):
-        super().__init__('Relative Area')
+        super().__init__('Relative area of zero block')
         self.relative = relative
         
     def compute_metric(self, df):
@@ -61,8 +61,23 @@ class rel_speedup_computer(metric_computer):
         return (df['t_accel'] - df['t_reform']) / df['t_reform']
     
 class rel_speedup_lu_computer(metric_computer):
-    def __init__(self):
+    def __init__(self, recursion_benchmark_data=False):
         super().__init__('Relative Speedup LU')
-        
+        self.recursion_benchmark_data = recursion_benchmark_data
+
     def compute_metric(self, df):
-        return (df['time_blocked'] - df['time_full']) / df['time_full']
+        if self.recursion_benchmark_data:
+            return (df['lu_accel'] - df['lu_reform']) / df['lu_reform']
+        else:
+            return (df['time_blocked'] - df['time_full']) / df['time_full']
+
+class lu_relevance_computer(metric_computer):
+    def __init__(self, reformulated=False):
+        super().__init__('Percentage of recursion time spent in LU decomposition')
+        self.reformulated = reformulated
+
+    def compute_metric(self, df):
+        if self.reformulated:
+            return df['lu_reform'] / df['t_reform']
+        else:
+            return df['lu_accel'] / df['t_accel']

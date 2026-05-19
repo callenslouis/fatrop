@@ -346,8 +346,8 @@ LinsolReturnFlag AugSystemSolver<OcpType>::solve(const ProblemInfo &info,
             // operations LU_FACT_TRANSPOSE(Ggtstripe[:gamma_k, nu+nx+1], nu max) if(k==K-2)
             // blasfeo_print_dmat(1, gamma_k, Ggt_stripe[0], nu+nx, 0);
             auto start = std::chrono::steady_clock::now();
-            MatRealAllocated A_original(nu + nx + 1, gamma_k);
-            gecp(nu + nx + 1, gamma_k, Ggt_stripe[0], 0, 0, A_original, 0, 0);
+            // MatRealAllocated A_original(nu + nx + 1, gamma_k);
+            // gecp(nu + nx + 1, gamma_k, Ggt_stripe[0], 0, 0, A_original, 0, 0);
 
             lu_fact_transposed(gamma_k, nu + nx + 1, nu, rank_k, Ggt_stripe[0], Pl[k], Pr[k],
                                lu_fact_tol);
