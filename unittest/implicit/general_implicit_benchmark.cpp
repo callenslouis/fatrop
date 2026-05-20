@@ -8,6 +8,7 @@
 #include "fatrop/ocp/problem_info.hpp" //inherit
 #include "fatrop/ocp/type.hpp"
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <vector>
 #include <iostream>
 #include <fstream>

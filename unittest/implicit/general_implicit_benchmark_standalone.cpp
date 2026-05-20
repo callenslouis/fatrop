@@ -15,6 +15,7 @@
 #include <chrono>
 #include <random>
 #include <fstream>
+#include <algorithm>
 
 static const bool USE_GENERALIZATION = true;
 
