@@ -1438,7 +1438,7 @@ LinsolReturnFlag AugSystemSolver<AcceleratedOcpType>::solve(const ProblemInfo &i
             // MatRealAllocated A_original(Ggt_stripe[0].m(), Ggt_stripe[0].n());
             // blasfeo_dgecp(Ggt_stripe[0].m(), Ggt_stripe[0].n(), &Ggt_stripe[0].mat(), 0, 0, &A_original.mat(), 0, 0);
             // std::cout << "Computing LU decomposition of:\n" << Ggt_stripe[0] << std::endl;
-            if (k < info.dims.K - 1){
+            if (k > 0 && k < info.dims.K - 1){
                 int nx_next = info.dims.number_of_states[k+1];
                 // 1. my approach
                 /*
@@ -1458,6 +1458,8 @@ LinsolReturnFlag AugSystemSolver<AcceleratedOcpType>::solve(const ProblemInfo &i
                 gead(Ggt_stripe[0].m(), Ggt_stripe[0].n(), -1, Ggt_stripe[0], 0, 0, temp, 0, 0);
                 std::cout << "difference: \n" << temp.block(nu+nx+1, gamma_k, 0, 0) << std::endl;
                 */
+
+                // 1. Normal approach
                 fatrop_lu_fact_blocked_transposed(info.dims, k, &Ggt_stripe[0].mat(), true);
                 rank_k = rho[k];
 
@@ -2451,11 +2453,11 @@ void AugSystemSolver<AcceleratedOcpType>::fatrop_lu_fact_blocked_transposed(
     Index ng = dims.number_of_eq_constraints[k];
     Index nx_next = (k < dims.K - 1) ? nb_of_zk_vars : 0;
     Index nf = (k < dims.K - 1) ? nb_of_dynamics_constraints : 0;
-    if (nf < 0){ nf = nx_next;}
     if (nx_next < 0){ nx_next = dims.number_of_states[k + 1];}
+    if (nf < 0){ nf = nx_next;}
 
     Index nu_true = nu - nx_next;
-    Index ng_true = ng - nb_of_dynamics_constraints;
+    Index ng_true = ng - nf;
 
     Index m = gamma[k];
     Index nc = m - ng;
