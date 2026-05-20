@@ -28,7 +28,8 @@ if config['caching']['load']:
     with open('solution.pkl', 'rb') as f:
         T, result_expl, result_reform, result_accel = pickle.load(f)
 else:
-    result_expl = SolveExplicit(solver, q0, v0, T, N)
+    # result_expl = SolveExplicit(solver, q0, v0, T, N)
+    result_expl = None
     result_reform = SolveReformulated(solver, q0, v0, T, N)
     result_accel = SolveAccelerated(solver, q0, v0, T, N)
 
@@ -40,7 +41,7 @@ if config['caching']['store'] and not config['caching']['load']:
 ### Visualize
 if config['visualize']:
     visualizer = TrajectoryVisualizer(model, solver)
-    visualizer.visualize_result(T, result_expl, appendix="explicit")
+    # visualizer.visualize_result(T, result_expl, appendix="explicit")
     visualizer.visualize_result(T, result_reform, appendix="reformulated")
     visualizer.visualize_result(T, result_accel, appendix="accelerated")
     # visualizer.visualize_result(T, result_impl, appendix="implicit")

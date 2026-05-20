@@ -55,3 +55,14 @@ class lu_relevance_filter(Filter):
         else:
             relevance = df['lu_accel'] / df['t_accel']
         return (relevance >= self.threshold_min) & (relevance <= self.threshold_max)
+    
+class metric_range_filter(Filter):
+    def __init__(self, metric_computer, value_min, value_max):
+        super().__init__(f'{value_min:.2f} $<$ {metric_computer.name} $<$ {value_max:.2f}')
+        self.metric_computer = metric_computer
+        self.value_min = value_min
+        self.value_max = value_max
+
+    def filter_pass_condition(self, df):
+        metric_values = self.metric_computer.compute_metric(df)
+        return (metric_values >= self.value_min) & (metric_values <= self.value_max)

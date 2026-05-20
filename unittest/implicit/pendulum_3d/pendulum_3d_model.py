@@ -212,8 +212,8 @@ class Pendulum3DModel():
                 theta_y = 0.0
                 theta_z = 0.0
             else:
-                theta_x = 0.4 if i <= 0 else -0.4
-                theta_y = 0.0 if i == 0 else 0
+                theta_x = 0.1*i
+                theta_y = 0.2
                 theta_z = 0.0 if i == 0 else 0
             
             R = get_rotation_matrix(theta_x, theta_y, theta_z)

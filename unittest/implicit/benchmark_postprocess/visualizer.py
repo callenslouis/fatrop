@@ -47,7 +47,7 @@ def visualize_scaling_1d(df, x_func, **kwargs):
                 sc = plt.scatter(xx_flat, y_all_flat, c=colors, s=0.1, linestyle=linestyle, label=f"{y.name} ({f.name})", alpha=1.0)
                 plt.colorbar(sc, label=kwargs.get('scatter_color_func').name)
                 sc.set_cmap('jet')
-            else:
+            elif kwargs.get('show_std', True):
                 std_scale = kwargs.get('std_scale', 1.0)
                 plt.fill_between(xx, np.array(yy_mean) - std_scale*np.array(yy_std), np.array(yy_mean) + std_scale*np.array(yy_std), color=color, alpha=0.2)
             
@@ -78,16 +78,26 @@ def visualize_distribution(df, metric, **kwargs):
     plt.figure()
     
     metric_vals = metric.compute_metric(df)
-    plt.hist(metric_vals, bins=kwargs.get('bins', 20), color=kwargs.get('color', 'blue'), alpha=0.7)
     
-    xx = np.linspace(min(metric_vals), max(metric_vals), 500)
-    plt.plot(xx, np.sqrt(xx))
+    plt.hist(metric_vals, bins=kwargs.get('bins', 20), color=kwargs.get('color', 'blue'), alpha=0.7, density=kwargs.get('normalized', False))
+    
+    if kwargs.get('show_median', False):
+        median = np.median(metric_vals)
+        plt.axvline(median, color='k', linestyle='-', linewidth=2)
+        # plt.text(median, plt.ylim()[1]*0.1, f'Median: {median:.2f}', color='k', ha='right', fontsize=10)
+    
+    if kwargs.get('x_lim', None) is not None:
+        plt.xlim(kwargs.get('x_lim'))
     
     plt.xlabel(metric.name)
     plt.ylabel('Frequency')
     plt.title(kwargs.get('title', ''))
     plt.grid()
     plt.tight_layout()
+    
+    if kwargs.get('file_name', None) is not None:
+        print(f"Saving figure to {kwargs.get('file_name')}")
+        plt.savefig('figures/' + kwargs.get('file_name'), dpi=300)
+    
     if kwargs.get('show', False):
         plt.show()
-        

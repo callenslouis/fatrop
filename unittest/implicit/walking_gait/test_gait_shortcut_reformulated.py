@@ -102,8 +102,8 @@ f_g0_unique = Function('f_g0_unique', [xk, uk], [f_g0_orig_unique(xk, uk_orig)])
 reformulator = Reformulator(n_coll, n_coords, n_act_mesh, dt, xk, uk, uk_orig, q_coll, qdot_coll, qddot_coll)
 f_gk_reformulated = reformulator.get_f_gk_reformulated(f_gk)
 f_g0_reformulated = Function('f_g0_reformulated', [xk, uk], [vertcat(f_g0_unique(xk, uk), f_gk_reformulated(xk, uk))])
-reformulator.show_gk_jacobian_structure_for_debugging(f_gk)
-reformulator.show_gk_jacobian_structure_for_debugging(f_gk_reformulated)
+# reformulator.show_gk_jacobian_structure_for_debugging(f_gk)
+# reformulator.show_gk_jacobian_structure_for_debugging(f_gk_reformulated)
 
 ########################################
 ### update initial guess of controls ###
@@ -235,6 +235,10 @@ if solve and not load_solution:
     if store_solution:
         with open(f'stored_solutions/solution_gait_shortcut_reformulated_{problem_type}{config["file_name_appendix"]}.pkl', 'wb') as f:
             pkl.dump({'xx_sol': xx_sol, 'uu_sol': uu_sol, 'stats': stats}, f)
+            
+    nb_iterations = stats['fatrop']['iterations_count']
+    print(f"Search dir computation time per iteration: {stats['fatrop']['compute_sd_time']/nb_iterations*1000:.4f} ms")
+    print(f"other time per iteration: {stats['fatrop']['time_total']/nb_iterations*1000:.4f} ms")
             
 if load_solution:
     print(f"loading solution")

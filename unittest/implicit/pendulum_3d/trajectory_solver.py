@@ -61,9 +61,10 @@ class TrajectorySolver():
         t = SX.sym("t")
         T = SX.sym("T")
         q0 = SX.sym("q0", 3*self.model.nb_pendulums)
+        ee_pos = self.model.get_joint_pos(q0, self.tracking_mass_index)
         
         ### circle
-        # R_sq = sumsqr(self.model.get_joint_pos(q0, self.tracking_mass_index)[:2])
+        # R_sq = 0.01 + sumsqr(self.model.get_joint_pos(q0, self.tracking_mass_index)[:2])
         # center = vertcat(0, 0, self.model.get_joint_pos(q0, self.tracking_mass_index)[2])
         # phase_0 = atan2(self.model.get_joint_pos(q0, self.tracking_mass_index)[1], self.model.get_joint_pos(q0, self.tracking_mass_index)[0])
 
@@ -74,15 +75,20 @@ class TrajectorySolver():
         #                0)*sqrt(R_sq)
         
         ### lemniscate
-        R = 0.5
-        center = vertcat(0, 0, self.model.get_joint_pos(q0, self.tracking_mass_index)[2])
-        phase_0 = pi/2
-        nb_lemniscates = 0.5
-        s = sin(2*pi*t/T*nb_lemniscates + phase_0)
-        c = cos(2*pi*t/T*nb_lemniscates + phase_0)
-        x = R*c/(1+ s**2)
-        y = R*s*c/(1+ s**2)
-        ref_point = center + vertcat(x, y, 0)
+        # R = 0.5
+        # center = vertcat(0, 0, self.model.get_joint_pos(q0, self.tracking_mass_index)[2])
+        # phase_0 = pi/2
+        # nb_lemniscates = 0.5
+        # s = sin(2*pi*t/T*nb_lemniscates + phase_0)
+        # c = cos(2*pi*t/T*nb_lemniscates + phase_0)
+        # x = R*c/(1+ s**2)
+        # y = R*s*c/(1+ s**2)
+        # ref_point = center + vertcat(x, y, 0)
+        
+        ### large swing
+        R = sum(self.model.L)
+        th1 = Function("th1", [t, T], [0.1*(1-cos(2*np.pi*t/T))], ['t', 'T'], ['th1'])
+        ref_point = vertcat(R*sin(th1(t,T)), 0, -R*cos(th1(t,T)))
         
         self.path_func = Function("path_func", [t, T, q0], [ref_point], ['t', 'T', 'q0'], ['ref_point'])
 
@@ -152,8 +158,10 @@ class TrajectorySolver():
         # inequality constraints
         self.funcs['eval_gk_ineq'] = Function("eval_gk_ineq", [uk, xk], [vertcat(F, dp)], ['uk', 'xk'], ['ineqk'])
         self.funcs['eval_gK_ineq'] = Function("eval_gK_ineq", [xk], [vertcat()], ['xk'], ['ineqK'])
-        ub = vertcat(self.force_bounds*SX.ones(F.size1(), 1), 1.5*SX.ones(dp.size1(), 1))
-        lb = vertcat(-self.force_bounds*SX.ones(F.size1(), 1), 0.5*SX.ones(dp.size1(), 1))
+        ub = vertcat(self.force_bounds*SX.ones(F.size1(), 1),
+                     1.5*SX.ones(dp.size1(), 1))
+        lb = vertcat(-self.force_bounds*SX.ones(F.size1(), 1),
+                     0.5*SX.ones(dp.size1(), 1))
         self.funcs["lb"] = Function("lb", [], [lb], [], ['lb'])
         self.funcs["ub"] = Function("ub", [], [ub], [], ['ub'])
         self.funcs["lbK"] = Function("lbK", [], [vertcat()], [], ['lbK'])
@@ -313,11 +321,11 @@ class TrajectorySolver():
         opti.set_initial(xx[:,N], x_init(N))
 
         if self.implicit and not self.reformulate:
-            opti.solver('ipopt', {'error_on_fail': True}, {'max_iter':400, 'tol':1e-4})
+            opti.solver('ipopt', {'error_on_fail': True}, {'max_iter':1, 'tol':1e-4})
         else:
             problem_type = 'ocp_type' if not self.accelerated else 'accelerated_ocp_type'
-            opti.solver('fatrop', {'error_on_fail': True, 'structure_detection': 'auto', 'debug': True}, {'max_iter':400, 'tol':1e-4, 'problem_type': problem_type})
-            
+            # problem_type = 'ocp_type'
+            opti.solver('fatrop', {'error_on_fail': True, 'structure_detection': 'auto', 'debug': True}, {'max_iter':400, 'tol':1e-4, 'problem_type': problem_type})         
             
         try:
             if self.opti_to_function:

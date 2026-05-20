@@ -61,7 +61,7 @@ def filter(avg_stats):
     casadi_func_keys = ['t_wall_nlp_f', 't_wall_nlp_g', 't_wall_nlp_grad', 't_wall_nlp_grad_f', 't_wall_nlp_hess_l', 't_wall_nlp_jac_g']
     fatrop_func_keys = ['eval_cv_', 'eval_grad_', 'eval_hess_', 'eval_jac_', 'eval_obj_']
     casadi_other_keys = ['t_wall_total']
-    fatrop_other_keys = ['compute_sd_time', 'time_total']
+    fatrop_other_keys = ['compute_sd_time', 'time_total', 'iterations_count']
     
     for key in casadi_func_keys:
         # if key in avg_stats:
@@ -141,6 +141,24 @@ def print_comparison(timings1, timings2, label1='OCP Type', label2='Accelerated 
         rel_diff = compute_relative_difference(time2['mean'], time1['mean'])
         rel_diff_str = f"{rel_diff:.2f}%" if rel_diff is not None else "N/A"
         print(f"{key:<20} | {time1['mean']:11.4f} ({time1['std']:5.4f}) | {time2['mean']:12.4f} ({time2['std']:5.4f}) | {rel_diff_str:20}")
+    print()
+    
+    # print same table but divide per iteration
+    print(f"\n{'Timing per Iteration':20} | {label1:20} | {label2:21} | {'Relative Difference (%)':20}")
+    print("-" * 100)
+    for key in timings1.keys(): 
+        time1 = timings1[key]
+        time2 = timings2.get(key, None)
+        if 'iterations_count' in timings1 and 'iterations_count' in timings2:
+            iter1 = timings1['iterations_count']['mean']
+            iter2 = timings2['iterations_count']['mean']
+            time1_per_iter = time1['mean'] / iter1 if iter1 > 0 else None
+            time2_per_iter = time2['mean'] / iter2 if iter2 > 0 else None
+            rel_diff = compute_relative_difference(time2_per_iter, time1_per_iter)
+            rel_diff_str = f"{rel_diff:.2f}%" if rel_diff is not None else "N/A"
+            print(f"{key:<20} | {time1_per_iter:11.4f} | {time2_per_iter:12.4f} | {rel_diff_str:20}")
+        else:
+            print(f"{key:<20} | {'N/A':20} | {'N/A':21} | {'N/A':20}")
     print()
 
 ocp_stats, accelerated_ocp_stats, ocp_avg, accelerated_ocp_avg = get_all_stats()

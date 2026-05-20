@@ -53,6 +53,13 @@ class area_computer(metric_computer):
         
         return df['m'] * df['n']
     
+class square_root_area_computer(metric_computer):
+    def __init__(self):
+        super().__init__(f'$\sqrt{{mn}}$')
+        
+    def compute_metric(self, df):
+        return np.sqrt(df['m'] * df['n'])
+
 class rel_speedup_computer(metric_computer):
     def __init__(self):
         super().__init__('Relative Speedup')
@@ -81,3 +88,4 @@ class lu_relevance_computer(metric_computer):
             return df['lu_reform'] / df['t_reform']
         else:
             return df['lu_accel'] / df['t_accel']
+        

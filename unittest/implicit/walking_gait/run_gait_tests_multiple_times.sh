@@ -12,7 +12,7 @@ sed -i "s/visualize_solution: True/visualize_solution: False/" config.yaml
 sed -i "s/file_name_appendix: ''/file_name_appendix: ''/" config.yaml
 
 # Run the python script
-# python3 test_gait_shortcut_reformulated.py
+python3 test_gait_shortcut_reformulated.py
 
 # run a few more times by loading the opti_f 
 sed -i "s/save_opti_f: True/save_opti_f: False/" config.yaml

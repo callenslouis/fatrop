@@ -15,18 +15,18 @@ stabilizer:
 # Joint stiffness and damping
 stiff_joints:
   use: true  # Whether to add stiffness and damping to the joints
-  joint_stiffness: 1  # Stiffness coefficient for the joints
+  joint_stiffness: 8  # Stiffness coefficient for the joints
   joint_damping: 5    # Damping coefficient for the joints
 
 # Scenario settings
 scenario:
-  T: 4 # 1   # Total time horizon for the trajectory
-  N: 200 # 200    # Number of time steps in the trajectory
+  T: 2 # 1   # Total time horizon for the trajectory
+  N: 100 # 200    # Number of time steps in the trajectory
   force_bounds: 80  # Maximum magnitude of the control forces
-  tracking: true  # Whether to include tracking terms in the cost function
+  tracking: false  # Whether to include tracking terms in the cost function
   initialization:
     randomize: false  # Whether to randomize the initial conditions
-    at_rest: true     # Whether to start the pendulum at rest
+    at_rest: false     # Whether to start the pendulum at rest
   actuation_idxs: [2, 4]  # Indices of the joints that are actuated (0-based indexing)
 
 # cache solution
@@ -40,7 +40,7 @@ opti:
   code_generate: False # Not yet supported
 
 # visualizations
-visualize: true  # Whether to visualize the results
+visualize: false  # Whether to visualize the results
 
 # simulations
 simulate: false  # Does not work well
