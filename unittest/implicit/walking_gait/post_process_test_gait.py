@@ -156,7 +156,7 @@ def print_comparison(timings1, timings2, label1='OCP Type', label2='Accelerated 
             time2_per_iter = time2['mean'] / iter2 if iter2 > 0 else None
             rel_diff = compute_relative_difference(time2_per_iter, time1_per_iter)
             rel_diff_str = f"{rel_diff:.2f}%" if rel_diff is not None else "N/A"
-            print(f"{key:<20} | {time1_per_iter:11.4f} | {time2_per_iter:12.4f} | {rel_diff_str:20}")
+            print(f"{key:<20} | {time1_per_iter:19.4f} | {time2_per_iter:22.4f} | {rel_diff_str:20}")
         else:
             print(f"{key:<20} | {'N/A':20} | {'N/A':21} | {'N/A':20}")
     print()
@@ -164,54 +164,3 @@ def print_comparison(timings1, timings2, label1='OCP Type', label2='Accelerated 
 ocp_stats, accelerated_ocp_stats, ocp_avg, accelerated_ocp_avg = get_all_stats()
 ocp_filtered, accelerated_ocp_filtered = filter(ocp_avg), filter(accelerated_ocp_avg)
 print_comparison(ocp_filtered['fatrop'], accelerated_ocp_filtered['fatrop'], label1='OCP Type', label2='Accelerated OCP Type')
-
-# timings_ocp_type, timings_accelerated_ocp_type = load_solutions()
-# print_comparison(timings_ocp_type, timings_accelerated_ocp_type)
-
-# visualize computation times
-plt.figure()
-
-# show boxplots for compute_sd_time, func_eval_time, and fatrop_time
-labels = ['compute_sd_time', 'func_eval', 'time_total']
-data_ocp_type = [ocp_filtered['fatrop'][label]['all'] for label in labels]
-data_accelerated_ocp_type = [accelerated_ocp_filtered['fatrop'][label]['all'] for label in labels]
-
-print(data_ocp_type)
-print(len(data_ocp_type))
-print([len(i) for i in data_ocp_type])
-
-width = 0.6
-positions_ocp = np.array(range(len(labels)))*2.0 - width/2
-positions_accelerated_ocp = positions_ocp + width
-
-plt.boxplot(data_ocp_type, 
-            positions=positions_ocp, 
-            widths=width, 
-            patch_artist=True, 
-            boxprops=dict(facecolor='lightblue'), 
-            medianprops=dict(color='blue'))
-plt.boxplot(data_accelerated_ocp_type, 
-            positions=positions_accelerated_ocp, 
-            widths=width, 
-            patch_artist=True, 
-            boxprops=dict(facecolor='lightgreen'), 
-            medianprops=dict(color='green'))
-
-# show true samples for each method as scatter points
-for i, label in enumerate(labels):
-    y_ocp = data_ocp_type[i]
-    y_accelerated_ocp = data_accelerated_ocp_type[i]
-    x_ocp = np.random.normal(positions_ocp[i], width/10, size=len(y_ocp))
-    x_accelerated_ocp = np.random.normal(positions_accelerated_ocp[i], width/10, size=len(y_accelerated_ocp))
-    plt.scatter(x_ocp, y_ocp, color='blue', alpha=0.6, label='OCP Type' if i == 0 else "", zorder=10)
-    plt.scatter(x_accelerated_ocp, y_accelerated_ocp, color='green', alpha=0.6, label='Accelerated OCP Type' if i == 0 else "", zorder=10)
-    
-
-plt.xticks(np.array(range(len(labels)))*2.0, labels)
-curr_ylim = plt.ylim()
-plt.ylim(0, curr_ylim[1])
-plt.ylabel('Time (s)')
-plt.title('Computation Time Comparison')
-plt.legend(['OCP Type', 'Accelerated OCP Type'])
-plt.grid(axis='y')
-plt.show()

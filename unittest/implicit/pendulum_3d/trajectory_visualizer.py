@@ -131,7 +131,7 @@ class TrajectoryVisualizer():
 
             xlim = (-1.5, 1.5)
             ylim = (-1.5, 1.5)
-            zlim = (-self.model.nb_pendulums-0.5, 0.5)
+            zlim = (-np.sum(self.model.L)-0.5, 0.5)
             center = ((xlim[0]+xlim[1])/2, (ylim[0]+ylim[1])/2, (zlim[0]+zlim[1])/2)
             max_range = max(xlim[1]-xlim[0], ylim[1]-ylim[0], zlim[1]-zlim[0]) / 2
             
@@ -139,10 +139,10 @@ class TrajectoryVisualizer():
             ylim = (center[1] - max_range, center[1] + max_range)
             ax.set_xlim(*xlim)
             ax.set_ylim(*ylim)
-            ax.set_zlim(-self.model.nb_pendulums-0.5, 0.5)
+            ax.set_zlim(-np.sum(self.model.L)-0.5, 0.5)
 
             # show pendulum projection on XZ, YZ and XY planes
-            self.show_pendulum_projection(ax, frame, plane_x=xlim[0], plane_y=ylim[1], plane_z=-self.model.nb_pendulums-0.5)
+            self.show_pendulum_projection(ax, frame, plane_x=xlim[0], plane_y=ylim[1], plane_z=-np.sum(self.model.L)-0.5)
             ax.set_xlabel('X Position (m)')
             ax.set_ylabel('Y Position (m)')
             ax.set_zlabel('Z Position (m)')

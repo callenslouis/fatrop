@@ -1,37 +1,78 @@
 from asyncio import subprocess
+from fnmatch import fnmatch
 
 from casadi import *
 import numpy as np
 import json
 import yaml
 
-def SolveExplicit(solver, q0, v0, T, N):
+def SolveExplicit(solver, q0, v0, T, N, nb_runs=1):
     solver.implicit = False
     solver.reformulate = False
     solver.accelerated = False
     
-    return solver.solve_baked_trajectory(q0=q0, v0=v0, T=T, N=N)
+    return SolveMultipleRuns(solver, q0, v0, T, N, nb_runs)
 
-def SolveImplicit(solver, q0, v0, T, N):
+def SolveImplicit(solver, q0, v0, T, N, nb_runs=1):
     solver.implicit = True
     solver.reformulate = False
     solver.accelerated = False
     
-    return solver.solve_baked_trajectory(q0=q0, v0=v0, T=T, N=N)
+    return SolveMultipleRuns(solver, q0, v0, T, N, nb_runs)
 
-def SolveReformulated(solver, q0, v0, T, N):
+def SolveReformulated(solver, q0, v0, T, N, nb_runs=1):
     solver.implicit = True
     solver.reformulate = True
     solver.accelerated = False
     
-    return solver.solve_baked_trajectory(q0=q0, v0=v0, T=T, N=N)
+    return SolveMultipleRuns(solver, q0, v0, T, N, nb_runs)    
 
-def SolveAccelerated(solver, q0, v0, T, N):
+def SolveAccelerated(solver, q0, v0, T, N, nb_runs=1):
     solver.implicit = True
     solver.reformulate = True
     solver.accelerated = True
     
-    return solver.solve_baked_trajectory(q0=q0, v0=v0, T=T, N=N)
+    return SolveMultipleRuns(solver, q0, v0, T, N, nb_runs)
+
+def SolveMultipleRuns(solver, q0, v0, T, N, nb_runs):
+    t_total = []
+    t_search_direction = []
+    nb_iterations = []
+    stats = []
+    for run in range(nb_runs):
+        print(f"Running solve, run {run+1}/{nb_runs}...")
+        sol = solver.solve_baked_trajectory(q0=q0, v0=v0, T=T, N=N)
+        try:
+            t_total.append(solver.sol.stats()['fatrop']['time_total'])
+            t_search_direction.append(solver.sol.stats()['fatrop']['compute_sd_time'])
+            nb_iterations.append(solver.get_nb_iters())
+            stats.append(solver.sol.stats())
+        except:
+            return None
+    
+    sol['t_total'] = t_total
+    sol['t_search_direction'] = t_search_direction
+    sol['nb_iterations'] = nb_iterations
+    sol['stats'] = stats
+    return sol
+
+def PrintAveragedTimes(sol, method_name):
+    print(f"Averaged computation times for {method_name}:")
+    print(f"  Total time:                          {np.mean(sol['t_total']):.3f}")
+    print(f"  Search direction time:               {np.mean(sol['t_search_direction']):.3f}")
+    print(f"  Search direction time per iteration: {np.mean(sol['t_search_direction'])/np.mean(sol['nb_iterations']):.3f}")
+    print(f"  Number of iterations:                {int(np.mean(sol['nb_iterations']))}")
+    func_eval_times = [sum([v for k, v in stat['fatrop'].items() if fnmatch(k, 'eval_*_time')]) for stat in sol['stats']]
+    func_eval_time = np.mean(func_eval_times)
+    print(f"  Percentage of total time spent in search direction: {np.mean(sol['t_search_direction'])/np.mean(sol['t_total'])*100:.2f}%")
+    print(f"  Percentage of fatrop time spent in search direction: {np.mean(sol['t_search_direction'])/(np.mean([sol['t_total']]) - func_eval_time)*100:.2f}%")
+    
+def PrintDifferences(sol1, sol2, name1, name2):
+    print(f"Relative difference between {name1} and {name2}:")
+    print(f"   Search direction time:               {(np.mean(sol2['t_search_direction']) - np.mean(sol1['t_search_direction']))/np.mean(sol1['t_search_direction']):.2f}")
+    print(f"   Search direction time per iteration: {(np.mean(sol2['t_search_direction'])/np.mean(sol2['nb_iterations']) - np.mean(sol1['t_search_direction'])/np.mean(sol1['nb_iterations']))/(np.mean(sol1['t_search_direction'])/np.mean(sol1['nb_iterations'])):.2f}")
+    print(f"   Total time:                          {(np.mean(sol2['t_total']) - np.mean(sol1['t_total']))/np.mean(sol1['t_total']):.2f}")
+    print(f"   Total time per iteration:            {(np.mean(sol2['t_total'])/np.mean(sol2['nb_iterations']) - np.mean(sol1['t_total'])/np.mean(sol1['nb_iterations']))/(np.mean(sol1['t_total'])/np.mean(sol1['nb_iterations'])):.2f}")
 
 class TrajectorySolver():
     def __init__(self, model, config, implicit=False):
@@ -54,6 +95,7 @@ class TrajectorySolver():
         
         # options
         self.store_casadi_functions = False
+        self.introduce_zk_sparsily = True
 
     def set_path_tracking_scenario(self):
         self.tracking = True
@@ -112,13 +154,13 @@ class TrajectorySolver():
         q = SX.sym("q", 3*self.model.nb_pendulums)
         v = SX.sym("v", 3*self.model.nb_pendulums)
         p = SX.sym("p", 1*self.tracking)
-        xk = vertcat(q, v, p)
+        xk = vertcat(v, p, q)
         
         # xk_plus
         qp = SX.sym("qp", 3*self.model.nb_pendulums)
         vp = SX.sym("vp", 3*self.model.nb_pendulums)
         pp = SX.sym("pp", 1*self.tracking)
-        xk_plus = vertcat(qp, vp, pp)
+        xk_plus = vertcat(vp, pp, qp)
 
         # uk        
         s = SX.sym("s", 3*self.tracking)
@@ -130,8 +172,14 @@ class TrajectorySolver():
         
         # reformulation trick
         if self.reformulate:
-            zk = SX.sym("zk", xk.size1())
-            uk = vertcat(uk, zk)
+            if self.introduce_zk_sparsily:
+                zk_true = SX.sym("zk_true", 3*self.model.nb_pendulums) # only keep velocity
+                zk = vertcat(qp, pp, zk_true)
+                uk = vertcat(uk, zk_true)
+            else:
+                zk = SX.sym("zk", xk.size1())
+                zk_true = zk
+                uk = vertcat(uk, zk)
 
         dt = T/N
 
@@ -139,11 +187,10 @@ class TrajectorySolver():
         self.funcs = {}
 
         # objective
-        objk = 1e-5*sumsqr(F) + (1e2*sumsqr(s) if self.tracking else 0)
+        objk = 1e-5*sumsqr(F) + (1e2*sumsqr(s) if self.tracking else 0) + 0*1e-2*sumsqr(v)
         self.funcs['eval_objk'] = Function("eval_objk", [uk, xk], [objk], ['uk', 'xk'], ['objk'])
 
         objK = 0.0 if self.tracking else sumsqr(v) + 1e2*sumsqr(q - self.get_q_rest())
-        # objK = sumsqr(v) + 1e2*sumsqr(q - self.get_q_rest())
         self.funcs['eval_objK'] = Function("eval_objK", [xk], [objK], ['xk'], ['objK'])
 
         # equality constraints
@@ -151,7 +198,7 @@ class TrajectorySolver():
         if self.tracking:
             ref_point = self.path_func(p, T, q0)
             gk = vertcat(gk, s - (q[:3] - ref_point))
-        self.funcs['eval_g0'] = Function("eval_g0", [uk, xk], [vertcat(vertcat(q - q0, v - v0, p), gk)], ['uk', 'xk'], ['g0'])
+        self.funcs['eval_g0'] = Function("eval_g0", [uk, xk], [vertcat(vertcat(v - v0, p, q - q0), gk)], ['uk', 'xk'], ['g0'])
         self.funcs['eval_gk'] = Function("eval_gk", [uk, xk], [gk], ['uk', 'xk'], ['gk'])
         self.funcs['eval_gK'] = Function("eval_gK", [xk], [vertcat(p - T) if self.tracking else vertcat()], ['xk'], ['gK'])
 
@@ -169,17 +216,18 @@ class TrajectorySolver():
 
         # dynamics
         qdot, vdot = self.model.f(q, v, z, F)
-        rhs_expl = vertcat(q + v*dt, v + vdot*dt)
-        rhs_impl = vertcat(q + vp*dt - qp, v + vdot*dt - vp)
         if self.tracking:
-            rhs_expl = vertcat(rhs_expl, p + dt)
-            rhs_impl = vertcat(rhs_impl, p + dt - pp)
+            rhs_expl = vertcat(v + vdot*dt, p + dt, q + v*dt)
+            rhs_impl = vertcat(v + vdot*dt - vp, p + dt - pp, q + vp*dt - qp)
+        else:
+            rhs_expl = vertcat(v + vdot*dt, q + v*dt)
+            rhs_impl = vertcat(v + vdot*dt - vp, q + vp*dt - qp)
         self.funcs['expl_dyn'] = Function("expl_dyn", [uk, xk], [rhs_expl], ['uk', 'xk'], ['xk_plus'])
         self.funcs['impl_dyn'] = Function("impl_dyn", [uk, xk, xk_plus], [rhs_impl], ['uk', 'xk', 'xk_plus'], ['dyn_res'])
         
         # initialization
         k = SX.sym("k")
-        x_init = vertcat(q0, v0)
+        x_init = vertcat(v0, q0)
         u_init = 0*uk_true
         if self.tracking:
             x_init = vertcat(x_init, k*dt)
@@ -190,20 +238,24 @@ class TrajectorySolver():
         # reformulated
         if self.reformulate:
             # move dynamics into constraints
+            dyn_expr = self.funcs['impl_dyn'](uk, xk, zk) if not self.introduce_zk_sparsily else (v + vdot*dt - zk_true)
             self.funcs['eval_g0'] = Function("eval_g0", [uk, xk], 
                                              [vertcat(self.funcs['eval_g0'](uk, xk),
-                                                      self.funcs['impl_dyn'](uk, xk, zk))], 
+                                                      dyn_expr)], 
                                              ['uk', 'xk'], ['g0'])
             self.funcs['eval_gk'] = Function("eval_gk", [uk, xk],
                                              [vertcat(self.funcs['eval_gk'](uk, xk),
-                                                      self.funcs['impl_dyn'](uk, xk, zk))],
+                                                      dyn_expr)],
                                              ['uk', 'xk'], ['gk'])
             
-            # create new dynamics
-            self.funcs['expl_dyn'] = Function("expl_dyn", [uk, xk], [zk], ['uk', 'xk'], ['zk'])
-            
-            # update initialization
-            self.funcs["u_init"] = Function("u_init", [k], [vertcat(self.funcs['u_init'](k), self.funcs['x_init'](k))], ['k'], ['u_init'])
+            # create new dynamics and update initialization
+            if self.introduce_zk_sparsily:
+                self.funcs['expl_dyn'] = Function("expl_dyn", [uk, xk], [vertcat(zk_true, q + zk_true*dt)], ['uk', 'xk'], ['zk'])
+                zk_true_init = self.funcs['x_init'](k)[-3*self.model.nb_pendulums:,:]
+                self.funcs["u_init"] = Function("u_init", [k], [vertcat(self.funcs['u_init'](k), zk_true_init)], ['k'], ['u_init'])
+            else:
+                self.funcs['expl_dyn'] = Function("expl_dyn", [uk, xk], [zk], ['uk', 'xk'], ['zk'])
+                self.funcs["u_init"] = Function("u_init", [k], [vertcat(self.funcs['u_init'](k), self.funcs['x_init'](k))], ['k'], ['u_init'])
         
 
         # metadata
@@ -213,7 +265,7 @@ class TrajectorySolver():
             "N": N,
             "T": T,
             "dt": dt,
-            "x0": vertcat(q0, v0, 0).full().flatten().tolist(),
+            "x0": vertcat(v0, 0, q0).full().flatten().tolist(),
             "lb": self.funcs["lb"]()["lb"].full().flatten().tolist(),
             "ub": self.funcs["ub"]()["ub"].full().flatten().tolist(),
             "lbK": self.funcs["lbK"]()["lbK"].full().flatten().tolist(),
@@ -324,8 +376,15 @@ class TrajectorySolver():
             opti.solver('ipopt', {'error_on_fail': True}, {'max_iter':1, 'tol':1e-4})
         else:
             problem_type = 'ocp_type' if not self.accelerated else 'accelerated_ocp_type'
-            # problem_type = 'ocp_type'
-            opti.solver('fatrop', {'error_on_fail': True, 'structure_detection': 'auto', 'debug': True}, {'max_iter':400, 'tol':1e-4, 'problem_type': problem_type})         
+            fatrop_opts = {
+                'max_iter': 400,
+                'tol': 1e-4,
+                'problem_type': problem_type,
+            }            
+            if self.accelerated:
+                fatrop_opts['linsol_nb_of_dynamics_constraints'] = 3*self.model.nb_pendulums if self.introduce_zk_sparsily else nx
+                fatrop_opts['linsol_nb_of_zk_vars'] = 3*self.model.nb_pendulums if self.introduce_zk_sparsily else nx
+            opti.solver('fatrop', {'error_on_fail': True, 'structure_detection': 'auto', 'debug': False, 'expand': True}, fatrop_opts)
             
         try:
             if self.opti_to_function:
@@ -359,11 +418,11 @@ class TrajectorySolver():
         result = {
             'success': True,
             'nb_iter': self.get_nb_iters(),
-            'q_sol': xx_sol[:3*self.model.nb_pendulums, :],
-            'v_sol': xx_sol[3*self.model.nb_pendulums:6*self.model.nb_pendulums, :],
+            'q_sol': xx_sol[3*self.model.nb_pendulums:6*self.model.nb_pendulums, :],
+            'v_sol': xx_sol[:3*self.model.nb_pendulums, :],
             'p_sol': xx_sol[6*self.model.nb_pendulums:, :],
             'z_sol': uu_sol[3*self.tracking:3*self.tracking + self.model.nb_pendulums, :],
-            'F_sol': uu_sol[3*self.tracking + 1*self.model.nb_pendulums:, :],
+            'F_sol': uu_sol[3*self.tracking + 1*self.model.nb_pendulums:3*self.tracking + 1*self.model.nb_pendulums + 3*len(self.model.actuated_joint_idxs), :],
             
         }
         return result
@@ -437,7 +496,7 @@ class TrajectorySolver():
             opti.solver('ipopt', {}, {'max_iter':400, 'tol':1e-4})
         else:
             problem_type = 'ocp_type' if not self.accelerated else 'accelerated_ocp_type'
-            opti.solver('fatrop', {'structure_detection':'auto', 'debug':True}, {'max_iter':400, 'tol':1e-4, 'problem_type': problem_type})
+            opti.solver('fatrop', {'structure_detection':'auto', 'debug':False}, {'max_iter':400, 'tol':1e-4, 'problem_type': problem_type})
         try:
             self.sol = opti.solve()
         except RuntimeError as e:
