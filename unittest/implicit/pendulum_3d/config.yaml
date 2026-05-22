@@ -39,7 +39,7 @@ opti:
   to_function: False # Leads to shape issues in visualizer -- to be debugged
   code_generate: False # Not yet supported
 
-nb_runs: 1  # Number of runs to perform (for averaging)
+nb_runs: 5  # Number of runs to perform (for averaging)
 
 # visualizations
 visualize: true  # Whether to visualize the results

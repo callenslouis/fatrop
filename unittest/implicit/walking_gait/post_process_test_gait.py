@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 import os
 import numpy as np
 
-# FOLDER = 'stored_solutions'
-FOLDER = 'unittest/implicit/walking_gait/stored_solutions'
+FOLDER = 'stored_solutions'
+# FOLDER = 'unittest/implicit/walking_gait/stored_solutions'
 
 # obtain all stats files for one ocp type
 def get_stats_for_ocp_type(file_appendix):

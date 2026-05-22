@@ -191,7 +191,7 @@ opts_casadi = {
     'structure_detection': 'auto'
 }
 opts_fatrop = {
-    'tol': 1e-4,
+    'tol': 1e-5,
     'mu_init': 0.1,
     'max_iter': 300,
     'problem_type': problem_type,
