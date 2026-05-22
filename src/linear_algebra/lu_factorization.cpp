@@ -6,6 +6,7 @@
 #include "fatrop/linear_algebra/linear_algebra.hpp"
 #include <algorithm>
 #include <utility>
+#include <vector>
 
 namespace fatrop
 {
@@ -293,5 +294,87 @@ namespace fatrop
             }
             blasfeo_vecel_wrap(sz, zi + i) = res;
         }
+    }
+
+    // This is a helper function that returns a list of non-zero columns for a given
+    // row
+    std::vector<int> get_nnz_cols_for_row(const int* sp_colind, const int* sp_row,
+                                          const int nnz, const int row) {
+        std::vector<int> res;
+        for (int i = 0; i < nnz; ++i) {
+            if (sp_row[i] == row) {
+                res.push_back(sp_colind[i]);
+            }
+        }
+        return res;
+    }
+
+    void fatrop_lu_fact_transposed_sparse(
+        const Index m, const Index n, const Index n_max, Index& rank, MAT* At,
+        PermutationMatrix& Pl, PermutationMatrix& Pr, const int* sp_colind,
+        const int* sp_row, const int nnz, double tol, Index nb_row_perm,
+        Index nb_col_perm) {
+        if (nb_row_perm < 0) {
+            nb_row_perm = n;
+        }
+        if (nb_col_perm < 0) {
+            nb_col_perm = m;
+        }
+
+        // Set the permutation vectors to the identity permutation
+        Pl.set_to_identity(n);
+        Pr.set_to_identity(m);
+
+        // LU factorization with full pivoting
+        Index i = 0;
+        for (; i < std::min(m, n_max); ++i) {
+            // Find the maximum element in the remaining submatrix
+            double max_el_val = 0.0;
+            Index max_el_row = -1;
+            Index max_el_col = -1;
+
+            // Get the list of non-zero columns for the current row
+            auto nnz_cols = get_nnz_cols_for_row(sp_colind, sp_row, nnz, i);
+
+            for (Index j : nnz_cols) {
+                if (j < i) continue;
+                for (Index k = i; k < n; ++k) {
+                    double el_val = std::abs(blasfeo_matel_wrap(At, k, j));
+                    if (el_val > max_el_val) {
+                        max_el_val = el_val;
+                        max_el_row = k;
+                        max_el_col = j;
+                    }
+                }
+            }
+
+            // Check for rank deficiency
+            if (max_el_val < tol) {
+                break;
+            }
+
+            // Perform row pivoting
+            if (max_el_col != i && i < nb_row_perm) {
+                blasfeo_swap_cols_wrap(n, At, i, max_el_col);
+                Pl.swap(i, max_el_col);
+            }
+
+            // Perform column pivoting
+            if (max_el_row != i && i < nb_col_perm) {
+                blasfeo_swap_rows_wrap(m, At, i, max_el_row);
+                Pr.swap(i, max_el_row);
+            }
+
+            // Perform the LU update
+            for (Index j : nnz_cols) {
+                if (j <= i) continue;
+                blasfeo_matel_wrap(At, i, j) /= blasfeo_matel_wrap(At, i, i);
+                for (Index k = i + 1; k < n; ++k) {
+                    blasfeo_matel_wrap(At, k, j) -=
+                        blasfeo_matel_wrap(At, i, j) * blasfeo_matel_wrap(At, k, i);
+                }
+            }
+        }
+        rank = i;
     }
 }

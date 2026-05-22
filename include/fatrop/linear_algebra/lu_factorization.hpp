@@ -131,6 +131,12 @@ namespace fatrop
                             PermutationMatrix &Pl, PermutationMatrix &Pr, double tol = 1e-5,
                             Index nb_row_perm = -1, Index nb_col_perm = -1);
 
+    void fatrop_lu_fact_transposed_sparse(
+        const Index m, const Index n, const Index n_max, Index& rank, MAT* At,
+        PermutationMatrix& Pl, PermutationMatrix& Pr, const int* sp_colind,
+        const int* sp_row, const int nnz, double tol = 1e-5,
+        Index nb_row_perm = -1, Index nb_col_perm = -1);
+
     /**
      * @brief Performs an addition operation with a transposed matrix.
      *
