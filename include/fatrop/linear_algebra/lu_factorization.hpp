@@ -133,8 +133,8 @@ namespace fatrop
 
     void fatrop_lu_fact_transposed_sparse(
         const Index m, const Index n, const Index n_max, Index& rank, MAT* At,
-        PermutationMatrix& Pl, PermutationMatrix& Pr, const int* sp_colind,
-        const int* sp_row, const int nnz, double tol = 1e-5,
+        PermutationMatrix& Pl, PermutationMatrix& Pr, const std::vector<long long int>& sp_colind,
+        const std::vector<long long int>& sp_row, const int nnz, double tol = 1e-5,
         Index nb_row_perm = -1, Index nb_col_perm = -1);
 
     /**

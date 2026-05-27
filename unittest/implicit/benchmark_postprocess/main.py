@@ -23,7 +23,7 @@ if __name__ == '__main__':
     max_sqrt_areas = np.linspace(0, np.sqrt(max(df['m']*df['n'])), 7)
     
     filters = [size_filter(areas[i], areas[i+1]) for i in range(len(areas)-1)]
-    filter_sqrt = [metric_range_filter(square_root_area_computer(), 10*i, 10*(i+1)) for i in range(6)]
+    filter_sqrt = [metric_range_filter(square_root_area_computer(), 10*i, 10*(i+1), integer=True) for i in range(6)]
     filter_nx = [plain_df_key_filter('nx', i*5, (i+1)*5) for i in range(6)]
     filter_nu = [plain_df_key_filter('nu', i*5, (i+1)*5) for i in range(6)]
     filter_ng = [plain_df_key_filter('ng', i*5, (i+1)*5) for i in range(6)]
@@ -59,13 +59,15 @@ if __name__ == '__main__':
     # #     visualize_scaling_1d(df, x_func, filters=filter_nu, x_min_step=0.05, filter_colors=colors, title='Effect of number of controls')
     # #     visualize_scaling_1d(df, x_func, filters=filter_ng, x_min_step=0.05, filter_colors=colors, title='Effect of number of constraints')
         
+    visualize_scaling_1d(df, x_funcs[0], filters=filter_sqrt, x_min_step=0.05, filter_colors=colors,
+                         file_name=f'relative_improvement_relative_area_binned_sqrt_area.png', show_std=False, y_lim=(-0.3, 0.3))
         
     x_funcs = [plain_df_key('nx'), plain_df_key('nu'), plain_df_key('ng')]
     for x_func in x_funcs:
-        visualize_scaling_1d(df, x_func)
+        # visualize_scaling_1d(df, x_func)
         visualize_scaling_1d(df, x_func, y_funcs=[rel_speedup_lu_computer(recursion_benchmark_data=True)], title='Relative Speedup of LU vs Full Factorization', file_name=f'relative_speedup_lu_{x_func.name}_recursion.png')
     
-    visualize_distribution(df, lu_relevance_computer(reformulated=True), bins=20, normalized=True, color='grey', show_median=True, x_lim=(0, 1), file_name='lu_relevance_distribution.png')
+    visualize_distribution(df, lu_relevance_computer(reformulated=True), bins=40, normalized=True, color='grey', show_median=True, x_lim=(0, 1), file_name='lu_relevance_distribution.png')
     
     # visualize_distribution(df, area_computer(relative=True))
     # visualize_distribution(df, plain_df_key('nx'))
@@ -75,6 +77,6 @@ if __name__ == '__main__':
     # visualize_distribution(df, plain_df_key('nz'))
                 
     
-    plt.show()
+    # plt.show()
     
 

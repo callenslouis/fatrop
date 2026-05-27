@@ -312,8 +312,8 @@ namespace fatrop
 
     void fatrop_lu_fact_transposed_sparse(
         const Index m, const Index n, const Index n_max, Index& rank, MAT* At,
-        PermutationMatrix& Pl, PermutationMatrix& Pr, const int* sp_colind,
-        const int* sp_row, const int nnz, double tol, Index nb_row_perm,
+        PermutationMatrix& Pl, PermutationMatrix& Pr, const std::vector<long long int>& sp_col,
+        const std::vector<long long int>& sp_row, const int nnz, double tol, Index nb_row_perm,
         Index nb_col_perm) {
     if (nb_row_perm < 0) {
         nb_row_perm = n;
@@ -332,7 +332,7 @@ namespace fatrop
 
         for (int k = 0; k < nnz; ++k) {
             int r = sp_row[k];
-            int c = sp_colind[k];
+            int c = sp_col[k];
             if (r >= i && c >= i) {
                 double el_val = std::abs(blasfeo_matel_wrap(At, c, r));
                 if (el_val > max_el_val) {
@@ -366,11 +366,11 @@ namespace fatrop
 
         // Perform the LU update
         for (int k = 0; k < nnz; ++k) {
-            if (sp_row[k] == i && sp_colind[k] > i) {
-                int j = sp_colind[k];
+            if (sp_row[k] == i && sp_col[k] > i) {
+                int j = sp_col[k];
                 blasfeo_matel_wrap(At, i, j) /= blasfeo_matel_wrap(At, i, i);
                 for (int l = 0; l < nnz; ++l) {
-                    if (sp_row[l] > i && sp_colind[l] == j) {
+                    if (sp_row[l] > i && sp_col[l] == j) {
                         int row_to_update = sp_row[l];
                         blasfeo_matel_wrap(At, row_to_update, j) -=
                             blasfeo_matel_wrap(At, i, j) *

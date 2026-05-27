@@ -85,7 +85,7 @@ bool verify_lu(const MatRealAllocated &LU, const MatRealAllocated &A_original, M
 
 int main() {
     srand(time(0));
-    int nb_runs = 100;
+    int nb_runs = 1;
     std::vector<double> time_dense, time_sparse;
     time_dense.reserve(nb_runs);
     time_sparse.reserve(nb_runs);
@@ -109,7 +109,7 @@ int main() {
         }
 
         casadi::Function f("f", {x}, {fun_expr});
-        casadi::Function jf = f.jacobian();
+        casadi::Function jf("jf", {x}, {jacobian(fun_expr, x)});
 
         // Generate random input
         std::vector<double> x_in(n);
@@ -125,6 +125,10 @@ int main() {
         std::vector<long long int> sp_row = sp.get_row();
         std::vector<long long int> sp_col = sp.get_col();
         const casadi_int* sp_colind = sp.colind();
+        std::cout << "jac_dm: \n" << jac_dm << std::endl;
+        std::cout << "row: \n" << sp_row << std::endl;
+        std::cout << "col: \n" << sp_col << std::endl;
+        std::cout << "colind: \n" << sp.colind() << std::endl;
         int nnz = sp.nnz();
 
         // Create fatrop matrix
@@ -157,7 +161,7 @@ int main() {
 
         // Time sparse factorization
         start = std::chrono::high_resolution_clock::now();
-        fatrop_lu_fact_transposed_sparse(m, n, n, rank_sparse, &A_sparse.mat(), Pl_sparse, Pr_sparse, sp_colind, sp_row, nnz);
+        // fatrop_lu_fact_transposed_sparse(m, n, n, rank_sparse, &A_sparse.mat(), Pl_sparse, Pr_sparse, sp_colind, sp_row, nnz);
         end = std::chrono::high_resolution_clock::now();
         time_sparse.push_back(std::chrono::duration<double, std::micro>(end - start).count());
 

@@ -44,7 +44,7 @@ class plain_df_key(metric_computer):
     
 class area_computer(metric_computer):
     def __init__(self, relative=False):
-        super().__init__('Relative area of zero block')
+        super().__init__('$S_\\mathrm{rel}$')
         self.relative = relative
         
     def compute_metric(self, df):
@@ -55,21 +55,21 @@ class area_computer(metric_computer):
     
 class square_root_area_computer(metric_computer):
     def __init__(self):
-        super().__init__(f'$\sqrt{{mn}}$')
+        super().__init__('$\\sqrt{S_\\mathrm{total}}$')
         
     def compute_metric(self, df):
         return np.sqrt(df['m'] * df['n'])
 
 class rel_speedup_computer(metric_computer):
     def __init__(self):
-        super().__init__('Relative Speedup')
+        super().__init__('$\\frac{t_\\mathrm{blocked} - t_\\mathrm{normal}}{t_\\mathrm{normal}}$')
         
     def compute_metric(self, df):
         return (df['t_accel'] - df['t_reform']) / df['t_reform']
     
 class rel_speedup_lu_computer(metric_computer):
     def __init__(self, recursion_benchmark_data=False):
-        super().__init__('Relative Speedup LU')
+        super().__init__('$\\frac{t_\\mathrm{LU,blocked} - t_\\mathrm{LU,normal}}{t_\\mathrm{LU,normal}}$')
         self.recursion_benchmark_data = recursion_benchmark_data
 
     def compute_metric(self, df):
@@ -80,7 +80,7 @@ class rel_speedup_lu_computer(metric_computer):
 
 class lu_relevance_computer(metric_computer):
     def __init__(self, reformulated=False):
-        super().__init__('Percentage of recursion time spent in LU decomposition')
+        super().__init__('$\\frac{t_\\mathrm{LU}}{t_\\mathrm{total}}$')
         self.reformulated = reformulated
 
     def compute_metric(self, df):

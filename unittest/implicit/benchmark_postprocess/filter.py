@@ -24,7 +24,7 @@ class default_filter(Filter):
     
 class size_filter(Filter):
     def __init__(self, area_min, area_max):
-        super().__init__(f'{area_min:.2f} $<$ area $<$ {area_max:.2f}')
+        super().__init__(f'{area_min} $<$ area $<$ {area_max}')
         self.area_min = area_min
         self.area_max = area_max
         
@@ -57,8 +57,11 @@ class lu_relevance_filter(Filter):
         return (relevance >= self.threshold_min) & (relevance <= self.threshold_max)
     
 class metric_range_filter(Filter):
-    def __init__(self, metric_computer, value_min, value_max):
-        super().__init__(f'{value_min:.2f} $<$ {metric_computer.name} $<$ {value_max:.2f}')
+    def __init__(self, metric_computer, value_min, value_max, integer=False):
+        super().__init__(
+            f'{value_min:.2f} $<$ {metric_computer.name} $<$ {value_max:.2f}' if not integer else
+            f'{int(value_min)} $<$ {metric_computer.name} $<$ {int(value_max)}'
+        )
         self.metric_computer = metric_computer
         self.value_min = value_min
         self.value_max = value_max

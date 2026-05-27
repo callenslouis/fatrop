@@ -21,14 +21,14 @@ def translate_label(label):
 
 def latexify():
     params = {#'backend': 'ps',
-              'axes.labelsize': 14,
+              'axes.labelsize': 18,
               'axes.titlesize': 15,
-              'legend.fontsize': 10,
-              'xtick.labelsize': 14,
-              'ytick.labelsize': 14,
+              'legend.fontsize': 8,
+              'xtick.labelsize': 11,
+              'ytick.labelsize': 11,
               'text.usetex': True,
               'font.family': 'serif',
-              'figure.figsize': [8, 6],
+              'figure.figsize': [6, 4],
               'text.latex.preamble': r'\usepackage{bm}',
               }
  
