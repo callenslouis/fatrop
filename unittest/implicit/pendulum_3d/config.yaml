@@ -31,8 +31,8 @@ scenario:
 
 # cache solution
 caching:
-  store: true  # Whether to store the solution for future use
-  load: false  # Whether to load a previously stored solution if available
+  store: false  # Whether to store the solution for future use
+  load: true # Whether to load a previously stored solution if available
 
 # opti settings
 opti:

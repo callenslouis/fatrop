@@ -14,3 +14,4 @@ store_solution: False
 file_name_appendix: ''
 load_solution: False
 visualize_solution: False
+log_convergence: True

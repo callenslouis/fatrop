@@ -2,6 +2,8 @@ import pickle as pkl
 import matplotlib.pyplot as plt
 import os
 import numpy as np
+import re
+from pathlib import Path
 
 FOLDER = 'stored_solutions'
 # FOLDER = 'unittest/implicit/walking_gait/stored_solutions'

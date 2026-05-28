@@ -62,14 +62,14 @@ class square_root_area_computer(metric_computer):
 
 class rel_speedup_computer(metric_computer):
     def __init__(self):
-        super().__init__('$\\frac{t_\\mathrm{blocked} - t_\\mathrm{normal}}{t_\\mathrm{normal}}$')
+        super().__init__('$\\frac{t_\\mathrm{structure} - t_\\mathrm{normal}}{t_\\mathrm{normal}}$')
         
     def compute_metric(self, df):
         return (df['t_accel'] - df['t_reform']) / df['t_reform']
     
 class rel_speedup_lu_computer(metric_computer):
     def __init__(self, recursion_benchmark_data=False):
-        super().__init__('$\\frac{t_\\mathrm{LU,blocked} - t_\\mathrm{LU,normal}}{t_\\mathrm{LU,normal}}$')
+        super().__init__('$\\frac{t_\\mathrm{LU,structure} - t_\\mathrm{LU,normal}}{t_\\mathrm{LU,normal}}$')
         self.recursion_benchmark_data = recursion_benchmark_data
 
     def compute_metric(self, df):

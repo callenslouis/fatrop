@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pickle as pkl
 import yaml
+import sys
+import io
 
 ######################
 ### Set parameters ###
@@ -185,6 +187,9 @@ for k in range(N):
     
 opti.minimize(obj)
 
+# Note: Fatrop does not support CasADi callbacks, so we will capture stdout during solving
+convergence_stats = None
+
 opts_casadi = {
     'expand': True, 
     'detect_simple_bounds': True,
@@ -218,27 +223,73 @@ if save_opti_f:
 
 if solve and not load_solution:
     print(f"solving")
+    
     if config['load_opti_f']:
         opti_f = Function.load(f'casadi_funcs/test_gait_shortcut_python_reformulated_{problem_type}.casadi')
-        xx_sol, uu_sol = opti_f()
-        stats = opti_f.stats()
+        
+        if config['log_convergence']:
+            solver_output_file = f'stored_solutions/solver_output_{problem_type}{config["file_name_appendix"]}.txt'
+            with open(solver_output_file, 'w') as f:
+                old_stdout = sys.stdout
+                sys.stdout = f
+                try:
+                    xx_sol, uu_sol = opti_f()
+                    stats = opti_f.stats()
+                finally:
+                    sys.stdout = old_stdout
+        else:
+            xx_sol, uu_sol = opti_f()
+            stats = opti_f.stats()
         
     elif save_opti_f:
-        xx_sol, uu_sol = opti_f()
-        stats = opti_f.stats()
+        if config['log_convergence']:
+            solver_output_file = f'stored_solutions/solver_output_{problem_type}{config["file_name_appendix"]}.txt'
+            with open(solver_output_file, 'w') as f:
+                old_stdout = sys.stdout
+                sys.stdout = f
+                try:
+                    xx_sol, uu_sol = opti_f()
+                    stats = opti_f.stats()
+                finally:
+                    sys.stdout = old_stdout
+        else:
+            xx_sol, uu_sol = opti_f()
+            stats = opti_f.stats()
     else:
-        sol = opti.solve()
-        xx_sol = sol.value(hcat(xx))
-        uu_sol = sol.value(hcat(uu))
-        stats = sol.stats()
+        if config['log_convergence']:
+            solver_output_file = f'stored_solutions/solver_output_{problem_type}{config["file_name_appendix"]}.txt'
+            with open(solver_output_file, 'w') as f:
+                old_stdout = sys.stdout
+                sys.stdout = f
+                try:
+                    sol = opti.solve()
+                    xx_sol = sol.value(hcat(xx))
+                    uu_sol = sol.value(hcat(uu))
+                    stats = sol.stats()
+                finally:
+                    sys.stdout = old_stdout
+        else:
+            sol = opti.solve()
+            xx_sol = sol.value(hcat(xx))
+            uu_sol = sol.value(hcat(uu))
+            stats = sol.stats()
     
     if store_solution:
         with open(f'stored_solutions/solution_gait_shortcut_reformulated_{problem_type}{config["file_name_appendix"]}.pkl', 'wb') as f:
             pkl.dump({'xx_sol': xx_sol, 'uu_sol': uu_sol, 'stats': stats}, f)
+    
+    if config['log_convergence']:
+        print(f"Solver output saved to: {solver_output_file}")
             
     nb_iterations = stats['fatrop']['iterations_count']
     print(f"Search dir computation time per iteration: {stats['fatrop']['compute_sd_time']/nb_iterations*1000:.4f} ms")
     print(f"other time per iteration: {stats['fatrop']['time_total']/nb_iterations*1000:.4f} ms")
+    
+    # Parse convergence data from solver output if needed
+    if config['log_convergence']:
+        from post_process_test_gait import load_and_parse_convergence
+        convergence_pkl = f'stored_solutions/convergence_gait_shortcut_reformulated_{problem_type}{config["file_name_appendix"]}.pkl'
+        convergence_stats = load_and_parse_convergence(solver_output_file, convergence_pkl)
             
 if load_solution:
     print(f"loading solution")

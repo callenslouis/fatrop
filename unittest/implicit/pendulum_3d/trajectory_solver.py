@@ -59,20 +59,25 @@ def SolveMultipleRuns(solver, q0, v0, T, N, nb_runs):
 def PrintAveragedTimes(sol, method_name):
     print(f"Averaged computation times for {method_name}:")
     print(f"  Total time:                          {np.mean(sol['t_total']):.3f}")
+    print(f"  Total time per iteration:            {np.mean(sol['t_total'])/np.mean(sol['nb_iterations']):.3f}")
     print(f"  Search direction time:               {np.mean(sol['t_search_direction']):.3f}")
     print(f"  Search direction time per iteration: {np.mean(sol['t_search_direction'])/np.mean(sol['nb_iterations']):.3f}")
     print(f"  Number of iterations:                {int(np.mean(sol['nb_iterations']))}")
     func_eval_times = [sum([v for k, v in stat['fatrop'].items() if fnmatch(k, 'eval_*_time')]) for stat in sol['stats']]
     func_eval_time = np.mean(func_eval_times)
+    func_eval_calls = np.mean([sum([v for k, v in stat['fatrop'].items() if fnmatch(k, 'eval_*_calls')]) for stat in sol['stats']])
+    print(f"  Function eval time:                  {func_eval_time:.3f} (over {func_eval_calls:.0f} calls)")
+    print(f"  Function eval time per iteration:    {func_eval_time/func_eval_calls:.6f}")
+    
     print(f"  Percentage of total time spent in search direction: {np.mean(sol['t_search_direction'])/np.mean(sol['t_total'])*100:.2f}%")
     print(f"  Percentage of fatrop time spent in search direction: {np.mean(sol['t_search_direction'])/(np.mean([sol['t_total']]) - func_eval_time)*100:.2f}%")
     
 def PrintDifferences(sol1, sol2, name1, name2):
     print(f"Relative difference between {name1} and {name2}:")
-    print(f"   Search direction time:               {(np.mean(sol2['t_search_direction']) - np.mean(sol1['t_search_direction']))/np.mean(sol1['t_search_direction']):.2f}")
-    print(f"   Search direction time per iteration: {(np.mean(sol2['t_search_direction'])/np.mean(sol2['nb_iterations']) - np.mean(sol1['t_search_direction'])/np.mean(sol1['nb_iterations']))/(np.mean(sol1['t_search_direction'])/np.mean(sol1['nb_iterations'])):.2f}")
-    print(f"   Total time:                          {(np.mean(sol2['t_total']) - np.mean(sol1['t_total']))/np.mean(sol1['t_total']):.2f}")
-    print(f"   Total time per iteration:            {(np.mean(sol2['t_total'])/np.mean(sol2['nb_iterations']) - np.mean(sol1['t_total'])/np.mean(sol1['nb_iterations']))/(np.mean(sol1['t_total'])/np.mean(sol1['nb_iterations'])):.2f}")
+    print(f"   Search direction time:               {(np.mean(sol2['t_search_direction']) - np.mean(sol1['t_search_direction']))/np.mean(sol1['t_search_direction'])*100:.4f}%")
+    print(f"   Search direction time per iteration: {(np.mean(sol2['t_search_direction'])/np.mean(sol2['nb_iterations']) - np.mean(sol1['t_search_direction'])/np.mean(sol1['nb_iterations']))/(np.mean(sol1['t_search_direction'])/np.mean(sol1['nb_iterations']))*100:.2f}%")
+    print(f"   Total time:                          {(np.mean(sol2['t_total']) - np.mean(sol1['t_total']))/np.mean(sol1['t_total'])*100:.2f}%")
+    print(f"   Total time per iteration:            {(np.mean(sol2['t_total'])/np.mean(sol2['nb_iterations']) - np.mean(sol1['t_total'])/np.mean(sol1['nb_iterations']))/(np.mean(sol1['t_total'])/np.mean(sol1['nb_iterations']))*100:.2f}%")
 
 class TrajectorySolver():
     def __init__(self, model, config, implicit=False):
