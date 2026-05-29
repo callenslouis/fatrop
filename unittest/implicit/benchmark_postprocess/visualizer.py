@@ -29,7 +29,16 @@ def visualize_scaling_1d(df, x_func, **kwargs):
             color = filter_colors[f_idx % len(filter_colors)]
             linestyle = y_func_linestyles[y_idx % len(y_func_linestyles)]
 
-            plt.plot(xx, yy_mean, linestyle=linestyle, color=color, label=f"{f.name}")
+            if len(y_funcs) > 1 and len(filters) > 1:
+                label = f"{y.name} ({f.name})"
+            elif len(y_funcs) > 1:
+                label = f"{y.name}"
+            elif len(filters) > 1:
+                label = f"{f.name}"
+            else:
+                label = None
+
+            plt.plot(xx, yy_mean, linestyle=linestyle, color=color, label=f"{label}")
             if kwargs.get('scatter', False):
                 y_all_flat = []
                 xx_flat = []                
@@ -43,8 +52,8 @@ def visualize_scaling_1d(df, x_func, **kwargs):
                         colors.extend(color_for_entries)
                     else:
                         colors.extend([color] * len(y_all_fine[i]))
-                                       
-                sc = plt.scatter(xx_flat, y_all_flat, c=colors, s=0.1, linestyle=linestyle, label=f"{f.name}", alpha=1.0)
+                
+                sc = plt.scatter(xx_flat, y_all_flat, c=colors, s=0.1, linestyle=linestyle, label=label, alpha=1.0)
                 plt.colorbar(sc, label=kwargs.get('scatter_color_func').name)
                 sc.set_cmap('jet')
             elif kwargs.get('show_std', True):

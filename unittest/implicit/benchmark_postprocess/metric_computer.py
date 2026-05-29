@@ -42,6 +42,24 @@ class plain_df_key(metric_computer):
     def compute_metric(self, df):
         return df[self.key]
     
+class plain_df_key_scaled_offset(metric_computer):
+    def __init__(self, key, offset=0, scale=1):
+        super().__init__(key)
+        self.key = key
+        self.offset = offset
+        self.scale = scale
+        
+    def compute_metric(self, df):
+        return (df[self.key] + self.offset) * self.scale
+    
+class flops_per_size(metric_computer):
+    def __init__(self, flops_key):
+        super().__init__(f'{flops_key} per Size')
+        self.flops_key = flops_key
+        
+    def compute_metric(self, df):
+        return df[self.flops_key] / (df['m'] * df['n'])
+
 class area_computer(metric_computer):
     def __init__(self, relative=False):
         super().__init__('$S_\\mathrm{rel}$')
@@ -88,4 +106,12 @@ class lu_relevance_computer(metric_computer):
             return df['lu_reform'] / df['t_reform']
         else:
             return df['lu_accel'] / df['t_accel']
-        
+
+class relative_difference_other_time(metric_computer):
+    def __init__(self):
+        super().__init__(f'$\\frac{{t_{{other,accel}} - t_{{other,reform}}}}{{t_{{other,reform}}}}$')
+
+    def compute_metric(self, df):
+        other_accel = df['t_accel'] - df['lu_accel']
+        other_reform = df['t_reform'] - df['lu_reform']
+        return (other_accel - other_reform) / other_reform
