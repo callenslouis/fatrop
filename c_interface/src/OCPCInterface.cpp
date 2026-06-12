@@ -12,6 +12,7 @@
 #include "fatrop/common/printing.hpp"
 #include "fatrop/context/context.hpp"
 #include "fatrop/ip_algorithm/ip_alg_builder.hpp"
+#include "fatrop/qp/fatrop_qp.hpp"
 #include "fatrop/ip_algorithm/ip_algorithm.hpp"
 #include "fatrop/nlp/nlp.hpp"
 #include "fatrop/ocp/hessian.hpp"
@@ -398,33 +399,74 @@ namespace fatrop
             {
                 OutputStreamManager::set_stream(std::make_unique<FatropOcpCStream>(write, flush));
             }
-            IpAlgBuilder<OcpType> builder(m);
-            algo = builder.with_options_registry(&options).build();
-            ip_data = builder.get_ipdata();
-            m->s.nx = algo->info().dims.number_of_states.data();
-            m->s.nu = algo->info().dims.number_of_controls.data();
-            m->s.ng = algo->info().dims.number_of_eq_constraints.data();
-            m->s.ng_ineq = algo->info().dims.number_of_ineq_constraints.data();
-            m->s.K = algo->info().dims.K;
-            m->s.ux_offs = algo->info().offsets_primal_u.data();
-            m->s.g_offs = algo->info().offsets_g_eq_path.data();
-            m->s.dyn_offs = algo->info().offsets_dyn.data();
-            m->s.dyn_eq_offs = algo->info().offsets_g_eq_dyn.data();
-            m->s.g_ineq_offs = algo->info().offsets_g_eq_slack.data();
-            m->s.max_nu = *std::max_element(algo->info().dims.number_of_controls.begin(),
-                                            algo->info().dims.number_of_controls.end());
-            m->s.max_nx = *std::max_element(algo->info().dims.number_of_states.begin(),
-                                            algo->info().dims.number_of_states.end());
-            m->s.max_ng = *std::max_element(algo->info().dims.number_of_eq_constraints.begin(),
-                                            algo->info().dims.number_of_eq_constraints.end());
+            // IpAlgBuilder<OcpType> builder(m);
+            // algo = builder.with_options_registry(&options).build();
+            // ip_data = builder.get_ipdata();
+            // m->s.nx = algo->info().dims.number_of_states.data();
+            // m->s.nu = algo->info().dims.number_of_controls.data();
+            // m->s.ng = algo->info().dims.number_of_eq_constraints.data();
+            // m->s.ng_ineq = algo->info().dims.number_of_ineq_constraints.data();
+            // m->s.K = algo->info().dims.K;
+            // m->s.ux_offs = algo->info().offsets_primal_u.data();
+            // m->s.g_offs = algo->info().offsets_g_eq_path.data();
+            // m->s.dyn_offs = algo->info().offsets_dyn.data();
+            // m->s.dyn_eq_offs = algo->info().offsets_g_eq_dyn.data();
+            // m->s.g_ineq_offs = algo->info().offsets_g_eq_slack.data();
+            // m->s.max_nu = *std::max_element(algo->info().dims.number_of_controls.begin(),
+            //                                 algo->info().dims.number_of_controls.end());
+            // m->s.max_nx = *std::max_element(algo->info().dims.number_of_states.begin(),
+            //                                 algo->info().dims.number_of_states.end());
+            // m->s.max_ng = *std::max_element(algo->info().dims.number_of_eq_constraints.begin(),
+            //                                 algo->info().dims.number_of_eq_constraints.end());
+            // m->s.max_ngineq =
+            //     *std::max_element(algo->info().dims.number_of_ineq_constraints.begin(),
+            //                       algo->info().dims.number_of_ineq_constraints.end());
+            // m->s.n_ineqs = algo->info().number_of_g_eq_slack;
+        }
+        void bake(){
+            if (is_qp){
+                MehrotraQpBuilder<OcpType> builder(m);
+                algo_qp = builder.with_options_registry(&options).build();
+                ip_data = builder.get_ipdata();
+                info = std::make_shared<ProblemInfo<OcpType>>(algo_qp->info());
+            } else {
+                IpAlgBuilder<OcpType> builder(m);
+                algo = builder.with_options_registry(&options).build();
+                ip_data = builder.get_ipdata();
+                info = std::make_shared<ProblemInfo<OcpType>>(algo->info());
+            }
+            m->s.nx = info->dims.number_of_states.data();
+            m->s.nu = info->dims.number_of_controls.data();
+            m->s.ng = info->dims.number_of_eq_constraints.data();
+            m->s.ng_ineq = info->dims.number_of_ineq_constraints.data();
+            m->s.K = info->dims.K;
+            m->s.ux_offs = info->offsets_primal_u.data();
+            m->s.g_offs = info->offsets_g_eq_path.data();
+            m->s.dyn_offs = info->offsets_dyn.data();
+            m->s.dyn_eq_offs = info->offsets_g_eq_dyn.data();
+            m->s.g_ineq_offs = info->offsets_g_eq_slack.data();
+            m->s.max_nu = *std::max_element(info->dims.number_of_controls.begin(),
+                                            info->dims.number_of_controls.end());
+            m->s.max_nx = *std::max_element(info->dims.number_of_states.begin(),
+                                            info->dims.number_of_states.end());
+            m->s.max_ng = *std::max_element(info->dims.number_of_eq_constraints.begin(),
+                                            info->dims.number_of_eq_constraints.end());
             m->s.max_ngineq =
-                *std::max_element(algo->info().dims.number_of_ineq_constraints.begin(),
-                                  algo->info().dims.number_of_ineq_constraints.end());
-            m->s.n_ineqs = algo->info().number_of_g_eq_slack;
+                *std::max_element(info->dims.number_of_ineq_constraints.begin(),
+                                  info->dims.number_of_ineq_constraints.end());
+            m->s.n_ineqs = info->number_of_g_eq_slack;
+
+            baked = true;
         }
         fatrop_int solve()
         {
-            flag = algo->optimize();
+            // bake if needed
+            if (!baked){bake();}
+            
+            // optimize correct algorithm
+            if (is_qp){ flag = algo_qp->optimize();}
+            else { flag = algo->optimize();}
+
             if (flag == IpSolverReturnFlag::Success)
             {
                 PRINT_ITERATIONS << ip_data->timing_statistics();
@@ -438,8 +480,13 @@ namespace fatrop
         FatropOcpCStats stats;
         OptionRegistry options;
         std::shared_ptr<IpAlgorithm<OcpType>> algo;
+        std::shared_ptr<MehrotraQpAlgorithm<OcpType>> algo_qp;
+        std::shared_ptr<ProblemInfo<OcpType>> info;
         std::shared_ptr<IpData<OcpType>> ip_data;
         IpSolverReturnFlag flag;
+
+        bool baked = false;
+        bool is_qp = false; // default value
     };
 
     FatropOcpCSolver *fatrop_ocp_c_create(FatropOcpCInterface *ocp_interface, FatropOcpCWrite write,
@@ -463,6 +510,13 @@ namespace fatrop
 
     int fatrop_ocp_c_set_option_bool(FatropOcpCSolver *s, const char *name, int val)
     {
+        // Check if user specified QP problem
+        if (std::string(name) == "qp"){
+            s->driver->is_qp = val;
+            s->driver->bake();
+            return 0;
+        }
+
         s->driver->options.set_option<bool>(name, val);
         return 0;
     }
@@ -481,13 +535,19 @@ namespace fatrop
 
     const blasfeo_dvec *fatrop_ocp_c_get_primal(FatropOcpCSolver *s)
     {
-        // todo implement
+        if (s->driver->is_qp){
+            return static_cast<const blasfeo_dvec *>(&s->driver->algo_qp->solution_primal().vec());
+        }
+
         return static_cast<const blasfeo_dvec *>(&s->driver->algo->solution_primal().vec());
     }
 
     const blasfeo_dvec *fatrop_ocp_c_get_dual(FatropOcpCSolver *s)
     {
-        // todo implement
+        if (s->driver->is_qp){
+            return static_cast<const blasfeo_dvec *>(&s->driver->algo_qp->solution_dual().vec());    
+        }
+
         return static_cast<const blasfeo_dvec *>(&s->driver->algo->solution_dual().vec());
     }
 
@@ -625,6 +685,8 @@ namespace fatrop
             return 2;
         if (n == "linsol_increased_accuracy")
             return 2;
+        if (n == "qp")
+            return 2;
         return -1;
     }
 
@@ -653,7 +715,6 @@ namespace fatrop
         stats->eval_obj_count = 0.;
         stats->iterations_count = s->driver->ip_data->iteration_number();
         stats->return_flag = int(s->driver->flag);
-
         return stats;
     }
 
