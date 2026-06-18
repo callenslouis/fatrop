@@ -27,6 +27,17 @@
 #include "fatrop/ocp/OCPCInterfaceInternal.hpp"
 namespace fatrop
 {
+    struct PendingOption
+    {
+        std::string name;
+        enum class Type { Double, Int, Bool, String } type;
+        union {
+            double d;
+            int i;
+            bool b;
+        };
+        std::string s; // can't be in union
+    };
 
     class OcpSolverDriver;
 
@@ -487,6 +498,7 @@ namespace fatrop
 
         bool baked = false;
         bool is_qp = false; // default value
+        std::vector<PendingOption> pending_options;
     };
 
     FatropOcpCSolver *fatrop_ocp_c_create(FatropOcpCInterface *ocp_interface, FatropOcpCWrite write,
@@ -499,6 +511,11 @@ namespace fatrop
 
     int fatrop_ocp_c_set_option_double(FatropOcpCSolver *s, const char *name, double val)
     {
+        if (!s->driver.baked){
+            // not yet determined if this is qp or vanilla fatrop, so we store the option for later
+            s->pending_options.push_back(PendingOption(std::string(name), PendingOption::Type::Double, .d=val));
+            return 0;
+        }
         // Backwards compatibility with v0.0.4
         if (std::string(name)=="tol") {
             s->driver->options.set_option<double>("tolerance", val);
@@ -517,18 +534,36 @@ namespace fatrop
             return 0;
         }
 
+        if (!s->driver.baked){
+            // not yet determined if this is qp or vanilla fatrop, so we store the option for later
+            s->pending_options.push_back(PendingOption(std::string(name), PendingOption::Type::Bool, .b=static_cast<bool>(val)));
+            return 0;
+        }
+
         s->driver->options.set_option<bool>(name, val);
         return 0;
     }
 
     int fatrop_ocp_c_set_option_int(FatropOcpCSolver *s, const char *name, int val)
     {
+        if (!s->driver.baked){
+            // not yet determined if this is qp or vanilla fatrop, so we store the option for later
+            s->pending_options.push_back(PendingOption(std::string(name), PendingOption::Type::Int, .i=val));
+            return 0;
+        }
+
         s->driver->options.set_option<int>(name, val);
         return 0;
     }
 
     int fatrop_ocp_c_set_option_string(FatropOcpCSolver *s, const char *name, const char *val)
     {
+        if (!s->driver.baked){
+            // not yet determined if this is qp or vanilla fatrop, so we store the option for later
+            s->pending_options.push_back(PendingOption(std::string(name), PendingOption::Type::String, .s=std::string(val)));
+            return 0;
+        }
+
         s->driver->options.set_option<std::string>(name, std::string(val));
         return 0;
     }
@@ -555,6 +590,31 @@ namespace fatrop
     {
         try
         {
+            // bake driver if not done yet
+            if (!s->driver.baked){
+                s->driver.bake();
+
+                // set the pending options
+                for (const auto &option : pending_options){
+                    switch (option.type){
+                        case PendingOption::Type::Double:
+                            fatrop_ocp_c_set_option_double(driver, option.name.c_str(), option.d);
+                            break;
+                        case PendingOption::Type::Int:
+                            fatrop_ocp_c_set_option_int(this->driver, option.name.c_str(), option.i);
+                            break;
+                        case PendingOption::Type::Bool:
+                            fatrop_ocp_c_set_option_bool(this, option.name.c_str(), option.b);
+                            break;
+                        case PendingOption::Type::String:
+                            fatrop_ocp_c_set_option_string(this, option.name.c_str(), option.s.c_str());
+                            break;
+                    }
+                }
+                // clear pending options
+                pending_options.clear();
+                }
+
             return s->driver->solve();
         }
         catch (std::exception &e)
