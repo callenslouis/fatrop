@@ -44,6 +44,7 @@ namespace fatrop
     struct FatropOcpCSolver
     {
         OcpSolverDriver *driver;
+        std::vector<PendingOption> pending_options;
     };
 
 #define FATROP_OCP_SOLVER_IMPLEMENTATION
@@ -534,7 +535,7 @@ namespace fatrop
             return 0;
         }
 
-        if (!s->driver.baked){
+        if (!s->driver->baked){
             // not yet determined if this is qp or vanilla fatrop, so we store the option for later
             s->pending_options.push_back(PendingOption(std::string(name), PendingOption::Type::Bool, .b=static_cast<bool>(val)));
             return 0;
@@ -546,7 +547,7 @@ namespace fatrop
 
     int fatrop_ocp_c_set_option_int(FatropOcpCSolver *s, const char *name, int val)
     {
-        if (!s->driver.baked){
+        if (!s->driver->baked){
             // not yet determined if this is qp or vanilla fatrop, so we store the option for later
             s->pending_options.push_back(PendingOption(std::string(name), PendingOption::Type::Int, .i=val));
             return 0;
@@ -558,7 +559,7 @@ namespace fatrop
 
     int fatrop_ocp_c_set_option_string(FatropOcpCSolver *s, const char *name, const char *val)
     {
-        if (!s->driver.baked){
+        if (!s->driver->baked){
             // not yet determined if this is qp or vanilla fatrop, so we store the option for later
             s->pending_options.push_back(PendingOption(std::string(name), PendingOption::Type::String, .s=std::string(val)));
             return 0;
@@ -591,28 +592,28 @@ namespace fatrop
         try
         {
             // bake driver if not done yet
-            if (!s->driver.baked){
-                s->driver.bake();
+            if (!s->driver->baked){
+                s->driver->bake();
 
                 // set the pending options
-                for (const auto &option : pending_options){
+                for (const auto &option : s->pending_options){
                     switch (option.type){
                         case PendingOption::Type::Double:
-                            fatrop_ocp_c_set_option_double(driver, option.name.c_str(), option.d);
+                            fatrop_ocp_c_set_option_double(s, option.name.c_str(), option.d);
                             break;
                         case PendingOption::Type::Int:
-                            fatrop_ocp_c_set_option_int(this->driver, option.name.c_str(), option.i);
+                            fatrop_ocp_c_set_option_int(s, option.name.c_str(), option.i);
                             break;
                         case PendingOption::Type::Bool:
-                            fatrop_ocp_c_set_option_bool(this, option.name.c_str(), option.b);
+                            fatrop_ocp_c_set_option_bool(s, option.name.c_str(), option.b);
                             break;
                         case PendingOption::Type::String:
-                            fatrop_ocp_c_set_option_string(this, option.name.c_str(), option.s.c_str());
+                            fatrop_ocp_c_set_option_string(s, option.name.c_str(), option.s.c_str());
                             break;
                     }
                 }
                 // clear pending options
-                pending_options.clear();
+                s->pending_options.clear();
                 }
 
             return s->driver->solve();
