@@ -512,9 +512,9 @@ namespace fatrop
 
     int fatrop_ocp_c_set_option_double(FatropOcpCSolver *s, const char *name, double val)
     {
-        if (!s->driver.baked){
+        if (!s->driver->baked){
             // not yet determined if this is qp or vanilla fatrop, so we store the option for later
-            s->pending_options.push_back(PendingOption(std::string(name), PendingOption::Type::Double, .d=val));
+            s->pending_options.push_back(PendingOption{std::string(name), PendingOption::Type::Double, .d=val});
             return 0;
         }
         // Backwards compatibility with v0.0.4
@@ -537,7 +537,7 @@ namespace fatrop
 
         if (!s->driver->baked){
             // not yet determined if this is qp or vanilla fatrop, so we store the option for later
-            s->pending_options.push_back(PendingOption(std::string(name), PendingOption::Type::Bool, .b=static_cast<bool>(val)));
+            s->pending_options.push_back(PendingOption{std::string(name), PendingOption::Type::Bool, .b=static_cast<bool>(val)});
             return 0;
         }
 
@@ -549,7 +549,7 @@ namespace fatrop
     {
         if (!s->driver->baked){
             // not yet determined if this is qp or vanilla fatrop, so we store the option for later
-            s->pending_options.push_back(PendingOption(std::string(name), PendingOption::Type::Int, .i=val));
+            s->pending_options.push_back(PendingOption{std::string(name), PendingOption::Type::Int, .i=val});
             return 0;
         }
 
@@ -561,7 +561,7 @@ namespace fatrop
     {
         if (!s->driver->baked){
             // not yet determined if this is qp or vanilla fatrop, so we store the option for later
-            s->pending_options.push_back(PendingOption(std::string(name), PendingOption::Type::String, .s=std::string(val)));
+            s->pending_options.push_back(PendingOption{std::string(name), PendingOption::Type::String, .s=std::string(val)});
             return 0;
         }
 
