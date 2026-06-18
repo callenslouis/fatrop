@@ -687,6 +687,8 @@ namespace fatrop
             return 2;
         if (n == "qp")
             return 2;
+        if (n == "print_level")
+            return 1;
         return -1;
     }
 
