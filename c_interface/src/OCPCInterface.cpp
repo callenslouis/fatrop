@@ -261,7 +261,7 @@ namespace fatrop
                 // ocp_->eval_rq(&objective_scale, inputs_k, states_k,
                 //               grad_x_p + info.offsets_primal_u[k], k);
                 if (ocp->eval_rq)
-                    return ocp->eval_rq(&objective_scale, inputs_k, states_k, nullptr, nullptr,
+                    ocp->eval_rq(&objective_scale, inputs_k, states_k, nullptr, nullptr,
                                         grad_x_ptr + info.offsets_primal_u[k], k, ocp->user_data);
             }
         }
@@ -289,7 +289,7 @@ namespace fatrop
                 const Scalar *states_k = primal_x_ptr + info.offsets_primal_x[k];
                 // ocp_->eval_L(&objective_scale, inputs_k, states_k, &ret, k);
                 if (ocp->eval_L)
-                    return ocp->eval_L(&objective_scale, inputs_k, states_k, nullptr, nullptr, &ret,
+                    ocp->eval_L(&objective_scale, inputs_k, states_k, nullptr, nullptr, &ret,
                                        k, ocp->user_data);
 
                 res += ret;
