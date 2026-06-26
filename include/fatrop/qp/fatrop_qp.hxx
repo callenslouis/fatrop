@@ -403,6 +403,13 @@ namespace fatrop
         return ret;
     }
 
+    template <typename ProblemType>
+    void MehrotraQpAlgorithm<ProblemType>::register_options(OptionRegistry &registry)
+    {
+        registry.register_option("max_iter", &MehrotraQpAlgorithm<ProblemType>::set_max_iter, this);
+        registry.register_option("tolerance", &MehrotraQpAlgorithm<ProblemType>::set_tolerance, this);
+    }
+
     // ---------------------------------------------------------------------------
     // MehrotraQpBuilder
     // ---------------------------------------------------------------------------
@@ -453,6 +460,7 @@ namespace fatrop
         {
             options_registry_->register_option<Index>(
                 "print_level", &PrintLevelManager::set_print_level);
+            options_registry_->register_options(*algorithm_);
         }
         return algorithm_;
     }
