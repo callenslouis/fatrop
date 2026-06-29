@@ -97,6 +97,32 @@ namespace fatrop
         void print_iteration(Scalar inf_pr, Scalar inf_du, Scalar inf_compl, Scalar mu_aff,
                              Scalar sigma, Scalar alpha_pr, Scalar alpha_du) const;
 
+        // tmp
+        void PrintSdReturnFlag(LinsolReturnFlag f){
+            std::cout << "sd_ret: ";
+            switch (static_cast<int>(f)){
+                case 0:
+                    std::cout << "SUCCESS" << std::endl; break;
+                case 1:
+                    std::cout << "INDEFINITE" << std::endl; break;
+                case 2:
+                    std::cout << "NOFULL_RANK" << std::endl; break;
+                case 3:
+                    std::cout << "ITREF_MAX_ITER" << std::endl; break;
+                case 4:
+                    std::cout << "ITREF_INCREASE" << std::endl; break;
+                case 5:
+                    std::cout << "UNKNOWN" << std::endl; break;
+                case 6:
+                    std::cout << "NAN_SOLUTION" << std::endl; break;
+            }
+        }
+        bool has_nan(const VecRealView &v) {
+            for (Index i = 0; i < v.m(); ++i)
+            if (std::isnan(v(i))) return true;
+            return false;
+        };
+
         IpDataSp ipdata_;
         IpNlpOrigSp nlp_orig_;
         PdSolverSp pd_solver_;

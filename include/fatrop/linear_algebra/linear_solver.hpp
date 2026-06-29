@@ -96,6 +96,12 @@ namespace fatrop
          */
         LinsolReturnFlag apply_iterative_refinement(LinearSystem<LsType> &ls);
 
+        bool has_nan(const VecRealView &v) {
+            for (Index i = 0; i < v.m(); ++i)
+            if (std::isnan(v(i))) return true;
+            return false;
+        };
+
         const Index m_;             ///< Dimension of the linear system.
         Index min_it_ref = 0;       ///< Minimum number of iterative refinement steps.
         Index max_it_ref = 5;      ///< Maximum number of iterative refinement steps.
