@@ -33,6 +33,9 @@ void PdSolverOrig<OcpType>::reduce(LinearSystem<PdSystemType<OcpType>> &ls)
     D_ii_ = sigma_inverse_ + ls.D_e_.block(ls.info_.number_of_g_eq_slack, ls.info_.offset_g_eq_slack);
     g_ii_ = gi + sigma_inverse_ * ss_;
 
+    std::cout << "reduce nans:     " << has_nan(g_ii_) << " - " << has_nan(gi) << " - " << has_nan(ss_) << " - " << has_nan(sigma_inverse_) << std::endl;
+    std::cout << "reduce nans (ss):" << has_nan(ls.rhs_f_s_) << " - " << has_nan(ls.Sl_i_) << " - " << has_nan(ls.rhs_cl_) << " - " << has_nan(ls.Su_i_) << " - " << has_nan(ls.rhs_cu_) << std::endl;
+
     gg_.block(ls.info_.number_of_g_eq_path, ls.info_.offset_g_eq_path) =
         ls.rhs_g_.block(ls.info_.number_of_g_eq_path, ls.info_.offset_g_eq_path);
     gg_.block(ls.info_.number_of_g_eq_dyn, ls.info_.offset_g_eq_dyn) =

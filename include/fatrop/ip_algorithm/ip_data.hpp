@@ -143,6 +143,12 @@ namespace fatrop
         IpTimingStatistics &timing_statistics() { return timings_; }
 
     private:
+        bool has_zeros(const VecRealView &v){
+            for (Index i = 0; i < v.m(); ++i)
+            if (v(i) == 0) return true;
+            return false;
+        };
+
         NlpSp nlp_; ///< Shared pointer to the NLP problem.
         InfoType info_;
         Index iteration_number_;   ///< Number of the current iteration.

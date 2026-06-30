@@ -70,10 +70,14 @@ namespace fatrop
     template <typename ProblemType> void IpData<ProblemType>::accept_trial_iterate()
     {
         // switch trial and current iterate
+        std::cout << "(3.1.0.0) zero delta lower/upper: " << has_zeros(current_iterate().delta_lower()) << " - " << has_zeros(current_iterate().delta_upper()) << std::endl;
         std::swap(current_iterate_, trial_iterate_);
+        std::cout << "(3.1.1) zero delta lower/upper: " << has_zeros(current_iterate().delta_lower()) << " - " << has_zeros(current_iterate().delta_upper()) << std::endl;
         std::swap(hessian_curr_, hessian_trial_);
         std::swap(jacobian_curr_, jacobian_trial_);
+        std::cout << "(3.1.2) zero delta lower/upper: " << has_zeros(current_iterate().delta_lower()) << " - " << has_zeros(current_iterate().delta_upper()) << std::endl;
         trial_iterate_->reset_evaluated_quantities();
+        std::cout << "(3.1.3) zero delta lower/upper: " << has_zeros(current_iterate().delta_lower()) << " - " << has_zeros(current_iterate().delta_upper()) << std::endl;
         // set the hessian and jacobian pointers
         current_iterate().set_hessian(hessian_curr_);
         current_iterate().set_jacobian(jacobian_curr_);

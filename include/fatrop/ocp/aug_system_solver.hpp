@@ -159,6 +159,11 @@ namespace fatrop
         void set_increased_accuracy(const bool &value) { increased_accuracy = value; }
 
     private:
+        bool has_nan(const VecRealView &v) {
+            for (Index i = 0; i < v.m(); ++i)
+            if (std::isnan(v(i))) return true;
+            return false;
+        };
         // temporaries, pre-allocated during construction to avoid allocation during
         // optimization
         std::vector<MatRealAllocated> Ppt;

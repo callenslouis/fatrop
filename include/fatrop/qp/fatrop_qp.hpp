@@ -122,6 +122,11 @@ namespace fatrop
             if (std::isnan(v(i))) return true;
             return false;
         };
+        bool has_zeros(const VecRealView &v){
+            for (Index i = 0; i < v.m(); ++i)
+            if (v(i) == 0) return true;
+            return false;
+        };
 
         IpDataSp ipdata_;
         IpNlpOrigSp nlp_orig_;

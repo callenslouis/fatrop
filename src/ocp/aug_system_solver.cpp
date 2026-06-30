@@ -129,6 +129,7 @@ LinsolReturnFlag AugSystemSolver<OcpType>::solve(const ProblemInfo<OcpType> &inf
 {
     MatRealView *RSQrq_hat_curr_p;
     Index rank_k;
+    std::cout << "AugSystemSolver: " << has_nan(D_x) << " - " << has_nan(D_s) << " - " << has_nan(f) << " - " << has_nan(g) << std::endl;
     /////////////// recursion ///////////////
     for (Index k = info.dims.K - 1; k >= 0; --k)
     {

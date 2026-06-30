@@ -169,24 +169,30 @@ namespace fatrop
         // Affine complementarity: target = 0  -> rhs = compl (no -mu shift)
         rhs_cl_ = curr.complementarity_l();
         rhs_cu_ = curr.complementarity_u();
-
+        
         // No inertia/dual regularization for a convex QP
         curr.set_Dx(curr.primal_damping());
         curr.set_De(VecRealScalar(curr.De().m(), 0.));
         curr.set_De_is_zero(true);
-
+        
+        std::cout << "zero delta lower/upper: " << has_zeros(curr.delta_lower()) << " - " << has_zeros(curr.delta_upper()) << std::endl;
+        // std::cout << "zero delta lower: " << curr.delta_lower() << std::endl;
+        // std::cout << "zero delta upper: " << curr.delta_upper() << std::endl;
         LinearSystem<PdSystemType<ProblemType>> ls(
             curr.info(), curr.jacobian(), curr.hessian(), curr.Dx(), curr.De_is_zero(),
             curr.De(), curr.delta_lower(), curr.delta_upper(), curr.dual_bounds_l(),
             curr.dual_bounds_u(), rhs_x_, rhs_s_, rhs_g_, rhs_cl_, rhs_cu_);
-
-        // -------- predictor: factorize + solve --------------------------------
-        LinsolReturnFlag ret_aff;
+            
+            // -------- predictor: factorize + solve --------------------------------
+            LinsolReturnFlag ret_aff;
+        std::cout << "nan detection:   " << has_nan(rhs_x_) << " - " << has_nan(rhs_s_) << " - " << has_nan(rhs_g_) << " - " << has_nan(rhs_cl_) << " - " << has_nan(rhs_cu_) << std::endl;
         {
             ScopedTimer _t(ipdata_->timing_statistics().compute_search_dir,
                            ipdata_->timing_statistics());
             ret_aff = pd_solver_->solve_in_place(ls);
         }
+        std::cout << "ret_aff: "; PrintSdReturnFlag(ret_aff);
+        std::cout << "aff sol: " << has_nan(rhs_x_) << std::endl;
         switch (ret_aff)
         {
         case LinsolReturnFlag::SUCCESS:
@@ -239,6 +245,8 @@ namespace fatrop
                            ipdata_->timing_statistics());
             ret_cor = pd_solver_->solve_in_place_rhs(ls);
         }
+        std::cout << "ret_cor: "; PrintSdReturnFlag(ret_aff);
+        std::cout << "cor sol: " << has_nan(rhs_x_) << std::endl;
         switch (ret_cor)
         {
         case LinsolReturnFlag::SUCCESS:
@@ -258,7 +266,8 @@ namespace fatrop
         curr.search_dir_info().inertia_correction_primal = 0.;
         curr.search_dir_info().inertia_correction_dual = 0.;
 
-        const Scalar tau = std::max(tau_min_, 1. - mu);
+        // const Scalar tau = std::max(tau_min_, 1. - mu);
+        const Scalar tau = std::min(1.0 - 1.0e-7, std::max(tau_min_, 1. - mu));
         alpha_pr_out = curr.maximum_step_size_primal(tau);
         alpha_du_out = curr.maximum_step_size_dual(tau);
         return ret_cor;
@@ -272,7 +281,13 @@ namespace fatrop
 
         // Primal x via NLP retraction (Euclidean by default, manifold-aware otherwise)
         trial.set_primal_x_from_step(curr.primal_x(), curr.delta_primal_x(), alpha_pr);
+        std::cout << "(3.0.0) zero delta lower/upper: " << has_zeros(trial.delta_lower()) << " - " << has_zeros(trial.delta_upper()) << std::endl;
+        // std::cout << "\ncurr.primal_s()\n" << curr.primal_s() << std::endl;
+        // std::cout << "\nalpha_pr\n" << alpha_pr << std::endl;
+        // std::cout << "\ncurr.delta_primal_s()\n" << curr.delta_primal_s() << std::endl;
         trial.set_primal_s(curr.primal_s() + alpha_pr * curr.delta_primal_s());
+        std::cout << "(3.0.1) zero delta lower/upper: " << has_zeros(trial.delta_lower()) << " - " << has_zeros(trial.delta_upper()) << std::endl;
+        std::cout << "NaN arises because delta_upper() is exactly 0 and we divide by it.\nIt is zero because primal_s() == upper_bounds_" << std::endl;
         trial.set_dual_eq(curr.dual_eq() + alpha_du * curr.delta_dual_eq());
         trial.set_dual_bounds_l(curr.dual_bounds_l() + alpha_du * curr.delta_dual_bounds_l());
         trial.set_dual_bounds_u(curr.dual_bounds_u() + alpha_du * curr.delta_dual_bounds_u());
@@ -286,7 +301,9 @@ namespace fatrop
                       norm_inf(curr.delta_dual_eq()), norm_inf(curr.delta_dual_bounds_l()),
                       norm_inf(curr.delta_dual_bounds_u())});
 
+        std::cout << "(3.1) zero delta lower/upper: " << has_zeros(ipdata_->current_iterate().delta_lower()) << " - " << has_zeros(ipdata_->current_iterate().delta_upper()) << std::endl;
         ipdata_->accept_trial_iterate();
+        std::cout << "(3.2) zero delta lower/upper: " << has_zeros(ipdata_->current_iterate().delta_lower()) << " - " << has_zeros(ipdata_->current_iterate().delta_upper()) << std::endl;
     }
 
     template <typename ProblemType>
@@ -345,6 +362,8 @@ namespace fatrop
         IpSolverReturnFlag ret = IpSolverReturnFlag::Unknown;
         while (true)
         {
+            std::cout << "(0) zero delta lower/upper: " << has_zeros(ipdata_->current_iterate().delta_lower()) << " - " << has_zeros(ipdata_->current_iterate().delta_upper()) << std::endl;
+
             ipdata_->get_nlp()->callback(*ipdata_);
 
             const Scalar inf_pr = norm_inf(ipdata_->current_iterate().constr_viol());
@@ -354,6 +373,8 @@ namespace fatrop
             const Scalar inf_compl =
                 std::max(norm_inf(ipdata_->current_iterate().complementarity_l()),
                          norm_inf(ipdata_->current_iterate().complementarity_u()));
+
+            std::cout << "(1) zero delta lower/upper: " << has_zeros(ipdata_->current_iterate().delta_lower()) << " - " << has_zeros(ipdata_->current_iterate().delta_upper()) << std::endl;
 
             // Convergence: KKT residuals all below tol (mu drives compl, the
             // other two come from constr_viol and dual_infeas).
@@ -373,6 +394,9 @@ namespace fatrop
             }
 
             Scalar alpha_pr = 0., alpha_du = 0., sigma = 0.;
+            
+            std::cout << "(2) zero delta lower/upper: " << has_zeros(ipdata_->current_iterate().delta_lower()) << " - " << has_zeros(ipdata_->current_iterate().delta_upper()) << std::endl;
+            
             LinsolReturnFlag sd_ret =
                 compute_predictor_corrector_step(alpha_pr, alpha_du, sigma);
             if (sd_ret == LinsolReturnFlag::UNKNOWN ||
@@ -381,18 +405,23 @@ namespace fatrop
                 sd_ret == LinsolReturnFlag::NOFULL_RANK)
             {
                 ret = IpSolverReturnFlag::ErrorInStepComputation;
+                std::cout << "Error in step computation. linsol return flag is "; PrintSdReturnFlag(sd_ret);
                 break;
             }
 
             print_iteration(inf_pr, inf_du, inf_compl, last_mu_aff_, sigma, alpha_pr, alpha_du);
 
+            std::cout << "(3) zero delta lower/upper: " << has_zeros(ipdata_->current_iterate().delta_lower()) << " - " << has_zeros(ipdata_->current_iterate().delta_upper()) << std::endl;
             apply_step(alpha_pr, alpha_du);
+            std::cout << "(4) zero delta lower/upper: " << has_zeros(ipdata_->current_iterate().delta_lower()) << " - " << has_zeros(ipdata_->current_iterate().delta_upper()) << std::endl;
 
             // Update mu from the new complementarity, then keep z away from
             // ill-conditioned values via the same kappa_sigma trick the NLP
             // solver uses. Cheap if the bounds are well-behaved.
             recompute_mu();
+            std::cout << "(5) zero delta lower/upper: " << has_zeros(ipdata_->current_iterate().delta_lower()) << " - " << has_zeros(ipdata_->current_iterate().delta_upper()) << std::endl;
             ipdata_->current_iterate().modify_dual_bounds(std::max(mu_, mu_min_));
+            std::cout << "(6) zero delta lower/upper: " << has_zeros(ipdata_->current_iterate().delta_lower()) << " - " << has_zeros(ipdata_->current_iterate().delta_upper()) << std::endl;
             recompute_mu();
 
             ++iteration_;

@@ -101,6 +101,25 @@ namespace fatrop
             if (std::isnan(v(i))) return true;
             return false;
         };
+        void PrintSdReturnFlag(LinsolReturnFlag f){
+            std::cout << "sd_ret: ";
+            switch (static_cast<int>(f)){
+                case 0:
+                    std::cout << "SUCCESS" << std::endl; break;
+                case 1:
+                    std::cout << "INDEFINITE" << std::endl; break;
+                case 2:
+                    std::cout << "NOFULL_RANK" << std::endl; break;
+                case 3:
+                    std::cout << "ITREF_MAX_ITER" << std::endl; break;
+                case 4:
+                    std::cout << "ITREF_INCREASE" << std::endl; break;
+                case 5:
+                    std::cout << "UNKNOWN" << std::endl; break;
+                case 6:
+                    std::cout << "NAN_SOLUTION" << std::endl; break;
+            }
+        }
 
         const Index m_;             ///< Dimension of the linear system.
         Index min_it_ref = 0;       ///< Minimum number of iterative refinement steps.
