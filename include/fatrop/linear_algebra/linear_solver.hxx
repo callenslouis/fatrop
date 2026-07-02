@@ -104,8 +104,6 @@ namespace fatrop
         vecse(m_, 0.0, x_, 0);
         // solve
         LinsolReturnFlag ret = solve_once(ls, x_);
-        std::cout << "linear_solver.hxx: "; PrintSdReturnFlag(ret);
-        std::cout << "linear_solver.hxx: x has nan: " << has_nan(x_) << std::endl;
         if (ret != LinsolReturnFlag::SUCCESS)
         {
             return ret;
