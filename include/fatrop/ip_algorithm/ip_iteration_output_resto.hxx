@@ -43,6 +43,8 @@ namespace fatrop
     template <typename ProblemType>
     void IpIterationOutputResto<ProblemType>::output_current_iteration()
     {
+        if (!PrintLevelManager::is_enabled(PrintLevel::Iterations))
+            return;
         // the iterate is saved in the trial iterate of the original ip data
         // (this is set in ip_convergence_check_resto.hxx)
         IpIterateType &trial_it = ipdata_orig_->trial_iterate();

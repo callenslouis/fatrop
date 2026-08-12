@@ -70,21 +70,18 @@ namespace fatrop
     class PrintLevelManager
     {
     public:
-        PrintLevelManager(PrintLevel print_level) : this_print_level_(print_level) {};
-        template <typename T> std::ostream &operator<<(const T &value)
-        {
-            if (global_print_level_ >= this_print_level_)
-                return OutputStreamManager::get_stream() << value;
-            return null_stream_;
-        };
-
         static void set_print_level(const PrintLevel& print_level) { global_print_level_ = print_level; }
         static void set_print_level(const int& print_level) {global_print_level_ = (PrintLevel) print_level;}
 
+        // Query whether output at the given level would actually be printed. Use this to
+        // skip forming output (argument evaluation and stream formatting) altogether.
+        static bool is_enabled(const PrintLevel &print_level)
+        {
+            return global_print_level_ >= print_level;
+        }
+
     private:
-        const PrintLevel this_print_level_;
         inline static PrintLevel global_print_level_ = PrintLevel::Iterations;
-        inline static NullStream null_stream_;
     };
 
 #ifndef FATROP_VERSION
@@ -124,9 +121,25 @@ namespace fatrop
         inline static bool suppressed_ = false;
     };
 
-#define PRINT_ITERATIONS PrintLevelManager(PrintLevel::Iterations)
-#define PRINT_DEBUG PrintLevelManager(PrintLevel::Debug)
-#define PRINT_DIAGNOSTIC PrintLevelManager(PrintLevel::Diagnostic)
+    // Helper making the whole print expression void so it can be the false branch of the
+    // conditional in FATROP_PRINT. operator& binds looser than operator<<, so the full
+    // insertion chain is swallowed as one operand.
+    class OStreamVoidify
+    {
+    public:
+        void operator&(std::ostream &) {}
+    };
+
+// When the level is disabled the conditional short-circuits: the insertion chain after the
+// macro, including its arguments, is never evaluated.
+#define FATROP_PRINT(level)                                                                        \
+    (!fatrop::PrintLevelManager::is_enabled(level))                                                \
+        ? (void)0                                                                                  \
+        : fatrop::OStreamVoidify() & fatrop::OutputStreamManager::get_stream()
+
+#define PRINT_ITERATIONS FATROP_PRINT(fatrop::PrintLevel::Iterations)
+#define PRINT_DEBUG FATROP_PRINT(fatrop::PrintLevel::Debug)
+#define PRINT_DIAGNOSTIC FATROP_PRINT(fatrop::PrintLevel::Diagnostic)
 
 } // namespace fatrop
 
