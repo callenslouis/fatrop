@@ -441,6 +441,11 @@ namespace ocp_direct
     // that re-reads get_initial_primal and the (mutated) parameters. solve() does
     // no dynamic allocation of its own — params, initial-guess caches and the
     // x_sol/u_sol read-back buffers are all pre-sized during setup().
+    //
+    // setup() is idempotent and may be called explicitly (``ocp_setup``) once
+    // the options are set; solve() falls back to calling it. Do that when the
+    // *first* solve must be allocation-free too, e.g. in a real-time control
+    // loop: otherwise the first solve() carries the whole one-time build.
     struct Solver
     {
         std::shared_ptr<GeneratedNlp> nlp;
@@ -462,8 +467,28 @@ namespace ocp_direct
         std::vector<std::vector<double>> x_sol;   // per node (nx)
         std::vector<std::vector<double>> u_sol;   // per node (nu)
 
+        // Option setters. Before setup() the values are buffered (the registry
+        // only exists after build()); afterwards they are applied right away, so
+        // an option set after an explicit setup() is not silently dropped.
+        void set_opt_d(const char *n, double v)
+        {
+            opt_d[n] = v;
+            if (is_setup) options.set_option<double>(n, v);
+        }
+        void set_opt_i(const char *n, long long v)
+        {
+            opt_i[n] = v;
+            if (is_setup) options.set_option<fatrop::Index>(n, (fatrop::Index)v);
+        }
+        void set_opt_b(const char *n, bool v)
+        {
+            opt_b[n] = v;
+            if (is_setup) options.set_option<bool>(n, v);
+        }
+
         void setup()
         {
+            if (is_setup) return;
             nlp->finalize_dims();
             nlp->allocate_caches();
             builder = std::make_unique<fatrop::IpAlgBuilder<fatrop::OcpType>>(nlp);

@@ -261,9 +261,12 @@ def _render_cpp(name: str, proxy: OcpProxy, builds: List[_TemplateBuild]) -> str
       ' for(int k=0;k<K;++k){ int nx=O.tmpl(k).nx, nu=O.tmpl(k).nu;'
       ' O.x0_cache[k].assign(xf+px,xf+px+nx); px+=nx;'
       ' O.u0_cache[k].assign(uf+pu,uf+pu+nu); pu+=nu; } O.init_overridden=true; }')
-    w('void ocp_set_opt_d(void* h,const char* n,double v){ ((Solver*)h)->opt_d[n]=v; }')
-    w('void ocp_set_opt_i(void* h,const char* n,long long v){ ((Solver*)h)->opt_i[n]=v; }')
-    w('void ocp_set_opt_b(void* h,const char* n,int v){ ((Solver*)h)->opt_b[n]=(v!=0); }')
+    w('void ocp_set_opt_d(void* h,const char* n,double v){ ((Solver*)h)->set_opt_d(n,v); }')
+    w('void ocp_set_opt_i(void* h,const char* n,long long v){ ((Solver*)h)->set_opt_i(n,v); }')
+    w('void ocp_set_opt_b(void* h,const char* n,int v){ ((Solver*)h)->set_opt_b(n,v!=0); }')
+    # Optional: pay the one-time build up front so the first solve is
+    # allocation-free like every later one. Idempotent; solve() calls it anyway.
+    w('void ocp_setup(void* h){ ((Solver*)h)->setup(); }')
     w('void ocp_clear_initial(void* h){ ((Solver*)h)->nlp->init_overridden=false; }')
     w('int  ocp_solve(void* h){ return ((Solver*)h)->solve(); }')
     w('int  ocp_iter_count(void* h){ return ((Solver*)h)->iter_count; }')

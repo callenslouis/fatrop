@@ -37,6 +37,7 @@ class DirectOcpSolver:
         L.ocp_set_opt_d.argtypes = [c.c_void_p, c.c_char_p, c.c_double]
         L.ocp_set_opt_i.argtypes = [c.c_void_p, c.c_char_p, c.c_longlong]
         L.ocp_set_opt_b.argtypes = [c.c_void_p, c.c_char_p, c.c_int]
+        L.ocp_setup.argtypes = [c.c_void_p]
         L.ocp_solve.argtypes = [c.c_void_p]; L.ocp_solve.restype = c.c_int
         L.ocp_iter_count.argtypes = [c.c_void_p]; L.ocp_iter_count.restype = c.c_int
         L.ocp_solve_time.argtypes = [c.c_void_p]; L.ocp_solve_time.restype = c.c_double
@@ -72,6 +73,17 @@ class DirectOcpSolver:
         self._lib.ocp_clear_initial(self._h)
 
     # --- solve / readback ---
+    def setup(self):
+        """Build the interior-point algorithm now instead of at the first solve.
+
+        All of the solver's dynamic memory is allocated here, so a first
+        ``solve()`` that follows an explicit ``setup()`` allocates nothing --
+        matching every later solve. Call it after the options are set (setting
+        an option afterwards still works, it is applied to the live registry).
+        Optional and idempotent: ``solve()`` sets up on demand.
+        """
+        self._lib.ocp_setup(self._h)
+
     @property
     def horizon(self) -> int:
         return self._lib.ocp_horizon(self._h)

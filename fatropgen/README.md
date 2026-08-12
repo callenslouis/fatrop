@@ -46,7 +46,11 @@ from fatropgen import OcpProxy, make_stage, generate_solver, DirectOcpSolver
 - `OcpProxy(horizon, param_dims, templates, node_to_template)` — the full OCP.
 - `generate_solver(proxy, name, out_dir)` — emits + compiles the solver `.so`.
 - `DirectOcpSolver(result)` — `ctypes` wrapper around the generated `.so`;
-  `set_option`, `set_param`, `set_initial`, `solve`, `get_x`, `get_u`.
+  `set_option`, `set_param`, `set_initial`, `setup`, `solve`, `get_x`, `get_u`.
+  `setup()` is optional: it builds the interior-point algorithm up front, which
+  is where all of the solver's dynamic memory is allocated. Call it if the first
+  solve has to be allocation-free like the later ones (real-time control loop);
+  otherwise `solve()` sets up on demand.
 
 See `examples/ocp_direct_minimal.py` for the smallest end-to-end usage.
 
