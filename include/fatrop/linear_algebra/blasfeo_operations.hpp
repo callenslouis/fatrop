@@ -187,6 +187,35 @@ namespace fatrop
                                 D.aj() + dj);
     }
 
+    /// Whether the Cholesky factor @p L is that of a positive definite matrix; potrf
+    /// zeroes a non-positive pivot rather than failing, so its diagonal is all there is
+    /// to go on. Relative to the factorized matrix @p A, since a pivot carries the units
+    /// of the problem and the ratio does not; fires at a condition number of ~1/tol.
+    static inline bool check_reg(int m, const MatRealView &L, int li, int lj, const MatRealView &A,
+                                 int ai, int aj, Scalar tol)
+    {
+        for (int i = 0; i < m; i++)
+        {
+            const Scalar l_ii = L(li + i, lj + i); // negated below, so a NaN pivot fails
+            if (!(l_ii > 0.) || !(l_ii * l_ii > tol * A(ai + i, aj + i)))
+                return false;
+        }
+        return true;
+    }
+
+    /// For an in-place factorization, whose input diagonal was saved into @p a_diag.
+    static inline bool check_reg(int m, const MatRealView &L, int li, int lj,
+                                 const VecRealView &a_diag, int di, Scalar tol)
+    {
+        for (int i = 0; i < m; i++)
+        {
+            const Scalar l_ii = L(li + i, lj + i);
+            if (!(l_ii > 0.) || !(l_ii * l_ii > tol * a_diag(di + i)))
+                return false;
+        }
+        return true;
+    }
+
     static inline void rowex(int kmax, Scalar alpha, const MatRealView &A, int ai, int aj,
                              VecRealView &x, int xi)
     {

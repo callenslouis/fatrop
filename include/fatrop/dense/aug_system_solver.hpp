@@ -71,6 +71,7 @@ namespace fatrop
         void register_options(OptionRegistry &registry);
 
         void set_lu_fact_tol(const Scalar &value) { lu_fact_tol_ = value; }
+        void set_pivot_tol(const Scalar &value) { pivot_tol_ = value; }
 
     private:
         // Persistent buffers (allocated once, reused across solves).
@@ -97,6 +98,7 @@ namespace fatrop
 
         Index rank_eq_ = 0;     // Effective rank of the equality Jacobian.
         Scalar lu_fact_tol_ = 1e-5;
+        Scalar pivot_tol_ = 1e-8; // inertia detection, see check_reg()
     };
 } // namespace fatrop
 

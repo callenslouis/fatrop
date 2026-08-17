@@ -155,6 +155,7 @@ namespace fatrop
         void set_perturbed_mode(const bool &value) { perturbed_mode = value; }
         void set_perturbed_mode_param(const double &value) { perturbed_mode_param = value; }
         void set_lu_fact_tol(const Scalar &value) { lu_fact_tol = value; }
+        void set_pivot_tol(const Scalar &value) { pivot_tol = value; }
         void set_diagnostic(const bool &value) { diagnostic = value; }
         void set_increased_accuracy(const bool &value) { increased_accuracy = value; }
 
@@ -206,6 +207,7 @@ namespace fatrop
         bool perturbed_mode = false;
         double perturbed_mode_param = 1e-6;
         Scalar lu_fact_tol = 1e-5;
+        Scalar pivot_tol = 1e-8; // inertia detection, see check_reg()
         bool diagnostic = false;
         bool increased_accuracy = true;
     };

@@ -10,16 +10,6 @@
 #include <algorithm>
 using namespace fatrop;
 
-bool check_reg(const Index m, MAT *sA, const Index ai, const Index aj)
-{
-    for (Index i = 0; i < m; i++)
-    {
-        if (blasfeo_matel_wrap(sA, ai + i, aj + i) < 1e-8)
-            return false;
-    }
-    return true;
-}
-
 AugSystemSolver<OcpType>::AugSystemSolver(const ProblemInfo<OcpType> &info)
 {
     Index max_number_of_controls =
@@ -118,6 +108,7 @@ void AugSystemSolver<OcpType>::register_options(OptionRegistry &registry)
     registry.register_option("linsol_perturbed_mode", &AugSystemSolver<OcpType>::set_perturbed_mode, this);
     registry.register_option("linsol_perturbed_mode_param", &AugSystemSolver<OcpType>::set_perturbed_mode_param, this);
     registry.register_option("linsol_lu_fact_tol", &AugSystemSolver<OcpType>::set_lu_fact_tol, this);
+    registry.register_option("linsol_pivot_tol", &AugSystemSolver<OcpType>::set_pivot_tol, this);
     registry.register_option("linsol_diagnostic", &AugSystemSolver<OcpType>::set_diagnostic, this);
     registry.register_option("linsol_increased_accuracy", &AugSystemSolver<OcpType>::set_increased_accuracy, this);
 }
@@ -277,7 +268,7 @@ LinsolReturnFlag AugSystemSolver<OcpType>::solve(const ProblemInfo<OcpType> &inf
                 // DLlt_k = [chol(R_hatk); Llk@chol(R_hatk)^-T]
                 potrf_l_mn(nu - rank_k + nx + 1, nu - rank_k, RSQrq_hat_curr_p[0], 0, 0, Llt[k], 0,
                            0);
-                if (!check_reg(nu - rank_k, &Llt[k].mat(), 0, 0))
+                if (!check_reg(nu - rank_k, Llt[k], 0, 0, RSQrq_hat_curr_p[0], 0, 0, pivot_tol))
                     return LinsolReturnFlag::INDEFINITE;
                 // Pp_k = Qq_hatk - L_k^T @ Ll_k
                 // SYRK_LN_MN(nx+1, nx, nu-rank_k, -1.0,Llt_p+k, nu-rank_k,0, Llt_p+k,
@@ -352,14 +343,14 @@ LinsolReturnFlag AugSystemSolver<OcpType>::solve(const ProblemInfo<OcpType> &inf
                        1.0, GgLIt[0], 0, rankI, PpIt_hat[0], 0, 0);
             // TODO skipped if nx-rankI = 0
             potrf_l_mn(nx - rankI + 1, nx - rankI, PpIt_hat[0], 0, 0, LlIt[0], 0, 0);
-            if (!check_reg(nx - rankI, &LlIt[0].mat(), 0, 0))
+            if (!check_reg(nx - rankI, LlIt[0], 0, 0, PpIt_hat[0], 0, 0, pivot_tol))
                 return LinsolReturnFlag::INDEFINITE;
         }
         else
         {
             rankI = 0;
             potrf_l_mn(nx + 1, nx, Ppt[0], 0, 0, LlIt[0], 0, 0);
-            if (!check_reg(nx, &LlIt[0].mat(), 0, 0))
+            if (!check_reg(nx, LlIt[0], 0, 0, Ppt[0], 0, 0, pivot_tol))
                 return LinsolReturnFlag::INDEFINITE;
         }
     }
@@ -558,7 +549,7 @@ LinsolReturnFlag AugSystemSolver<OcpType>::solve(const ProblemInfo<OcpType> &inf
         {
             // DLlt_k = [chol(R_hatk); Llk@chol(R_hatk)^-T]
             potrf_l_mn(nu + nx + 1, nu, *RSQrq_hat_curr_p, 0, 0, Llt[k], 0, 0);
-            if (!check_reg(nu, &Llt[k].mat(), 0, 0))
+            if (!check_reg(nu, Llt[k], 0, 0, *RSQrq_hat_curr_p, 0, 0, pivot_tol))
                 return LinsolReturnFlag::INDEFINITE;
             // Pp_k = Qq_hatk - L_k^T @ Ll_k
             // SYRK_LN_MN(nx+1, nx, nu-rank_k, -1.0,Llt_p+k, nu-rank_k,0, Llt_p+k, nu-rank_k,0, 1.0,
@@ -575,7 +566,7 @@ LinsolReturnFlag AugSystemSolver<OcpType>::solve(const ProblemInfo<OcpType> &inf
         const Index nx = info.dims.number_of_tangent_states[0];
         {
             potrf_l_mn(nx + 1, nx, Ppt[0], 0, 0, LlIt[0], 0, 0);
-            if (!check_reg(nx, &LlIt[0].mat(), 0, 0))
+            if (!check_reg(nx, LlIt[0], 0, 0, Ppt[0], 0, 0, pivot_tol))
                 return LinsolReturnFlag::INDEFINITE;
         }
     }
