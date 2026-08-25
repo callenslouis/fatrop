@@ -198,6 +198,15 @@ namespace fatrop
             delta_lower_ = if_else((*lower_bounded_), primal_s() - (*lower_bounds_),
                                    VecRealScalar((*lower_bounds_).m(), 1.));
             delta_lower_evaluated_ = true;
+
+            // set any exactly zero element to 1.0e-16 (prevent division by zero)
+            for (Index i = 0; i < delta_lower_.m(); ++i)
+            {
+                if (delta_lower_(i) == 0.)
+                {
+                    delta_lower_(i) = 1.0e-16;
+                }
+            }
         }
         return delta_lower_;
     }
@@ -209,6 +218,15 @@ namespace fatrop
             delta_upper_ = if_else((*upper_bounded_), (*upper_bounds_) - primal_s(),
                                    VecRealScalar((*upper_bounds_).m(), 1.));
             delta_upper_evaluated_ = true;
+
+            // set any exactly zero element to 1.0e-16 (prevent division by zero)
+            for (Index i = 0; i < delta_upper_.m(); ++i)
+            {
+                if (delta_upper_(i) == 0.)
+                {
+                    delta_upper_(i) = 1.0e-16;
+                }
+            }
         }
         return delta_upper_;
     }

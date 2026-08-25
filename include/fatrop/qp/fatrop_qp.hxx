@@ -169,19 +169,19 @@ namespace fatrop
         // Affine complementarity: target = 0  -> rhs = compl (no -mu shift)
         rhs_cl_ = curr.complementarity_l();
         rhs_cu_ = curr.complementarity_u();
-
+        
         // No inertia/dual regularization for a convex QP
         curr.set_Dx(curr.primal_damping());
         curr.set_De(VecRealScalar(curr.De().m(), 0.));
         curr.set_De_is_zero(true);
-
+        
         LinearSystem<PdSystemType<ProblemType>> ls(
             curr.info(), curr.jacobian(), curr.hessian(), curr.Dx(), curr.De_is_zero(),
             curr.De(), curr.delta_lower(), curr.delta_upper(), curr.dual_bounds_l(),
             curr.dual_bounds_u(), rhs_x_, rhs_s_, rhs_g_, rhs_cl_, rhs_cu_);
-
-        // -------- predictor: factorize + solve --------------------------------
-        LinsolReturnFlag ret_aff;
+            
+            // -------- predictor: factorize + solve --------------------------------
+            LinsolReturnFlag ret_aff;
         {
             ScopedTimer _t(ipdata_->timing_statistics().compute_search_dir,
                            ipdata_->timing_statistics());
@@ -373,6 +373,7 @@ namespace fatrop
             }
 
             Scalar alpha_pr = 0., alpha_du = 0., sigma = 0.;
+            
             LinsolReturnFlag sd_ret =
                 compute_predictor_corrector_step(alpha_pr, alpha_du, sigma);
             if (sd_ret == LinsolReturnFlag::UNKNOWN ||
@@ -381,6 +382,7 @@ namespace fatrop
                 sd_ret == LinsolReturnFlag::NOFULL_RANK)
             {
                 ret = IpSolverReturnFlag::ErrorInStepComputation;
+                // std::cout << "Error in step computation. linsol return flag is "; PrintSdReturnFlag(sd_ret);
                 break;
             }
 
@@ -401,6 +403,13 @@ namespace fatrop
 
         ipdata_->timing_statistics().full_algorithm.pause();
         return ret;
+    }
+
+    template <typename ProblemType>
+    void MehrotraQpAlgorithm<ProblemType>::register_options(OptionRegistry &registry)
+    {
+        registry.register_option("max_iter", &MehrotraQpAlgorithm<ProblemType>::set_max_iter, this);
+        registry.register_option("tolerance", &MehrotraQpAlgorithm<ProblemType>::set_tolerance, this);
     }
 
     // ---------------------------------------------------------------------------
@@ -453,6 +462,7 @@ namespace fatrop
         {
             options_registry_->register_option<Index>(
                 "print_level", &PrintLevelManager::set_print_level);
+            options_registry_->register_options(*algorithm_);
         }
         return algorithm_;
     }

@@ -40,6 +40,12 @@ namespace fatrop
         IpIterate(IpDataType &ip_data);
 
     public:
+        bool has_nan(const VecRealView &v) {
+            for (Index i = 0; i < v.m(); ++i)
+            if (std::isnan(v(i))) return true;
+            return false;
+        };
+
         Scalar objective_scale = 1.; ///< Scaling factor for the objective function.
 
         /**
@@ -661,6 +667,7 @@ void fatrop::IpIterate<ProblemType>::modify_dual_bounds(Scalar mu)
     complementarity_u_evaluated_ = false;
     dual_infeasibility_s_evaluated_ = false;
     dual_l1_norms_evaluated_ = false;
+    // TODO: verify this fix and check efficiency of implementation
     dual_bounds_l_ =
         if_else(lower_bounded(),
                 max(min(dual_bounds_l_,
@@ -673,6 +680,34 @@ void fatrop::IpIterate<ProblemType>::modify_dual_bounds(Scalar mu)
                         VecRealScalar(dual_bounds_u_.m(), kappa_sigma_ * mu) / delta_upper()),
                     VecRealScalar(dual_bounds_u_.m(), mu) / (kappa_sigma_ * delta_upper())),
                 VecRealScalar(dual_bounds_u_.m(), 0.));
+    // const Index m = dual_bounds_l_.m();
+    // for (Index i = 0; i < m; i++)
+    // {
+    //     if (lower_bounded()[i])
+    //     {
+    //         const Scalar dl = delta_lower()(i);
+    //         if (dl > 0.)
+    //             dual_bounds_l_(i) = std::max(std::min(dual_bounds_l_(i), kappa_sigma_ * mu / dl),
+    //                                          mu / (kappa_sigma_ * dl));
+    //         // dl == 0: bound is exactly active, optimal multiplier already converged — leave unchanged
+    //     }
+    //     else
+    //     {
+    //         dual_bounds_l_(i) = 0.;
+    //     }
+    //     if (upper_bounded()[i])
+    //     {
+    //         const Scalar du = delta_upper()(i);
+    //         if (du > 0.)
+    //             dual_bounds_u_(i) = std::max(std::min(dual_bounds_u_(i), kappa_sigma_ * mu / du),
+    //                                          mu / (kappa_sigma_ * du));
+    //         // du == 0: bound is exactly active, optimal multiplier already converged — leave unchanged
+    //     }
+    //     else
+    //     {
+    //         dual_bounds_u_(i) = 0.;
+    //     }
+    // }
 }
 
 template <typename ProblemType>
