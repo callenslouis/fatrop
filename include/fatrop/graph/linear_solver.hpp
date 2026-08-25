@@ -43,8 +43,7 @@ namespace fatrop
         LinsolReturnFlag solve_once_impl(LinearSystem<GraphType> &ls, VecRealView &x);
         void solve_rhs_impl(LinearSystem<GraphType> &ls, VecRealView &x);
 
-        /// Tolerance below which a diagonal pivot is considered degenerate
-        /// (returns @c LinsolReturnFlag::INDEFINITE).
+        /// See check_reg(); below it the matrix counts as indefinite.
         void set_pivot_tol(Scalar value) { pivot_tol_ = value; }
 
         const BlockEliminationOrder &order() const { return order_; }
@@ -183,8 +182,9 @@ namespace fatrop
         // Workspace for solve.
         VecRealAllocated x_perm_;
         VecRealAllocated rhs_;
+        VecRealAllocated pivot_ref_;
 
-        Scalar pivot_tol_ = 1e-12;
+        Scalar pivot_tol_ = 1e-8;
         bool factorized_ = false;
     };
 } // namespace fatrop

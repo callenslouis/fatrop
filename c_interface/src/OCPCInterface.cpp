@@ -158,9 +158,11 @@ namespace fatrop
         std::vector<MAT *> &Gg_ineqt_buff = matrix_buffer_[2];
         // get the double pointers for the vector views
         const Scalar *primal_x_ptr = primal_x.data();
+        // jac.BAbt only holds K-1 dynamics blocks, there is no transition out of the last stage
+        for (Index k = 0; k < K_ - 1; k++)
+            BAbt_buff[k] = &jac.BAbt[k].mat();
         for (Index k = 0; k < K_; k++)
         {
-            BAbt_buff[k] = &jac.BAbt[k].mat();
             Gg_eqt_buff[k] = &jac.Gg_eqt[k].mat();
             Gg_ineqt_buff[k] = &jac.Gg_ineqt[k].mat();
         }
@@ -258,11 +260,9 @@ namespace fatrop
             {
                 const Scalar *inputs_k = primal_x_ptr + info.offsets_primal_u[k];
                 const Scalar *states_k = primal_x_ptr + info.offsets_primal_x[k];
-                // ocp_->eval_rq(&objective_scale, inputs_k, states_k,
-                //               grad_x_p + info.offsets_primal_u[k], k);
                 if (ocp->eval_rq)
                     ocp->eval_rq(&objective_scale, inputs_k, states_k, nullptr, nullptr,
-                                        grad_x_ptr + info.offsets_primal_u[k], k, ocp->user_data);
+                                 grad_x_ptr + info.offsets_primal_u[k], k, ocp->user_data);
             }
         }
         return 0;
@@ -284,15 +284,13 @@ namespace fatrop
             res = 0;
             for (Index k = 0; k < info.dims.K; k++)
             {
-                Scalar ret = 0;
+                Scalar obj_k = 0;
                 const Scalar *inputs_k = primal_x_ptr + info.offsets_primal_u[k];
                 const Scalar *states_k = primal_x_ptr + info.offsets_primal_x[k];
-                // ocp_->eval_L(&objective_scale, inputs_k, states_k, &ret, k);
                 if (ocp->eval_L)
-                    ocp->eval_L(&objective_scale, inputs_k, states_k, nullptr, nullptr, &ret,
-                                       k, ocp->user_data);
-
-                res += ret;
+                    ocp->eval_L(&objective_scale, inputs_k, states_k, nullptr, nullptr, &obj_k, k,
+                                ocp->user_data);
+                res += obj_k;
             }
         }
         return 0;

@@ -36,23 +36,13 @@ std::vector<Index> make_offsets(const std::vector<Index> &sizes)
         off[k + 1] = off[k] + sizes[k];
     return off;
 }
-
-bool check_reg(const Index m, MAT *sA, const Index ai, const Index aj, Scalar tol)
-{
-    for (Index i = 0; i < m; i++)
-    {
-        if (blasfeo_matel_wrap(sA, ai + i, aj + i) < tol)
-            return false;
-    }
-    return true;
-}
 } // namespace
 
 BlockCholeskySolver::BlockCholeskySolver(const BlockSparsityPattern &sp)
     : LinearSolver<BlockCholeskySolver, GraphType>(sp.total_size()), sp_(sp), order_(sp),
       symbolic_(sp, order_), perm_block_sizes_(sp.num_blocks()),
       col_to_sn_(sp.num_blocks(), -1), col_to_off_in_sn_(sp.num_blocks(), -1),
-      x_perm_(sp.total_size()), rhs_(sp.total_size())
+      x_perm_(sp.total_size()), rhs_(sp.total_size()), pivot_ref_(sp.total_size())
 {
     const Index N = sp.num_blocks();
 
@@ -352,8 +342,11 @@ BlockCholeskySolver::factorize_with_rhs_(const BlockPdMatrix &matrix,
 
         // (2) Partial Cholesky on the (t_total + ext_total + 1) x t_total panel,
         //     rooted at column kColPad.
+        // In place, so save the diagonal check_reg needs.
+        for (Index i = 0; i < t_total; ++i)
+            pivot_ref_(i) = P(i, kColPad + i);
         potrf_l_mn(t_total + ext_total + 1, t_total, P, 0, kColPad, P, 0, kColPad);
-        if (!check_reg(t_total, &P.mat(), 0, kColPad, pivot_tol_))
+        if (!check_reg(t_total, P, 0, kColPad, pivot_ref_, 0, pivot_tol_))
             return LinsolReturnFlag::INDEFINITE;
 
         // (3a) Extract y_S from the aug row into x_perm_.

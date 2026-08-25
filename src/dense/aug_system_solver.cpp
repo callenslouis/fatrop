@@ -12,19 +12,6 @@
 
 using namespace fatrop;
 
-namespace
-{
-bool check_reg(const Index m, MAT *sA, const Index ai, const Index aj)
-{
-    for (Index i = 0; i < m; i++)
-    {
-        if (blasfeo_matel_wrap(sA, ai + i, aj + i) < 1e-8)
-            return false;
-    }
-    return true;
-}
-} // namespace
-
 AugSystemSolver<DenseType>::AugSystemSolver(const ProblemInfo<DenseType> &info)
     : Ppt_(info.dims.nx_tangent + 1, info.dims.nx_tangent),
       RSQrqt_tilde_(info.dims.nx_tangent + 1, info.dims.nx_tangent),
@@ -49,6 +36,7 @@ void AugSystemSolver<DenseType>::register_options(OptionRegistry &registry)
 {
     registry.register_option("linsol_lu_fact_tol", &AugSystemSolver<DenseType>::set_lu_fact_tol,
                              this);
+    registry.register_option("linsol_pivot_tol", &AugSystemSolver<DenseType>::set_pivot_tol, this);
 }
 
 LinsolReturnFlag AugSystemSolver<DenseType>::solve(const ProblemInfo<DenseType> &info,
@@ -118,14 +106,14 @@ LinsolReturnFlag AugSystemSolver<DenseType>::solve(const ProblemInfo<DenseType> 
                    1.0, GgLt_, 0, rank_eq_, RSQrqt_hat_, 0, 0);
 
         potrf_l_mn(nx - rank_eq_ + 1, nx - rank_eq_, RSQrqt_hat_, 0, 0, Llt_, 0, 0);
-        if (!check_reg(nx - rank_eq_, &Llt_.mat(), 0, 0))
+        if (!check_reg(nx - rank_eq_, Llt_, 0, 0, RSQrqt_hat_, 0, 0, pivot_tol_))
             return LinsolReturnFlag::INDEFINITE;
     }
     else
     {
         rank_eq_ = 0;
         potrf_l_mn(nx + 1, nx, Ppt_, 0, 0, Llt_, 0, 0);
-        if (!check_reg(nx, &Llt_.mat(), 0, 0))
+        if (!check_reg(nx, Llt_, 0, 0, Ppt_, 0, 0, pivot_tol_))
             return LinsolReturnFlag::INDEFINITE;
     }
 
@@ -216,7 +204,7 @@ LinsolReturnFlag AugSystemSolver<DenseType>::solve(const ProblemInfo<DenseType> 
     gecp(nx + 1, nx, RSQrqt_tilde_, 0, 0, Ppt_, 0, 0);
 
     potrf_l_mn(nx + 1, nx, Ppt_, 0, 0, Llt_, 0, 0);
-    if (!check_reg(nx, &Llt_.mat(), 0, 0))
+    if (!check_reg(nx, Llt_, 0, 0, Ppt_, 0, 0, pivot_tol_))
         return LinsolReturnFlag::INDEFINITE;
     rank_eq_ = 0;
 

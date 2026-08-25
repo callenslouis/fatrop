@@ -49,6 +49,8 @@ namespace fatrop
 
     template <typename ProblemType> void IpIterationOutput<ProblemType>::output_current_iteration()
     {
+        if (!PrintLevelManager::is_enabled(PrintLevel::Iterations))
+            return;
         IpIterateType &curr_it = ipdata_->current_iterate();
         const Index iter = ipdata_->iteration_number();
         const Scalar objective = curr_it.obj_value();
