@@ -63,6 +63,12 @@ namespace fatrop
                                       const VecRealView &primal_x, const VecRealView &primal_s,
                                       Jacobian<ProblemType> &jac) override;
 
+        virtual bool has_constant_hessian() const override { return nlp_->has_constant_hessian(); }
+        virtual bool has_constant_jacobian() const override
+        {
+            return nlp_->has_constant_jacobian();
+        }
+
         /**
          * @brief Evaluate the constraint violation.
          */

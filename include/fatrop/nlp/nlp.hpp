@@ -26,6 +26,22 @@ namespace fatrop
         virtual Index eval_constr_jac(const ProblemInfo<ProblemType> &info,
                                       const VecRealView &primal_x, const VecRealView &primal_s,
                                       Jacobian<ProblemType> &jac) = 0;
+        /**
+         * @brief Whether the Lagrangian Hessian block is constant (independent of primal_x,
+         * primal_s, lam, objective_scale), as is the case for a QP.
+         *
+         * When true, eval_lag_hess may be called with a Hessian<ProblemType> whose
+         * per-stage @c matrix_valid flags are already set from a previous call on the same
+         * physical buffer; implementations may then skip re-deriving the constant block and
+         * only refresh the right-hand-side row. Default false preserves existing behavior for
+         * every NLP type that does not override this.
+         */
+        virtual bool has_constant_hessian() const { return false; }
+        /**
+         * @brief Whether the constraint Jacobian blocks are constant (independent of
+         * primal_x, primal_s), as is the case for a QP. See @c has_constant_hessian.
+         */
+        virtual bool has_constant_jacobian() const { return false; }
         virtual Index eval_constraint_violation(const ProblemInfo<ProblemType> &info,
                                                 const VecRealView &primal_x,
                                                 const VecRealView &primal_s, VecRealView &res) = 0;

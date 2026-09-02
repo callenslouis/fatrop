@@ -24,6 +24,8 @@ namespace fatrop
                             const VecRealView &lam, Hessian<OcpType> &hess) override;
         Index eval_constr_jac(const ProblemInfo<OcpType> &info, const VecRealView &primal_x,
                               const VecRealView &primal_s, Jacobian<OcpType> &jac) override;
+        bool has_constant_hessian() const override { return ocp->has_constant_hessian != 0; }
+        bool has_constant_jacobian() const override { return ocp->has_constant_jacobian != 0; }
         Index eval_constraint_violation(const ProblemInfo<OcpType> &info,
                                         const VecRealView &primal_x, const VecRealView &primal_s,
                                         VecRealView &res) override;

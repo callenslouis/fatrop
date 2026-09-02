@@ -6,9 +6,10 @@
 #include "fatrop/linear_algebra/linear_algebra.hpp"
 #include "fatrop/ocp/dims.hpp"
 #include "fatrop/ocp/problem_info.hpp"
+#include <algorithm>
 using namespace fatrop;
 
-Hessian<OcpType>::Hessian(const ProblemDims<OcpType> &dims)
+Hessian<OcpType>::Hessian(const ProblemDims<OcpType> &dims) : matrix_valid(dims.K, false)
 {
     // reserve memory for the Jacobian matrices
     RSQrqt.reserve(dims.K);
@@ -59,6 +60,9 @@ void Hessian<OcpType>::set_zero()
 {
     for (auto &RSQ : RSQrqt)
         gese(RSQ.m(), RSQ.n(), 0.0, RSQ, 0, 0);
+    // The constant block was just overwritten with zeros, so any cached "block already
+    // packed" state is stale and must be re-evaluated on the next real evaluation.
+    std::fill(matrix_valid.begin(), matrix_valid.end(), false);
 }
 // make printable
 namespace fatrop

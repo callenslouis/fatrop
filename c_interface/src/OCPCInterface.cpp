@@ -132,6 +132,7 @@ namespace fatrop
             return 0;
         if (ret == 0)
         {
+            const bool constant = ocp->has_constant_hessian != 0;
             for (Index k = 0; k < info.dims.K; k++)
             {
                 const Scalar *inputs_k = primal_x_ptr + info.offsets_primal_u[k];
@@ -140,10 +141,23 @@ namespace fatrop
                     (k != info.dims.K - 1) ? lam_ptr + info.offsets_g_eq_dyn[k] : nullptr;
                 const Scalar *lam_eq_k = lam_ptr + info.offsets_g_eq_path[k];
                 const Scalar *lam_eq_ineq_k = lam_ptr + info.offsets_g_eq_slack[k];
-                if (ocp->eval_RSQrqt)
+                // For problems with a constant Hessian (e.g. QPs), once the constant block of
+                // RSQrqt[k] has been written into this physical buffer, subsequent evaluations
+                // only need to refresh the right-hand-side row.
+                if (constant && hess.matrix_valid[k] && ocp->eval_RSQrqt_rhs)
+                {
+                    ocp->eval_RSQrqt_rhs(&objective_scale, inputs_k, states_k, lam_dyn_k, lam_eq_k,
+                                         lam_eq_ineq_k, nullptr, nullptr, RSQrqt_buff[k], k,
+                                         ocp->user_data);
+                }
+                else if (ocp->eval_RSQrqt)
+                {
                     ocp->eval_RSQrqt(&objective_scale, inputs_k, states_k, lam_dyn_k, lam_eq_k,
                                      lam_eq_ineq_k, nullptr, nullptr, RSQrqt_buff[k], k,
                                      ocp->user_data);
+                    if (constant)
+                        hess.matrix_valid[k] = true;
+                }
             }
         }
         return 0;
@@ -173,24 +187,43 @@ namespace fatrop
             return 0;
         if (ret == 0)
         {
+            const bool constant = ocp->has_constant_jacobian != 0;
             for (Index k = 0; k < info.dims.K; k++)
             {
                 const Scalar *inputs_k = primal_x_ptr + info.offsets_primal_u[k];
                 const Scalar *states_k = primal_x_ptr + info.offsets_primal_x[k];
-                if (ocp->eval_Ggt)
+                // For problems with a constant Jacobian (e.g. QPs), once the constant blocks
+                // for stage k have been written into this physical buffer, subsequent
+                // evaluations only need to refresh the right-hand-side rows.
+                const bool use_rhs = constant && jac.matrix_valid[k];
+
+                if (use_rhs && ocp->eval_Ggt_rhs)
+                    ocp->eval_Ggt_rhs(inputs_k, states_k, nullptr, nullptr, Gg_eqt_buff[k], k,
+                                      ocp->user_data);
+                else if (ocp->eval_Ggt)
                     ocp->eval_Ggt(inputs_k, states_k, nullptr, nullptr, Gg_eqt_buff[k], k,
                                   ocp->user_data);
 
-                if (ocp->eval_Ggt_ineq)
+                if (use_rhs && ocp->eval_Ggt_ineq_rhs)
+                    ocp->eval_Ggt_ineq_rhs(inputs_k, states_k, nullptr, nullptr, Gg_ineqt_buff[k],
+                                           k, ocp->user_data);
+                else if (ocp->eval_Ggt_ineq)
                     ocp->eval_Ggt_ineq(inputs_k, states_k, nullptr, nullptr, Gg_ineqt_buff[k], k,
                                        ocp->user_data);
+
                 if (k != info.dims.K - 1)
                 {
                     const Scalar *states_kp1 = primal_x_ptr + info.offsets_primal_x[k + 1];
-                    if (ocp->eval_BAbt)
+                    if (use_rhs && ocp->eval_BAbt_rhs)
+                        ocp->eval_BAbt_rhs(states_kp1, inputs_k, states_k, nullptr, nullptr,
+                                           BAbt_buff[k], k, ocp->user_data);
+                    else if (ocp->eval_BAbt)
                         ocp->eval_BAbt(states_kp1, inputs_k, states_k, nullptr, nullptr,
                                        BAbt_buff[k], k, ocp->user_data);
                 }
+
+                if (constant && !use_rhs)
+                    jac.matrix_valid[k] = true;
             }
         }
         return 0;
@@ -438,41 +471,80 @@ namespace fatrop
                 MehrotraQpBuilder<OcpType> builder(m);
                 algo_qp = builder.with_options_registry(&options).build();
                 ip_data = builder.get_ipdata();
-                info = std::make_shared<ProblemInfo<OcpType>>(algo_qp->info());
+                // info = std::make_shared<ProblemInfo<OcpType>>(algo_qp->info());
+                m->s.nx = algo_qp->info().dims.number_of_states.data();
+                m->s.nu = algo_qp->info().dims.number_of_controls.data();
+                m->s.ng = algo_qp->info().dims.number_of_eq_constraints.data();
+                m->s.ng_ineq = algo_qp->info().dims.number_of_ineq_constraints.data();
+                m->s.K = algo_qp->info().dims.K;
+                m->s.ux_offs = algo_qp->info().offsets_primal_u.data();
+                m->s.g_offs = algo_qp->info().offsets_g_eq_path.data();
+                m->s.dyn_offs = algo_qp->info().offsets_dyn.data();
+                m->s.dyn_eq_offs = algo_qp->info().offsets_g_eq_dyn.data();
+                m->s.g_ineq_offs = algo_qp->info().offsets_g_eq_slack.data();
+                m->s.max_nu = *std::max_element(algo_qp->info().dims.number_of_controls.begin(),
+                                                algo_qp->info().dims.number_of_controls.end());
+                m->s.max_nx = *std::max_element(algo_qp->info().dims.number_of_states.begin(),
+                                                algo_qp->info().dims.number_of_states.end());
+                m->s.max_ng = *std::max_element(algo_qp->info().dims.number_of_eq_constraints.begin(),
+                                                algo_qp->info().dims.number_of_eq_constraints.end());
+                m->s.max_ngineq =
+                    *std::max_element(algo_qp->info().dims.number_of_ineq_constraints.begin(),
+                                    algo_qp->info().dims.number_of_ineq_constraints.end());
+                m->s.n_ineqs = algo_qp->info().number_of_g_eq_slack;
             } else {
                 IpAlgBuilder<OcpType> builder(m);
                 algo = builder.with_options_registry(&options).build();
                 ip_data = builder.get_ipdata();
-                info = std::make_shared<ProblemInfo<OcpType>>(algo->info());
+                // info = std::make_shared<ProblemInfo<OcpType>>(algo->info());
+                m->s.nx = algo->info().dims.number_of_states.data();
+                m->s.nu = algo->info().dims.number_of_controls.data();
+                m->s.ng = algo->info().dims.number_of_eq_constraints.data();
+                m->s.ng_ineq = algo->info().dims.number_of_ineq_constraints.data();
+                m->s.K = algo->info().dims.K;
+                m->s.ux_offs = algo->info().offsets_primal_u.data();
+                m->s.g_offs = algo->info().offsets_g_eq_path.data();
+                m->s.dyn_offs = algo->info().offsets_dyn.data();
+                m->s.dyn_eq_offs = algo->info().offsets_g_eq_dyn.data();
+                m->s.g_ineq_offs = algo->info().offsets_g_eq_slack.data();
+                m->s.max_nu = *std::max_element(algo->info().dims.number_of_controls.begin(),
+                                                algo->info().dims.number_of_controls.end());
+                m->s.max_nx = *std::max_element(algo->info().dims.number_of_states.begin(),
+                                                algo->info().dims.number_of_states.end());
+                m->s.max_ng = *std::max_element(algo->info().dims.number_of_eq_constraints.begin(),
+                                                algo->info().dims.number_of_eq_constraints.end());
+                m->s.max_ngineq =
+                    *std::max_element(algo->info().dims.number_of_ineq_constraints.begin(),
+                                    algo->info().dims.number_of_ineq_constraints.end());
+                m->s.n_ineqs = algo->info().number_of_g_eq_slack;
             }
-            m->s.nx = info->dims.number_of_states.data();
-            m->s.nu = info->dims.number_of_controls.data();
-            m->s.ng = info->dims.number_of_eq_constraints.data();
-            m->s.ng_ineq = info->dims.number_of_ineq_constraints.data();
-            m->s.K = info->dims.K;
-            m->s.ux_offs = info->offsets_primal_u.data();
-            m->s.g_offs = info->offsets_g_eq_path.data();
-            m->s.dyn_offs = info->offsets_dyn.data();
-            m->s.dyn_eq_offs = info->offsets_g_eq_dyn.data();
-            m->s.g_ineq_offs = info->offsets_g_eq_slack.data();
-            m->s.max_nu = *std::max_element(info->dims.number_of_controls.begin(),
-                                            info->dims.number_of_controls.end());
-            m->s.max_nx = *std::max_element(info->dims.number_of_states.begin(),
-                                            info->dims.number_of_states.end());
-            m->s.max_ng = *std::max_element(info->dims.number_of_eq_constraints.begin(),
-                                            info->dims.number_of_eq_constraints.end());
-            m->s.max_ngineq =
-                *std::max_element(info->dims.number_of_ineq_constraints.begin(),
-                                  info->dims.number_of_ineq_constraints.end());
-            m->s.n_ineqs = info->number_of_g_eq_slack;
-
+            // m->s.nx = info->dims.number_of_states.data();
+            // m->s.nu = info->dims.number_of_controls.data();
+            // m->s.ng = info->dims.number_of_eq_constraints.data();
+            // m->s.ng_ineq = info->dims.number_of_ineq_constraints.data();
+            // m->s.K = info->dims.K;
+            // m->s.ux_offs = info->offsets_primal_u.data();
+            // m->s.g_offs = info->offsets_g_eq_path.data();
+            // m->s.dyn_offs = info->offsets_dyn.data();
+            // m->s.dyn_eq_offs = info->offsets_g_eq_dyn.data();
+            // m->s.g_ineq_offs = info->offsets_g_eq_slack.data();
+            // m->s.max_nu = *std::max_element(info->dims.number_of_controls.begin(),
+            //                                 info->dims.number_of_controls.end());
+            // m->s.max_nx = *std::max_element(info->dims.number_of_states.begin(),
+            //                                 info->dims.number_of_states.end());
+            // m->s.max_ng = *std::max_element(info->dims.number_of_eq_constraints.begin(),
+            //                                 info->dims.number_of_eq_constraints.end());
+            // m->s.max_ngineq =
+            //     *std::max_element(info->dims.number_of_ineq_constraints.begin(),
+            //                       info->dims.number_of_ineq_constraints.end());
+            // m->s.n_ineqs = info->number_of_g_eq_slack;
             baked = true;
         }
         fatrop_int solve()
         {
             // bake if needed
             if (!baked){bake();}
-            
+           
             // optimize correct algorithm
             if (is_qp){ flag = algo_qp->optimize();}
             else { flag = algo->optimize();}
@@ -491,7 +563,7 @@ namespace fatrop
         OptionRegistry options;
         std::shared_ptr<IpAlgorithm<OcpType>> algo;
         std::shared_ptr<MehrotraQpAlgorithm<OcpType>> algo_qp;
-        std::shared_ptr<ProblemInfo<OcpType>> info;
+        // std::shared_ptr<ProblemInfo<OcpType>> info;
         std::shared_ptr<IpData<OcpType>> ip_data;
         IpSolverReturnFlag flag;
 

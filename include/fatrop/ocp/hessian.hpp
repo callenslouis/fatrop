@@ -63,6 +63,17 @@ namespace fatrop
          *   RSQrqt[-1, :] is reserved for the right-hand side.
          */
         std::vector<MatRealAllocated> RSQrqt;
+        /**
+         * @brief Per-stage flag indicating whether RSQrqt[k]'s constant block (everything but
+         * the trailing right-hand-side row) has already been written into this physical buffer.
+         *
+         * Used by problem types with a constant Hessian (e.g. QPs) to skip re-packing the
+         * block on every IP iteration while still refreshing the right-hand-side row every
+         * time. Owned here (not on the Nlp) because curr/trial/stored are distinct physical
+         * buffers that are pointer-swapped rather than copied, so validity must track the
+         * buffer, not the logical role.
+         */
+        std::vector<bool> matrix_valid;
         void apply_on_right(const OcpInfo& info, const VecRealView& x, Scalar alpha, const VecRealView& y, VecRealView& out) const;
         void get_rhs(const OcpInfo& info, VecRealView& out) const;
         void set_rhs(const OcpInfo& info, const VecRealView& in);
