@@ -76,6 +76,23 @@ namespace fatrop
         void set_sigma_max(const Scalar &v) { sigma_max_ = v; }
         void set_verbose(bool v) { verbose_ = v; }
 
+        // -------- Inertia correction (regularization) on INDEFINITE/NOFULL_RANK ---
+        // Off by default: a convex QP's reduced Hessian is normally PD, so the
+        // one-shot factorization is the fast path. Enable this to retry with a
+        // growing Hessian/dual regularization (same scheme as the NLP solver's
+        // IpSearchDirImpl) instead of aborting on the first bad pivot.
+        void set_reg_enabled(const bool &v) { reg_enabled_ = v; }
+        void set_delta_w0(const Scalar &v) { delta_w0_ = v; }
+        void set_delta_wmin(const Scalar &v) { delta_wmin_ = v; }
+        void set_delta_wmax(const Scalar &v) { delta_wmax_ = v; }
+        void set_kappa_wmin(const Scalar &v) { kappa_wmin_ = v; }
+        void set_kappa_wplus(const Scalar &v) { kappa_wplus_ = v; }
+        void set_kappa_wplusem(const Scalar &v) { kappa_wplusem_ = v; }
+        void set_kappa_c(const Scalar &v) { kappa_c_ = v; }
+        void set_delta_c_stripe(const Scalar &v) { delta_c_stripe_ = v; }
+        void set_reg_max_tries(const Index &v) { reg_max_tries_ = v; }
+        void set_delta_w_tries_before_c(const Index &v) { delta_w_tries_before_c_ = v; }
+
         // -------- Accessors -------------------------------------------------
         const ProblemInfo<ProblemType> &info() const;
         const VecRealView &solution_primal() const;
@@ -150,6 +167,30 @@ namespace fatrop
         Scalar mu_min_ = 1e-12;
         Scalar sigma_max_ = 1.0;
         bool verbose_ = true;
+
+        // Inertia correction options (see set_reg_enabled). Defaults mirror
+        // IpSearchDirImpl (ip_search_dir.hpp) so behavior is consistent with
+        // the plain NLP solver when enabled.
+        bool reg_enabled_ = false;
+        Scalar delta_w0_ = 1e-4;
+        Scalar delta_wmin_ = 1e-20;
+        Scalar delta_wmax_ = 1e10;
+        Scalar kappa_wmin_ = 1. / 3.;
+        Scalar kappa_wplus_ = 8.;
+        Scalar kappa_wplusem_ = 100.;
+        Scalar kappa_c_ = 0.25;
+        Scalar delta_c_stripe_ = 1e-6;
+        Index reg_max_tries_ = 40;
+        Scalar delta_w_last_ = 0.;
+        // On a shooting OCP, growing delta_w alone can fail to clear
+        // INDEFINITE: delta_w is injected before the per-stage equality
+        // nullspace projection, so an oblique (non-orthogonal) projection can
+        // absorb an arbitrarily large diagonal shift. delta_c > 0 switches
+        // the recursion to a penalty-based elimination where regularization
+        // lands directly on the factored diagonal -- so after this many
+        // delta_w-only retries, escalate delta_c too instead of continuing
+        // to grow delta_w unboundedly.
+        Index delta_w_tries_before_c_ = 3;
 
         Index iteration_ = 0;
         Scalar mu_ = 1.0;

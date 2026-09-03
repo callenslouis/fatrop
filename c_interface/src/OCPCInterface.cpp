@@ -820,6 +820,29 @@ namespace fatrop
             return 2;
         if (n == "print_level")
             return 1;
+        // MehrotraQpAlgorithm inertia-correction options (fatrop/qp/fatrop_qp.hpp)
+        if (n == "qp_reg_enabled")
+            return 2;
+        if (n == "qp_delta_w0")
+            return 0;
+        if (n == "qp_delta_wmin")
+            return 0;
+        if (n == "qp_delta_wmax")
+            return 0;
+        if (n == "qp_kappa_wmin")
+            return 0;
+        if (n == "qp_kappa_wplus")
+            return 0;
+        if (n == "qp_kappa_wplusem")
+            return 0;
+        if (n == "qp_kappa_c")
+            return 0;
+        if (n == "qp_delta_c_stripe")
+            return 0;
+        if (n == "qp_reg_max_tries")
+            return 1;
+        if (n == "qp_delta_w_tries_before_c")
+            return 1;
         return -1;
     }
 

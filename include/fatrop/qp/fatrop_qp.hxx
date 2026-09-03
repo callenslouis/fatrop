@@ -79,6 +79,7 @@ namespace fatrop
         eq_mult_initializer_->reset();
         iteration_ = 0;
         mu_ = 1.0;
+        delta_w_last_ = 0.;
     }
 
     template <typename ProblemType>
@@ -170,32 +171,113 @@ namespace fatrop
         rhs_cl_ = curr.complementarity_l();
         rhs_cu_ = curr.complementarity_u();
         
-        // No inertia/dual regularization for a convex QP
+        // Baseline: no inertia/dual regularization for a convex QP -- its
+        // reduced Hessian is normally PD, so the one-shot factorization below
+        // is the fast path. When reg_enabled_ is set, an INDEFINITE/
+        // NOFULL_RANK pivot failure instead triggers a retry with growing
+        // Hessian/dual regularization (same scheme as the NLP solver's
+        // IpSearchDirImpl, see ip_search_dir.hxx) rather than aborting.
         curr.set_Dx(curr.primal_damping());
         curr.set_De(VecRealScalar(curr.De().m(), 0.));
         curr.set_De_is_zero(true);
-        
+
+        Scalar delta_w = 0.;
+        Scalar delta_c = 0.;
+        bool first_try_delta_w = true;
+        Index indefinite_tries = 0;
+
+        // -------- predictor: factorize + solve (retried under regularization) --
+        LinsolReturnFlag ret_aff;
+        for (Index try_ = 0;; ++try_)
+        {
+            // std::cout << "try: " << try_ << ", delta_w: " << delta_w << ", delta_c: " << delta_c
+            //           << std::endl;
+            curr.set_Dx(VecRealScalar(curr.Dx().m(), delta_w) + curr.primal_damping());
+            curr.set_De(VecRealScalar(curr.De().m(), delta_c));
+            curr.set_De_is_zero(delta_c == 0.);
+
+            LinearSystem<PdSystemType<ProblemType>> ls(
+                curr.info(), curr.jacobian(), curr.hessian(), curr.Dx(), curr.De_is_zero(),
+                curr.De(), curr.delta_lower(), curr.delta_upper(), curr.dual_bounds_l(),
+                curr.dual_bounds_u(), rhs_x_, rhs_s_, rhs_g_, rhs_cl_, rhs_cu_);
+
+            {
+                ScopedTimer _t(ipdata_->timing_statistics().compute_search_dir,
+                               ipdata_->timing_statistics());
+                ret_aff = pd_solver_->solve_in_place(ls);
+            }
+
+            bool solved;
+            switch (ret_aff)
+            {
+            case LinsolReturnFlag::SUCCESS:
+            case LinsolReturnFlag::ITREF_MAX_ITER:
+            case LinsolReturnFlag::ITREF_INCREASE:
+                solved = true;
+                break;
+            case LinsolReturnFlag::INDEFINITE:
+            case LinsolReturnFlag::NOFULL_RANK:
+                solved = false;
+                break;
+            default:
+                return ret_aff;
+            }
+            if (solved)
+                break;
+            // Disabled (default): bail out exactly like the original
+            // one-shot behavior.
+            if (!reg_enabled_ || try_ >= reg_max_tries_ - 1)
+                return ret_aff;
+
+            if (ret_aff == LinsolReturnFlag::INDEFINITE)
+            {
+                ++indefinite_tries;
+                // delta_w is injected before the per-stage equality nullspace
+                // projection (aug_system_solver.cpp); on a shooting OCP that
+                // projection is oblique and can absorb an arbitrarily large
+                // delta_w without the factored block's pivots improving. So
+                // delta_wmax_ caps delta_w growth, it does not gate whether we
+                // keep retrying: once delta_w alone has had a few tries (or
+                // would need to exceed delta_wmax_ to keep growing -- e.g.
+                // because delta_w_last_ carried over a large value from a
+                // previous outer iteration), engage delta_c instead. Nonzero
+                // delta_c switches the recursion to the penalty-based
+                // equality elimination, where regularization lands directly
+                // on the factored diagonal rather than through that
+                // projection.
+                const Scalar next_delta_w =
+                    first_try_delta_w
+                        ? (delta_w_last_ == 0. ? delta_w0_
+                                                : std::max(delta_w_last_ * kappa_wmin_, delta_wmin_))
+                        : (delta_w_last_ == 0. ? kappa_wplusem_ * delta_w : kappa_wplus_ * delta_w);
+                if (delta_c == 0. &&
+                    (indefinite_tries >= delta_w_tries_before_c_ || next_delta_w > delta_wmax_))
+                {
+                    delta_c = delta_c_stripe_ * std::pow(mu, kappa_c_);
+                }
+                else
+                {
+                    delta_w = next_delta_w;
+                    first_try_delta_w = false;
+                }
+            }
+            else // NOFULL_RANK
+            {
+                delta_c = delta_c_stripe_ * std::pow(mu, kappa_c_);
+            }
+        }
+        if (delta_w > 0.)
+            delta_w_last_ = delta_w;
+        curr.search_dir_info().inertia_correction_primal = delta_w;
+        curr.search_dir_info().inertia_correction_dual = delta_c;
+
+        // Rebuild ls against the (possibly regularized) Dx/De that succeeded;
+        // the corrector below reuses this cached factorization rather than
+        // refactoring, so it must see the exact same Dx/De/De_is_zero.
         LinearSystem<PdSystemType<ProblemType>> ls(
             curr.info(), curr.jacobian(), curr.hessian(), curr.Dx(), curr.De_is_zero(),
             curr.De(), curr.delta_lower(), curr.delta_upper(), curr.dual_bounds_l(),
             curr.dual_bounds_u(), rhs_x_, rhs_s_, rhs_g_, rhs_cl_, rhs_cu_);
-            
-            // -------- predictor: factorize + solve --------------------------------
-            LinsolReturnFlag ret_aff;
-        {
-            ScopedTimer _t(ipdata_->timing_statistics().compute_search_dir,
-                           ipdata_->timing_statistics());
-            ret_aff = pd_solver_->solve_in_place(ls);
-        }
-        switch (ret_aff)
-        {
-        case LinsolReturnFlag::SUCCESS:
-        case LinsolReturnFlag::ITREF_MAX_ITER:
-        case LinsolReturnFlag::ITREF_INCREASE:
-            break;
-        default:
-            return ret_aff;
-        }
 
         // After solve_in_place, the rhs vectors hold the (affine) solution.
         // Stash the slices we need for the corrector RHS.
@@ -255,8 +337,6 @@ namespace fatrop
         curr.set_delta_dual_eq(rhs_g_);
         curr.set_delta_dual_bounds_l(rhs_cl_);
         curr.set_delta_dual_bounds_u(rhs_cu_);
-        curr.search_dir_info().inertia_correction_primal = 0.;
-        curr.search_dir_info().inertia_correction_dual = 0.;
 
         const Scalar tau = std::max(tau_min_, 1. - mu);
         alpha_pr_out = curr.maximum_step_size_primal(tau);
@@ -382,7 +462,7 @@ namespace fatrop
                 sd_ret == LinsolReturnFlag::NOFULL_RANK)
             {
                 ret = IpSolverReturnFlag::ErrorInStepComputation;
-                // std::cout << "Error in step computation. linsol return flag is "; PrintSdReturnFlag(sd_ret);
+                std::cout << "Error in step computation. linsol return flag is "; PrintSdReturnFlag(sd_ret);
                 break;
             }
 
@@ -410,6 +490,19 @@ namespace fatrop
     {
         registry.register_option("max_iter", &MehrotraQpAlgorithm<ProblemType>::set_max_iter, this);
         registry.register_option("tolerance", &MehrotraQpAlgorithm<ProblemType>::set_tolerance, this);
+
+        // Inertia correction (off by default -- see set_reg_enabled).
+        registry.register_option("qp_reg_enabled", &MehrotraQpAlgorithm<ProblemType>::set_reg_enabled, this);
+        registry.register_option("qp_delta_w0", &MehrotraQpAlgorithm<ProblemType>::set_delta_w0, this);
+        registry.register_option("qp_delta_wmin", &MehrotraQpAlgorithm<ProblemType>::set_delta_wmin, this);
+        registry.register_option("qp_delta_wmax", &MehrotraQpAlgorithm<ProblemType>::set_delta_wmax, this);
+        registry.register_option("qp_kappa_wmin", &MehrotraQpAlgorithm<ProblemType>::set_kappa_wmin, this);
+        registry.register_option("qp_kappa_wplus", &MehrotraQpAlgorithm<ProblemType>::set_kappa_wplus, this);
+        registry.register_option("qp_kappa_wplusem", &MehrotraQpAlgorithm<ProblemType>::set_kappa_wplusem, this);
+        registry.register_option("qp_kappa_c", &MehrotraQpAlgorithm<ProblemType>::set_kappa_c, this);
+        registry.register_option("qp_delta_c_stripe", &MehrotraQpAlgorithm<ProblemType>::set_delta_c_stripe, this);
+        registry.register_option("qp_reg_max_tries", &MehrotraQpAlgorithm<ProblemType>::set_reg_max_tries, this);
+        registry.register_option("qp_delta_w_tries_before_c", &MehrotraQpAlgorithm<ProblemType>::set_delta_w_tries_before_c, this);
     }
 
     // ---------------------------------------------------------------------------
