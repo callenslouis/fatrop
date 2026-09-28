@@ -104,10 +104,32 @@ namespace fatrop
                     delta_w =
                         (delta_w_last_ == 0.) ? kappa_wplusem_ * delta_w : kappa_wplus_ * delta_w;
                 }
+                // Written so that a NaN delta_w gives up as well.
+                if (!(delta_w <= delta_w_max_))
+                {
+                    PRINT_ITERATIONS << "The reduced hessian is still indefinite at the maximum "
+                                        "primal regularization (delta_w_max = "
+                                     << delta_w_max_
+                                     << "). Giving up on the step computation; a non-finite "
+                                        "hessian or jacobian is the usual cause." << std::endl;
+                    return LinsolReturnFlag::INDEFINITE;
+                }
             }
             if (update_delta_c)
             {
-                delta_c = delta_c_stripe_ * pow(mu, kappa_c_);
+                const Scalar delta_c_new = delta_c_stripe_ * std::pow(mu, kappa_c_);
+                // A function of mu alone, so a second rank deficiency at the same mu recomputes
+                // the same value: there is nothing to escalate, and repeating it would spin here
+                // forever. Likewise for an underflow to zero, which regularizes nothing.
+                if (!(delta_c_new > delta_c))
+                {
+                    PRINT_ITERATIONS << "The constraint jacobian is still rank deficient at the "
+                                        "dual regularization mu^kappa_c gives (delta_c = "
+                                     << delta_c_new
+                                     << "). Giving up on the step computation." << std::endl;
+                    return LinsolReturnFlag::NOFULL_RANK;
+                }
+                delta_c = delta_c_new;
             }
         }
         if (delta_w > 0)
@@ -131,6 +153,7 @@ namespace fatrop
         registry.register_option("kappa_wmin", &IpSearchDirImpl::set_kappa_wmin, this);
         registry.register_option("kappa_wplus", &IpSearchDirImpl::set_kappa_wplus, this);
         registry.register_option("kappa_wplusem", &IpSearchDirImpl::set_kappa_wplusem, this);
+        registry.register_option("delta_w_max", &IpSearchDirImpl::set_delta_w_max, this);
         registry.register_option("kappa_c", &IpSearchDirImpl::set_kappa_c, this);
         registry.register_option("delta_c_stripe", &IpSearchDirImpl::set_delta_c_stripe, this);
     }

@@ -74,6 +74,7 @@ namespace fatrop
         Scalar kappa_wmin_ = 1. / 3.;
         Scalar kappa_wplus_ = 8.;
         Scalar kappa_wplusem_ = 100.;
+        Scalar delta_w_max_ = 1e40;
         Scalar kappa_c_ = 0.25;
         Scalar delta_c_stripe_ = 1e-6;
 
@@ -84,6 +85,7 @@ namespace fatrop
         void set_kappa_wmin(const Scalar& value) { kappa_wmin_ = value; }
         void set_kappa_wplus(const Scalar& value) { kappa_wplus_ = value; }
         void set_kappa_wplusem(const Scalar& value) { kappa_wplusem_ = value; }
+        void set_delta_w_max(const Scalar& value) { delta_w_max_ = value; }
         void set_kappa_c(const Scalar& value) { kappa_c_ = value; }
         void set_delta_c_stripe(const Scalar& value) { delta_c_stripe_ = value; }
 
