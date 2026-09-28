@@ -147,7 +147,7 @@ namespace fatrop
                 if (constant && hess.matrix_valid[k] && ocp->eval_RSQrqt_rhs)
                 {
                     ocp->eval_RSQrqt_rhs(&objective_scale, inputs_k, states_k, lam_dyn_k, lam_eq_k,
-                                         lam_eq_ineq_k, nullptr, nullptr, RSQrqt_buff[k], k,
+                                         lam_eq_ineq_k, nullptr, nullptr, &RSQrqt_buff[k], k,
                                          ocp->user_data);
                 }
                 else if (ocp->eval_RSQrqt)
@@ -198,17 +198,17 @@ namespace fatrop
                 const bool use_rhs = constant && jac.matrix_valid[k];
 
                 if (use_rhs && ocp->eval_Ggt_rhs)
-                    ocp->eval_Ggt_rhs(inputs_k, states_k, nullptr, nullptr, Gg_eqt_buff[k], k,
+                    ocp->eval_Ggt_rhs(inputs_k, states_k, nullptr, nullptr, &Gg_eqt_buff[k], k,
                                       ocp->user_data);
                 else if (ocp->eval_Ggt)
-                    ocp->eval_Ggt(inputs_k, states_k, nullptr, nullptr, Gg_eqt_buff[k], k,
+                    ocp->eval_Ggt(inputs_k, states_k, nullptr, nullptr, &Gg_eqt_buff[k], k,
                                   ocp->user_data);
 
                 if (use_rhs && ocp->eval_Ggt_ineq_rhs)
-                    ocp->eval_Ggt_ineq_rhs(inputs_k, states_k, nullptr, nullptr, Gg_ineqt_buff[k],
+                    ocp->eval_Ggt_ineq_rhs(inputs_k, states_k, nullptr, nullptr, &Gg_ineqt_buff[k],
                                            k, ocp->user_data);
                 else if (ocp->eval_Ggt_ineq)
-                    ocp->eval_Ggt_ineq(inputs_k, states_k, nullptr, nullptr, Gg_ineqt_buff[k], k,
+                    ocp->eval_Ggt_ineq(inputs_k, states_k, nullptr, nullptr, &Gg_ineqt_buff[k], k,
                                        ocp->user_data);
 
                 if (k != info.dims.K - 1)
@@ -216,7 +216,7 @@ namespace fatrop
                     const Scalar *states_kp1 = primal_x_ptr + info.offsets_primal_x[k + 1];
                     if (use_rhs && ocp->eval_BAbt_rhs)
                         ocp->eval_BAbt_rhs(states_kp1, inputs_k, states_k, nullptr, nullptr,
-                                           BAbt_buff[k], k, ocp->user_data);
+                                           &BAbt_buff[k], k, ocp->user_data);
                     else if (ocp->eval_BAbt)
                         ocp->eval_BAbt(states_kp1, inputs_k, states_k, nullptr, nullptr,
                                        &BAbt_buff[k], k, ocp->user_data);
