@@ -90,6 +90,19 @@ namespace fatrop
          */
         std::vector<MatRealAllocated> Gg_ineqt;
 
+        /**
+         * @brief Per-stage flag indicating whether stage k's constant Jacobian blocks
+         * (BAbt/Gg_eqt/Gg_ineqt, everything but the trailing right-hand-side row) have
+         * already been written into this physical buffer.
+         *
+         * Used by problem types with a constant Jacobian (e.g. QPs) to skip re-packing the
+         * blocks on every IP iteration while still refreshing the right-hand-side rows every
+         * time. Owned here (not on the Nlp) because curr/trial/stored are distinct physical
+         * buffers that are pointer-swapped rather than copied, so validity must track the
+         * buffer, not the logical role.
+         */
+        std::vector<bool> matrix_valid;
+
         void apply_on_right(const OcpInfo& info, const VecRealView &x, Scalar alpha, const VecRealView& y, VecRealView &out) const;
         void transpose_apply_on_right(const OcpInfo& info, const VecRealView &mult_eq, Scalar alpha, const VecRealView& y, VecRealView &out) const;
         void get_rhs(const OcpInfo& info, VecRealView &rhs) const;

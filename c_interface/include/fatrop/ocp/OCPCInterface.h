@@ -282,6 +282,35 @@ extern "C"
         FatropOcpCFullEvalObjGrad full_eval_obj_grad;
         FatropOcpCFullEvalObj full_eval_obj;
 
+        /// @brief nonzero if the Lagrangian Hessian block (RSQ, excluding the right-hand-side
+        /// row) is constant, i.e. independent of the primal point and multipliers (e.g. a QP).
+        /// When set, eval_RSQrqt_rhs (if provided) is used instead of eval_RSQrqt after the
+        /// first evaluation for a given physical buffer, refreshing only the right-hand-side
+        /// row instead of re-deriving the whole block.
+        int has_constant_hessian;
+        /// @brief nonzero if the constraint Jacobian blocks (BAbt/Gg_eqt/Gg_ineqt, excluding
+        /// the right-hand-side rows) are constant, i.e. independent of the primal point (e.g. a
+        /// QP). When set, the *_rhs callbacks (if provided) are used instead of the full
+        /// callbacks after the first evaluation for a given physical buffer.
+        int has_constant_jacobian;
+
+        /// @brief right-hand-side-only counterpart to eval_RSQrqt: called instead of
+        /// eval_RSQrqt once the constant block of RSQrqt[k] has already been written into the
+        /// current physical buffer (only meaningful when has_constant_hessian is set). Must
+        /// only update the trailing right-hand-side row of res, leaving the rest untouched.
+        /// May be null, in which case eval_RSQrqt is always used.
+        FatropOcpCEval_RSQrqt_k eval_RSQrqt_rhs;
+        /// @brief right-hand-side-only counterpart to eval_BAbt (only meaningful when
+        /// has_constant_jacobian is set). May be null, in which case eval_BAbt is always used.
+        FatropOcpCEval_BAbt_k eval_BAbt_rhs;
+        /// @brief right-hand-side-only counterpart to eval_Ggt (only meaningful when
+        /// has_constant_jacobian is set). May be null, in which case eval_Ggt is always used.
+        FatropOcpCEval_Ggt_k eval_Ggt_rhs;
+        /// @brief right-hand-side-only counterpart to eval_Ggt_ineq (only meaningful when
+        /// has_constant_jacobian is set). May be null, in which case eval_Ggt_ineq is always
+        /// used.
+        FatropOcpCEval_Ggt_ineq_k eval_Ggt_ineq_rhs;
+
         void *user_data;
     };
 

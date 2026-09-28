@@ -12,7 +12,7 @@ using namespace fatrop;
 // (sized by number_of_tangent_{controls,states}). For standard Euclidean problems the
 // tangent dims coincide with the primal dims so behavior is unchanged.
 
-Jacobian<OcpType>::Jacobian(const ProblemDims<OcpType> &dims)
+Jacobian<OcpType>::Jacobian(const ProblemDims<OcpType> &dims) : matrix_valid(dims.K, false)
 {
     // reserve memory for the Jacobian matrices
     BAbt.reserve(dims.K - 1);
