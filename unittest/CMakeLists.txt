@@ -52,6 +52,7 @@ add_executable(dense_vs_ocp_regression_test dense/dense_vs_ocp_regression_test.c
 add_executable(graph_linear_solver_test graph/linear_solver_test.cpp)
 if(BUILD_WITH_C_INTERFACE)
   add_executable(c_interface_test ocp/c_interface_test.cpp)
+  add_executable(c_interface_qp_test ocp/c_interface_qp_test.cpp)
 endif()
 
 # Link the test executables with Google Test and other required libraries
@@ -80,6 +81,7 @@ target_link_libraries(dense_vs_ocp_regression_test GTest::gtest GTest::gtest_mai
 target_link_libraries(graph_linear_solver_test GTest::gtest GTest::gtest_main blasfeo fatrop)
 if(BUILD_WITH_C_INTERFACE)
   target_link_libraries(c_interface_test GTest::gtest GTest::gtest_main blasfeo fatrop)
+  target_link_libraries(c_interface_qp_test GTest::gtest GTest::gtest_main blasfeo fatrop)
 endif()
 
 # Discover and add the tests
@@ -108,4 +110,5 @@ gtest_discover_tests(dense_vs_ocp_regression_test)
 gtest_discover_tests(graph_linear_solver_test)
 if(BUILD_WITH_C_INTERFACE)
   gtest_discover_tests(c_interface_test)
+  gtest_discover_tests(c_interface_qp_test)
 endif()

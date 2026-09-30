@@ -282,33 +282,27 @@ extern "C"
         FatropOcpCFullEvalObjGrad full_eval_obj_grad;
         FatropOcpCFullEvalObj full_eval_obj;
 
-        /// @brief nonzero if the Lagrangian Hessian block (RSQ, excluding the right-hand-side
-        /// row) is constant, i.e. independent of the primal point and multipliers (e.g. a QP).
-        /// When set, eval_RSQrqt_rhs (if provided) is used instead of eval_RSQrqt after the
-        /// first evaluation for a given physical buffer, refreshing only the right-hand-side
-        /// row instead of re-deriving the whole block.
+        /// @brief nonzero if the objective is quadratic, i.e. the Lagrangian Hessian block (RSQ,
+        /// excluding the right-hand-side row) is constant up to the objective scale (e.g. a QP).
+        /// When set, eval_RSQrqt and eval_L are called once per solve and stage, at a zero
+        /// primal point and zero multipliers, and Fatrop computes the Hessian, the objective
+        /// gradient and the objective from that data. eval_rq is then never called.
         int has_constant_hessian;
-        /// @brief nonzero if the constraint Jacobian blocks (BAbt/Gg_eqt/Gg_ineqt, excluding
-        /// the right-hand-side rows) are constant, i.e. independent of the primal point (e.g. a
-        /// QP). When set, the *_rhs callbacks (if provided) are used instead of the full
-        /// callbacks after the first evaluation for a given physical buffer.
+        /// @brief nonzero if the constraints are affine, i.e. the constraint Jacobian blocks
+        /// (BAbt/Gg_eqt/Gg_ineqt, excluding the right-hand-side rows) are constant (e.g. a QP).
+        /// When set, eval_BAbt, eval_Ggt and eval_Ggt_ineq are called once per solve and stage,
+        /// at a zero primal point, and Fatrop computes the Jacobian and the constraint violation
+        /// from that data. eval_b, eval_g and eval_gineq are then never called.
         int has_constant_jacobian;
 
-        /// @brief right-hand-side-only counterpart to eval_RSQrqt: called instead of
-        /// eval_RSQrqt once the constant block of RSQrqt[k] has already been written into the
-        /// current physical buffer (only meaningful when has_constant_hessian is set). Must
-        /// only update the trailing right-hand-side row of res, leaving the rest untouched.
-        /// May be null, in which case eval_RSQrqt is always used.
+        /// @brief Deprecated and ignored: with has_constant_hessian set, eval_RSQrqt is only
+        /// called once per solve and stage. Kept for binary compatibility.
         FatropOcpCEval_RSQrqt_k eval_RSQrqt_rhs;
-        /// @brief right-hand-side-only counterpart to eval_BAbt (only meaningful when
-        /// has_constant_jacobian is set). May be null, in which case eval_BAbt is always used.
+        /// @brief Deprecated and ignored, see eval_RSQrqt_rhs.
         FatropOcpCEval_BAbt_k eval_BAbt_rhs;
-        /// @brief right-hand-side-only counterpart to eval_Ggt (only meaningful when
-        /// has_constant_jacobian is set). May be null, in which case eval_Ggt is always used.
+        /// @brief Deprecated and ignored, see eval_RSQrqt_rhs.
         FatropOcpCEval_Ggt_k eval_Ggt_rhs;
-        /// @brief right-hand-side-only counterpart to eval_Ggt_ineq (only meaningful when
-        /// has_constant_jacobian is set). May be null, in which case eval_Ggt_ineq is always
-        /// used.
+        /// @brief Deprecated and ignored, see eval_RSQrqt_rhs.
         FatropOcpCEval_Ggt_ineq_k eval_Ggt_ineq_rhs;
 
         void *user_data;

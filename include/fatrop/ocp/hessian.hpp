@@ -67,13 +67,21 @@ namespace fatrop
          * @brief Per-stage flag indicating whether RSQrqt[k]'s constant block (everything but
          * the trailing right-hand-side row) has already been written into this physical buffer.
          *
-         * Used by problem types with a constant Hessian (e.g. QPs) to skip re-packing the
-         * block on every IP iteration while still refreshing the right-hand-side row every
-         * time. Owned here (not on the Nlp) because curr/trial/stored are distinct physical
-         * buffers that are pointer-swapped rather than copied, so validity must track the
-         * buffer, not the logical role.
+         * Used by problem types with a constant Hessian (e.g. QPs) to skip re-deriving the
+         * block on every IP iteration. The right-hand-side row is not refreshed in that case:
+         * the linear solver overwrites it with its own right-hand side before reading it.
+         * Owned here (not on the Nlp) because curr/trial/stored are distinct physical buffers
+         * that are pointer-swapped rather than copied, so validity must track the buffer, not
+         * the logical role.
          */
         std::vector<bool> matrix_valid;
+        /**
+         * @brief Identifies the constant data the valid blocks were copied from, see
+         * FatropOcpCMapping. A mismatch invalidates all blocks, e.g. after a new solve.
+         */
+        Index valid_data_id = -1;
+        /// Objective scale the valid blocks were scaled with.
+        Scalar valid_objective_scale = 0.;
         void apply_on_right(const OcpInfo& info, const VecRealView& x, Scalar alpha, const VecRealView& y, VecRealView& out) const;
         void get_rhs(const OcpInfo& info, VecRealView& out) const;
         void set_rhs(const OcpInfo& info, const VecRealView& in);

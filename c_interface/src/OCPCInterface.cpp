@@ -20,6 +20,7 @@
 #include "fatrop/ocp/problem_info.hpp"
 #include "fatrop/ocp/type.hpp"
 #include "fatrop/ip_algorithm/ip_data.hpp"
+#include "fatrop/linear_algebra/linear_algebra.hpp"
 #include <algorithm>
 #include <limits>
 #include <memory>
@@ -85,6 +86,14 @@ namespace fatrop
                 return NlpDims(number_of_variables, number_of_eq_constraints,
                                number_of_ineq_constraints);
             }
+            static Index max_stage_size(const ProblemDims<OcpType> &ocp_dims)
+            {
+                Index res = 0;
+                for (Index k = 0; k < ocp_dims.K; k++)
+                    res = std::max(res, ocp_dims.number_of_controls[k] +
+                                            ocp_dims.number_of_states[k]);
+                return res;
+            }
         };
 
     }
@@ -92,7 +101,8 @@ namespace fatrop
     FatropOcpCMapping::FatropOcpCMapping(FatropOcpCInterface *ocp)
         : ocp(ocp), ocp_dims_(FatropOcpCAuxiliary::get_ocp_dims(*ocp)),
           nlp_dims_(FatropOcpCAuxiliary::get_nlp_dims(ocp_dims_)), K_(ocp_dims_.K),
-          matrix_buffer_{std::vector<MAT>(K_), std::vector<MAT>(K_), std::vector<MAT>(K_)}
+          matrix_buffer_{std::vector<MAT>(K_), std::vector<MAT>(K_), std::vector<MAT>(K_)},
+          work_(FatropOcpCAuxiliary::max_stage_size(ocp_dims_))
     {
         // check if no parameters are used by the ocp, because this is not supported anymore
         if (ocp->get_n_global_params && ocp->get_n_global_params(ocp->user_data) > 0)
@@ -110,11 +120,116 @@ namespace fatrop
 
     const NlpDims &FatropOcpCMapping::nlp_dims() const { return nlp_dims_; };
     const ProblemDims<OcpType> &FatropOcpCMapping::problem_dims() const { return ocp_dims_; };
+    void FatropOcpCMapping::ensure_constant_data()
+    {
+        if (constant_data_valid_)
+            return;
+        const bool constant_hess = ocp->has_constant_hessian != 0;
+        const bool constant_jac = ocp->has_constant_jacobian != 0;
+        // allocate the storage on first use
+        if (constant_hess && RSQrqt0_.empty())
+        {
+            RSQrqt0_.reserve(K_);
+            for (Index k = 0; k < K_; k++)
+            {
+                const Index nux = ocp_dims_.number_of_controls[k] + ocp_dims_.number_of_states[k];
+                RSQrqt0_.emplace_back(nux + 1, nux);
+            }
+            obj0_.resize(K_);
+        }
+        if (constant_jac && Gg_eqt0_.empty())
+        {
+            BAbt0_.reserve(K_ - 1);
+            Gg_eqt0_.reserve(K_);
+            Gg_ineqt0_.reserve(K_);
+            for (Index k = 0; k < K_; k++)
+            {
+                const Index nux = ocp_dims_.number_of_controls[k] + ocp_dims_.number_of_states[k];
+                if (k != K_ - 1)
+                    BAbt0_.emplace_back(nux + 1, ocp_dims_.number_of_states[k + 1]);
+                Gg_eqt0_.emplace_back(nux + 1, ocp_dims_.number_of_eq_constraints[k]);
+                Gg_ineqt0_.emplace_back(nux + 1, ocp_dims_.number_of_ineq_constraints[k]);
+            }
+        }
+        if (zeros_.empty())
+        {
+            Index max_size = 1;
+            for (Index k = 0; k < K_; k++)
+                max_size = std::max({max_size,
+                                     ocp_dims_.number_of_controls[k] +
+                                         ocp_dims_.number_of_states[k],
+                                     ocp_dims_.number_of_eq_constraints[k],
+                                     ocp_dims_.number_of_ineq_constraints[k]});
+            zeros_.assign(max_size, 0.);
+        }
+        // evaluate the callbacks at a zero primal point and zero multipliers
+        const Scalar *zero = zeros_.data();
+        const Scalar one = 1.;
+        for (Index k = 0; k < K_; k++)
+        {
+            const Index nux = ocp_dims_.number_of_controls[k] + ocp_dims_.number_of_states[k];
+            if (constant_hess)
+            {
+                gese(nux + 1, nux, 0., RSQrqt0_[k], 0, 0);
+                if (ocp->eval_RSQrqt)
+                    ocp->eval_RSQrqt(&one, zero, zero, (k != K_ - 1) ? zero : nullptr, zero,
+                                     zero, nullptr, nullptr, &RSQrqt0_[k].mat(), k,
+                                     ocp->user_data);
+                obj0_[k] = 0.;
+                if (ocp->eval_L)
+                    ocp->eval_L(&one, zero, zero, nullptr, nullptr, &obj0_[k], k, ocp->user_data);
+            }
+            if (constant_jac)
+            {
+                gese(nux + 1, ocp_dims_.number_of_eq_constraints[k], 0., Gg_eqt0_[k], 0, 0);
+                gese(nux + 1, ocp_dims_.number_of_ineq_constraints[k], 0., Gg_ineqt0_[k], 0, 0);
+                if (ocp->eval_Ggt)
+                    ocp->eval_Ggt(zero, zero, nullptr, nullptr, &Gg_eqt0_[k].mat(), k,
+                                  ocp->user_data);
+                if (ocp->eval_Ggt_ineq)
+                    ocp->eval_Ggt_ineq(zero, zero, nullptr, nullptr, &Gg_ineqt0_[k].mat(), k,
+                                       ocp->user_data);
+                if (k != K_ - 1)
+                {
+                    gese(nux + 1, ocp_dims_.number_of_states[k + 1], 0., BAbt0_[k], 0, 0);
+                    if (ocp->eval_BAbt)
+                        ocp->eval_BAbt(zero, zero, zero, nullptr, nullptr, &BAbt0_[k].mat(), k,
+                                       ocp->user_data);
+                }
+            }
+        }
+        constant_data_valid_ = true;
+        constant_data_id_++;
+    }
     Index FatropOcpCMapping::eval_lag_hess(const ProblemInfo<OcpType> &info,
                                            const Scalar objective_scale,
                                            const VecRealView &primal_x, const VecRealView &primal_s,
                                            const VecRealView &lam, Hessian<OcpType> &hess)
     {
+        if (ocp->has_constant_hessian)
+        {
+            // Copy the constant block into the buffers that do not hold it yet. The
+            // right-hand-side row is left as is: the linear solver overwrites it.
+            ensure_constant_data();
+            if (hess.valid_data_id != constant_data_id_ ||
+                hess.valid_objective_scale != objective_scale)
+            {
+                std::fill(hess.matrix_valid.begin(), hess.matrix_valid.end(), false);
+                hess.valid_data_id = constant_data_id_;
+                hess.valid_objective_scale = objective_scale;
+            }
+            for (Index k = 0; k < K_; k++)
+            {
+                if (hess.matrix_valid[k])
+                    continue;
+                const Index nux = ocp_dims_.number_of_controls[k] + ocp_dims_.number_of_states[k];
+                gecp(nux, nux, RSQrqt0_[k], 0, 0, hess.RSQrqt[k], 0, 0);
+                if (objective_scale != 1.)
+                    gesc(nux, nux, objective_scale, hess.RSQrqt[k], 0, 0);
+                hess.matrix_valid[k] = true;
+            }
+            return 0;
+        }
         // take the matrices from hess and put them in the buffer
         std::vector<MAT> &RSQrqt_buff = matrix_buffer_[0];
         for (Index k = 0; k < K_; k++)
@@ -132,7 +247,6 @@ namespace fatrop
             return 0;
         if (ret == 0)
         {
-            const bool constant = ocp->has_constant_hessian != 0;
             for (Index k = 0; k < info.dims.K; k++)
             {
                 const Scalar *inputs_k = primal_x_ptr + info.offsets_primal_u[k];
@@ -141,23 +255,10 @@ namespace fatrop
                     (k != info.dims.K - 1) ? lam_ptr + info.offsets_g_eq_dyn[k] : nullptr;
                 const Scalar *lam_eq_k = lam_ptr + info.offsets_g_eq_path[k];
                 const Scalar *lam_eq_ineq_k = lam_ptr + info.offsets_g_eq_slack[k];
-                // For problems with a constant Hessian (e.g. QPs), once the constant block of
-                // RSQrqt[k] has been written into this physical buffer, subsequent evaluations
-                // only need to refresh the right-hand-side row.
-                if (constant && hess.matrix_valid[k] && ocp->eval_RSQrqt_rhs)
-                {
-                    ocp->eval_RSQrqt_rhs(&objective_scale, inputs_k, states_k, lam_dyn_k, lam_eq_k,
-                                         lam_eq_ineq_k, nullptr, nullptr, &RSQrqt_buff[k], k,
-                                         ocp->user_data);
-                }
-                else if (ocp->eval_RSQrqt)
-                {
+                if (ocp->eval_RSQrqt)
                     ocp->eval_RSQrqt(&objective_scale, inputs_k, states_k, lam_dyn_k, lam_eq_k,
                                      lam_eq_ineq_k, nullptr, nullptr, &RSQrqt_buff[k], k,
                                      ocp->user_data);
-                    if (constant)
-                        hess.matrix_valid[k] = true;
-                }
             }
         }
         return 0;
@@ -166,6 +267,32 @@ namespace fatrop
                                              const VecRealView &primal_x,
                                              const VecRealView &primal_s, Jacobian<OcpType> &jac)
     {
+        if (ocp->has_constant_jacobian)
+        {
+            // Copy the constant blocks into the buffers that do not hold them yet. The
+            // right-hand-side rows are left as is: the linear solver overwrites them.
+            ensure_constant_data();
+            if (jac.valid_data_id != constant_data_id_)
+            {
+                std::fill(jac.matrix_valid.begin(), jac.matrix_valid.end(), false);
+                jac.valid_data_id = constant_data_id_;
+            }
+            for (Index k = 0; k < K_; k++)
+            {
+                if (jac.matrix_valid[k])
+                    continue;
+                const Index nux = ocp_dims_.number_of_controls[k] + ocp_dims_.number_of_states[k];
+                gecp(nux, ocp_dims_.number_of_eq_constraints[k], Gg_eqt0_[k], 0, 0,
+                     jac.Gg_eqt[k], 0, 0);
+                gecp(nux, ocp_dims_.number_of_ineq_constraints[k], Gg_ineqt0_[k], 0, 0,
+                     jac.Gg_ineqt[k], 0, 0);
+                if (k != K_ - 1)
+                    gecp(nux, ocp_dims_.number_of_states[k + 1], BAbt0_[k], 0, 0, jac.BAbt[k],
+                         0, 0);
+                jac.matrix_valid[k] = true;
+            }
+            return 0;
+        }
         // take the matrices from jac and put them in the buffer
         std::vector<MAT> &BAbt_buff = matrix_buffer_[0];
         std::vector<MAT> &Gg_eqt_buff = matrix_buffer_[1];
@@ -187,43 +314,23 @@ namespace fatrop
             return 0;
         if (ret == 0)
         {
-            const bool constant = ocp->has_constant_jacobian != 0;
             for (Index k = 0; k < info.dims.K; k++)
             {
                 const Scalar *inputs_k = primal_x_ptr + info.offsets_primal_u[k];
                 const Scalar *states_k = primal_x_ptr + info.offsets_primal_x[k];
-                // For problems with a constant Jacobian (e.g. QPs), once the constant blocks
-                // for stage k have been written into this physical buffer, subsequent
-                // evaluations only need to refresh the right-hand-side rows.
-                const bool use_rhs = constant && jac.matrix_valid[k];
-
-                if (use_rhs && ocp->eval_Ggt_rhs)
-                    ocp->eval_Ggt_rhs(inputs_k, states_k, nullptr, nullptr, &Gg_eqt_buff[k], k,
-                                      ocp->user_data);
-                else if (ocp->eval_Ggt)
+                if (ocp->eval_Ggt)
                     ocp->eval_Ggt(inputs_k, states_k, nullptr, nullptr, &Gg_eqt_buff[k], k,
                                   ocp->user_data);
-
-                if (use_rhs && ocp->eval_Ggt_ineq_rhs)
-                    ocp->eval_Ggt_ineq_rhs(inputs_k, states_k, nullptr, nullptr, &Gg_ineqt_buff[k],
-                                           k, ocp->user_data);
-                else if (ocp->eval_Ggt_ineq)
+                if (ocp->eval_Ggt_ineq)
                     ocp->eval_Ggt_ineq(inputs_k, states_k, nullptr, nullptr, &Gg_ineqt_buff[k], k,
                                        ocp->user_data);
-
                 if (k != info.dims.K - 1)
                 {
                     const Scalar *states_kp1 = primal_x_ptr + info.offsets_primal_x[k + 1];
-                    if (use_rhs && ocp->eval_BAbt_rhs)
-                        ocp->eval_BAbt_rhs(states_kp1, inputs_k, states_k, nullptr, nullptr,
-                                           &BAbt_buff[k], k, ocp->user_data);
-                    else if (ocp->eval_BAbt)
+                    if (ocp->eval_BAbt)
                         ocp->eval_BAbt(states_kp1, inputs_k, states_k, nullptr, nullptr,
                                        &BAbt_buff[k], k, ocp->user_data);
                 }
-
-                if (constant && !use_rhs)
-                    jac.matrix_valid[k] = true;
             }
         }
         return 0;
@@ -236,9 +343,44 @@ namespace fatrop
         // get the double pointers for the vector views
         const Scalar *primal_x_ptr = primal_x.data();
         Scalar *res_ptr = res.data();
-        // call the C interface
-        int ret =
-            ocp->full_eval_contr_viol(primal_x_ptr, nullptr, nullptr, res_ptr, &s, ocp->user_data);
+        // For affine constraints, evaluate them from the constant data: g_k = G_k [u;x] + g0_k,
+        // where [u;x] is contiguous in primal_x.
+        int ret = 1;
+        if (ocp->has_constant_jacobian)
+        {
+            ensure_constant_data();
+            for (Index k = 0; k < K_; k++)
+            {
+                const Index nux = ocp_dims_.number_of_controls[k] + ocp_dims_.number_of_states[k];
+                const Index offs_ux = info.offsets_primal_u[k];
+                const Index ng = ocp_dims_.number_of_eq_constraints[k];
+                const Index offs_g = info.offsets_g_eq_path[k];
+                rowex(ng, 1.0, Gg_eqt0_[k], nux, 0, res, offs_g);
+                gemv_t(nux, ng, 1.0, Gg_eqt0_[k], 0, 0, primal_x, offs_ux, 1.0, res, offs_g, res,
+                       offs_g);
+                const Index ng_ineq = ocp_dims_.number_of_ineq_constraints[k];
+                const Index offs_g_ineq = info.offsets_g_eq_slack[k];
+                rowex(ng_ineq, 1.0, Gg_ineqt0_[k], nux, 0, res, offs_g_ineq);
+                gemv_t(nux, ng_ineq, 1.0, Gg_ineqt0_[k], 0, 0, primal_x, offs_ux, 1.0, res,
+                       offs_g_ineq, res, offs_g_ineq);
+                if (k != K_ - 1)
+                {
+                    const Index nx_next = ocp_dims_.number_of_states[k + 1];
+                    const Index offs_dyn = info.offsets_g_eq_dyn[k];
+                    rowex(nx_next, 1.0, BAbt0_[k], nux, 0, res, offs_dyn);
+                    gemv_t(nux, nx_next, 1.0, BAbt0_[k], 0, 0, primal_x, offs_ux, 1.0, res,
+                           offs_dyn, res, offs_dyn);
+                    axpy(nx_next, -1.0, primal_x, info.offsets_primal_x[k + 1], res, offs_dyn, res,
+                         offs_dyn);
+                }
+            }
+        }
+        else
+        {
+            // call the C interface
+            ret = ocp->full_eval_contr_viol(primal_x_ptr, nullptr, nullptr, res_ptr, &s,
+                                            ocp->user_data);
+        }
         if (ret == 2)
             return 0;
         if (ret == 0)
@@ -282,6 +424,20 @@ namespace fatrop
         Scalar *grad_x_ptr = grad_x.data();
         // set grad_s to zero
         grad_s = 0.0;
+        if (ocp->has_constant_hessian)
+        {
+            // quadratic objective: grad_k = objective_scale * (H_k [u;x] + q_k)
+            ensure_constant_data();
+            for (Index k = 0; k < K_; k++)
+            {
+                const Index nux = ocp_dims_.number_of_controls[k] + ocp_dims_.number_of_states[k];
+                const Index offs_ux = info.offsets_primal_u[k];
+                rowex(nux, objective_scale, RSQrqt0_[k], nux, 0, grad_x, offs_ux);
+                gemv_t(nux, nux, objective_scale, RSQrqt0_[k], 0, 0, primal_x, offs_ux, 1.0,
+                       grad_x, offs_ux, grad_x, offs_ux);
+            }
+            return 0;
+        }
         // call the C interface
         int ret = ocp->full_eval_obj_grad(objective_scale, primal_x.data(), nullptr, nullptr,
                                           grad_x.data(), &s, ocp->user_data);
@@ -307,6 +463,23 @@ namespace fatrop
     {
         // get the double pointers for the vector views
         const Scalar *primal_x_ptr = primal_x.data();
+        if (ocp->has_constant_hessian)
+        {
+            // quadratic objective: f_k = [u;x]^T (0.5 H_k [u;x] + q_k) + f_k(0)
+            ensure_constant_data();
+            res = 0;
+            for (Index k = 0; k < K_; k++)
+            {
+                const Index nux = ocp_dims_.number_of_controls[k] + ocp_dims_.number_of_states[k];
+                const Index offs_ux = info.offsets_primal_u[k];
+                rowex(nux, 1.0, RSQrqt0_[k], nux, 0, work_, 0);
+                gemv_t(nux, nux, 0.5, RSQrqt0_[k], 0, 0, primal_x, offs_ux, 1.0, work_, 0, work_,
+                       0);
+                res += dot(nux, work_, 0, primal_x, offs_ux) + obj0_[k];
+            }
+            res *= objective_scale;
+            return 0;
+        }
         // call the C interface
         int ret = ocp->full_eval_obj(objective_scale, primal_x.data(), nullptr, nullptr, &res, &s,
                                      ocp->user_data);
@@ -685,6 +858,9 @@ namespace fatrop
             }
             // clear pending options
             s->pending_options.clear();
+
+            // the data behind the callbacks may have changed since the previous solve
+            s->driver->m->invalidate_constant_data();
 
             return s->driver->solve();
         }

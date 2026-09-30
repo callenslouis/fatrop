@@ -95,13 +95,19 @@ namespace fatrop
          * (BAbt/Gg_eqt/Gg_ineqt, everything but the trailing right-hand-side row) have
          * already been written into this physical buffer.
          *
-         * Used by problem types with a constant Jacobian (e.g. QPs) to skip re-packing the
-         * blocks on every IP iteration while still refreshing the right-hand-side rows every
-         * time. Owned here (not on the Nlp) because curr/trial/stored are distinct physical
+         * Used by problem types with a constant Jacobian (e.g. QPs) to skip re-deriving the
+         * blocks on every IP iteration. The right-hand-side rows are not refreshed in that
+         * case: the linear solver overwrites them with its own right-hand side before reading
+         * them. Owned here (not on the Nlp) because curr/trial/stored are distinct physical
          * buffers that are pointer-swapped rather than copied, so validity must track the
          * buffer, not the logical role.
          */
         std::vector<bool> matrix_valid;
+        /**
+         * @brief Identifies the constant data the valid blocks were copied from, see
+         * FatropOcpCMapping. A mismatch invalidates all blocks, e.g. after a new solve.
+         */
+        Index valid_data_id = -1;
 
         void apply_on_right(const OcpInfo& info, const VecRealView &x, Scalar alpha, const VecRealView& y, VecRealView &out) const;
         void transpose_apply_on_right(const OcpInfo& info, const VecRealView &mult_eq, Scalar alpha, const VecRealView& y, VecRealView &out) const;

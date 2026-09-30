@@ -27,14 +27,15 @@ namespace fatrop
                                       const VecRealView &primal_x, const VecRealView &primal_s,
                                       Jacobian<ProblemType> &jac) = 0;
         /**
-         * @brief Whether the Lagrangian Hessian block is constant (independent of primal_x,
-         * primal_s, lam, objective_scale), as is the case for a QP.
+         * @brief Whether the Lagrangian Hessian block is constant up to the objective scale
+         * (independent of primal_x, primal_s, lam), as is the case for a QP.
          *
          * When true, eval_lag_hess may be called with a Hessian<ProblemType> whose
          * per-stage @c matrix_valid flags are already set from a previous call on the same
-         * physical buffer; implementations may then skip re-deriving the constant block and
-         * only refresh the right-hand-side row. Default false preserves existing behavior for
-         * every NLP type that does not override this.
+         * physical buffer; implementations may then skip re-deriving the constant block. The
+         * right-hand-side row does not need to be refreshed, since the linear solver overwrites
+         * it. Default false preserves existing behavior for every NLP type that does not
+         * override this.
          */
         virtual bool has_constant_hessian() const { return false; }
         /**

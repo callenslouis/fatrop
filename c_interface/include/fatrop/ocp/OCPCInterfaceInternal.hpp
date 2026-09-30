@@ -2,6 +2,8 @@
 #define __fatrop_ocp_solver_ocp_c_interface_internal_hpp__
 #include "fatrop/context/context.hpp"
 #include "fatrop/linear_algebra/fwd.hpp"
+#include "fatrop/linear_algebra/matrix.hpp"
+#include "fatrop/linear_algebra/vector.hpp"
 #include "fatrop/nlp/nlp.hpp"
 namespace fatrop
 {
@@ -43,12 +45,34 @@ namespace fatrop
         void apply_jacobian_s_transpose(const ProblemInfo<OcpType> &info,
                                         const VecRealView &multipliers, const Scalar alpha,
                                         const VecRealView &y, VecRealView &out) override;
+        /// Marks the constant QP data as stale, so it is re-evaluated on first use. Must be
+        /// called before each solve, since the data behind the callbacks may have changed.
+        void invalidate_constant_data() { constant_data_valid_ = false; }
 
     private:
+        /// Evaluates the constant QP data (see below) if it is not valid yet.
+        void ensure_constant_data();
+
         ProblemDims<OcpType> ocp_dims_;
         NlpDims nlp_dims_;
         Index K_;
         std::vector<MAT> matrix_buffer_[3];
+
+        // Constant QP data, used when has_constant_hessian/has_constant_jacobian is set. The
+        // callbacks are affine in the primal point and multipliers, so evaluating them once at
+        // zero gives the constant blocks, with the constant terms in the right-hand-side row:
+        //   RSQrqt0_[k] = [H_k; q_k^T], so grad_k = H_k [u;x] + q_k,
+        //   BAbt0_[k] = [B_k^T; A_k^T; b_k^T], so b_k(x,u) = [B A] [u;x] + b_k - x_{k+1},
+        // and similarly for Gg_eqt0_[k] and Gg_ineqt0_[k]. obj0_[k] is the objective at zero.
+        std::vector<MatRealAllocated> RSQrqt0_, BAbt0_, Gg_eqt0_, Gg_ineqt0_;
+        std::vector<Scalar> obj0_;
+        /// Zeros, used as primal point and multipliers when evaluating the constant data.
+        std::vector<Scalar> zeros_;
+        /// Scratch vector of size max_k(nu[k] + nx[k]).
+        VecRealAllocated work_;
+        bool constant_data_valid_ = false;
+        /// Incremented each time the constant data is re-evaluated, see Hessian::valid_data_id.
+        Index constant_data_id_ = -1;
     };
 }
 #endif // __fatrop_ocp_solver_ocp_c_interface_internal_hpp__
