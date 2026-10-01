@@ -523,6 +523,46 @@ TEST(CInterfaceQpTest, SolveMatchesCallbacks)
     }
 }
 
+// The constant data is loaded before the algorithm starts and is reported separately.
+TEST(CInterfaceQpTest, LoadDataTimeReported)
+{
+    for (bool constant : {true, false})
+    {
+        SCOPED_TRACE(constant ? "constant data" : "callbacks");
+        RandomQp qp = make_qp(3, 10);
+        FatropOcpCInterface ocp = make_interface(&qp, constant);
+        FatropOcpCSolver *solver = fatrop_ocp_c_create(&ocp, nullptr, nullptr);
+        set_options(solver, true);
+        EXPECT_EQ(fatrop_ocp_c_solve(solver), 0);
+        const FatropOcpCStats *stats = fatrop_ocp_c_get_stats(solver);
+        if (constant)
+            EXPECT_GT(stats->load_data_time, 0.);
+        else
+            EXPECT_EQ(stats->load_data_time, 0.);
+        fatrop_ocp_c_destroy(solver);
+    }
+}
+
+// The QP algorithm must honour constr_viol_tol: an unreachable value must prevent convergence.
+TEST(CInterfaceQpTest, QpAlgorithmUsesConstrViolTol)
+{
+    for (double constr_viol_tol : {1e-4, 1e-300})
+    {
+        RandomQp qp = make_qp(3, 10);
+        FatropOcpCInterface ocp = make_interface(&qp, true);
+        FatropOcpCSolver *solver = fatrop_ocp_c_create(&ocp, nullptr, nullptr);
+        set_options(solver, true);
+        fatrop_ocp_c_set_option_int(solver, "max_iter", 30);
+        fatrop_ocp_c_set_option_double(solver, "constr_viol_tol", constr_viol_tol);
+        const int ret = fatrop_ocp_c_solve(solver);
+        if (constr_viol_tol == 1e-4)
+            EXPECT_EQ(ret, 0);
+        else
+            EXPECT_NE(ret, 0);
+        fatrop_ocp_c_destroy(solver);
+    }
+}
+
 // Re-solving with the same solver object after the QP data changed must not reuse stale data.
 TEST(CInterfaceQpTest, ResolveAfterDataChange)
 {

@@ -490,6 +490,7 @@ namespace fatrop
     {
         registry.register_option("max_iter", &MehrotraQpAlgorithm<ProblemType>::set_max_iter, this);
         registry.register_option("tolerance", &MehrotraQpAlgorithm<ProblemType>::set_tolerance, this);
+        registry.register_option("constr_viol_tol", &MehrotraQpAlgorithm<ProblemType>::set_constr_viol_tol, this);
 
         // Inertia correction (off by default -- see set_reg_enabled).
         registry.register_option("qp_reg_enabled", &MehrotraQpAlgorithm<ProblemType>::set_reg_enabled, this);

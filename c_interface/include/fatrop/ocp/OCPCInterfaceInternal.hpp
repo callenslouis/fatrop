@@ -47,7 +47,17 @@ namespace fatrop
                                         const VecRealView &y, VecRealView &out) override;
         /// Marks the constant QP data as stale, so it is re-evaluated on first use. Must be
         /// called before each solve, since the data behind the callbacks may have changed.
-        void invalidate_constant_data() { constant_data_valid_ = false; }
+        void invalidate_constant_data()
+        {
+            constant_data_valid_ = false;
+            load_data_time_ = 0.;
+        }
+        /// Evaluates the constant QP data now, if it is used, so that loading the data is not
+        /// attributed to the algorithm's timers (like a QP solver that is handed its data
+        /// before it is called).
+        void load_constant_data();
+        /// Time spent in the last evaluation of the constant QP data, 0 if there was none.
+        Scalar load_data_time() const { return load_data_time_; }
 
     private:
         /// Evaluates the constant QP data (see below) if it is not valid yet.
@@ -73,6 +83,7 @@ namespace fatrop
         bool constant_data_valid_ = false;
         /// Incremented each time the constant data is re-evaluated, see Hessian::valid_data_id.
         Index constant_data_id_ = -1;
+        Scalar load_data_time_ = 0.;
     };
 }
 #endif // __fatrop_ocp_solver_ocp_c_interface_internal_hpp__

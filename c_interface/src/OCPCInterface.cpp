@@ -10,6 +10,7 @@
 
 #include "fatrop/common/options.hpp"
 #include "fatrop/common/printing.hpp"
+#include "fatrop/common/timing.hpp"
 #include "fatrop/context/context.hpp"
 #include "fatrop/ip_algorithm/ip_alg_builder.hpp"
 #include "fatrop/qp/fatrop_qp.hpp"
@@ -120,10 +121,17 @@ namespace fatrop
 
     const NlpDims &FatropOcpCMapping::nlp_dims() const { return nlp_dims_; };
     const ProblemDims<OcpType> &FatropOcpCMapping::problem_dims() const { return ocp_dims_; };
+    void FatropOcpCMapping::load_constant_data()
+    {
+        if (ocp->has_constant_hessian || ocp->has_constant_jacobian)
+            ensure_constant_data();
+    }
     void FatropOcpCMapping::ensure_constant_data()
     {
         if (constant_data_valid_)
             return;
+        Timer timer;
+        timer.start();
         const bool constant_hess = ocp->has_constant_hessian != 0;
         const bool constant_jac = ocp->has_constant_jacobian != 0;
         // allocate the storage on first use
@@ -200,6 +208,7 @@ namespace fatrop
         }
         constant_data_valid_ = true;
         constant_data_id_++;
+        load_data_time_ = timer.stop();
     }
     Index FatropOcpCMapping::eval_lag_hess(const ProblemInfo<OcpType> &info,
                                            const Scalar objective_scale,
@@ -859,8 +868,10 @@ namespace fatrop
             // clear pending options
             s->pending_options.clear();
 
-            // the data behind the callbacks may have changed since the previous solve
+            // The data behind the callbacks may have changed since the previous solve. Load it
+            // before the algorithm (and its timers) starts.
             s->driver->m->invalidate_constant_data();
+            s->driver->m->load_constant_data();
 
             return s->driver->solve();
         }
@@ -1046,6 +1057,7 @@ namespace fatrop
         stats->eval_obj_count = 0.;
         stats->iterations_count = s->driver->ip_data->iteration_number();
         stats->return_flag = int(s->driver->flag);
+        stats->load_data_time = s->driver->m->load_data_time();
         return stats;
     }
 

@@ -78,6 +78,10 @@ extern "C"
         int eval_obj_count;
         int iterations_count;
         int return_flag;
+        /// Time spent loading the constant QP data from the callbacks (only when
+        /// has_constant_hessian/has_constant_jacobian is set). This happens before the
+        /// algorithm starts, so it is not included in time_total.
+        double load_data_time;
     };
 
     // Function pointer types
@@ -286,13 +290,15 @@ extern "C"
         /// excluding the right-hand-side row) is constant up to the objective scale (e.g. a QP).
         /// When set, eval_RSQrqt and eval_L are called once per solve and stage, at a zero
         /// primal point and zero multipliers, and Fatrop computes the Hessian, the objective
-        /// gradient and the objective from that data. eval_rq is then never called.
+        /// gradient and the objective from that data. eval_rq is then never called. The data is
+        /// loaded before the algorithm starts, see FatropOcpCStats::load_data_time.
         int has_constant_hessian;
         /// @brief nonzero if the constraints are affine, i.e. the constraint Jacobian blocks
         /// (BAbt/Gg_eqt/Gg_ineqt, excluding the right-hand-side rows) are constant (e.g. a QP).
         /// When set, eval_BAbt, eval_Ggt and eval_Ggt_ineq are called once per solve and stage,
         /// at a zero primal point, and Fatrop computes the Jacobian and the constraint violation
-        /// from that data. eval_b, eval_g and eval_gineq are then never called.
+        /// from that data. eval_b, eval_g and eval_gineq are then never called. The data is
+        /// loaded before the algorithm starts, see FatropOcpCStats::load_data_time.
         int has_constant_jacobian;
 
         /// @brief Deprecated and ignored: with has_constant_hessian set, eval_RSQrqt is only
