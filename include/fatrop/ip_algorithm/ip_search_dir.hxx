@@ -105,6 +105,24 @@ namespace fatrop
                         (delta_w_last_ == 0.) ? kappa_wplusem_ * delta_w : kappa_wplus_ * delta_w;
                 }
                 // Written so that a NaN delta_w gives up as well.
+                if (!(delta_w <= delta_w_max_) && delta_c == 0.)
+                {
+                    // delta_w enters before the Riccati recursion's per-stage equality
+                    // elimination, and through it the factored blocks can stay too
+                    // ill-conditioned for the pivot check at any delta_w (it scales them
+                    // as a whole). Nonzero delta_c makes the recursion treat the path
+                    // equalities as a penalty instead, so try that before giving up.
+                    const Scalar delta_c_new = delta_c_stripe_ * std::pow(mu, kappa_c_);
+                    if (delta_c_new > 0.)
+                    {
+                        PRINT_DIAGNOSTIC << "Reduced hessian still indefinite at delta_w_max, "
+                                            "retrying with dual regularization." << std::endl;
+                        delta_c = delta_c_new;
+                        delta_w = 0.;
+                        first_try_delta_w = true;
+                        continue;
+                    }
+                }
                 if (!(delta_w <= delta_w_max_))
                 {
                     PRINT_ITERATIONS << "The reduced hessian is still indefinite at the maximum "

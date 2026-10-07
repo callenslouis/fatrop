@@ -254,6 +254,14 @@ namespace fatrop
                     (indefinite_tries >= delta_w_tries_before_c_ || next_delta_w > delta_wmax_))
                 {
                     delta_c = delta_c_stripe_ * std::pow(mu, kappa_c_);
+                    // Retry with delta_c alone: the delta_w tried so far did not fix the
+                    // factorization, and keeping it would store it in delta_w_last_ on
+                    // success, so the next iteration would start (and fail) from an even
+                    // larger delta_w -- a ratchet that ends in steps that no longer reduce
+                    // the dual infeasibility. If delta_c alone is not enough, delta_w
+                    // escalates again from its first-try value, now on top of delta_c.
+                    delta_w = 0.;
+                    first_try_delta_w = true;
                 }
                 else
                 {
@@ -542,6 +550,12 @@ namespace fatrop
 
         initializer_ =
             std::make_shared<IpInitializer<ProblemType>>(ipdata_, eq_mult_initializer_);
+        // The Mehrotra iteration has no line search or merit function to recover from a
+        // poor start, and with the NLP defaults (1e-2) slacks start almost on their bounds:
+        // the first affine steps are then cut to ~1e-4 and mu can diverge. Start further
+        // inside; the options below still override these defaults.
+        initializer_->set_bound_push(1e-1);
+        initializer_->set_bound_frac(1e-1);
         if (options_registry_)
             options_registry_->register_options(*initializer_);
 

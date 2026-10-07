@@ -998,6 +998,8 @@ namespace fatrop
             return 0;
         if (n == "linsol_lu_fact_tol")
             return 0;
+        if (n == "linsol_pivot_tol")
+            return 0;
         if (n == "linsol_diagnostic")
             return 2;
         if (n == "linsol_increased_accuracy")

@@ -212,7 +212,13 @@ namespace fatrop
         bool perturbed_mode = false;
         double perturbed_mode_param = 1e-6;
         Scalar lu_fact_tol = 1e-5;
-        Scalar pivot_tol = 1e-8; // inertia detection, see check_reg()
+        // Inertia detection, see check_reg(): a Cholesky pivot counts as zero when
+        // l_ii^2 <= pivot_tol * a_ii. Keep this near round-off level: the factored blocks
+        // are routinely far more ill-conditioned than 1e8 while still positive definite
+        // (barrier terms near active bounds, oblique per-stage equality elimination), and
+        // no delta_w can lower that ratio, so a larger value reports such a PD system as
+        // indefinite at every regularization.
+        Scalar pivot_tol = 1e-12;
         bool diagnostic = false;
         bool increased_accuracy = true;
     };
