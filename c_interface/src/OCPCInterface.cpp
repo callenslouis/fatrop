@@ -1031,6 +1031,19 @@ namespace fatrop
             return 1;
         if (n == "qp_delta_w_tries_before_c")
             return 1;
+        // MehrotraQpAlgorithm fast path and accuracy safeguard
+        if (n == "qp_delta_c_eq")
+            return 0;
+        if (n == "qp_it_ref")
+            return 2;
+        if (n == "qp_max_it_ref")
+            return 1;
+        if (n == "qp_eq_mult_init")
+            return 2;
+        if (n == "qp_polish")
+            return 2;
+        if (n == "qp_polish_rel_tol")
+            return 0;
         return -1;
     }
 

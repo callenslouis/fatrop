@@ -34,7 +34,11 @@ namespace fatrop
             if_else(lower_bounded, VecRealScalar(m, 1.0), VecRealScalar(m, 0.0)));
         ipdata_->current_iterate().set_dual_bounds_u(
             if_else(upper_bounded, VecRealScalar(m, 1.0), VecRealScalar(m, 0.0)));
-        eq_mult_initializer_->initialize_eq_mult();
+        if (init_eq_mult)
+            eq_mult_initializer_->initialize_eq_mult();
+        else
+            ipdata_->current_iterate().set_dual_eq(
+                VecRealScalar(ipdata_->current_iterate().dual_eq().m(), 0.));
     }
     template <typename ProblemType> void IpInitializer<ProblemType>::initialize_slacks()
     {

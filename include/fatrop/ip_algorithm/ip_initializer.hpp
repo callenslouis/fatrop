@@ -64,12 +64,14 @@ namespace fatrop
         IpEqMultInitializerSp eq_mult_initializer_; ///< Equality multiplier initializer
         Scalar bound_push = 1e-2;              ///< Bound push parameter (kappa_1)
         Scalar bound_frac = 1e-2;              ///< Bound fraction parameter (kappa_2)
+        bool init_eq_mult = true;              ///< Least-squares equality multipliers (else zero)
         VecRealAllocated primal_buff_;
 
     public:
         // Setter methods for options
         void set_bound_push(const Scalar& value) { bound_push = value; }
         void set_bound_frac(const Scalar& value) { bound_frac = value; }
+        void set_init_eq_mult(const bool& value) { init_eq_mult = value; }
 
         // Register options
         void register_options(OptionRegistry& registry);

@@ -80,6 +80,8 @@ namespace fatrop
         iteration_ = 0;
         mu_ = 1.0;
         delta_w_last_ = 0.;
+        polishing_ = false;
+        polished_ = false;
     }
 
     template <typename ProblemType>
@@ -181,8 +183,13 @@ namespace fatrop
         curr.set_De(VecRealScalar(curr.De().m(), 0.));
         curr.set_De_is_zero(true);
 
+        // Fast path: regularized equalities and no iterative refinement. The polish
+        // iteration (see optimize) uses the exact elimination and refinement instead.
+        const Scalar delta_c_base = polishing_ ? 0. : delta_c_eq_;
+        pd_solver_->set_max_it_ref((it_ref_ || polishing_) ? max_it_ref_ : 0);
+
         Scalar delta_w = 0.;
-        Scalar delta_c = 0.;
+        Scalar delta_c = delta_c_base;
         bool first_try_delta_w = true;
         Index indefinite_tries = 0;
 
@@ -250,10 +257,10 @@ namespace fatrop
                         ? (delta_w_last_ == 0. ? delta_w0_
                                                 : std::max(delta_w_last_ * kappa_wmin_, delta_wmin_))
                         : (delta_w_last_ == 0. ? kappa_wplusem_ * delta_w : kappa_wplus_ * delta_w);
-                if (delta_c == 0. &&
+                if (delta_c == delta_c_base &&
                     (indefinite_tries >= delta_w_tries_before_c_ || next_delta_w > delta_wmax_))
                 {
-                    delta_c = delta_c_stripe_ * std::pow(mu, kappa_c_);
+                    delta_c = std::max(delta_c_base, delta_c_stripe_ * std::pow(mu, kappa_c_));
                     // Retry with delta_c alone: the delta_w tried so far did not fix the
                     // factorization, and keeping it would store it in delta_w_last_ on
                     // success, so the next iteration would start (and fail) from an even
@@ -271,7 +278,7 @@ namespace fatrop
             }
             else // NOFULL_RANK
             {
-                delta_c = delta_c_stripe_ * std::pow(mu, kappa_c_);
+                delta_c = std::max(delta_c, delta_c_stripe_ * std::pow(mu, kappa_c_));
             }
         }
         if (delta_w > 0.)
@@ -421,6 +428,8 @@ namespace fatrop
         {
             ScopedTimer _t(ipdata_->timing_statistics().initialization,
                            ipdata_->timing_statistics());
+            initializer_->set_init_eq_mult(eq_mult_init_);
+            pd_solver_->set_max_it_ref(it_ref_ ? max_it_ref_ : 0);
             initializer_->initialize();
         }
 
@@ -447,10 +456,25 @@ namespace fatrop
             // other two come from constr_viol and dual_infeas).
             if (inf_pr <= constr_viol_tol_ && inf_du <= tol_ && inf_compl <= tol_)
             {
-                if (verbose_)
-                    print_iteration(inf_pr, inf_du, inf_compl, 0., 0., 0., 0.);
-                ret = IpSolverReturnFlag::Success;
-                break;
+                // Accuracy safeguard: a step from the fast path (regularized
+                // equalities, no refinement) can pass the test with a residual that
+                // still moves the objective noticeably. Take one more iteration with
+                // the exact elimination and refinement, then test again.
+                const bool fast_path = delta_c_eq_ > 0. || !it_ref_;
+                const Scalar polish_tol = polish_rel_tol_ * std::min(tol_, constr_viol_tol_);
+                if (polish_ && fast_path && !polished_ && iteration_ < max_iter_ &&
+                    std::max(inf_pr, inf_du) > polish_tol)
+                {
+                    polishing_ = true;
+                    polished_ = true;
+                }
+                else
+                {
+                    if (verbose_)
+                        print_iteration(inf_pr, inf_du, inf_compl, 0., 0., 0., 0.);
+                    ret = IpSolverReturnFlag::Success;
+                    break;
+                }
             }
             if (iteration_ >= max_iter_)
             {
@@ -469,6 +493,18 @@ namespace fatrop
                 sd_ret == LinsolReturnFlag::INDEFINITE ||
                 sd_ret == LinsolReturnFlag::NOFULL_RANK)
             {
+                if (polishing_)
+                {
+                    // The current iterate already passed the convergence test; a
+                    // polish step that cannot be computed (e.g. rank-deficient
+                    // equalities without inertia correction) must not turn it into
+                    // a failure.
+                    polishing_ = false;
+                    if (verbose_)
+                        print_iteration(inf_pr, inf_du, inf_compl, 0., 0., 0., 0.);
+                    ret = IpSolverReturnFlag::Success;
+                    break;
+                }
                 ret = IpSolverReturnFlag::ErrorInStepComputation;
                 std::cout << "Error in step computation. linsol return flag is "; PrintSdReturnFlag(sd_ret);
                 break;
@@ -477,6 +513,7 @@ namespace fatrop
             print_iteration(inf_pr, inf_du, inf_compl, last_mu_aff_, sigma, alpha_pr, alpha_du);
 
             apply_step(alpha_pr, alpha_du);
+            polishing_ = false;
 
             // Update mu from the new complementarity, then keep z away from
             // ill-conditioned values via the same kappa_sigma trick the NLP
@@ -512,6 +549,14 @@ namespace fatrop
         registry.register_option("qp_delta_c_stripe", &MehrotraQpAlgorithm<ProblemType>::set_delta_c_stripe, this);
         registry.register_option("qp_reg_max_tries", &MehrotraQpAlgorithm<ProblemType>::set_reg_max_tries, this);
         registry.register_option("qp_delta_w_tries_before_c", &MehrotraQpAlgorithm<ProblemType>::set_delta_w_tries_before_c, this);
+
+        // Fast path and accuracy safeguard (see set_delta_c_eq and below).
+        registry.register_option("qp_delta_c_eq", &MehrotraQpAlgorithm<ProblemType>::set_delta_c_eq, this);
+        registry.register_option("qp_it_ref", &MehrotraQpAlgorithm<ProblemType>::set_it_ref, this);
+        registry.register_option("qp_max_it_ref", &MehrotraQpAlgorithm<ProblemType>::set_max_it_ref, this);
+        registry.register_option("qp_eq_mult_init", &MehrotraQpAlgorithm<ProblemType>::set_eq_mult_init, this);
+        registry.register_option("qp_polish", &MehrotraQpAlgorithm<ProblemType>::set_polish, this);
+        registry.register_option("qp_polish_rel_tol", &MehrotraQpAlgorithm<ProblemType>::set_polish_rel_tol, this);
     }
 
     // ---------------------------------------------------------------------------

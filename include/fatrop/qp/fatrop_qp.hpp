@@ -93,6 +93,29 @@ namespace fatrop
         void set_reg_max_tries(const Index &v) { reg_max_tries_ = v; }
         void set_delta_w_tries_before_c(const Index &v) { delta_w_tries_before_c_ = v; }
 
+        // -------- Fast path ---------------------------------------------------
+        // Dual regularization of the path equality constraints, applied from the
+        // first try of every iteration. With delta_c > 0 the Riccati recursion folds
+        // the equalities into the Hessian as a penalty (like the inequalities)
+        // instead of eliminating them stage by stage with an LU factorization and a
+        // null-space projection. 0 restores the exact elimination.
+        void set_delta_c_eq(const Scalar &v) { delta_c_eq_ = v; }
+        // Iterative refinement of every predictor/corrector solve (and of the
+        // least-squares multiplier initialization), with at most max_it_ref steps.
+        void set_it_ref(const bool &v) { it_ref_ = v; }
+        void set_max_it_ref(const Index &v) { max_it_ref_ = v; }
+        // Least-squares initialization of the equality multipliers (one extra
+        // factorization per solve); when off, they start at zero.
+        void set_eq_mult_init(const bool &v) { eq_mult_init_ = v; }
+        // Accuracy safeguard for the fast path: when the convergence test passes
+        // with a primal or dual infeasibility above
+        // polish_rel_tol * min(tolerance, constr_viol_tol), take one more iteration
+        // with the exact equality elimination and iterative refinement before
+        // returning. The unrefined, regularized steps can leave a residual that
+        // passes the test but still moves the objective noticeably.
+        void set_polish(const bool &v) { polish_ = v; }
+        void set_polish_rel_tol(const Scalar &v) { polish_rel_tol_ = v; }
+
         // -------- Accessors -------------------------------------------------
         const ProblemInfo<ProblemType> &info() const;
         const VecRealView &solution_primal() const;
@@ -191,6 +214,16 @@ namespace fatrop
         // delta_w-only retries, escalate delta_c too instead of continuing
         // to grow delta_w unboundedly.
         Index delta_w_tries_before_c_ = 3;
+
+        // Fast-path options (see set_delta_c_eq and below)
+        Scalar delta_c_eq_ = 1e-8;
+        bool it_ref_ = false;
+        Index max_it_ref_ = 5;
+        bool eq_mult_init_ = false;
+        bool polish_ = true;
+        Scalar polish_rel_tol_ = 1e-2;
+        bool polishing_ = false; // the current iteration is the polish iteration
+        bool polished_ = false;  // the polish iteration has been taken in this solve
 
         Index iteration_ = 0;
         Scalar mu_ = 1.0;
