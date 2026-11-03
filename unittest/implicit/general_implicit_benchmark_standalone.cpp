@@ -93,6 +93,23 @@ public:
     std::optional<AugSystemSolver<AcceleratedOcpType>> solver_accel;
     // std::optional<AugSystemSolver<OcpType>> solver_accel;
 
+    /// Implicit case ///
+    std::optional<ProblemDims> dims_impl;
+    std::optional<ProblemInfo> info_impl;
+    std::optional<Jacobian<ImplicitOcpType>> jacobian_impl;
+    std::optional<Hessian<ImplicitOcpType>> hessian_impl;
+    std::optional<MatRealAllocated> full_matrix_jacobian_impl;
+    std::optional<MatRealAllocated> full_matrix_hessian_impl;
+    std::optional<VecRealAllocated> x_impl;
+    std::optional<VecRealAllocated> mult_impl;
+    std::optional<VecRealAllocated> rhs_x_impl;
+    std::optional<VecRealAllocated> rhs_g_impl;
+    std::optional<VecRealAllocated> D_x_impl;
+    std::optional<VecRealAllocated> D_s_impl;
+    std::optional<VecRealAllocated> D_eq_impl;
+    std::optional<MatRealAllocated> full_kkt_matrix_impl;
+    std::optional<AugSystemSolver<ImplicitOcpType>> solver_impl;
+
     std::vector<int> RandomVector(int size, int min_val, int max_val)
     {
         std::vector<int> vec(size);
@@ -157,6 +174,22 @@ public:
         D_s_accel.reset();
         D_eq_accel.reset();
         full_kkt_matrix_accel.reset();
+
+        solver_impl.reset();
+        hessian_impl.reset();
+        jacobian_impl.reset();
+        info_impl.reset();
+        dims_impl.reset();
+        full_matrix_jacobian_impl.reset();
+        full_matrix_hessian_impl.reset();
+        x_impl.reset();
+        mult_impl.reset();
+        rhs_x_impl.reset();
+        rhs_g_impl.reset();
+        D_x_impl.reset();
+        D_s_impl.reset();
+        D_eq_impl.reset();
+        full_kkt_matrix_impl.reset();
     }
 
     int GetRandomGeneralizedDimensions(){
@@ -195,6 +228,7 @@ public:
         AllocateExplicitSolver();
         AllocateReformulatedSolver();
         AllocateAcceleratedSolver();
+        AllocateImplicitSolver();
     }
 
     void AllocateExplicitSolver(){
@@ -279,6 +313,25 @@ public:
                              info_accel->number_of_primal_variables + info_accel->number_of_eq_constraints);
         solver_accel.emplace(AugSystemSolver<AcceleratedOcpType>(info_accel.value()));
         // solver_accel.emplace(AugSystemSolver<OcpType>(info_accel.value()));
+    }
+
+    void AllocateImplicitSolver(){
+        dims_impl.emplace(ProblemDims{K, nu, nx, ng, ng_ineq});
+        info_impl.emplace(ProblemInfo(dims_impl.value()));
+        jacobian_impl.emplace(Jacobian<ImplicitOcpType>(dims_impl.value()));
+        hessian_impl.emplace(Hessian<ImplicitOcpType>(dims_impl.value()));
+        full_matrix_jacobian_impl.emplace(info_impl->number_of_eq_constraints, info_impl->number_of_primal_variables);
+        full_matrix_hessian_impl.emplace(info_impl->number_of_primal_variables, info_impl->number_of_primal_variables);
+        x_impl.emplace(info_impl->number_of_primal_variables);
+        mult_impl.emplace(info_impl->number_of_eq_constraints);
+        rhs_x_impl.emplace(info_impl->number_of_primal_variables);
+        rhs_g_impl.emplace(info_impl->number_of_eq_constraints);
+        D_x_impl.emplace(info_impl->number_of_primal_variables);
+        D_s_impl.emplace(info_impl->number_of_slack_variables);
+        D_eq_impl.emplace(info_impl->number_of_g_eq_path);
+        full_kkt_matrix_impl.emplace(info_impl->number_of_primal_variables + info_impl->number_of_eq_constraints,
+                             info_impl->number_of_primal_variables + info_impl->number_of_eq_constraints);
+        solver_impl.emplace(AugSystemSolver<ImplicitOcpType>(info_impl.value()));
     }
 
     void FillExplicitSolver(){
@@ -530,6 +583,78 @@ public:
         }
     }
 
+    void FillImplicitSolver(){
+        x_impl = 0;
+        full_matrix_jacobian_impl.value() = 0.;
+        full_matrix_hessian_impl.value() = 0.;
+
+        for (Index k = 0; k < info_impl.value().dims.K; ++k)
+        {
+            Index nu = info_impl.value().dims.number_of_controls[k];
+            Index nx = info_impl.value().dims.number_of_states[k];
+            Index offs_eq_dyn = info_impl.value().offsets_g_eq_dyn[k];
+            Index offs_ux = info_impl.value().offsets_primal_u[k];
+            Index offset_g_eq = info_impl.value().offsets_g_eq_path[k];
+            Index offset_g_ineq = info_impl.value().offsets_g_eq_slack[k];
+            Index ng = info_impl.value().dims.number_of_eq_constraints[k];
+            Index ng_ineq = info_impl.value().dims.number_of_ineq_constraints[k];
+            if (k < info_impl.value().dims.K - 1)
+            {
+                Index nx_next = info_impl.value().dims.number_of_states[k + 1];
+                Index offs_x_next = info_impl.value().offsets_primal_x[k + 1];
+                jacobian_impl.value().BAbt[k].block(nu + nx, nx_next, 0, 0) =
+                    ::test::random_matrix(nu + nx, nx_next);
+                jacobian_impl.value().Jt[k].block(nx_next, nx_next, 0, 0) = ::test::random_matrix(nx_next, nx_next);
+                full_matrix_jacobian_impl.value().block(nx_next, nu + nx, offs_eq_dyn, offs_ux) =
+                    transpose(jacobian_impl.value().BAbt[k].block(nu + nx, nx_next, 0, 0));
+                full_matrix_jacobian_impl.value().block(nx_next, nx_next, offs_eq_dyn, offs_x_next) =
+                    transpose(jacobian_impl.value().Jt[k].block(nx_next, nx_next, 0, 0));
+
+                hessian_impl.value().FuFx[k].block(nu + nx, nx_next, 0, 0) = ::test::random_matrix(nu + nx, nx_next);
+                full_matrix_hessian_impl.value().block(nu + nx, nx_next, offs_ux, offs_x_next) =
+                    hessian_impl.value().FuFx[k].block(nu + nx, nx_next, 0, 0);
+            }
+            jacobian_impl.value().Gg_eqt[k].block(nu + nx, info_impl.value().dims.number_of_eq_constraints[k], 0, 0) =
+                ::test::random_matrix(nu + nx, info_impl.value().dims.number_of_eq_constraints[k]);
+            full_matrix_jacobian_impl.value().block(ng, nu + nx, offset_g_eq, offs_ux) =
+                transpose(jacobian_impl.value().Gg_eqt[k].block(nu + nx, ng, 0, 0));
+
+            jacobian_impl.value().Gg_ineqt[k].block(nu + nx, info_impl.value().dims.number_of_ineq_constraints[k], 0, 0) =
+                ::test::random_matrix(nu + nx, info_impl.value().dims.number_of_ineq_constraints[k]);
+            full_matrix_jacobian_impl.value().block(ng_ineq, nu + nx, offset_g_ineq, offs_ux) =
+                transpose(jacobian_impl.value().Gg_ineqt[k].block(nu + nx, ng_ineq, 0, 0));
+
+            hessian_impl.value().RSQrqt[k].block(nu + nx, nu + nx, 0, 0) = ::test::random_spd_matrix(nu + nx);
+            full_matrix_hessian_impl.value().block(nu + nx, nu + nx, offs_ux, offs_ux) =
+                hessian_impl.value().RSQrqt[k].block(nu + nx, nu + nx, 0, 0);
+        }
+
+        // set up the full KKT matrix
+        full_kkt_matrix_impl.value().block(info_impl.value().number_of_primal_variables, info_impl.value().number_of_primal_variables, 0,
+                              0) = full_matrix_hessian_impl.value();
+        full_kkt_matrix_impl.value().block(info_impl.value().number_of_primal_variables, info_impl.value().number_of_eq_constraints, 0,
+                              info_impl.value().number_of_primal_variables) = transpose(full_matrix_jacobian_impl.value());
+        full_kkt_matrix_impl.value().block(info_impl.value().number_of_eq_constraints, info_impl.value().number_of_primal_variables,
+                              info_impl.value().number_of_primal_variables, 0) = full_matrix_jacobian_impl.value();
+
+        // fill the x vector with random values
+        for (Index i = 0; i < info_impl.value().number_of_primal_variables; ++i){
+            rhs_x_impl.value()(i) = 10 + 1.0 * i; D_x_impl.value()(i) = 1.0 * (i + 0.1);
+        }
+        // fill the mult vector with random values
+        for (Index i = 0; i < info_impl.value().number_of_eq_constraints; ++i){
+            rhs_g_impl.value()(i) = 1.0 * i;
+        }
+        for (Index i = 0; i < info_impl.value().number_of_g_eq_path; ++i){
+            D_eq_impl.value()(i) = 10.0 * (i + 1);
+        }
+        for (Index i = 0; i < info_impl.value().number_of_slack_variables; ++i){
+            D_s_impl.value()(i) =  1.0 + 0*10.0 * (i + 0.1);
+        }
+
+
+    }
+
     void Randomize(){
         // std::cout << "randomizing dimensions" << std::endl;
         int nb_tries = GetRandomGeneralizedDimensions();
@@ -546,8 +671,9 @@ public:
         // std::cout << "\taccelerated:" << std::endl;
         FillAcceleratedSolver();
         // std::cout << "done" << std::endl;
-
+        FillImplicitSolver();
     }
+
 };
 
 int main()
@@ -564,6 +690,7 @@ int main()
         {"total_ns_expl", 0},
         {"total_ns_reform", 0},
         {"total_ns_accel", 0},
+        {"total_ns_impl", 0},
         {"total_lu_reform", 0},
         {"total_ns_accel", 0},
         {"total_expl_backward", 0},
@@ -579,19 +706,20 @@ int main()
 
     std::ofstream f;    
     if (write_csv){
-        f.open("random_benchmark_results_generalized_20000_standalone.csv");
+        f.open("random_benchmark_results_generalized_20000_standalone_new.csv");
         f << "K,nu,nx,r,ng,ng_ineq,";
         f << "nz,nv,";
         f << "t_expl,t_expl_backward,t_expl_solve,t_expl_forward,";
         f << "t_reform,t_reform_backward,t_reform_solve,t_reform_forward,";
         f << "t_accel,t_accel_backward,t_accel_solve,t_accel_forward,";
+        f << "t_impl,";
         f << "lu_expl,";
         f << "lu_reform,lu_accel";
         f << "\n";
     }
     
     int nb_consecutive_failures = 0;
-    std::array<int, 3> order = {0, 1, 2};
+    std::array<int, 4> order = {0, 1, 2, 3};
 
     auto start_expl = std::chrono::steady_clock::now();
     auto stop_expl = std::chrono::steady_clock::now();
@@ -599,7 +727,9 @@ int main()
     auto stop_reform = std::chrono::steady_clock::now();
     auto start_accel = std::chrono::steady_clock::now();
     auto stop_accel = std::chrono::steady_clock::now();
-    Index ret_expl, ret_reform, ret_accel;
+    auto start_impl = std::chrono::steady_clock::now();
+    auto stop_impl = std::chrono::steady_clock::now();
+    Index ret_expl, ret_reform, ret_accel, ret_impl;
     std::mt19937 rng(std::random_device{}());
 
     auto benchmark_start_time = std::chrono::steady_clock::now();
@@ -624,7 +754,7 @@ int main()
         long int ns_expl = 0;
         long int ns_reform = 0;
         long int ns_accel = 0;
-
+        long int ns_impl = 0;
         for (int averaging_run_counter = 0; averaging_run_counter < nb_averaging_runs; ++averaging_run_counter){
         std::shuffle(order.begin(), order.end(), rng);
 
@@ -646,13 +776,20 @@ int main()
                 stop_accel = std::chrono::steady_clock::now();
                 ns_accel += std::chrono::duration_cast<std::chrono::nanoseconds>(stop_accel - start_accel).count();
                 // std::cout << "acclerated solver returned with flag " << ret_accel << std::endl;
-            } else {
+            } else if (idx == 2) {
                 // reformulated //
                 // std::cout << "Running reformulated solver..." << std::endl;
                 start_reform = std::chrono::steady_clock::now();
                 ret_reform = bm.solver_reform.value().solve(bm.info_reform.value(), bm.jacobian_reform.value(), bm.hessian_reform.value(), bm.D_x_reform.value(), bm.D_s_reform.value(), bm.rhs_x_reform.value(), bm.rhs_g_reform.value(), bm.x_reform.value(), bm.mult_reform.value());
                 stop_reform = std::chrono::steady_clock::now();
                 ns_reform += std::chrono::duration_cast<std::chrono::nanoseconds>(stop_reform - start_reform).count();
+            } else {
+                // implicit //
+                // std::cout << "Running implicit solver..." << std::endl;
+                start_impl = std::chrono::steady_clock::now();
+                ret_impl = bm.solver_impl.value().solve(bm.info_impl.value(), bm.jacobian_impl.value(), bm.hessian_impl.value(), bm.D_x_impl.value(), bm.D_s_impl.value(), bm.rhs_x_impl.value(), bm.rhs_g_impl.value(), bm.x_impl.value(), bm.mult_impl.value());
+                stop_impl = std::chrono::steady_clock::now();
+                ns_impl += std::chrono::duration_cast<std::chrono::nanoseconds>(stop_impl - start_impl).count();
             }
             // std::cout << "Done." << std::endl;
         }
@@ -666,8 +803,9 @@ int main()
 
         if (ret_expl != LinsolReturnFlag::SUCCESS || 
                 ret_reform != LinsolReturnFlag::SUCCESS || 
+                ret_impl != LinsolReturnFlag::SUCCESS || 
                 ret_accel != LinsolReturnFlag::SUCCESS){
-            // std::cout << "\n" << ret_expl << " " << ret_reform << " " << ret_accel << std::endl;
+            // std::cout << "\n" << ret_expl << " " << ret_reform << " " << ret_impl << " " << ret_accel << std::endl;
             nb_consecutive_failures++;
             continue;
         }
@@ -681,7 +819,7 @@ int main()
         timings["total_ns_expl"] += ns_expl;
         timings["total_ns_reform"] += ns_reform;
         timings["total_ns_accel"] += ns_accel;
-        
+        timings["total_ns_impl"] += ns_impl;
         long int ns_lu_expl = bm.solver_expl.value().duration_lu_factorization.count();
         long int ns_lu_reform = bm.solver_reform.value().duration_lu_factorization.count();
         long int ns_lu_accel = bm.solver_accel.value().duration_lu_factorization.count();
@@ -742,4 +880,5 @@ int main()
     std::cout << timings["total_accel_backward"] / nb_runs_completed << " - ";
     std::cout << timings["total_accel_initial"] / nb_runs_completed << " - ";
     std::cout << timings["total_accel_forward"] / nb_runs_completed << ")" << std::endl;
+    std::cout << "Average time implicit:     " << timings["total_ns_impl"] / nb_runs_completed << " ns" << std::endl;
 }

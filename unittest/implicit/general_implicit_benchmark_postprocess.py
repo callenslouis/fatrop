@@ -281,6 +281,7 @@ def visualize_scaling_2d(data, **kwargs):
     Z = np.full((len(y_unique), len(x_unique)), np.nan)
 
     method = kwargs.get('method', 'impl')
+    reference_method = kwargs.get('reference_method', 'reform')
     key_prefix = 'lu' if kwargs.get('show_only_lu', False) else 't'
 
     if kwargs.get('show_flop', False):
@@ -292,7 +293,7 @@ def visualize_scaling_2d(data, **kwargs):
         data_y = reform_flop
     else:
         data_x = data[f'{key_prefix}_{method}']
-        data_y = data[f'{key_prefix}_reform']
+        data_y = data[f'{key_prefix}_{reference_method}']
 
     for i, y_val in enumerate(y_unique):
         for j, x_val in enumerate(x_unique):
@@ -333,6 +334,7 @@ def visualize_scaling_2d(data, **kwargs):
     # plt.show()
     plt.tight_layout()
     appendix = f"{method}_{x}_{y}" + \
+               f"_{reference_method}" + \
                f"{"_only_lu" if kwargs.get("show_only_lu", False) else ""}" + \
                f"{"_relative" if kwargs.get("relative", False) else ""}{"_flops" if kwargs.get("show_flop") else ""}"
     plt.savefig(f'{settings['figure_folder']}/scaling_2d_{appendix}.png', dpi=300)
@@ -511,8 +513,8 @@ data = get_data()
 # get_expected_speedup_from_benchmark_data(data, 13, 16, 9)
 # get_expected_speedup_from_benchmark_data(data, 17, 18, 10)
 
-get_expected_speedup_from_benchmark_data(data, 18, 9, 3+3, lu_only=True)
-get_expected_speedup_from_benchmark_data(data, 18, 9, 3+3)
+# get_expected_speedup_from_benchmark_data(data, 18, 9, 3+3, lu_only=True)
+# get_expected_speedup_from_benchmark_data(data, 18, 9, 3+3)
 
 # n = 7
 # robot_x = 2*n + 3+2 + 1; robot_u = n + 1; robot_g = 3+2
@@ -520,8 +522,21 @@ get_expected_speedup_from_benchmark_data(data, 18, 9, 3+3)
 # tolerance = 1
 # get_expected_speedup_from_benchmark_data(data, robot_x, robot_u, robot_g, lu_only=lu_only, tolerance=tolerance)
 # get_expected_speedup_from_benchmark_data(data, 2*robot_x, 2*robot_u, 2*robot_g, lu_only=lu_only, tolerance=tolerance)
-exit()
+# exit()
 
+# CODE BELOW ADDED ON 21/09/2026
+visualize_scaling_2d(data, max_val=1.0, method='impl', reference_method='accel')
+visualize_scaling_2d(data, x='nx', y='nu', max_val=1.0, method='impl', reference_method='accel')
+visualize_scaling_2d(data, x='nu', y='ng', max_val=1.0, method='impl', reference_method='accel')
+visualize_scaling_2d(data, max_val=1.0, method='impl', reference_method='reform')
+visualize_scaling_2d(data, x='nx', y='nu', max_val=1.0, method='impl', reference_method='reform')
+visualize_scaling_2d(data, x='nu', y='ng', max_val=1.0, method='impl', reference_method='reform')
+visualize_scaling_2d(data, max_val=1.0, method='accel', reference_method='reform')
+visualize_scaling_2d(data, x='nx', y='nu', max_val=1.0, method='accel', reference_method='reform')
+visualize_scaling_2d(data, x='nu', y='ng', max_val=1.0, method='accel', reference_method='reform')
+
+
+# CODE BELOW UNCOMMENTED ON 21/09/2026
 # add flops
 data = add_flops_to_data(data)
 print("added flops to data")
@@ -561,3 +576,4 @@ if 't_accel' in data.keys():
 # visualize_lu_scaling(data, relative=True)
 
 visualize_lu_scaling_2d(data)
+

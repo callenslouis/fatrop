@@ -78,7 +78,7 @@ def visualize_scaling_1d(df, x_func, **kwargs):
     
     if kwargs.get('file_name', None) is not None:
         print(f"Saving figure to {kwargs.get('file_name')}")
-        plt.savefig('figures/' + kwargs.get('file_name'), dpi=300)
+        plt.savefig('figures-thesis/' + kwargs.get('file_name'), dpi=300)
     
     if kwargs.get('show', False):
         plt.show()
@@ -106,7 +106,7 @@ def visualize_distribution(df, metric, **kwargs):
     
     if kwargs.get('file_name', None) is not None:
         print(f"Saving figure to {kwargs.get('file_name')}")
-        plt.savefig('figures/' + kwargs.get('file_name'), dpi=300)
+        plt.savefig('figures-thesis/' + kwargs.get('file_name'), dpi=300)
     
     if kwargs.get('show', False):
         plt.show()

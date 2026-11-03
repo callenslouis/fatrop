@@ -10,7 +10,7 @@ from visualizer import *
 settings = json.load(open('../post_process_settings.json', 'r'))
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':    
     if settings.get('latexify', True):
         latexify()
         
@@ -40,40 +40,48 @@ if __name__ == '__main__':
     last_color = [0.0, 0.0, 0.0]
     colors = [tuple(np.array(first_color) + (np.array(last_color) - np.array(first_color)) * i / (len(filter_sqrt)-1)) for i in range(len(filter_sqrt))]
         
+        
+    ### 
     # relative difference in t_total for different sizes
     visualize_scaling_1d(df, x_funcs[0], filters=filter_sqrt, x_min_step=0.05, filter_colors=colors,
-                         file_name=f'relative_improvement_relative_area_binned_sqrt_area.png', show_std=False, y_lim=(-0.3, 0.3))
+                         file_name=f'relative_improvement_relative_area_binned_sqrt_area_new_structure.png', show_std=False, y_lim=(-0.3, 0.3))
+    visualize_scaling_1d(df, x_funcs[0], filters=filter_sqrt, x_min_step=0.05, filter_colors=colors,
+                             file_name=f'relative_improvement_relative_area_binned_sqrt_area_new_impl.png', show_std=False, y_lim=(-0.3, 0.3), y_funcs=[rel_speedup_computer_impl()])
     
-    # relative difference in t_lu for different sizes
-    visualize_scaling_1d(df, x_funcs[0], y_funcs=[y_func_lu_rel], filters=filter_sqrt, x_min_step=0.05, filter_colors=colors,
-                         file_name=f'relative_improvement_relative_area_binned_sqrt_area_lu.png', show_std=False)
+    # # relative difference in t_lu for different sizes
+    # visualize_scaling_1d(df, x_funcs[0], y_funcs=[y_func_lu_rel], filters=filter_sqrt, x_min_step=0.05, filter_colors=colors,
+    #                      file_name=f'relative_improvement_relative_area_binned_sqrt_area_lu.png', show_std=False)
     
-    # absolute t_lu
-    visualize_scaling_1d(df, x_funcs[0], y_funcs=[plain_df_key('lu_accel'), plain_df_key('lu_reform')], x_min_step=0.05, 
-                         filters=filter_sqrt, filter_colors=colors,
-                         file_name=f'lu_relative_area_binned_sqrt_area.png', show_std=False)
+    # # absolute t_lu
+    # visualize_scaling_1d(df, x_funcs[0], y_funcs=[plain_df_key('lu_accel'), plain_df_key('lu_reform')], x_min_step=0.05, 
+    #                      filters=filter_sqrt, filter_colors=colors,
+    #                      file_name=f'lu_relative_area_binned_sqrt_area.png', show_std=False)
     
-    # absolute t_total
-    visualize_scaling_1d(df, x_funcs[0], y_funcs=[plain_df_key('t_accel'), plain_df_key('t_reform')], x_min_step=0.05, 
-                         filters=filter_sqrt, filter_colors=colors,
-                         file_name=f't_total_relative_area_binned_sqrt_area.png', show_std=False)
+    # # absolute t_total
+    # visualize_scaling_1d(df, x_funcs[0], y_funcs=[plain_df_key('t_accel'), plain_df_key('t_reform')], x_min_step=0.05, 
+    #                      filters=filter_sqrt, filter_colors=colors,
+    #                      file_name=f't_total_relative_area_binned_sqrt_area.png', show_std=False)
     
-    # lu relevanve for different sizes
-    visualize_scaling_1d(df, x_funcs[0], y_funcs=[lu_relevance_computer(reformulated=True)], filters=filter_sqrt, x_min_step=0.05, filter_colors=colors, file_name=f'lu_relevance_relative_area_binned_sqrt_area.png', show_std=False)
+    # # lu relevanve for different sizes
+    # visualize_scaling_1d(df, x_funcs[0], y_funcs=[lu_relevance_computer(reformulated=True)], filters=filter_sqrt, x_min_step=0.05, filter_colors=colors, file_name=f'lu_relevance_relative_area_binned_sqrt_area.png', show_std=False)
 
-    # realtive difference in t_other for different sizes
-    visualize_scaling_1d(df, x_funcs[0], y_funcs=[relative_difference_other_time()], filters=filter_sqrt, x_min_step=0.05, filter_colors=colors,
-                         file_name=f'relative_improvement_other_relative_area_binned_sqrt_area_lu.png', show_std=False)
+    # # realtive difference in t_other for different sizes
+    # visualize_scaling_1d(df, x_funcs[0], y_funcs=[relative_difference_other_time()], filters=filter_sqrt, x_min_step=0.05, filter_colors=colors,
+    #                      file_name=f'relative_improvement_other_relative_area_binned_sqrt_area_lu.png', show_std=False)
     
-    # absolute area
-    visualize_scaling_1d(df, area_computer(relative=True), y_funcs=[area_computer(relative=False)], x_min_step=0.05, filter_colors=colors,
-                         file_name=f'total_area_relative_area.png', show_std=False)
+    # # absolute area
+    # visualize_scaling_1d(df, area_computer(relative=True), y_funcs=[area_computer(relative=False)], x_min_step=0.05, filter_colors=colors,
+    #                      file_name=f'total_area_relative_area.png', show_std=False)
         
-    x_funcs = [plain_df_key('nx'), plain_df_key('nu'), plain_df_key('ng')]
-    for x_func in x_funcs:
-        # visualize_scaling_1d(df, x_func)
-        visualize_scaling_1d(df, x_func, y_funcs=[rel_speedup_lu_computer(recursion_benchmark_data=True)], title='Relative Speedup of LU vs Full Factorization', file_name=f'relative_speedup_lu_{x_func.name}_recursion.png')
+    # x_funcs = [plain_df_key('nx'), plain_df_key('nu'), plain_df_key('ng')]
+    # for x_func in x_funcs:
+    #     # visualize_scaling_1d(df, x_func)
+    #     visualize_scaling_1d(df, x_func, y_funcs=[rel_speedup_lu_computer(recursion_benchmark_data=True)], title='Relative Speedup of LU vs Full Factorization', file_name=f'relative_speedup_lu_{x_func.name}_recursion.png')
     
-    visualize_distribution(df, lu_relevance_computer(reformulated=True), bins=40, normalized=True, color='grey', show_median=True, x_lim=(0, 1), file_name='lu_relevance_distribution.png')
+    # visualize_distribution(df, lu_relevance_computer(reformulated=True), bins=40, normalized=True, color='grey', show_median=True, x_lim=(0, 1), file_name='lu_relevance_distribution.png')
+    ###
+    
+    visualize_distribution(df, lu_relevance_computer(reformulated=True), bins=40, normalized=True, color='grey', show_median=True, x_lim=(0, 1), file_name='lu_relevance_distribution_new_1.png')
+    visualize_distribution(df, lu_relevance_computer(reformulated=False), bins=40, normalized=True, color='grey', show_median=True, x_lim=(0, 1), file_name='lu_relevance_distribution_new_2.png')
         
 

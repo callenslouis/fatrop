@@ -52,7 +52,7 @@ first_diff_idx_objective = get_first_diff_idx(conv_ocp, conv_accelerated, 'obj',
 # Create separate figures for each KPI
 # Figure 1: Primal Feasibility
 fig1, ax1 = plt.subplots()
-ax1.semilogy(conv_accelerated['iteration'], conv_accelerated['primal_feasibility'], color='grey', linestyle='-', label='Blocked LU', linewidth=2)
+ax1.semilogy(conv_accelerated['iteration'], conv_accelerated['primal_feasibility'], color='grey', linestyle='-', label='Structure-exploiting LU', linewidth=2)
 ax1.semilogy(conv_ocp['iteration'], conv_ocp['primal_feasibility'], 'k-', label='Normal LU', linewidth=2)
 ax1.set_xlabel('Iteration')
 ax1.set_ylabel('Primal Feasibility')
@@ -67,7 +67,7 @@ plt.close()
 
 # Figure 2: Dual Feasibility
 fig2, ax2 = plt.subplots()
-ax2.semilogy(conv_accelerated['iteration'], conv_accelerated['dual_feasibility'], color='grey', linestyle='-', label='Blocked LU', linewidth=2)
+ax2.semilogy(conv_accelerated['iteration'], conv_accelerated['dual_feasibility'], color='grey', linestyle='-', label='Structure-exploiting LU', linewidth=2)
 ax2.semilogy(conv_ocp['iteration'], conv_ocp['dual_feasibility'], 'k-', label='Normal LU', linewidth=2)
 ax2.set_xlabel('Iteration')
 ax2.set_ylabel('Dual Feasibility')
@@ -82,7 +82,7 @@ plt.close()
 
 # Figure 3: Objective Value Difference
 fig3, ax3 = plt.subplots()
-ax3.semilogy(conv_accelerated['iteration'], np.abs(obj_diff_accelerated), color='grey', linestyle='-', label='Blocked LU', linewidth=2)
+ax3.semilogy(conv_accelerated['iteration'], np.abs(obj_diff_accelerated), color='grey', linestyle='-', label='Structure-exploiting LU', linewidth=2)
 ax3.semilogy(conv_ocp['iteration'], np.abs(obj_diff_ocp), 'k-', label='Normal LU', linewidth=2)
 ax3.set_xlabel('Iteration')
 ax3.set_ylabel('Optimality gap')
