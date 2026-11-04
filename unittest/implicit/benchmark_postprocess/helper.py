@@ -39,8 +39,9 @@ def get_data():
     if use_generalization:
         # file = '../../../build_docker/random_benchmark_results_generalized_20000.csv'
         # file = '../../../build_docker/random_benchmark_results_generalized_faked.csv'
-        file = '../../../build_docker/random_benchmark_results_generalized_20000_standalone.csv'
+        # file = '../../../build_docker/random_benchmark_results_generalized_20000_standalone.csv'
         # file = '../../../build/random_benchmark_results_generalized_20000_standalone_new.csv'
+        file = '../../../build_docker/random_benchmark_results_generalized_20000_standalone_thesis.csv'
     else:
         file = '../../../build_docker/random_benchmark_results_extended_20000.csv'
         

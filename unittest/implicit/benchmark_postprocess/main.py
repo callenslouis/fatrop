@@ -46,7 +46,9 @@ if __name__ == '__main__':
     visualize_scaling_1d(df, x_funcs[0], filters=filter_sqrt, x_min_step=0.05, filter_colors=colors,
                          file_name=f'relative_improvement_relative_area_binned_sqrt_area_new_structure.png', show_std=False, y_lim=(-0.3, 0.3))
     visualize_scaling_1d(df, x_funcs[0], filters=filter_sqrt, x_min_step=0.05, filter_colors=colors,
-                             file_name=f'relative_improvement_relative_area_binned_sqrt_area_new_impl.png', show_std=False, y_lim=(-0.3, 0.3), y_funcs=[rel_speedup_computer_impl()])
+                             file_name=f'relative_improvement_relative_area_binned_sqrt_area_new_impl.png', show_std=False, 
+                            #  y_lim=(-0.3, 0.3), 
+                             y_funcs=[rel_speedup_computer_impl()])
     
     # # relative difference in t_lu for different sizes
     # visualize_scaling_1d(df, x_funcs[0], y_funcs=[y_func_lu_rel], filters=filter_sqrt, x_min_step=0.05, filter_colors=colors,
