@@ -517,16 +517,16 @@ public:
                 Index offs_x_next = info_accel.value().offsets_primal_x[k + 1];
                 if (use_generalization){
                     // Bottom part of B
-                    jacobian_reform.value().BAbt[k].block(nu_true, nx_next - nz[k], 0, nz[k]) =
+                    jacobian_accel.value().BAbt[k].block(nu_true, nx_next - nz[k], 0, nz[k]) =
                         ::test::random_matrix(nu_true, nx_next - nz[k]);
                     // Bottom part of A and b
-                    jacobian_reform.value().BAbt[k].block(nx + 1, nx_next - nz[k], nu, nz[k]) =
+                    jacobian_accel.value().BAbt[k].block(nx + 1, nx_next - nz[k], nu, nz[k]) =
                         ::test::random_matrix(nx + 1, nx_next - nz[k]);
                     // identity part in B
-                    jacobian_reform.value().BAbt[k].block(nz[k], nz[k], nu_true, 0) =
+                    jacobian_accel.value().BAbt[k].block(nz[k], nz[k], nu_true, 0) =
                         ::test::identity_matrix(nz[k], -1);
                 } else {
-                    jacobian_reform.value().BAbt[k].block(nx_next, nx_next, nu_true, 0) =
+                    jacobian_accel.value().BAbt[k].block(nx_next, nx_next, nu_true, 0) =
                         ::test::identity_matrix(nx_next, -1);
                 }
                 full_matrix_jacobian_accel.value().block(nx_next, nu + nx, offs_eq_dyn, offs_ux) =
@@ -706,7 +706,7 @@ int main()
 
     std::ofstream f;    
     if (write_csv){
-        f.open("random_benchmark_results_generalized_20000_standalone_new.csv");
+        f.open("random_benchmark_results_generalized_20000_standalone_thesis.csv");
         f << "K,nu,nx,r,ng,ng_ineq,";
         f << "nz,nv,";
         f << "t_expl,t_expl_backward,t_expl_solve,t_expl_forward,";
@@ -755,6 +755,7 @@ int main()
         long int ns_reform = 0;
         long int ns_accel = 0;
         long int ns_impl = 0;
+        bool run_failed = false;
         for (int averaging_run_counter = 0; averaging_run_counter < nb_averaging_runs; ++averaging_run_counter){
         std::shuffle(order.begin(), order.end(), rng);
 
@@ -796,16 +797,22 @@ int main()
         // std::cout << "Ran all solvers." << std::endl;
         } catch (const std::exception& e){
             std::cout << "Exception caught: " << e.what() << std::endl;
-            nb_consecutive_failures++;
-            continue;
+            run_failed = true;
+            break;
+        }
+
+        // every averaging run has to succeed, not only the last one
+        if (ret_expl != LinsolReturnFlag::SUCCESS ||
+                ret_reform != LinsolReturnFlag::SUCCESS ||
+                ret_impl != LinsolReturnFlag::SUCCESS ||
+                ret_accel != LinsolReturnFlag::SUCCESS){
+            // std::cout << "\n" << ret_expl << " " << ret_reform << " " << ret_impl << " " << ret_accel << std::endl;
+            run_failed = true;
+            break;
         }
         }
 
-        if (ret_expl != LinsolReturnFlag::SUCCESS || 
-                ret_reform != LinsolReturnFlag::SUCCESS || 
-                ret_impl != LinsolReturnFlag::SUCCESS || 
-                ret_accel != LinsolReturnFlag::SUCCESS){
-            // std::cout << "\n" << ret_expl << " " << ret_reform << " " << ret_impl << " " << ret_accel << std::endl;
+        if (run_failed){
             nb_consecutive_failures++;
             continue;
         }
@@ -816,27 +823,42 @@ int main()
             continue;
         }
 
+        // the measured times and the solver-internal durations (which are never reset) are summed
+        // over all averaging runs, so convert everything to an average per solve
+        ns_expl /= nb_averaging_runs;
+        ns_reform /= nb_averaging_runs;
+        ns_accel /= nb_averaging_runs;
+        ns_impl /= nb_averaging_runs;
+        long int ns_lu_expl = bm.solver_expl.value().duration_lu_factorization.count() / nb_averaging_runs;
+        long int ns_lu_reform = bm.solver_reform.value().duration_lu_factorization.count() / nb_averaging_runs;
+        long int ns_lu_accel = bm.solver_accel.value().duration_lu_factorization.count() / nb_averaging_runs;
+        long int ns_expl_backward = bm.solver_expl.value().duration_backward_recursion.count() / nb_averaging_runs;
+        long int ns_reform_backward = bm.solver_reform.value().duration_backward_recursion.count() / nb_averaging_runs;
+        long int ns_accel_backward = bm.solver_accel.value().duration_backward_recursion.count() / nb_averaging_runs;
+        long int ns_expl_initial = bm.solver_expl.value().duration_initial_stage.count() / nb_averaging_runs;
+        long int ns_reform_initial = bm.solver_reform.value().duration_initial_stage.count() / nb_averaging_runs;
+        long int ns_accel_initial = bm.solver_accel.value().duration_initial_stage.count() / nb_averaging_runs;
+        long int ns_expl_forward = bm.solver_expl.value().duration_forward_recursion.count() / nb_averaging_runs;
+        long int ns_reform_forward = bm.solver_reform.value().duration_forward_recursion.count() / nb_averaging_runs;
+        long int ns_accel_forward = bm.solver_accel.value().duration_forward_recursion.count() / nb_averaging_runs;
+
         timings["total_ns_expl"] += ns_expl;
         timings["total_ns_reform"] += ns_reform;
         timings["total_ns_accel"] += ns_accel;
         timings["total_ns_impl"] += ns_impl;
-        long int ns_lu_expl = bm.solver_expl.value().duration_lu_factorization.count();
-        long int ns_lu_reform = bm.solver_reform.value().duration_lu_factorization.count();
-        long int ns_lu_accel = bm.solver_accel.value().duration_lu_factorization.count();
         timings["ns_lu_expl"] = ns_lu_expl;
         timings["ns_lu_reform"] = ns_lu_reform;
         timings["ns_lu_accel"] = ns_lu_accel;
-        
 
-        timings["total_expl_backward"] += bm.solver_expl.value().duration_backward_recursion.count();
-        timings["total_reform_backward"] += bm.solver_reform.value().duration_backward_recursion.count();
-        timings["total_accel_backward"] += bm.solver_accel.value().duration_backward_recursion.count();
-        timings["total_expl_initial"] += bm.solver_expl.value().duration_initial_stage.count();
-        timings["total_reform_initial"] += bm.solver_reform.value().duration_initial_stage.count();
-        timings["total_accel_initial"] += bm.solver_accel.value().duration_initial_stage.count();
-        timings["total_expl_forward"] += bm.solver_expl.value().duration_forward_recursion.count();
-        timings["total_reform_forward"] += bm.solver_reform.value().duration_forward_recursion.count();
-        timings["total_accel_forward"] += bm.solver_accel.value().duration_forward_recursion.count();
+        timings["total_expl_backward"] += ns_expl_backward;
+        timings["total_reform_backward"] += ns_reform_backward;
+        timings["total_accel_backward"] += ns_accel_backward;
+        timings["total_expl_initial"] += ns_expl_initial;
+        timings["total_reform_initial"] += ns_reform_initial;
+        timings["total_accel_initial"] += ns_accel_initial;
+        timings["total_expl_forward"] += ns_expl_forward;
+        timings["total_reform_forward"] += ns_reform_forward;
+        timings["total_accel_forward"] += ns_accel_forward;
 
         nb_runs_completed++;
         nb_consecutive_failures = 0;
@@ -847,19 +869,22 @@ int main()
             f << bm.nz[0] << "," << bm.nv[0] << ",";
 
             // timings expl
-            f << ns_expl << "," << bm.solver_expl.value().duration_backward_recursion.count() << ",";
-            f << bm.solver_expl.value().duration_initial_stage.count() << ",";
-            f << bm.solver_expl.value().duration_forward_recursion.count() << ",";
+            f << ns_expl << "," << ns_expl_backward << ",";
+            f << ns_expl_initial << ",";
+            f << ns_expl_forward << ",";
 
             // timings reform
-            f << ns_reform << "," << bm.solver_reform.value().duration_backward_recursion.count() << ",";
-            f << bm.solver_reform.value().duration_initial_stage.count() << ",";
-            f << bm.solver_reform.value().duration_forward_recursion.count() << ",";
+            f << ns_reform << "," << ns_reform_backward << ",";
+            f << ns_reform_initial << ",";
+            f << ns_reform_forward << ",";
 
             // timings accel
-            f << ns_accel << "," << bm.solver_accel.value().duration_backward_recursion.count() << ",";
-            f << bm.solver_accel.value().duration_initial_stage.count() << ",";
-            f << bm.solver_accel.value().duration_forward_recursion.count() << ",";
+            f << ns_accel << "," << ns_accel_backward << ",";
+            f << ns_accel_initial << ",";
+            f << ns_accel_forward << ",";
+
+            // timings impl
+            f << ns_impl << ",";
 
             // timings lu
             f << ns_lu_expl << ",";

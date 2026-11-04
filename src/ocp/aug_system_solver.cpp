@@ -1438,7 +1438,7 @@ LinsolReturnFlag AugSystemSolver<AcceleratedOcpType>::solve(const ProblemInfo &i
             // MatRealAllocated A_original(Ggt_stripe[0].m(), Ggt_stripe[0].n());
             // blasfeo_dgecp(Ggt_stripe[0].m(), Ggt_stripe[0].n(), &Ggt_stripe[0].mat(), 0, 0, &A_original.mat(), 0, 0);
             // std::cout << "Computing LU decomposition of:\n" << Ggt_stripe[0] << std::endl;
-            if (k > 0 && k < info.dims.K - 1){
+            if (k < info.dims.K - 1){
                 int nx_next = info.dims.number_of_states[k+1];
                 // 1. my approach
                 /*
@@ -2482,7 +2482,9 @@ void AugSystemSolver<AcceleratedOcpType>::fatrop_lu_fact_blocked_transposed(
     }
 
     // scaling bottom-left
-    blasfeo_dgecp(nu_true, nf, At, 0, rho1[k], &scratch[0].mat(), 0, 0);   // M2 to B
+    // NOTE: the nc constraints carried over from the next stage come right after the nf dynamics
+    // constraints and also have to be eliminated with the first LU
+    blasfeo_dgecp(nu_true, nf + nc, At, 0, rho1[k], &scratch[0].mat(), 0, 0);   // M2 to B
     // NOTE: this operation can be performed in the lu decomposition by 
     // applying the permutation to the full matrix already
     if (!avoid_additional_perms){
@@ -2490,15 +2492,15 @@ void AugSystemSolver<AcceleratedOcpType>::fatrop_lu_fact_blocked_transposed(
     }
 
     // compute K3 and K4
-    blasfeo_dtrsm_llnn(rho1[k], nf, 1.0, At, 0, 0, &scratch[0].mat(), 0, 0, 
+    blasfeo_dtrsm_llnn(rho1[k], nf + nc, 1.0, At, 0, 0, &scratch[0].mat(), 0, 0,
                        At, 0, rho1[k]); // K3 <-- M2_1 V1^-1
-    blasfeo_dgemm_nn(n_max-nx_next-rho1[k], nf, rho1[k], -1.0, 
+    blasfeo_dgemm_nn(n_max-nx_next-rho1[k], nf + nc, rho1[k], -1.0,
                      At, rho1[k], 0, At, 0, rho1[k], 0.0, 
                      At, rho1[k], rho1[k], At, rho1[k], rho1[k]); // K4 <-- M2_2 - K3*V2
     if (rho1[k] > 0){
-        blasfeo_dgead(nu_true-rho1[k], nf, 1.0, &scratch[0].mat(), rho1[k], 0, At, rho1[k], rho1[k]);
+        blasfeo_dgead(nu_true-rho1[k], nf + nc, 1.0, &scratch[0].mat(), rho1[k], 0, At, rho1[k], rho1[k]);
     } else {
-        blasfeo_dgecp(nu_true-rho1[k], nf, &scratch[0].mat(), rho1[k], 0, At, rho1[k], rho1[k]);
+        blasfeo_dgecp(nu_true-rho1[k], nf + nc, &scratch[0].mat(), rho1[k], 0, At, rho1[k], rho1[k]);
     }
 
     // second LU decomposition
@@ -3608,6 +3610,10 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             start = std::chrono::steady_clock::now();  
             #endif
             #ifndef IGNORE_EXTENSION
+            if (k > 0){
+                // FuFx_underbar has to be initialized for every stage, not only when new controls were introduced
+                gecp(nunxm1, nx, hessian.FuFx[k-1], 0, 0, FuFx_underbar[k-1], 0, 0);
+            }
             if (k > 0 && jacobian.nb_new_controls[k-1] > 0){
                 // GuGx_tilde = GuGx * T_r^-1
                 gecp(nunxm1, nu, hessian.GuGx[k-1], 0, 0, GuGx_tilde[k-1], 0, 0);
@@ -3618,7 +3624,6 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
                         1.0, GuGx_tilde[k-1], 0, rank_k, GuGx_tilde[k-1], 0, rank_k);
                 
                 // FuFx = FuFx + GuGx * [Hx_tilde; 0]
-                gecp(nunxm1, nx, hessian.FuFx[k-1], 0, 0, FuFx_underbar[k-1], 0, 0);
                 // std::cout << "-----------------------------------" << std::endl;
                 // std::cout << "testing FuFx and RSQrqt updates" << std::endl;
                 // PrintNpArray(GuGx_tilde[k-1], "GuGx_tilde");
@@ -5234,8 +5239,13 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
 
         // Modify dynamics jacobian
         jacobian.Pl_pre[k].apply_on_cols(rank, &(JBAbt_modified[0]).mat());                                              // * P_l
-        trsm_runu(nx_next + nu + nx + 1, nx_next, 1.0, JBAbt[0], 0, 0, JBAbt_modified[0], 0, 0, JBAbt_modified[0], 0, 0);    // * L^-1
-        trsm_rlnn(nx_next + nu + nx + 1, rank, -1.0, JBAbt[0], 0, 0, JBAbt_modified[0], 0, 0, JBAbt_modified[0], 0, 0);      // * U^-1
+        // NOTE: blasfeo only has high-performance kernels for the transposed right-side trsm variants
+        // (trsm_runu and trsm_rlnn fall back to the reference implementation), so transpose the
+        // factors once and use X * A^-1 = X * (A^T)^-T
+        getr(nx_next, nx_next, JBAbt[0], 0, 0, *scratch, 0, 0);
+        scratch->mat().use_dA = 0; // the inverse diagonal cached in scratch belongs to another matrix
+        trsm_rltu(nx_next + nu + nx + 1, nx_next, 1.0, *scratch, 0, 0, JBAbt_modified[0], 0, 0, JBAbt_modified[0], 0, 0);    // * L^-1
+        trsm_rutn(nx_next + nu + nx + 1, rank, -1.0, *scratch, 0, 0, JBAbt_modified[0], 0, 0, JBAbt_modified[0], 0, 0);      // * U^-1
         gecp(nu + nx + 1, nx_next, JBAbt_modified[0], nx_next, 0, jacobian.BAbt[k], 0, 0);
         jacobian.Pr_pre[k].apply_on_rows(rank, &(JBAbt_modified[0]).mat());                                              // * P_r
         gecp(nx_next-rank, rank, JBAbt_modified[0], rank, 0, jacobian.U1U2t[k], 0, 0);

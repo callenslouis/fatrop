@@ -130,6 +130,22 @@ namespace fatrop
                                B.ai() + bi, B.aj() + bj, &D.mat(), D.ai() + di, D.aj() + dj);
     }
 
+    static inline void trsm_rltu(int m, int n, Scalar alpha, const MatRealView &A, int ai, int aj,
+                                 const MatRealView &B, int bi, int bj, MatRealView &D, int di,
+                                 int dj)
+    {
+        blasfeo_trsm_rltu_wrap(m, n, alpha, &A.mat(), A.ai() + ai, A.aj() + aj, &B.mat(),
+                               B.ai() + bi, B.aj() + bj, &D.mat(), D.ai() + di, D.aj() + dj);
+    }
+
+    static inline void trsm_rutn(int m, int n, Scalar alpha, const MatRealView &A, int ai, int aj,
+                                 const MatRealView &B, int bi, int bj, MatRealView &D, int di,
+                                 int dj)
+    {
+        blasfeo_trsm_rutn_wrap(m, n, alpha, &A.mat(), A.ai() + ai, A.aj() + aj, &B.mat(),
+                               B.ai() + bi, B.aj() + bj, &D.mat(), D.ai() + di, D.aj() + dj);
+    }
+
     static inline void trsm_rlnn(int m, int n, Scalar alpha, const MatRealView &A, int ai, int aj,
                                  const MatRealView &B, int bi, int bj, MatRealView &D, int di,
                                  int dj)
