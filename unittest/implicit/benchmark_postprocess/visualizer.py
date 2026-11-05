@@ -89,25 +89,26 @@ def visualize_scaling_1d(df, x_func, **kwargs):
         
 def visualize_boxplot(df, y_funcs, filters, **kwargs):
     # one group of boxes per filter (e.g. a bin of the matrix size), with one box per y_func showing its distribution
-    # over the problems in that bin
+    # over the problems in that bin; bin_labels replaces the default "min--max" label of each filter
     if not isinstance(y_funcs, (list, tuple)):
         y_funcs = [y_funcs]
     colors = kwargs.get('colors', [kwargs.get('color', 'grey')] if len(y_funcs) == 1 else ['lightgrey', 'dimgrey'])
     group_width = 0.6
     box_width = group_width / len(y_funcs)
 
-    plt.figure()
+    plt.figure(figsize=kwargs.get('figsize', None))
 
+    bin_labels = kwargs.get('bin_labels', [f"{f.value_min:g}--{f.value_max:g}" for f in filters])
     tick_labels = []
     legend_handles = []
     for y_idx, y_func in enumerate(y_funcs):
         data = []
-        for f in filters:
+        for f_idx, f in enumerate(filters):
             df_filtered, _ = f.filter_data(df)
             values = np.asarray(y_func.compute_metric(df_filtered), dtype=float)
             data.append(values[~np.isnan(values)])
             if y_idx == 0:
-                tick_labels.append(f"{f.value_min:g}--{f.value_max:g}\n($n = {len(df_filtered)}$)")
+                tick_labels.append(f"{bin_labels[f_idx]}\n($n = {len(df_filtered)}$)")
         positions = np.arange(1, len(filters) + 1) - group_width / 2 + (y_idx + 0.5) * box_width
         # whiskers at the 5th and 95th percentile, outliers are not drawn
         bp = plt.boxplot(data, positions=positions, widths=0.9*box_width, whis=kwargs.get('whis', (5, 95)),

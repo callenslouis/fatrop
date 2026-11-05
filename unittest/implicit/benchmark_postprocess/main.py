@@ -89,16 +89,40 @@ if __name__ == '__main__':
 
     ###
     # relative difference in t_total as a function of the row share of M_1, for different sizes
-    visualize_scaling_1d(df, row_share_computer(), filters=filter_sqrt, x_min_step=0.05, filter_colors=colors, show_std=False,
-                         y_lim=(-0.3, 0.3), file_name='relative_improvement_row_share_binned_sqrt_area.png')
-    # same for the implicit (generalized recursion) vs the reformulated case
-    visualize_scaling_1d(df, row_share_computer(), filters=filter_sqrt, x_min_step=0.05, filter_colors=colors, show_std=False,
-                         y_funcs=[rel_speedup_computer_impl()], file_name='relative_improvement_row_share_binned_sqrt_area_impl.png')
+    # visualize_scaling_1d(df, row_share_computer(), filters=filter_sqrt, x_min_step=0.05, filter_colors=colors, show_std=False,
+    #                      y_lim=(-0.3, 0.3), file_name='relative_improvement_row_share_binned_sqrt_area.png')
+    # # same for the implicit (generalized recursion) vs the reformulated case
+    # visualize_scaling_1d(df, row_share_computer(), filters=filter_sqrt, x_min_step=0.05, filter_colors=colors, show_std=False,
+    #                      y_funcs=[rel_speedup_computer_impl()], file_name='relative_improvement_row_share_binned_sqrt_area_impl.png')
 
     # distribution of the relative difference in t_total for different sizes, accelerated and implicit side by side
     visualize_boxplot(df, [rel_speedup_computer(), rel_speedup_computer_impl()], filter_sqrt,
                       labels=['$t = t_\\mathrm{structure}$', '$t = t_\\mathrm{impl}$'],
-                      y_label='$\\frac{t - t_\\mathrm{normal}}{t_\\mathrm{normal}}$',
+                      y_label='$\\frac{t - t_\\mathrm{normal}}{t_\\mathrm{normal}}$', figsize=[6, 5],
                       file_name='relative_improvement_boxplot_sqrt_area_combined.png')
+
+    # same figure for the problems with a square J_k only (n_f2 = n_zeta, with implicit states)
+    df_square = df[(df['nz'] > 0) & (df['nv'] == df['nz'])]
+    visualize_boxplot(df_square, [rel_speedup_computer(), rel_speedup_computer_impl()], filter_sqrt,
+                      labels=['$t = t_\\mathrm{structure}$', '$t = t_\\mathrm{impl}$'],
+                      y_label='$\\frac{t - t_\\mathrm{normal}}{t_\\mathrm{normal}}$',
+                      file_name='relative_improvement_boxplot_sqrt_area_combined_square.png')
+
+    # same relative differences as a function of the shape of J_k: J_k is square iff n_f2 = n_zeta (ratio exactly 1),
+    # wide J_k (ratio < 1) means that states are treated as controls, tall J_k (ratio > 1) that dynamics constraints are
+    # treated as path constraints. Problems without implicit states (n_zeta = 0) are left out.
+    df_implicit = df[df['nz'] > 0]
+    ratio = dynamics_jacobian_ratio_computer()
+    filter_ratio = [metric_range_filter(ratio, 0, 0.75),
+                    metric_range_filter(ratio, 0.75, 1),
+                    metric_range_filter(ratio, 1, 1, include_max=True),
+                    metric_range_filter(ratio, 1, 4/3, include_min=False),
+                    metric_range_filter(ratio, 4/3, np.inf)]
+    ratio_bin_labels = ['$[0, \\frac{3}{4})$', '$[\\frac{3}{4}, 1)$', '$1$', '$(1, \\frac{4}{3})$', '$[\\frac{4}{3}, \\infty)$']
+    visualize_boxplot(df_implicit, [rel_speedup_computer(), rel_speedup_computer_impl()], filter_ratio,
+                      labels=['$t = t_\\mathrm{structure}$', '$t = t_\\mathrm{impl}$'],
+                      y_label='$\\frac{t - t_\\mathrm{normal}}{t_\\mathrm{normal}}$',
+                      bin_labels=ratio_bin_labels,
+                      file_name='relative_improvement_boxplot_dynamics_jacobian_ratio.png')
 
 

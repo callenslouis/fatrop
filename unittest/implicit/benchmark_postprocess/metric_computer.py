@@ -123,6 +123,16 @@ class relative_difference_other_time(metric_computer):
         other_reform = df['t_reform'] - df['lu_reform']
         return (other_accel - other_reform) / other_reform
 
+# number of rows of J_k (the Jacobian of the dynamics w.r.t. x_{k+1}) relative to its number of columns: the
+# implicit equations f_2 and the explicit equations f_3 (the f_1 rows are path constraints in the benchmark), with
+# n_f3 = n_x - n_zeta (nv = n_f2, nz = n_zeta). J_k is square if and only if n_f2 = n_zeta.
+class dynamics_jacobian_ratio_computer(metric_computer):
+    def __init__(self):
+        super().__init__('$\\frac{n_{f_2} + n_{f_3}}{n_x}$')
+
+    def compute_metric(self, df):
+        return (df['nv'] + df['nx'] - df['nz']) / df['nx']
+
 # share of the rows of G_u that belong to M_1, i.e. the constraints that do not depend on the auxiliary controls
 # (ng = n_h + n_f1, nv = n_f2)
 class row_share_computer(metric_computer):
