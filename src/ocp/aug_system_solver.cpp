@@ -4890,7 +4890,9 @@ AugSystemSolver<ImplicitOcpType>::AugSystemSolver(const ProblemInfo &info) : Mod
     eq_mult_copy.emplace_back(info.number_of_eq_constraints + info.number_of_slack_variables);
 
     int dim = std::max(max_nu + max_nx + 1, max_ng);
-    scratch = std::make_unique<MatRealAllocated>(dim + 8, dim);
+    // TreatStatesAsInputs copies whole rows of Gg_eqt (ng + nx_next columns) and FuFx (nx_next + 8 columns) into scratch
+    int scratch_cols = std::max({dim, max_ng + max_nx, max_nx + 8});
+    scratch = std::make_unique<MatRealAllocated>(dim + 8, scratch_cols);
     JBAbt.emplace_back(dim + max_nx, max_nx);
     JBAbt_modified.emplace_back(dim + max_nx, max_nx);
 };
@@ -5125,6 +5127,11 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
     start = std::chrono::high_resolution_clock::now();
     #endif
     int K = info.dims.K;
+    // the dimensions are modified below when J is rank deficient, so start from the original ones on every solve
+    number_of_states = info.dims.number_of_states;
+    number_of_controls = info.dims.number_of_controls;
+    number_of_eq_constraints = info.dims.number_of_eq_constraints;
+    number_of_ineq_constraints = info.dims.number_of_ineq_constraints;
     bool USE_NEW_REGULARIZATION_TREATMENT = true;
     if (USE_NEW_REGULARIZATION_TREATMENT){
     // Deal with regularization terms
