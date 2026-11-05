@@ -16,10 +16,21 @@
 #include <random>
 #include <fstream>
 #include <algorithm>
+#include <string>
+#include <cstdlib>
 
 static const bool USE_GENERALIZATION = true;
 
 using namespace fatrop;
+
+// Which problems are generated (first command line argument of the benchmark)
+//   generalized:      every solver gets its own random problem of the same dimensions, the implicit
+//                     problem has a dense J (all states implicit)
+//   fully_implicit:   all states are implicit (nz = nv = nx)
+//   varying_implicit: the first nz states are implicit, the others have explicit dynamics (nv = nz)
+// In the last two modes, the implicit problem is generated first and the reformulated and accelerated
+// problems are derived from it, so all solvers solve the same problem.
+enum class ImplicitMode { generalized, fully_implicit, varying_implicit };
 
 class BenchmarkManager
 {
@@ -28,6 +39,8 @@ public:
     bool full_rank = true;
     bool constant_dimensions = true;
     bool use_generalization = USE_GENERALIZATION;
+    ImplicitMode implicit_mode = ImplicitMode::varying_implicit;
+    bool SameProblemForAllSolvers() const { return implicit_mode != ImplicitMode::generalized; }
 
     int K;
     std::vector<Index> nx;
@@ -207,6 +220,17 @@ public:
 
         nu = nu_true;
         ng = ng_true;
+
+        if (implicit_mode == ImplicitMode::fully_implicit){
+            // all states are implicit (same range of nx as in the other modes)
+            nx = RandomVector(K, 0, 2 * max_val);
+            r = nx;
+            for (int k = 0; k < K; ++k){ nz[k] = (k < K - 1) ? nx[k] : 0; }
+        }
+        if (SameProblemForAllSolvers()){
+            // the implicit dynamics equations become the path constraints of the reformulation
+            nv = nz;
+        }
 
         for (int i = 0; i < K - 1; ++i){
             if (nx[i] + nu_true[i] + nx[i+1] < nv[i] + (nx[i] - nz[i]) ||
@@ -397,7 +421,98 @@ public:
         }
     }
 
+    // Reformulate the implicit problem: the controls become [u; z] with x[k+1][0:nz] = -z, the explicit
+    // dynamics are kept, and the implicit dynamics equations become path constraints (after eliminating
+    // the explicit states). The primal solution (u, x) is the same for both problems.
+    template <typename JacT, typename HessT>
+    void FillFromImplicitProblem(const ProblemInfo &info, JacT &jacobian, HessT &hessian,
+                                 VecRealAllocated &D_x, VecRealAllocated &D_s, VecRealAllocated &D_eq,
+                                 VecRealAllocated &rhs_x, VecRealAllocated &rhs_g, VecRealAllocated &x){
+        const ProblemInfo &info_i = info_impl.value();
+        const Jacobian<ImplicitOcpType> &jac_i = jacobian_impl.value();
+        const Hessian<ImplicitOcpType> &hess_i = hessian_impl.value();
+        x = 0;
+        for (Index k = 0; k < K; ++k){
+            const Index nu_k = nu[k], nx_k = nx[k], ng_k = ng[k], ngi_k = ng_ineq[k];
+            const Index nz_k = (k < K - 1) ? nz[k] : 0;
+            // position of the implicit problem's variable [u; x](i) in the reformulated [u; z; x]
+            auto idx = [&](Index i){ return i < nu_k ? i : i + nz_k; };
+            const Index ou = info.offsets_primal_u[k], ou_i = info_i.offsets_primal_u[k];
+
+            // Hessian: FuFx couples [u; x] with x[k+1][0:nz] = -z (its other columns are zero)
+            for (Index i = 0; i < nu_k + nx_k; ++i){
+                for (Index j = 0; j < nu_k + nx_k; ++j){ hessian.RSQrqt[k](idx(i), idx(j)) = hess_i.RSQrqt[k](i, j); }
+                for (Index l = 0; l < nz_k; ++l){
+                    hessian.RSQrqt[k](idx(i), nu_k + l) = -hess_i.FuFx[k](i, l);
+                    hessian.RSQrqt[k](nu_k + l, idx(i)) = -hess_i.FuFx[k](i, l);
+                }
+                rhs_x(ou + idx(i)) = rhs_x_impl.value()(ou_i + i);
+                D_x(ou + idx(i)) = D_x_impl.value()(ou_i + i);
+            }
+            for (Index l = 0; l < nz_k; ++l){ rhs_x(ou + nu_k + l) = 0.; D_x(ou + nu_k + l) = 0.; }
+
+            // path constraints (independent of z)
+            for (Index i = 0; i < nu_k + nx_k; ++i){
+                for (Index j = 0; j < ng_k; ++j){ jacobian.Gg_eqt[k](idx(i), j) = jac_i.Gg_eqt[k](i, j); }
+                for (Index j = 0; j < ngi_k; ++j){ jacobian.Gg_ineqt[k](idx(i), j) = jac_i.Gg_ineqt[k](i, j); }
+            }
+            for (Index j = 0; j < ng_k; ++j){ rhs_g(info.offsets_g_eq_path[k] + j) = rhs_g_impl.value()(info_i.offsets_g_eq_path[k] + j); }
+            for (Index j = 0; j < ngi_k; ++j){
+                rhs_g(info.offsets_g_eq_slack[k] + j) = rhs_g_impl.value()(info_i.offsets_g_eq_slack[k] + j);
+                D_s(info.offsets_slack[k] + j) = D_s_impl.value()(info_i.offsets_slack[k] + j);
+            }
+
+            if (k < K - 1){
+                const Index nx_next = nx[k + 1], ne = nx_next - nz_k;
+                const Index od = info.offsets_g_eq_dyn[k], od_i = info_i.offsets_g_eq_dyn[k];
+                // dynamics: x[k+1][0:nz] = -z, x[k+1][nz:] = explicit part of the implicit dynamics
+                for (Index l = 0; l < nz_k; ++l){ jacobian.BAbt[k](nu_k + l, l) = -1.0; rhs_g(od + l) = 0.; }
+                for (Index j = nz_k; j < nx_next; ++j){
+                    for (Index i = 0; i < nu_k + nx_k; ++i){ jacobian.BAbt[k](idx(i), j) = jac_i.BAbt[k](i, j); }
+                    rhs_g(od + j) = rhs_g_impl.value()(od_i + j);
+                }
+                // implicit equations: -D z + (BAbt_z + BAbt_e C^T)^T [u; x] + (g_z + C g_e) = 0
+                for (Index j = 0; j < nz_k; ++j){
+                    for (Index l = 0; l < nz_k; ++l){ jacobian.Gg_eqt[k](nu_k + l, ng_k + j) = -jac_i.Jt[k](l, j); }
+                    for (Index i = 0; i < nu_k + nx_k; ++i){
+                        Scalar value = jac_i.BAbt[k](i, j);
+                        for (Index m = 0; m < ne; ++m){ value += jac_i.BAbt[k](i, nz_k + m) * jac_i.Jt[k](nz_k + m, j); }
+                        jacobian.Gg_eqt[k](idx(i), ng_k + j) = value;
+                    }
+                    Scalar value = rhs_g_impl.value()(od_i + j);
+                    for (Index m = 0; m < ne; ++m){ value += jac_i.Jt[k](nz_k + m, j) * rhs_g_impl.value()(od_i + nz_k + m); }
+                    rhs_g(info.offsets_g_eq_path[k] + ng_k + j) = value;
+                }
+            }
+        }
+        for (Index i = 0; i < info.number_of_g_eq_path; ++i){ D_eq(i) = 10.0 * (i + 1); }
+    }
+
+    // max |(u, x) - (u, x) of the reformulated solver| / max |(u, x)|, only meaningful when all solvers
+    // solve the same problem (the reformulated solver has the additional controls z after u)
+    double RelativeDifferenceToReformulated(const ProblemInfo &info, const VecRealView &x) const {
+        const ProblemInfo &info_r = info_reform.value();
+        const VecRealView &x_r = x_reform.value();
+        double diff = 0., scale = 0.;
+        for (Index k = 0; k < K; ++k){
+            for (Index i = 0; i < nu[k]; ++i){
+                diff = std::max(diff, std::abs(x(info.offsets_primal_u[k] + i) - x_r(info_r.offsets_primal_u[k] + i)));
+                scale = std::max(scale, std::abs(x_r(info_r.offsets_primal_u[k] + i)));
+            }
+            for (Index i = 0; i < nx[k]; ++i){
+                diff = std::max(diff, std::abs(x(info.offsets_primal_x[k] + i) - x_r(info_r.offsets_primal_x[k] + i)));
+                scale = std::max(scale, std::abs(x_r(info_r.offsets_primal_x[k] + i)));
+            }
+        }
+        return diff / std::max(scale, 1e-300);
+    }
+
     void FillReformulatedSolver(){
+        if (SameProblemForAllSolvers()){
+            FillFromImplicitProblem(info_reform.value(), jacobian_reform.value(), hessian_reform.value(), D_x_reform.value(),
+                                    D_s_reform.value(), D_eq_reform.value(), rhs_x_reform.value(), rhs_g_reform.value(), x_reform.value());
+            return;
+        }
         x_reform = 0;
         full_matrix_jacobian_reform.value() = 0.;
         full_matrix_hessian_reform.value() = 0.;
@@ -488,6 +603,13 @@ public:
     }
 
     void FillAcceleratedSolver(){
+        if (SameProblemForAllSolvers()){
+            FillFromImplicitProblem(info_accel.value(), jacobian_accel.value(), hessian_accel.value(), D_x_accel.value(),
+                                    D_s_accel.value(), D_eq_accel.value(), rhs_x_accel.value(), rhs_g_accel.value(), x_accel.value());
+            solver_accel.value().set_nb_of_dynamics_constraints(nv[0]);
+            solver_accel.value().set_nb_of_zk_vars(nz[0]);
+            return;
+        }
         x_accel = 0;
         full_matrix_jacobian_accel.value() = 0.;
         full_matrix_hessian_accel.value() = 0.;
@@ -604,13 +726,27 @@ public:
                 Index offs_x_next = info_impl.value().offsets_primal_x[k + 1];
                 jacobian_impl.value().BAbt[k].block(nu + nx, nx_next, 0, 0) =
                     ::test::random_matrix(nu + nx, nx_next);
-                jacobian_impl.value().Jt[k].block(nx_next, nx_next, 0, 0) = ::test::random_matrix(nx_next, nx_next);
+                if (SameProblemForAllSolvers()){
+                    // J = [D C; 0 -I]: the first nz states are implicit, the others have explicit dynamics
+                    Index nz_k = nz[k];
+                    jacobian_impl.value().Jt[k].block(nx_next, nx_next, 0, 0) = ::test::empty_matrix(nx_next, nx_next);
+                    jacobian_impl.value().Jt[k].block(nx_next, nz_k, 0, 0) = ::test::random_matrix(nx_next, nz_k);   // [D C]^T
+                    jacobian_impl.value().Jt[k].block(nx_next - nz_k, nx_next - nz_k, nz_k, nz_k) =
+                        ::test::identity_matrix(nx_next - nz_k, -1);
+                } else {
+                    jacobian_impl.value().Jt[k].block(nx_next, nx_next, 0, 0) = ::test::random_matrix(nx_next, nx_next);
+                }
                 full_matrix_jacobian_impl.value().block(nx_next, nu + nx, offs_eq_dyn, offs_ux) =
                     transpose(jacobian_impl.value().BAbt[k].block(nu + nx, nx_next, 0, 0));
                 full_matrix_jacobian_impl.value().block(nx_next, nx_next, offs_eq_dyn, offs_x_next) =
                     transpose(jacobian_impl.value().Jt[k].block(nx_next, nx_next, 0, 0));
 
                 hessian_impl.value().FuFx[k].block(nu + nx, nx_next, 0, 0) = ::test::random_matrix(nu + nx, nx_next);
+                if (SameProblemForAllSolvers()){
+                    // the explicit states only appear linearly in the dynamics
+                    hessian_impl.value().FuFx[k].block(nu + nx, nx_next - nz[k], 0, nz[k]) =
+                        ::test::empty_matrix(nu + nx, nx_next - nz[k]);
+                }
                 full_matrix_hessian_impl.value().block(nu + nx, nx_next, offs_ux, offs_x_next) =
                     hessian_impl.value().FuFx[k].block(nu + nx, nx_next, 0, 0);
             }
@@ -652,7 +788,10 @@ public:
             D_s_impl.value()(i) =  1.0 + 0*10.0 * (i + 0.1);
         }
 
-
+        // pass on options
+        if (SameProblemForAllSolvers()){
+            solver_impl.value().set_nb_of_implicit_states(std::vector<Index>(nz.begin(), nz.end() - 1));
+        }
     }
 
     void Randomize(){
@@ -666,6 +805,13 @@ public:
         // std::cout << "filling solvers" << std::endl;
         // std::cout << "\texplicit:" << std::endl;
         FillExplicitSolver();
+        if (SameProblemForAllSolvers()){
+            // the reformulated and accelerated problems are derived from the implicit one
+            FillImplicitSolver();
+            FillReformulatedSolver();
+            FillAcceleratedSolver();
+            return;
+        }
         // std::cout << "\treformulated:" << std::endl;
         FillReformulatedSolver();
         // std::cout << "\taccelerated:" << std::endl;
@@ -676,12 +822,27 @@ public:
 
 };
 
-int main()
+int main(int argc, char **argv)
 {
+    // usage: benchmark [generalized | fully_implicit | varying_implicit] [number of runs]
     BenchmarkManager bm = BenchmarkManager();
-    std::cout << "running test" << std::endl;
-    int nb_runs = 20000;
+    std::string mode = (argc > 1) ? argv[1] : "varying_implicit";
+    std::string file_name = "benchmark_results_" + mode + "_20000_thesis_new.csv";
+    if (mode == "fully_implicit"){
+        bm.implicit_mode = ImplicitMode::fully_implicit;
+    } else if (mode == "varying_implicit"){
+        bm.implicit_mode = ImplicitMode::varying_implicit;
+    } else if (mode != "generalized"){
+        std::cerr << "unknown mode '" << mode << "', use generalized, fully_implicit or varying_implicit" << std::endl;
+        return 1;
+    }
+    std::cout << "running test (" << mode << ")" << std::endl;
+    int nb_runs = (argc > 2) ? std::atoi(argv[2]) : 20000;
+    if (bm.SameProblemForAllSolvers()){
+        file_name = "random_benchmark_results_" + mode + "_" + std::to_string(nb_runs) + ".csv";
+    }
     int nb_runs_completed = 0;
+    int nb_mismatches = 0;
     bool write_csv = true;
 
     bool skip_impl = USE_GENERALIZATION;
@@ -706,7 +867,7 @@ int main()
 
     std::ofstream f;    
     if (write_csv){
-        f.open("random_benchmark_results_generalized_20000_standalone_thesis.csv");
+        f.open(file_name);
         f << "K,nu,nx,r,ng,ng_ineq,";
         f << "nz,nv,";
         f << "t_expl,t_expl_backward,t_expl_solve,t_expl_forward,";
@@ -714,7 +875,9 @@ int main()
         f << "t_accel,t_accel_backward,t_accel_solve,t_accel_forward,";
         f << "t_impl,";
         f << "lu_expl,";
-        f << "lu_reform,lu_accel";
+        f << "lu_reform,lu_accel,";
+        // relative difference of (u, x) w.r.t. the reformulated solver (-1 if the problems differ)
+        f << "diff_impl,diff_accel";
         f << "\n";
     }
     
@@ -863,6 +1026,13 @@ int main()
         nb_runs_completed++;
         nb_consecutive_failures = 0;
 
+        double diff_impl = -1., diff_accel = -1.;
+        if (bm.SameProblemForAllSolvers()){
+            diff_impl = bm.RelativeDifferenceToReformulated(bm.info_impl.value(), bm.x_impl.value());
+            diff_accel = bm.RelativeDifferenceToReformulated(bm.info_accel.value(), bm.x_accel.value());
+            if (diff_impl > 1e-6 || diff_accel > 1e-6){ nb_mismatches++; }
+        }
+
         if (write_csv){
             // parameters
             f << bm.K << "," << bm.nu[0] << "," << bm.nx[0] << "," << bm.r[0] << "," << bm.ng[0] << "," << bm.ng_ineq[0] << ",";
@@ -888,7 +1058,8 @@ int main()
 
             // timings lu
             f << ns_lu_expl << ",";
-            f << ns_lu_reform << "," << ns_lu_accel;
+            f << ns_lu_reform << "," << ns_lu_accel << ",";
+            f << diff_impl << "," << diff_accel;
             f << "\n";
         }       
     }
@@ -906,4 +1077,8 @@ int main()
     std::cout << timings["total_accel_initial"] / nb_runs_completed << " - ";
     std::cout << timings["total_accel_forward"] / nb_runs_completed << ")" << std::endl;
     std::cout << "Average time implicit:     " << timings["total_ns_impl"] / nb_runs_completed << " ns" << std::endl;
+    if (bm.SameProblemForAllSolvers()){
+        std::cout << "Problems where the implicit or accelerated solution differs from the reformulated one (> 1e-6): "
+                  << nb_mismatches << " / " << nb_runs_completed << std::endl;
+    }
 }

@@ -3472,10 +3472,12 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             start = std::chrono::high_resolution_clock::now();
             #endif
             #ifndef IGNORE_EXTENSION
-            gemm_nt(nu + nx + 1, nu + nx, nxp1, 1.0, jacobian.BAbt[k], 0, 0, FuFx_underbar[k], 0, 0, 1.0,
+            // the trailing columns of FuFx can be zero (states that only appear linearly)
+            const Index nfufx = FuFx_effective_width(k, nxp1);
+            gemm_nt(nu + nx + 1, nu + nx, nfufx, 1.0, jacobian.BAbt[k], 0, 0, FuFx_underbar[k], 0, 0, 1.0,
                     RSQrqt_tilde[k], 0, 0, RSQrqt_tilde[k], 0, 0);
             // PrintNpArray(RSQrqt_tilde[k], "RSQrqt_intermediate");
-            gemm_nt(nu + nx, nu + nx, nxp1, 1.0, FuFx_underbar[k], 0, 0, jacobian.BAbt[k], 0, 0, 1.0,
+            gemm_nt(nu + nx, nu + nx, nfufx, 1.0, FuFx_underbar[k], 0, 0, jacobian.BAbt[k], 0, 0, 1.0,
                     RSQrqt_tilde[k], 0, 0, RSQrqt_tilde[k], 0, 0);
             #endif
             #ifdef PROFILE
@@ -4020,7 +4022,7 @@ LinsolReturnFlag ModifiedAugSystemSolver::solve(const ProblemInfo &info,
             start = std::chrono::high_resolution_clock::now();
             #endif
             #ifndef IGNORE_EXTENSION
-            gemv_t(nu + nx, nxp1, 1.0, FuFx_underbar[k], 0, 0, x, offs, 1.0, 
+            gemv_t(nu + nx, FuFx_effective_width(k, nxp1), 1.0, FuFx_underbar[k], 0, 0, x, offs, 1.0,
                    eq_mult, offs_dyn_eq_k, eq_mult, offs_dyn_eq_k);
             #endif
             #ifdef PROFILE
@@ -4895,7 +4897,77 @@ AugSystemSolver<ImplicitOcpType>::AugSystemSolver(const ProblemInfo &info) : Mod
     scratch = std::make_unique<MatRealAllocated>(dim + 8, scratch_cols);
     JBAbt.emplace_back(dim + max_nx, max_nx);
     JBAbt_modified.emplace_back(dim + max_nx, max_nx);
+
+    // by default, all states appear implicitly in the dynamics
+    const int K = info.dims.K;
+    nb_implicit_states.resize(std::max(K - 1, 0));
+    for (int k = 0; k < K - 1; ++k){ nb_implicit_states[k] = info.dims.number_of_states[k + 1]; }
+    structured_stage.assign(nb_implicit_states.size(), false);
+    FuFx_width.assign(nb_implicit_states.size(), -1);
+    Gg_eqt_saved.assign(K, false);
+    Gg_ineqt_saved.assign(K, false);
+    FuFx_saved.assign(nb_implicit_states.size(), false);
+    GuGx_saved.assign(nb_implicit_states.size(), false);
 };
+
+void AugSystemSolver<ImplicitOcpType>::set_nb_of_implicit_states(Index nz){
+    std::fill(nb_implicit_states.begin(), nb_implicit_states.end(), nz);
+}
+
+void AugSystemSolver<ImplicitOcpType>::set_nb_of_implicit_states(const std::vector<Index> &nz){
+    fatrop_assert_msg(nz.size() == nb_implicit_states.size(), "set_nb_of_implicit_states expects K-1 values");
+    nb_implicit_states = nz;
+}
+
+void AugSystemSolver<ImplicitOcpType>::SaveGg_eqt(const ProblemInfo &info, Jacobian<ImplicitOcpType> &jacobian, Index k){
+    if (Gg_eqt_saved[k]) return;
+    gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
+         info.dims.number_of_eq_constraints[k], jacobian.Gg_eqt[k], 0, 0, jacobian.Gg_eqt_original[k], 0, 0);
+    Gg_eqt_saved[k] = true;
+}
+
+void AugSystemSolver<ImplicitOcpType>::SaveGg_ineqt(const ProblemInfo &info, Jacobian<ImplicitOcpType> &jacobian, Index k){
+    if (Gg_ineqt_saved[k]) return;
+    gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
+         info.dims.number_of_ineq_constraints[k], jacobian.Gg_ineqt[k], 0, 0, jacobian.Gg_ineqt_original[k], 0, 0);
+    Gg_ineqt_saved[k] = true;
+}
+
+void AugSystemSolver<ImplicitOcpType>::SaveFuFx(const ProblemInfo &info, Hessian<ImplicitOcpType> &hessian, Index k){
+    if (FuFx_saved[k]) return;
+    gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
+         info.dims.number_of_states[k + 1], hessian.FuFx[k], 0, 0, hessian.FuFx_original[k], 0, 0);
+    FuFx_saved[k] = true;
+}
+
+void AugSystemSolver<ImplicitOcpType>::SaveGuGx(const ProblemInfo &info, Hessian<ImplicitOcpType> &hessian, Index k){
+    if (GuGx_saved[k]) return;
+    gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
+         info.dims.number_of_controls[k + 1], hessian.GuGx[k], 0, 0, hessian.GuGx_original[k], 0, 0);
+    GuGx_saved[k] = true;
+}
+
+void AugSystemSolver<ImplicitOcpType>::RestoreSavedMatrices(const ProblemInfo &info, Jacobian<ImplicitOcpType> &jacobian, Hessian<ImplicitOcpType> &hessian){
+    for (int k = 0; k < info.dims.K; ++k){
+        const Index nunx1 = info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1;
+        if (Gg_eqt_saved[k]){
+            gecp(nunx1, info.dims.number_of_eq_constraints[k], jacobian.Gg_eqt_original[k], 0, 0, jacobian.Gg_eqt[k], 0, 0);
+            Gg_eqt_saved[k] = false;
+        }
+        if (Gg_ineqt_saved[k]){
+            gecp(nunx1, info.dims.number_of_ineq_constraints[k], jacobian.Gg_ineqt_original[k], 0, 0, jacobian.Gg_ineqt[k], 0, 0);
+            Gg_ineqt_saved[k] = false;
+        }
+        if (k < info.dims.K - 1 && FuFx_saved[k]){
+            gecp(nunx1, info.dims.number_of_states[k + 1], hessian.FuFx_original[k], 0, 0, hessian.FuFx[k], 0, 0);
+            FuFx_saved[k] = false;
+        }
+        if (k < info.dims.K - 1 && GuGx_saved[k]){
+            gecp(nunx1, info.dims.number_of_controls[k + 1], hessian.GuGx_original[k], 0, 0, hessian.GuGx[k], 0, 0);
+            GuGx_saved[k] = false;
+        }
+    }
+}
 
 LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info,
                                            Jacobian<ImplicitOcpType> &jacobian, Hessian<ImplicitOcpType> &hessian,
@@ -4919,9 +4991,9 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
     // start = std::chrono::high_resolution_clock::now();
     #endif
 
-    ProblemInfo modified_info = PreProcess(info, jacobian, hessian, f_copy[0], g_copy[0], &(D_x_copy[0]), nullptr, &(D_s_copy[0]));
-    auto stop = std::chrono::high_resolution_clock::now();
-    duration_preprocess = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+    const ProblemInfo &modified_info = PreProcess(info, jacobian, hessian, f_copy[0], g_copy[0], &(D_x_copy[0]), nullptr, &(D_s_copy[0]));
+    auto stop_preprocess = std::chrono::high_resolution_clock::now();
+    duration_preprocess = std::chrono::duration_cast<std::chrono::nanoseconds>(stop_preprocess - start);
 
     start = std::chrono::high_resolution_clock::now();
     LinsolReturnFlag flag = ModifiedAugSystemSolver::solve(modified_info, jacobian, hessian, D_x_copy[0], D_s_copy[0], f_copy[0], g_copy[0], x, eq_mult);
@@ -4956,8 +5028,8 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
     start = std::chrono::high_resolution_clock::now();
     #endif
     PostProcess(info, modified_info, jacobian, hessian, x, eq_mult, &D_s, nullptr, g);
-    stop = std::chrono::high_resolution_clock::now();
-    duration_postprocess = std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
+    auto stop_postprocess = std::chrono::high_resolution_clock::now();
+    duration_postprocess = std::chrono::duration_cast<std::chrono::nanoseconds>(stop_postprocess - start);
 
     if (print_final_solution){
         std::string file = "final_solution.py";
@@ -5001,7 +5073,7 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve(const ProblemInfo &info
     #endif
 
     // return LinsolReturnFlag::SUCCESS;
-    ProblemInfo modified_info = PreProcess(info, jacobian, hessian, f_copy[0], g_copy[0], &D_x_copy[0], &D_eq_copy[0], &D_s_copy[0]);
+    const ProblemInfo &modified_info = PreProcess(info, jacobian, hessian, f_copy[0], g_copy[0], &D_x_copy[0], &D_eq_copy[0], &D_s_copy[0]);
     #ifdef PROFILE
     start = std::chrono::high_resolution_clock::now();
     #endif
@@ -5034,7 +5106,7 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve_rhs(const ProblemInfo &
     #endif
 
     // return LinsolReturnFlag::SUCCESS;
-    ProblemInfo modified_info = PreProcess(info, jacobian, hessian, f_copy[0], g_copy[0], nullptr, nullptr, &D_s_copy[0]);
+    const ProblemInfo &modified_info = PreProcess(info, jacobian, hessian, f_copy[0], g_copy[0], nullptr, nullptr, &D_s_copy[0]);
     #ifdef PROFILE
     start = std::chrono::high_resolution_clock::now();
     #endif
@@ -5067,7 +5139,7 @@ LinsolReturnFlag AugSystemSolver<ImplicitOcpType>::solve_rhs(const ProblemInfo &
     #endif
 
     // return LinsolReturnFlag::SUCCESS;
-    ProblemInfo modified_info = PreProcess(info, jacobian, hessian, f_copy[0], g_copy[0], nullptr, &D_eq_copy[0], &D_s_copy[0]);
+    const ProblemInfo &modified_info = PreProcess(info, jacobian, hessian, f_copy[0], g_copy[0], nullptr, &D_eq_copy[0], &D_s_copy[0]);
     #ifdef PROFILE
     start = std::chrono::high_resolution_clock::now();
     #endif
@@ -5091,7 +5163,7 @@ void AugSystemSolver<ImplicitOcpType>::set_performance_mode(bool set){
     }
 }
 
-ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
+const ProblemInfo &AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
                                                   Jacobian<ImplicitOcpType> &jacobian,
                                                   Hessian<ImplicitOcpType> &hessian,
                                                   VecRealView &f,
@@ -5137,9 +5209,7 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
     // Deal with regularization terms
     for (int k = 0; k < K; ++k){
         const Index nx = number_of_states[k];
-        const Index nx_next = number_of_states[k + 1];
         const Index nu = number_of_controls[k];
-        const Index nu_next = number_of_controls[k + 1];
         const Index ng = number_of_eq_constraints[k];
         const Index ng_ineq = number_of_ineq_constraints[k];
         const Index offset_eq_k = info.offsets_g_eq_path[k];
@@ -5151,6 +5221,7 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
         if (D_eq != nullptr && ng > 0)
         // equality penalty
         {
+            SaveGg_eqt(info, jacobian, k);
             for (Index i = 0; i < ng; i++)
             {
                 Scalar scaling_factor = 1.0 / (*D_eq)(offset_eq_k + i);
@@ -5169,6 +5240,7 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
         {
             if (ng_ineq > 0)
             {
+                SaveGg_ineqt(info, jacobian, k);
                 for (Index i = 0; i < ng_ineq; i++)
                 {
                     Scalar scaling_factor = 1.0 / (*D_s)(offs_ineq_k + i);
@@ -5202,34 +5274,105 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
     #ifdef PROFILE
     start = std::chrono::high_resolution_clock::now();
     #endif
+    any_rank_deficient = false;
     for (int k = 0; k < K-1; ++k){
         int nx = number_of_states[k];
         int nx_next = number_of_states[k + 1];
         int nu = number_of_controls[k];
         int nu_next = number_of_controls[k + 1];
+        // the first nz states of x[k+1] are implicit, the explicit ones satisfy -x[k+1][i] + ... = 0
+        const int nz = std::min(nb_implicit_states[k], static_cast<Index>(nx_next));
+        const int ne = nx_next - nz;
+        #ifndef NDEBUG
+        for (int i = 0; i < nx_next; i++){
+            for (int j = nz; j < nx_next; j++){
+                fatrop_dbg_assert(jacobian.Jt[k](i, j) == ((i == j) ? -1.0 : 0.0) && "explicit dynamics equations must read -x[k+1][i] + ... = 0");
+            }
+        }
+        #endif
 
-        // construct JABbt-matrix
         int rank;
         #ifdef PROFILE
         auto inner_start = std::chrono::high_resolution_clock::now();
+        auto inner_stop = std::chrono::high_resolution_clock::now();
         #endif
-        gecp(nx_next, nx_next, jacobian.Jt[k], 0, 0, JBAbt[0], 0, 0);
-        gecp(nu + nx + 1, nx_next, jacobian.BAbt[k], 0, 0, JBAbt[0], nx_next, 0);
-        gecp(nx_next + nu + nx + 1, nx_next, JBAbt[0], 0, 0, JBAbt_modified[0], 0, 0);
+        // decompose the implicit block D of J = [D C; 0 -I]
+        gecp(nz, nz, jacobian.Jt[k], 0, 0, jacobian.Jt_LU[k], 0, 0);
+        lu_fact_transposed(nz, nz, nz, rank, jacobian.Jt_LU[k], jacobian.Pl_pre[k], jacobian.Pr_pre[k], lu_fact_tol);
         #ifdef PROFILE
-        auto inner_stop = std::chrono::high_resolution_clock::now();
-        duration_decomp_copies += std::chrono::duration_cast<std::chrono::nanoseconds>(inner_stop - inner_start);
-        #endif
-
-        // decompose J matrix
-        auto inner_start = std::chrono::high_resolution_clock::now();
-        lu_fact_transposed(nx_next, nx_next + nu + nx + 1, nx_next, rank, JBAbt[0], jacobian.Pl_pre[k], jacobian.Pr_pre[k], lu_fact_tol);
-        gecp(rank, rank, JBAbt[0], 0, 0, jacobian.U1t[k], 0, 0);
-        // PrintLuInfo(JBAbt, jacobian.Jt[k], jacobian.Pl_pre[k], jacobian.Pr_pre[k]);
-        // rank = nx_next;
-        auto inner_stop = std::chrono::high_resolution_clock::now();
+        inner_stop = std::chrono::high_resolution_clock::now();
         duration_decomp_decomp += std::chrono::duration_cast<std::chrono::nanoseconds>(inner_stop - inner_start);
         inner_start = std::chrono::high_resolution_clock::now();
+        #endif
+        if (rank == nz){
+            // x[k+1][nz:] = [B A b]_e^T [u; x; 1] and x[k+1][0:nz] = -D^-1 (C x[k+1][nz:] + [B A b]_z^T [u; x; 1]),
+            // so only the columns of BAbt that belong to the implicit states change. The states keep their
+            // order, which leaves the matrices of stage k+1 untouched.
+            structured_stage[k] = true;
+            jacobian.J_ranks[k] = nx_next;
+            jacobian.nb_new_controls[k] = 0;
+            if (nz > 0){
+                if (ne > 0){
+                    // eliminate the explicit states from the implicit equations: BAbt_z += BAbt_e * C^T
+                    gemm_nn(nu + nx + 1, nz, ne, 1.0, jacobian.BAbt[k], 0, nz, jacobian.Jt[k], nz, 0, 1.0,
+                            jacobian.BAbt[k], 0, 0, jacobian.BAbt[k], 0, 0);
+                }
+                jacobian.Pl_pre[k].apply_on_cols(nz, &jacobian.BAbt[k].mat());                                    // * P_l
+                // NOTE: blasfeo only has high-performance kernels for the transposed right-side trsm variants,
+                // so transpose the factors once and use X * A^-1 = X * (A^T)^-T
+                getr(nz, nz, jacobian.Jt_LU[k], 0, 0, *scratch, 0, 0);
+                scratch->mat().use_dA = 0; // the inverse diagonal cached in scratch belongs to another matrix
+                trsm_rltu(nu + nx + 1, nz, 1.0, *scratch, 0, 0, jacobian.BAbt[k], 0, 0, jacobian.BAbt[k], 0, 0);   // * L^-1
+                trsm_rutn(nu + nx + 1, nz, -1.0, *scratch, 0, 0, jacobian.BAbt[k], 0, 0, jacobian.BAbt[k], 0, 0);  // * U^-1
+                jacobian.Pr_pre[k].apply_inverse_on_cols(nz, &jacobian.BAbt[k].mat());                            // * P_r^T
+            }
+            // the columns of FuFx that belong to explicit states are often zero, the recursion can skip them
+            Index fufx_width = nx_next;
+            while (fufx_width > nz){
+                bool zero_column = true;
+                for (Index i = 0; i < nu + nx && zero_column; i++){ zero_column = (hessian.FuFx[k](i, fufx_width - 1) == 0.0); }
+                if (!zero_column) break;
+                fufx_width--;
+            }
+            FuFx_width[k] = fufx_width;
+            #ifdef PROFILE
+            inner_stop = std::chrono::high_resolution_clock::now();
+            duration_decomp_scale1 += std::chrono::duration_cast<std::chrono::nanoseconds>(inner_stop - inner_start);
+            #endif
+            continue;
+        }
+
+        // general case (the implicit block is rank deficient): factorize the full J and treat the
+        // undetermined states as controls of the next stage
+        structured_stage[k] = false;
+        FuFx_width[k] = -1;
+        SaveGg_eqt(info, jacobian, k);
+        SaveGg_eqt(info, jacobian, k + 1);
+        SaveFuFx(info, hessian, k);
+        if (k < K - 2){ SaveFuFx(info, hessian, k + 1); }
+        SaveGuGx(info, hessian, k);
+
+        // construct JABbt-matrix
+        gecp(nx_next, nx_next, jacobian.Jt[k], 0, 0, JBAbt[0], 0, 0);
+        gecp(nx_next, nx_next, jacobian.Jt[k], 0, 0, JBAbt_modified[0], 0, 0);
+        gecp(nu + nx + 1, nx_next, jacobian.BAbt[k], 0, 0, JBAbt_modified[0], nx_next, 0);
+        #ifdef PROFILE
+        inner_stop = std::chrono::high_resolution_clock::now();
+        duration_decomp_copies += std::chrono::duration_cast<std::chrono::nanoseconds>(inner_stop - inner_start);
+        inner_start = std::chrono::high_resolution_clock::now();
+        #endif
+
+        // decompose J matrix (the rows of BAbt are transformed by the triangular solves below, so they
+        // are left out of the factorization)
+        lu_fact_transposed(nx_next, nx_next, nx_next, rank, JBAbt[0], jacobian.Pl_pre[k], jacobian.Pr_pre[k], lu_fact_tol);
+        gecp(rank, rank, JBAbt[0], 0, 0, jacobian.U1t[k], 0, 0);
+        any_rank_deficient = any_rank_deficient || (rank < nx_next);
+        // PrintLuInfo(JBAbt, jacobian.Jt[k], jacobian.Pl_pre[k], jacobian.Pr_pre[k]);
+        #ifdef PROFILE
+        inner_stop = std::chrono::high_resolution_clock::now();
+        duration_decomp_decomp += std::chrono::duration_cast<std::chrono::nanoseconds>(inner_stop - inner_start);
+        inner_start = std::chrono::high_resolution_clock::now();
+        #endif
         if (nu + nx < info.dims.number_of_eq_constraints[k] + nx_next - rank){
             // there will be more constraints at this stage than can be
             // satisfied using the constrols and the states.
@@ -5362,7 +5505,13 @@ ProblemInfo AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInfo &info
 
     start = std::chrono::high_resolution_clock::now();
     #endif
-    ProblemInfo modified_info(ProblemDims(K, number_of_controls, number_of_states, number_of_eq_constraints, number_of_ineq_constraints));
+    // the dimensions only change when some J is rank deficient
+    const ProblemInfo *modified_info_p = &info;
+    if (any_rank_deficient){
+        modified_info_storage = std::make_shared<ProblemInfo>(ProblemDims(K, number_of_controls, number_of_states, number_of_eq_constraints, number_of_ineq_constraints));
+        modified_info_p = modified_info_storage.get();
+    }
+    const ProblemInfo &modified_info = *modified_info_p;
     #ifdef PROFILE
     stop = std::chrono::high_resolution_clock::now();
     duration_preprocess_info += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
@@ -5426,8 +5575,11 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
     #ifdef PROFILE
     auto start = std::chrono::high_resolution_clock::now();
     #endif
-    veccp(x.m(), x, 0, x_copy[0], 0);
-    veccp(eq_mult.m(), eq_mult, 0, eq_mult_copy[0], 0);
+    // without rank deficient J, the modified problem has the same layout as the original one
+    if (any_rank_deficient){
+        veccp(x.m(), x, 0, x_copy[0], 0);
+        veccp(eq_mult.m(), eq_mult, 0, eq_mult_copy[0], 0);
+    }
     #ifdef PROFILE
     auto stop = std::chrono::high_resolution_clock::now();
     duration_post_rearrange_solution += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
@@ -5437,8 +5589,8 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
         #ifdef PROFILE
         start = std::chrono::high_resolution_clock::now();
         #endif
+        if (any_rank_deficient){
         Index nu = info.dims.number_of_controls[k];
-        Index nu_mod = modified_info.dims.number_of_controls[k];
         Index s = (k < info.dims.K - 1) ? info.dims.number_of_states[k + 1] - jacobian.J_ranks[k] : 0;
         Index s_states = (k > 0) ? info.dims.number_of_states[k] - jacobian.J_ranks[k-1] : 0;
 
@@ -5488,15 +5640,33 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
         //     eq_mult(info.offsets_g_eq_slack[k] + i) = (eq_mult_copy[0])(modified_info.offsets_g_eq_slack[k] + i);
         // }
         veccp(info.dims.number_of_ineq_constraints[k], eq_mult_copy[0], modified_info.offsets_g_eq_slack[k], eq_mult, info.offsets_g_eq_slack[k]);
+        }
 
         #ifdef PROFILE
         stop = std::chrono::high_resolution_clock::now();
         duration_post_rearrange_solution += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);
         start = std::chrono::high_resolution_clock::now();
         #endif
-        
+
         // scale states and dynamics multipliers
-        if (k > 0){
+        if (k > 0 && structured_stage[k-1]){
+            // the states kept their order, only the multipliers of the dynamics have to be transformed back
+            const Index nx = info.dims.number_of_states[k];
+            const Index nz = std::min(nb_implicit_states[k-1], nx);
+            const Index offs_dyn = info.offsets_g_eq_dyn[k-1];
+            if (nz > 0){
+                // multipliers of the implicit equations: -D^-T * lambda_z
+                jacobian.Pr_pre[k-1].apply(nz, &eq_mult.vec(), offs_dyn);
+                trsv_lnn(nz, jacobian.Jt_LU[k-1], 0, 0, eq_mult, offs_dyn, eq_mult, offs_dyn);
+                vecsc(nz, -1.0, eq_mult, offs_dyn);
+                trsv_unu(nz, nz, jacobian.Jt_LU[k-1], 0, 0, eq_mult, offs_dyn, eq_mult, offs_dyn);
+                jacobian.Pl_pre[k-1].apply_inverse(nz, &eq_mult.vec(), offs_dyn);
+                // multipliers of the explicit equations: lambda_e + C^T * lambda_z
+                gemv_n(nx - nz, nz, 1.0, jacobian.Jt[k-1], nz, 0, eq_mult, offs_dyn, 1.0,
+                       eq_mult, offs_dyn + nz, eq_mult, offs_dyn + nz);
+            }
+        }
+        else if (k > 0){
             // if (k < info.dims.K){
             gemv_t(info.dims.number_of_states[k] - jacobian.J_ranks[k-1], info.dims.number_of_states[k], 1.0, 
                 jacobian.U1U2t[k-1], 0, 0, 
@@ -5537,6 +5707,7 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
     #ifndef IGNORE_JAC_HESS_PREPROCESS
     hessian.ResetPreProcess(info, jacobian);
     #endif
+    RestoreSavedMatrices(info, jacobian, hessian);
     #ifdef PROFILE
     stop = std::chrono::high_resolution_clock::now();
     duration_post_reset_hessian_pre += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start);

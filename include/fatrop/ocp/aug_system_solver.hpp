@@ -14,6 +14,7 @@
 #include <vector>
 #include <chrono>
 #include <memory>
+#include <algorithm>
 
 namespace fatrop
 {
@@ -526,6 +527,15 @@ namespace fatrop
         std::chrono::nanoseconds duration_initial_stage = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_forward_recursion = std::chrono::nanoseconds(0);
 
+    protected:
+        // number of leading columns of FuFx[k] that can be nonzero (the remaining columns are zero),
+        // a negative value (or a missing entry) means all nx[k+1] columns
+        std::vector<Index> FuFx_width;
+        Index FuFx_effective_width(Index k, Index nxp1) const
+        {
+            return (k < static_cast<Index>(FuFx_width.size()) && FuFx_width[k] >= 0) ? std::min(FuFx_width[k], nxp1) : nxp1;
+        }
+
     private:
         // temporaries, pre-allocated during construction to avoid allocation during
         // optimization
@@ -686,6 +696,22 @@ namespace fatrop
         void set_performance_mode(bool set);
         void set_preprocessing_file_name(const std::string &name){preprocessing_file_name = name;};
 
+        /**
+         * @brief Sets the number of states of x[k+1] that appear implicitly in the dynamics.
+         *
+         * The first nz states of x[k+1] are implicit, the remaining nx[k+1] - nz states are
+         * explicit: the dynamics equation nz + i only contains x[k+1][nz + i], with coefficient -1.
+         * In terms of Jt[k] = J^T this means Jt[k][0:nz, nz:] = 0 and Jt[k][nz:, nz:] = -I, while
+         * the implicit equations can depend on all states (Jt[k][:, 0:nz] is dense). Only the
+         * nz x nz implicit block of J is then factorized. By default all states are implicit.
+         * @param nz Number of implicit states, the same for every stage (clipped to nx[k+1]).
+         */
+        void set_nb_of_implicit_states(Index nz);
+        /**
+         * @brief Sets the number of implicit states per stage (nz[k] refers to x[k+1], k = 0, ..., K-2).
+         */
+        void set_nb_of_implicit_states(const std::vector<Index> &nz);
+
         std::chrono::nanoseconds duration_preprocess = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_preprocess_jac = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_preprocess_hess = std::chrono::nanoseconds(0);
@@ -709,11 +735,19 @@ namespace fatrop
         std::chrono::nanoseconds duration_post_reset_hessian_pre = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_post_regularization = std::chrono::nanoseconds(0);
     private:
-        ProblemInfo PreProcess(const ProblemInfo &info, 
+        // returns info itself when no stage is rank deficient, the modified problem info otherwise
+        const ProblemInfo &PreProcess(const ProblemInfo &info,
                         Jacobian<ImplicitOcpType> &jacobian,
                         Hessian<ImplicitOcpType> &hessian,
                         VecRealView &f, VecRealView &g,
                         VecRealView* D_x, VecRealView* D_eq, VecRealView* D_s);
+
+        // save the matrices that are modified during the preprocessing only when they are modified
+        void SaveGg_eqt(const ProblemInfo &info, Jacobian<ImplicitOcpType> &jacobian, Index k);
+        void SaveGg_ineqt(const ProblemInfo &info, Jacobian<ImplicitOcpType> &jacobian, Index k);
+        void SaveFuFx(const ProblemInfo &info, Hessian<ImplicitOcpType> &hessian, Index k);
+        void SaveGuGx(const ProblemInfo &info, Hessian<ImplicitOcpType> &hessian, Index k);
+        void RestoreSavedMatrices(const ProblemInfo &info, Jacobian<ImplicitOcpType> &jacobian, Hessian<ImplicitOcpType> &hessian);
 
         void PostProcess(const ProblemInfo &info, 
                          const ProblemInfo &modified_info,
@@ -755,6 +789,18 @@ namespace fatrop
         std::vector<MatRealAllocated> JBAbt;
         std::vector<MatRealAllocated> JBAbt_modified;
         // std::vector<PermutationMatrix> Pr_extended;
+
+        // number of implicit states of x[k+1] (see set_nb_of_implicit_states)
+        std::vector<Index> nb_implicit_states;
+        // true when the implicit block of J[k] has full rank: then only that block is factorized
+        // and the states keep their order, so the matrices of stage k+1 are left untouched
+        std::vector<bool> structured_stage;
+        bool any_rank_deficient = false;
+        std::shared_ptr<ProblemInfo> modified_info_storage; // (ProblemInfo is incomplete here)
+        std::vector<bool> Gg_eqt_saved;
+        std::vector<bool> Gg_ineqt_saved;
+        std::vector<bool> FuFx_saved;
+        std::vector<bool> GuGx_saved;
     };
 
 } // namespace fatrop

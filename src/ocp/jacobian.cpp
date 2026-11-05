@@ -240,24 +240,20 @@ void Jacobian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
              info.dims.number_of_states[k + 1], BAbt[k], 0, 0, BAbt_original[k], 0, 0);
 
     }
+    // Gg_eqt and Gg_ineqt are only modified in some cases, AugSystemSolver<ImplicitOcpType>
+    // stores (and restores) them only then
     for (int k = 0; k < info.dims.K; ++k){
         // equalities
-        rowin(info.dims.number_of_eq_constraints[k], 1.0, 
-              g, info.offsets_g_eq_path[k], 
-              Gg_eqt[k], info.dims.number_of_states[k] + 
+        rowin(info.dims.number_of_eq_constraints[k], 1.0,
+              g, info.offsets_g_eq_path[k],
+              Gg_eqt[k], info.dims.number_of_states[k] +
               info.dims.number_of_controls[k], 0);
-        // Gg_eqt_original[k] = Gg_eqt[k];
-        gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
-             info.dims.number_of_eq_constraints[k], Gg_eqt[k], 0, 0, Gg_eqt_original[k], 0, 0);
 
         // inequalities
-        rowin(info.dims.number_of_ineq_constraints[k], 1.0, 
-              g, info.offsets_g_eq_slack[k], 
-              Gg_ineqt[k], info.dims.number_of_states[k] + 
+        rowin(info.dims.number_of_ineq_constraints[k], 1.0,
+              g, info.offsets_g_eq_slack[k],
+              Gg_ineqt[k], info.dims.number_of_states[k] +
               info.dims.number_of_controls[k], 0);
-        // Gg_ineqt_original[k] = Gg_ineqt[k];
-        gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
-             info.dims.number_of_ineq_constraints[k], Gg_ineqt[k], 0, 0, Gg_ineqt_original[k], 0, 0);
     }
     return;
 
@@ -314,17 +310,8 @@ void Jacobian<ImplicitOcpType>::ResetPreProcess(const ProblemInfo &info){
         // BAbt[k] = BAbt_original[k];
         gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
              info.dims.number_of_states[k + 1], BAbt_original[k], 0, 0, BAbt[k], 0, 0);
-    }   
-    for (int k = 0; k < info.dims.K; ++k){
-        // std::cout << "Gg_eqt[" << k << "]:" << std::endl << Gg_eqt[k] << std::endl;
-        // std::cout << "Gg_eqt_original[" << k << "]:" << std::endl << Gg_eqt_original[k] << std::endl;
-        // Gg_eqt[k] = Gg_eqt_original[k];
-        // Gg_ineqt[k] = Gg_ineqt_original[k];
-        gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
-             info.dims.number_of_eq_constraints[k], Gg_eqt_original[k], 0, 0, Gg_eqt[k], 0, 0);
-        gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
-             info.dims.number_of_ineq_constraints[k], Gg_ineqt_original[k], 0, 0, Gg_ineqt[k], 0, 0);    
     }
+    // Gg_eqt and Gg_ineqt are restored by AugSystemSolver<ImplicitOcpType> if they were modified
 }
 
 void Jacobian<ImplicitOcpType>::PrepareInverseOfJ(const ProblemInfo &info){

@@ -108,17 +108,11 @@ void Hessian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
 
         // RSQrqt_original[k] = RSQrqt[k];
         gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
-             info.dims.number_of_states[k] + info.dims.number_of_controls[k], RSQrqt[k], 0, 0, 
+             info.dims.number_of_states[k] + info.dims.number_of_controls[k], RSQrqt[k], 0, 0,
              RSQrqt_original[k], 0, 0);
     }
-    for (int k = 0; k < info.dims.K-1; ++k){
-        // FuFx_original[k] = FuFx[k];
-        // GuGx_original[k] = GuGx[k];
-        gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
-             info.dims.number_of_states[k + 1], FuFx[k], 0, 0, FuFx_original[k], 0, 0);
-        gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
-            info.dims.number_of_controls[k + 1], GuGx[k], 0, 0, GuGx_original[k], 0, 0);
-    }
+    // FuFx and GuGx are only modified when J is rank deficient, AugSystemSolver<ImplicitOcpType>
+    // stores (and restores) them only then
 }
 
 void Hessian<ImplicitOcpType>::ResetPreProcess(const ProblemInfo &info, 
@@ -135,17 +129,10 @@ void Hessian<ImplicitOcpType>::ResetPreProcess(const ProblemInfo &info,
         // }
         // RSQrqt[k] = RSQrqt_original[k];
         gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
-             info.dims.number_of_states[k] + info.dims.number_of_controls[k], RSQrqt_original[k], 0, 0, 
+             info.dims.number_of_states[k] + info.dims.number_of_controls[k], RSQrqt_original[k], 0, 0,
              RSQrqt[k], 0, 0);
-        if (k < info.dims.K-1){
-            // FuFx[k] = FuFx_original[k];
-            // GuGx[k] = GuGx_original[k];
-            gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
-                 info.dims.number_of_states[k + 1], FuFx_original[k], 0, 0, FuFx[k], 0, 0);
-            gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
-                 info.dims.number_of_controls[k + 1], GuGx_original[k], 0, 0, GuGx[k], 0, 0);
-        }
     }
+    // FuFx and GuGx are restored by AugSystemSolver<ImplicitOcpType> if they were modified
 }
 
 void Hessian<ImplicitOcpType>::apply_on_right(const OcpInfo& info, 
