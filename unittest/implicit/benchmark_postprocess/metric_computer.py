@@ -122,3 +122,12 @@ class relative_difference_other_time(metric_computer):
         other_accel = df['t_accel'] - df['lu_accel']
         other_reform = df['t_reform'] - df['lu_reform']
         return (other_accel - other_reform) / other_reform
+
+# share of the rows of G_u that belong to M_1, i.e. the constraints that do not depend on the auxiliary controls
+# (ng = n_h + n_f1, nv = n_f2)
+class row_share_computer(metric_computer):
+    def __init__(self):
+        super().__init__('$\\frac{n_h + n_{f_1}}{n_h + n_{f_1} + n_{f_2}}$')
+
+    def compute_metric(self, df):
+        return df['m_rel']

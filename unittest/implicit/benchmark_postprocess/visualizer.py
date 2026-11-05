@@ -21,10 +21,12 @@ def visualize_scaling_1d(df, x_func, **kwargs):
             print(f"Processing filter {f.name} and y_func {y.name}")
             pp.set_filter(f)
             pp.set_y_metric_computer(y)
-            kwargs_fine = kwargs.copy()
-            kwargs_fine['x_min_step'] = None
-            kwargs_fine['use_integer_x'] = False
-            xx_fine, yy_mean_fine, yy_std_fine, y_all_fine, y_masks_fine = pp.prepare(df, **kwargs_fine)
+            # the unbinned (fine) data is only needed for the scatter plot
+            if kwargs.get('scatter', False):
+                kwargs_fine = kwargs.copy()
+                kwargs_fine['x_min_step'] = None
+                kwargs_fine['use_integer_x'] = False
+                xx_fine, yy_mean_fine, yy_std_fine, y_all_fine, y_masks_fine = pp.prepare(df, **kwargs_fine)
             xx, yy_mean, yy_std, y_all, y_masks = pp.prepare(df, **kwargs)
             color = filter_colors[f_idx % len(filter_colors)]
             linestyle = y_func_linestyles[y_idx % len(y_func_linestyles)]
@@ -61,7 +63,7 @@ def visualize_scaling_1d(df, x_func, **kwargs):
                 plt.fill_between(xx, np.array(yy_mean) - std_scale*np.array(yy_std), np.array(yy_mean) + std_scale*np.array(yy_std), color=color, alpha=0.2)
             
     plt.axhline(0, color='k', lw=2)
-    
+
     plt.xlim(min(xx), max(xx))
     if kwargs.get('y_lim', None) is not None:
         print(f"Setting y limits to {kwargs.get('y_lim')}")
@@ -83,6 +85,40 @@ def visualize_scaling_1d(df, x_func, **kwargs):
     if kwargs.get('show', False):
         plt.show()
         
+def visualize_boxplot(df, y_func, filters, **kwargs):
+    # one box per filter (e.g. a bin of the matrix size) with the distribution of y_func over the problems in that bin
+    plt.figure()
+
+    data = []
+    labels = []
+    for f in filters:
+        df_filtered, _ = f.filter_data(df)
+        values = np.asarray(y_func.compute_metric(df_filtered), dtype=float)
+        values = values[~np.isnan(values)]
+        data.append(values)
+        labels.append(f"{f.value_min:g}--{f.value_max:g}\n($n = {len(values)}$)")
+
+    # whiskers at the 5th and 95th percentile, outliers are not drawn
+    plt.boxplot(data, whis=kwargs.get('whis', (5, 95)), showfliers=kwargs.get('show_fliers', False), patch_artist=True,
+                boxprops=dict(facecolor=kwargs.get('color', 'grey'), alpha=0.7), medianprops=dict(color='k', lw=2))
+    plt.xticks(range(1, len(labels) + 1), labels)
+    plt.axhline(0, color='k', lw=1)
+
+    if kwargs.get('y_lim', None) is not None:
+        plt.ylim(kwargs.get('y_lim'))
+    plt.xlabel(kwargs.get('x_label', filters[0].metric_computer.name))
+    plt.ylabel(y_func.name)
+    plt.title(kwargs.get('title', ''))
+    plt.grid()
+    plt.tight_layout()
+
+    if kwargs.get('file_name', None) is not None:
+        print(f"Saving figure to {kwargs.get('file_name')}")
+        plt.savefig('figures-thesis/' + kwargs.get('file_name'), dpi=300)
+
+    if kwargs.get('show', False):
+        plt.show()
+
 def visualize_distribution(df, metric, **kwargs):
     plt.figure()
     
@@ -99,7 +135,8 @@ def visualize_distribution(df, metric, **kwargs):
         plt.xlim(kwargs.get('x_lim'))
     
     plt.xlabel(metric.name)
-    plt.ylabel('Frequency')
+    # with density=True the bar heights are a probability density (the histogram integrates to 1), not counts
+    plt.ylabel('Probability density' if kwargs.get('normalized', False) else 'Number of problems')
     plt.title(kwargs.get('title', ''))
     plt.grid()
     plt.tight_layout()

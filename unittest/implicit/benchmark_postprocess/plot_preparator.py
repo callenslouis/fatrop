@@ -1,6 +1,7 @@
 from metric_computer import rel_speedup_computer
 from filter import default_filter
 import numpy as np
+import pandas as pd
 
 class PlotPreparator:
     def __init__(self):
@@ -39,16 +40,24 @@ class PlotPreparator:
         y_all = []
         y_masks = []
         df_filtered, _ = self.filter.filter_data(df)
+        # compute the x and y metrics once on the filtered data, then select the rows of each x value with a boolean mask
+        x_filtered = np.asarray(self.x_metric_computer.compute_metric(df_filtered), dtype=float)
+        y_filtered = self.y_metric_computer.compute_metric(df_filtered)
+        binned = kwargs.get('use_integer_x') or kwargs.get('x_min_step') is not None
         for i, x in enumerate(x_values):
-            if kwargs.get('use_integer_x') or kwargs.get('x_min_step') is not None:
-                df_filtered_value, mask = self.x_metric_computer.filter_df_range(df_filtered, x, x_values[i+1] if i+1 < len(x_values) else x)
+            if binned:
+                # half-open bins [x, x_next) so that values on a bin edge are counted once; the last bin only holds x itself
+                if i+1 < len(x_values):
+                    mask = (x_filtered >= x) & (x_filtered < x_values[i+1])
+                else:
+                    mask = x_filtered == x
             else:
-                df_filtered_value, mask = self.x_metric_computer.filter_df(df_filtered, x)
-                
-            y_mean, y_std, y_all_i = self.y_metric_computer.evaluate(df_filtered_value)
-            y_values_mean.append(y_mean)
-            y_values_std.append(y_std)
+                mask = x_filtered == x
+
+            y_all_i = y_filtered[mask]
+            y_values_mean.append(np.mean(y_all_i))
+            y_values_std.append(np.std(y_all_i))
             y_all.append(list(y_all_i))
-            y_masks.append(mask)
+            y_masks.append(pd.Series(mask, index=df_filtered.index))
 
         return x_values, y_values_mean, y_values_std, y_all, y_masks

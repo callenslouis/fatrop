@@ -57,7 +57,9 @@ class lu_relevance_filter(Filter):
         return (relevance >= self.threshold_min) & (relevance <= self.threshold_max)
     
 class metric_range_filter(Filter):
-    def __init__(self, metric_computer, value_min, value_max, integer=False):
+    # half-open range [value_min, value_max) so that consecutive filters do not share rows;
+    # set include_max for the last filter of a sequence to also keep rows equal to value_max
+    def __init__(self, metric_computer, value_min, value_max, integer=False, include_max=False):
         super().__init__(
             f'{value_min:.2f} $<$ {metric_computer.name} $<$ {value_max:.2f}' if not integer else
             f'{int(value_min)} $<$ {metric_computer.name} $<$ {int(value_max)}'
@@ -65,7 +67,10 @@ class metric_range_filter(Filter):
         self.metric_computer = metric_computer
         self.value_min = value_min
         self.value_max = value_max
+        self.include_max = include_max
 
     def filter_pass_condition(self, df):
         metric_values = self.metric_computer.compute_metric(df)
-        return (metric_values >= self.value_min) & (metric_values <= self.value_max)
+        if self.include_max:
+            return (metric_values >= self.value_min) & (metric_values <= self.value_max)
+        return (metric_values >= self.value_min) & (metric_values < self.value_max)

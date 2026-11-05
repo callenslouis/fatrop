@@ -60,7 +60,7 @@ def get_data():
     
     # number of cols: nu + nz
     df['n'] = df['nz'] + df['nu']
-    df['n_rel'] = df['nu'] / df['n']
+    df['n_rel'] = df['nz'] / df['n']
 
     print("Loaded data file")
     return df

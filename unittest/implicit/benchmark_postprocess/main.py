@@ -26,8 +26,8 @@ if __name__ == '__main__':
     nb_filters = 6
     filter_sqrt = [metric_range_filter(square_root_area_computer(), 
                                        max_sqrt_to_consider*i/nb_filters, 
-                                       max_sqrt_to_consider*(i+1)/nb_filters, 
-                                       integer=True)
+                                       max_sqrt_to_consider*(i+1)/nb_filters,
+                                       integer=True, include_max=(i == nb_filters-1))
                    for i in range(nb_filters)]
     
     # define x-axis functions
@@ -43,12 +43,12 @@ if __name__ == '__main__':
         
     ### 
     # relative difference in t_total for different sizes
-    visualize_scaling_1d(df, x_funcs[0], filters=filter_sqrt, x_min_step=0.05, filter_colors=colors,
-                         file_name=f'relative_improvement_relative_area_binned_sqrt_area_new_structure.png', show_std=False, y_lim=(-0.3, 0.3))
-    visualize_scaling_1d(df, x_funcs[0], filters=filter_sqrt, x_min_step=0.05, filter_colors=colors,
-                             file_name=f'relative_improvement_relative_area_binned_sqrt_area_new_impl.png', show_std=False, 
-                            #  y_lim=(-0.3, 0.3), 
-                             y_funcs=[rel_speedup_computer_impl()])
+    # visualize_scaling_1d(df, x_funcs[0], filters=filter_sqrt, x_min_step=0.05, filter_colors=colors,
+    #                      file_name=f'relative_improvement_relative_area_binned_sqrt_area_new_structure.png', show_std=False, y_lim=(-0.3, 0.3))
+    # visualize_scaling_1d(df, x_funcs[0], filters=filter_sqrt, x_min_step=0.05, filter_colors=colors,
+    #                          file_name=f'relative_improvement_relative_area_binned_sqrt_area_new_impl.png', show_std=False, 
+    #                         #  y_lim=(-0.3, 0.3), 
+    #                          y_funcs=[rel_speedup_computer_impl()])
     
     # # relative difference in t_lu for different sizes
     # visualize_scaling_1d(df, x_funcs[0], y_funcs=[y_func_lu_rel], filters=filter_sqrt, x_min_step=0.05, filter_colors=colors,
@@ -85,5 +85,17 @@ if __name__ == '__main__':
     
     visualize_distribution(df, lu_relevance_computer(reformulated=True), bins=40, normalized=True, color='grey', show_median=True, x_lim=(0, 1), file_name='lu_relevance_distribution_new_1.png')
     visualize_distribution(df, lu_relevance_computer(reformulated=False), bins=40, normalized=True, color='grey', show_median=True, x_lim=(0, 1), file_name='lu_relevance_distribution_new_2.png')
-        
+
+    ###
+    # relative difference in t_total as a function of the row share of M_1, for different sizes
+    visualize_scaling_1d(df, row_share_computer(), filters=filter_sqrt, x_min_step=0.05, filter_colors=colors, show_std=False,
+                         y_lim=(-0.3, 0.3), file_name='relative_improvement_row_share_binned_sqrt_area.png')
+    # same for the implicit (generalized recursion) vs the reformulated case
+    visualize_scaling_1d(df, row_share_computer(), filters=filter_sqrt, x_min_step=0.05, filter_colors=colors, show_std=False,
+                         y_funcs=[rel_speedup_computer_impl()], file_name='relative_improvement_row_share_binned_sqrt_area_impl.png')
+
+    # distribution of the relative difference in t_total for different sizes
+    visualize_boxplot(df, rel_speedup_computer(), filter_sqrt, file_name='relative_improvement_boxplot_sqrt_area.png')
+    visualize_boxplot(df, rel_speedup_computer_impl(), filter_sqrt, file_name='relative_improvement_boxplot_sqrt_area_impl.png')
+
 
