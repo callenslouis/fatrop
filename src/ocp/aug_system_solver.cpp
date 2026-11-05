@@ -4921,8 +4921,17 @@ AugSystemSolver<ImplicitOcpType>::AugSystemSolver(const ProblemInfo &info) : Mod
     GuGx_saved.assign(nb_implicit_states.size(), false);
 };
 
-void AugSystemSolver<ImplicitOcpType>::set_nb_of_implicit_states(Index nz){
+void AugSystemSolver<ImplicitOcpType>::set_nb_of_implicit_states(const Index &nz){
     std::fill(nb_implicit_states.begin(), nb_implicit_states.end(), nz);
+}
+
+void AugSystemSolver<ImplicitOcpType>::register_options(OptionRegistry &registry)
+{
+    ModifiedAugSystemSolver::register_options(registry);
+    registry.register_option("linsol_nb_of_implicit_states",
+                             static_cast<void (AugSystemSolver<ImplicitOcpType>::*)(const Index &)>(
+                                 &AugSystemSolver<ImplicitOcpType>::set_nb_of_implicit_states),
+                             this);
 }
 
 void AugSystemSolver<ImplicitOcpType>::set_nb_of_implicit_states(const std::vector<Index> &nz){
@@ -5298,15 +5307,20 @@ const ProblemInfo &AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInf
         const int nz = std::min(nb_implicit_states[k], static_cast<Index>(nx_next));
         const int ne = nx_next - nz;
         const int nv = n_dyn - ne;
-        #ifndef NDEBUG
+        // the structure is given by the user (set_nb_of_implicit_states), so check it
         if (nv >= 0){
-            for (int i = 0; i < nx_next; i++){
-                for (int j = 0; j < ne; j++){
-                    fatrop_dbg_assert(jacobian.Jt[k](i, nv + j) == ((i == nz + j) ? -1.0 : 0.0) && "explicit dynamics equations must read -x[k+1][i] + ... = 0");
+            for (int j = 0; j < ne; j++){
+                for (int i = 0; i < nx_next; i++){
+                    if (jacobian.Jt[k](i, nv + j) != ((i == nz + j) ? -1.0 : 0.0)){
+                        throw std::runtime_error("The dynamics of stage " + std::to_string(k) + " do not have the "
+                            "structure J = [D C; 0 -I] for " + std::to_string(nz) + " implicit states: the explicit "
+                            "dynamics equation " + std::to_string(nv + j) + " must read -x[k+1][" +
+                            std::to_string(nz + j) + "] + f(x[k], u[k]) = 0 (check linsol_nb_of_implicit_states and "
+                            "the order of the states and dynamics equations).");
+                    }
                 }
             }
         }
-        #endif
 
         int rank = -1;
         #ifdef PROFILE
@@ -5435,10 +5449,11 @@ const ProblemInfo &AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInf
                 number_of_controls[k + 1] += nz - r;
                 number_of_states[k + 1] = r + ne;
             }
-            // the columns of FuFx that belong to explicit states are often zero, the recursion can skip them
-            // (not when stage k+1 has new controls: the recursion then adds GuGx terms to all columns)
+            // trailing zero columns of FuFx (often those of the explicit states, or all of them when x[k+1]
+            // enters the dynamics linearly) can be skipped by the recursion (not when stage k+1 has new
+            // controls: the recursion then adds GuGx terms to all columns)
             Index fufx_width = r + ne;
-            while (r == nz && fufx_width > r){
+            while (r == nz && fufx_width > 0){
                 bool zero_column = true;
                 for (Index i = 0; i < nu + nx && zero_column; i++){ zero_column = (hessian.FuFx[k](i, fufx_width - 1) == 0.0); }
                 if (!zero_column) break;

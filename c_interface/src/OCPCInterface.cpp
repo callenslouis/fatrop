@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <limits>
 #include <memory>
+#include <type_traits>
 
 #include "fatrop/ocp/OCPCInterfaceInternal.hpp"
 namespace fatrop
@@ -62,7 +63,7 @@ namespace fatrop
     {
         struct FatropOcpCAuxiliary
         {
-            static ProblemDims get_ocp_dims(const FatropOcpCInterface &ocp)
+            static ProblemDims get_ocp_dims(const FatropOcpCInterface &ocp, bool implicit)
             {
                 const Index K = ocp.get_horizon_length(ocp.user_data);
                 std::vector<Index> nu(K), nx(K), ng(K), ng_ineq(K);
@@ -72,6 +73,14 @@ namespace fatrop
                     nx[k] = ocp.get_nx(k, ocp.user_data);
                     ng[k] = ocp.get_ng(k, ocp.user_data);
                     ng_ineq[k] = ocp.get_ng_ineq(k, ocp.user_data);
+                }
+                // only implicit dynamics can have another number of dynamics constraints than states
+                if (implicit && ocp.get_n_dyn)
+                {
+                    std::vector<Index> n_dyn(K > 0 ? K - 1 : 0);
+                    for (Index k = 0; k < K - 1; k++)
+                        n_dyn[k] = ocp.get_n_dyn(k, ocp.user_data);
+                    return ProblemDims(K, nu, nx, ng, ng_ineq, n_dyn);
                 }
                 return ProblemDims(K, nu, nx, ng, ng_ineq);
             }
@@ -88,7 +97,7 @@ namespace fatrop
                                                 ocp_dims.number_of_ineq_constraints[k];
                     if (k != ocp_dims.K - 1)
                     {
-                        number_of_eq_constraints += ocp_dims.number_of_states[k + 1];
+                        number_of_eq_constraints += ocp_dims.number_of_dyn_constraints[k];
                     }
                     number_of_ineq_constraints += ocp_dims.number_of_ineq_constraints[k];
                 }
@@ -101,10 +110,17 @@ namespace fatrop
 
     template <typename ProblemType>
     FatropOcpCMapping<ProblemType>::FatropOcpCMapping(FatropOcpCInterface *ocp)
-        : ocp(ocp), ocp_dims_(FatropOcpCAuxiliary::get_ocp_dims(*ocp)),
+        : ocp(ocp), ocp_dims_(FatropOcpCAuxiliary::get_ocp_dims(*ocp, std::is_same_v<ProblemType, ImplicitOcpType>)),
           nlp_dims_(FatropOcpCAuxiliary::get_nlp_dims(ocp_dims_)), K_(ocp_dims_.K),
           matrix_buffer_{std::vector<MAT *>(K_), std::vector<MAT *>(K_), std::vector<MAT *>(K_)}
     {
+        if constexpr (std::is_same_v<ProblemType, ImplicitOcpType>)
+        {
+            if (!ocp->eval_BAJbt || !ocp->eval_FuFx)
+            {
+                throw std::runtime_error("Problem type implicit_ocp_type requires the callbacks eval_BAJbt and eval_FuFx");
+            }
+        }
         // check if no parameters are used by the ocp, because this is not supported anymore
         if (ocp->get_n_global_params && ocp->get_n_global_params(ocp->user_data) > 0)
         {
@@ -158,6 +174,16 @@ namespace fatrop
                     ocp->eval_RSQrqt(&objective_scale, inputs_k, states_k, lam_dyn_k, lam_eq_k,
                                      lam_eq_ineq_k, nullptr, nullptr, RSQrqt_buff[k], k,
                                      ocp->user_data);
+                // implicit dynamics couple (u_k, x_k) and x_{k+1} in the Hessian
+                if constexpr (std::is_same_v<ProblemType, ImplicitOcpType>)
+                {
+                    if (k != info.dims.K - 1)
+                    {
+                        const Scalar *states_kp1 = primal_x_ptr + info.offsets_primal_x[k + 1];
+                        ocp->eval_FuFx(&objective_scale, inputs_k, states_k, states_kp1, lam_dyn_k,
+                                       nullptr, nullptr, &hess.FuFx[k].mat(), k, ocp->user_data);
+                    }
+                }
             }
         }
         return 0;
@@ -175,7 +201,8 @@ namespace fatrop
         const Scalar *primal_x_ptr = primal_x.data();
         for (Index k = 0; k < K_; k++)
         {
-            BAbt_buff[k] = &jac.BAbt[k].mat();
+            // there are only K-1 dynamics Jacobians
+            BAbt_buff[k] = (k < K_ - 1) ? &jac.BAbt[k].mat() : nullptr;
             Gg_eqt_buff[k] = &jac.Gg_eqt[k].mat();
             Gg_ineqt_buff[k] = &jac.Gg_ineqt[k].mat();
         }
@@ -200,7 +227,12 @@ namespace fatrop
                 if (k != info.dims.K - 1)
                 {
                     const Scalar *states_kp1 = primal_x_ptr + info.offsets_primal_x[k + 1];
-                    if (ocp->eval_BAbt)
+                    if constexpr (std::is_same_v<ProblemType, ImplicitOcpType>)
+                    {
+                        ocp->eval_BAJbt(states_kp1, inputs_k, states_k, nullptr, nullptr,
+                                        BAbt_buff[k], &jac.Jt[k].mat(), k, ocp->user_data);
+                    }
+                    else if (ocp->eval_BAbt)
                         ocp->eval_BAbt(states_kp1, inputs_k, states_k, nullptr, nullptr,
                                        BAbt_buff[k], k, ocp->user_data);
                 }
@@ -735,6 +767,8 @@ namespace fatrop
             return 1;
         if (n == "linsol_nb_of_zk_vars")
             return 1;
+        if (n == "linsol_nb_of_implicit_states")
+            return 1;
         if (n == "problem_type")
             return 3;
         return -1;
@@ -776,6 +810,8 @@ namespace fatrop
             this->driver = new OcpSolverDriver<OcpType>(ocp_interface, write, flush);
         } else if (problem_type == "accelerated_ocp_type"){
             this->driver = new OcpSolverDriver<AcceleratedOcpType>(ocp_interface, write, flush);
+        } else if (problem_type == "implicit_ocp_type"){
+            this->driver = new OcpSolverDriver<ImplicitOcpType>(ocp_interface, write, flush);
         } else {
             throw std::runtime_error("Unknown problem type: " + problem_type);
         }
@@ -802,7 +838,9 @@ namespace fatrop
 
     template class FatropOcpCMapping<OcpType>;
     template class FatropOcpCMapping<AcceleratedOcpType>;
+    template class FatropOcpCMapping<ImplicitOcpType>;
     template class OcpSolverDriver<OcpType>;
     template class OcpSolverDriver<AcceleratedOcpType>;
+    template class OcpSolverDriver<ImplicitOcpType>;
 
 }

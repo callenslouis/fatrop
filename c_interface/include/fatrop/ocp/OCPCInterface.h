@@ -89,6 +89,14 @@ extern "C"
     typedef fatrop_int (*FatropOcpCEval_BAbt_k)(const double *, const double *, const double *,
                                                 const double *, const double *,
                                                 struct blasfeo_dmat *, fatrop_int, void *user_data);
+    typedef fatrop_int (*FatropOcpCEval_BAJbt_k)(const double *, const double *, const double *,
+                                                 const double *, const double *,
+                                                 struct blasfeo_dmat *, struct blasfeo_dmat *,
+                                                 fatrop_int, void *user_data);
+    typedef fatrop_int (*FatropOcpCEval_FuFx_k)(const double *, const double *, const double *,
+                                                const double *, const double *, const double *,
+                                                const double *, struct blasfeo_dmat *, fatrop_int,
+                                                void *user_data);
     typedef fatrop_int (*FatropOcpCEval_RSQrqt_k)(const double *, const double *, const double *,
                                                   const double *, const double *, const double *,
                                                   const double *, const double *,
@@ -281,6 +289,37 @@ extern "C"
         FatropOcpCFullEvalContrViol full_eval_contr_viol;
         FatropOcpCFullEvalObjGrad full_eval_obj_grad;
         FatropOcpCFullEvalObj full_eval_obj;
+        /// @brief number of dynamics constraints f_k(u_k, x_k, x_{k+1}) = 0 between time step k and
+        /// k+1, only used for implicit dynamics (problem_type "implicit_ocp_type"). If zero,
+        /// nx_{k+1} is used.
+        /// @param k: time step
+        FatropOcpCGetDim_k get_n_dyn;
+        /// @brief implicit dynamics, only used for problem_type "implicit_ocp_type".
+        /// It evaluates (1) the vertical concatenation of the Jacobian of f_k to (u_k, x_k),
+        /// transposed, and f_k(u_k, x_k, x_{k+1}) itself and (2) the Jacobian of f_k to x_{k+1},
+        /// transposed. The matrices are in column major format.
+        /// @param states_kp1: pointer to array states of time step k+1
+        /// @param inputs_k: pointer to array inputs of time step k
+        /// @param states_k: pointer to array states of time step k
+        /// @param stage_params_k: pointer to array stage parameters of time step k
+        /// @param global_params: pointer to array global parameters
+        /// @param res_BAbt: pointer to (nu+nx+1 x n_dyn)-matrix
+        /// @param res_Jt: pointer to (nx_{k+1} x n_dyn)-matrix
+        /// @param k: time step
+        FatropOcpCEval_BAJbt_k eval_BAJbt;
+        /// @brief cross term of the Lagrangian Hessian between (u_k, x_k) and x_{k+1}, only used
+        /// for problem_type "implicit_ocp_type". The Hessian blocks of (u_k, x_k) and x_{k+1}
+        /// themselves (including the contribution of the dynamics) are evaluated by eval_RSQrqt.
+        /// @param objective_scale: pointer to objective scale
+        /// @param inputs_k: pointer to array inputs of time step k
+        /// @param states_k: pointer to array states of time step k
+        /// @param states_kp1: pointer to array states of time step k+1
+        /// @param lam_dyn_k: pointer to array dual variables for dynamics of time step k
+        /// @param stage_params_k: pointer to array stage parameters of time step k
+        /// @param global_params: pointer to array global parameters
+        /// @param res: pointer to (nu+nx x nx_{k+1})-matrix
+        /// @param k: time step
+        FatropOcpCEval_FuFx_k eval_FuFx;
 
         void *user_data;
     };

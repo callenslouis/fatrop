@@ -618,6 +618,12 @@ namespace fatrop
         AugSystemSolver(const ProblemInfo &info);
 
         /**
+         * @brief Registers the options of the base class and linsol_nb_of_implicit_states
+         * (see set_nb_of_implicit_states).
+         */
+        void register_options(OptionRegistry &registry);
+
+        /**
          * @brief Solves the augmented system without path equality constraint regularization.
          * @param info Problem information.
          * @param jacobian Jacobian of the constraints.
@@ -709,7 +715,7 @@ namespace fatrop
          * By default all states are implicit (J = D). If nv < 0, the full J is factorized.
          * @param nz Number of implicit states, the same for every stage (clipped to nx[k+1]).
          */
-        void set_nb_of_implicit_states(Index nz);
+        void set_nb_of_implicit_states(const Index &nz);
         /**
          * @brief Sets the number of implicit states per stage (nz[k] refers to x[k+1], k = 0, ..., K-2).
          */
