@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+import yaml
+settings = yaml.safe_load(open('settings.yaml', 'r'))
 
 def translate_label(label):
     if label == 'K':
@@ -36,14 +38,15 @@ def latexify():
     
 def get_data():   
     use_generalization = True
-    if use_generalization:
-        # file = '../../../build_docker/random_benchmark_results_generalized_20000.csv'
-        # file = '../../../build_docker/random_benchmark_results_generalized_faked.csv'
-        # file = '../../../build_docker/random_benchmark_results_generalized_20000_standalone.csv'
-        # file = '../../../build/random_benchmark_results_generalized_20000_standalone_new.csv'
-        file = '../../../build_docker/random_benchmark_results_generalized_20000_standalone_thesis.csv'
-    else:
-        file = '../../../build_docker/random_benchmark_results_extended_20000.csv'
+    # if use_generalization:
+    #     # file = '../../../build_docker/random_benchmark_results_generalized_20000.csv'
+    #     # file = '../../../build_docker/random_benchmark_results_generalized_faked.csv'
+    #     # file = '../../../build_docker/random_benchmark_results_generalized_20000_standalone.csv'
+    #     # file = '../../../build/random_benchmark_results_generalized_20000_standalone_new.csv'
+    #     file = '../../../build_docker/random_benchmark_results_generalized_20000_standalone_thesis.csv'
+    # else:
+    #     file = '../../../build_docker/random_benchmark_results_extended_20000.csv'
+    file = settings['file_name']
         
     df = pd.read_csv(file)
     

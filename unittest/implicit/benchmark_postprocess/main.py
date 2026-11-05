@@ -1,14 +1,15 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import json
 from helper import *
 from metric_computer import *
 from plot_preparator import *
 from filter import *
 from visualizer import *
-settings = json.load(open('../post_process_settings.json', 'r'))
-
+# import json
+# settings = json.load(open('../post_process_settings.json', 'r'))
+import yaml
+settings = yaml.safe_load(open('settings.yaml', 'r'))
 
 if __name__ == '__main__':    
     if settings.get('latexify', True):
@@ -94,8 +95,10 @@ if __name__ == '__main__':
     visualize_scaling_1d(df, row_share_computer(), filters=filter_sqrt, x_min_step=0.05, filter_colors=colors, show_std=False,
                          y_funcs=[rel_speedup_computer_impl()], file_name='relative_improvement_row_share_binned_sqrt_area_impl.png')
 
-    # distribution of the relative difference in t_total for different sizes
-    visualize_boxplot(df, rel_speedup_computer(), filter_sqrt, file_name='relative_improvement_boxplot_sqrt_area.png')
-    visualize_boxplot(df, rel_speedup_computer_impl(), filter_sqrt, file_name='relative_improvement_boxplot_sqrt_area_impl.png')
+    # distribution of the relative difference in t_total for different sizes, accelerated and implicit side by side
+    visualize_boxplot(df, [rel_speedup_computer(), rel_speedup_computer_impl()], filter_sqrt,
+                      labels=['$t = t_\\mathrm{structure}$', '$t = t_\\mathrm{impl}$'],
+                      y_label='$\\frac{t - t_\\mathrm{normal}}{t_\\mathrm{normal}}$',
+                      file_name='relative_improvement_boxplot_sqrt_area_combined.png')
 
 

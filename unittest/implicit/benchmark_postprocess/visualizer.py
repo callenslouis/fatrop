@@ -2,6 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from plot_preparator import PlotPreparator
 from helper import translate_label
+import yaml
+settings = yaml.safe_load(open('settings.yaml', 'r'))
 
 def visualize_scaling_1d(df, x_func, **kwargs):
     print(f"Started visualize_scaling_1d")
@@ -80,41 +82,55 @@ def visualize_scaling_1d(df, x_func, **kwargs):
     
     if kwargs.get('file_name', None) is not None:
         print(f"Saving figure to {kwargs.get('file_name')}")
-        plt.savefig('figures-thesis/' + kwargs.get('file_name'), dpi=300)
+        plt.savefig(settings.get('figure_folder', 'figures-thesis') + '/' + kwargs.get('file_name'), dpi=300)
     
     if kwargs.get('show', False):
         plt.show()
         
-def visualize_boxplot(df, y_func, filters, **kwargs):
-    # one box per filter (e.g. a bin of the matrix size) with the distribution of y_func over the problems in that bin
+def visualize_boxplot(df, y_funcs, filters, **kwargs):
+    # one group of boxes per filter (e.g. a bin of the matrix size), with one box per y_func showing its distribution
+    # over the problems in that bin
+    if not isinstance(y_funcs, (list, tuple)):
+        y_funcs = [y_funcs]
+    colors = kwargs.get('colors', [kwargs.get('color', 'grey')] if len(y_funcs) == 1 else ['lightgrey', 'dimgrey'])
+    group_width = 0.6
+    box_width = group_width / len(y_funcs)
+
     plt.figure()
 
-    data = []
-    labels = []
-    for f in filters:
-        df_filtered, _ = f.filter_data(df)
-        values = np.asarray(y_func.compute_metric(df_filtered), dtype=float)
-        values = values[~np.isnan(values)]
-        data.append(values)
-        labels.append(f"{f.value_min:g}--{f.value_max:g}\n($n = {len(values)}$)")
-
-    # whiskers at the 5th and 95th percentile, outliers are not drawn
-    plt.boxplot(data, whis=kwargs.get('whis', (5, 95)), showfliers=kwargs.get('show_fliers', False), patch_artist=True,
-                boxprops=dict(facecolor=kwargs.get('color', 'grey'), alpha=0.7), medianprops=dict(color='k', lw=2))
-    plt.xticks(range(1, len(labels) + 1), labels)
+    tick_labels = []
+    legend_handles = []
+    for y_idx, y_func in enumerate(y_funcs):
+        data = []
+        for f in filters:
+            df_filtered, _ = f.filter_data(df)
+            values = np.asarray(y_func.compute_metric(df_filtered), dtype=float)
+            data.append(values[~np.isnan(values)])
+            if y_idx == 0:
+                tick_labels.append(f"{f.value_min:g}--{f.value_max:g}\n($n = {len(df_filtered)}$)")
+        positions = np.arange(1, len(filters) + 1) - group_width / 2 + (y_idx + 0.5) * box_width
+        # whiskers at the 5th and 95th percentile, outliers are not drawn
+        bp = plt.boxplot(data, positions=positions, widths=0.9*box_width, whis=kwargs.get('whis', (5, 95)),
+                         showfliers=kwargs.get('show_fliers', False), patch_artist=True, manage_ticks=False,
+                         boxprops=dict(facecolor=colors[y_idx % len(colors)], alpha=0.7), medianprops=dict(color='k', lw=2))
+        legend_handles.append(bp['boxes'][0])
+    plt.xticks(range(1, len(tick_labels) + 1), tick_labels)
+    plt.xlim(0.5, len(tick_labels) + 0.5)
     plt.axhline(0, color='k', lw=1)
 
+    if len(y_funcs) > 1:
+        plt.legend(legend_handles, kwargs.get('labels', [y.name for y in y_funcs]))
     if kwargs.get('y_lim', None) is not None:
         plt.ylim(kwargs.get('y_lim'))
     plt.xlabel(kwargs.get('x_label', filters[0].metric_computer.name))
-    plt.ylabel(y_func.name)
+    plt.ylabel(kwargs.get('y_label', y_funcs[0].name))
     plt.title(kwargs.get('title', ''))
-    plt.grid()
+    plt.grid(axis='y')
     plt.tight_layout()
 
     if kwargs.get('file_name', None) is not None:
         print(f"Saving figure to {kwargs.get('file_name')}")
-        plt.savefig('figures-thesis/' + kwargs.get('file_name'), dpi=300)
+        plt.savefig(settings.get('figure_folder', 'figures-thesis') + '/' + kwargs.get('file_name'), dpi=300)
 
     if kwargs.get('show', False):
         plt.show()
@@ -143,7 +159,7 @@ def visualize_distribution(df, metric, **kwargs):
     
     if kwargs.get('file_name', None) is not None:
         print(f"Saving figure to {kwargs.get('file_name')}")
-        plt.savefig('figures-thesis/' + kwargs.get('file_name'), dpi=300)
+        plt.savefig(settings.get('figure_folder', 'figures-thesis') + '/' + kwargs.get('file_name'), dpi=300)
     
     if kwargs.get('show', False):
         plt.show()
