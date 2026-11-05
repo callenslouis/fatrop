@@ -44,6 +44,19 @@ namespace fatrop
          */
         ProblemDims(int K, std::vector<Index> &&nu, std::vector<Index> &&nx, std::vector<Index> &&ng,
                 std::vector<Index> &&ng_ineq);
+
+        /**
+         * @brief Constructs an ProblemDims object with a given number of dynamics constraints.
+         *
+         * Only implicit OCPs (ImplicitOcpType) support a number of dynamics constraints that
+         * differs from the number of states of the next stage.
+         *
+         * @param n_dyn Vector of number of dynamics constraints that couple stage k and k+1
+         * (K-1 values).
+         */
+        ProblemDims(int K, const std::vector<Index> &nu, const std::vector<Index> &nx,
+                const std::vector<Index> &ng, const std::vector<Index> &ng_ineq,
+                const std::vector<Index> &n_dyn);
         void check_problem_dimensions() const;
 
         const int K;                                  ///< Number of stages in the OCP.
@@ -53,6 +66,9 @@ namespace fatrop
             number_of_eq_constraints; ///< Number of path equality constraints for each stage.
         const std::vector<Index>
             number_of_ineq_constraints; ///< Number of path inequality constraints for each stage.
+        const std::vector<Index>
+            number_of_dyn_constraints; ///< Number of dynamics constraints between stage k and k+1
+                                       ///< (K-1 values, nx[k+1] unless specified).
     };
 
 } // namespace fatrop

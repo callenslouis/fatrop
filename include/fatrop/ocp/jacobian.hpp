@@ -112,15 +112,16 @@ namespace fatrop
         Jacobian(const ProblemDims &dims)
             : Jacobian<OcpType>(dims)
         {
-            // store the original BAbt matrices (+ overwrite original ones)
+            // store the original BAbt matrices (+ overwrite original ones), there is one column for
+            // every dynamics constraint
             BAbt = {};
             BAbt.reserve(dims.K - 1);
             BAbt_original.reserve(dims.K);
             for (int k = 0; k < dims.K - 1; ++k){
                 BAbt.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1 + 0*8,
-                                  dims.number_of_states[k + 1]);
+                                  dims.number_of_dyn_constraints[k]);
                 BAbt_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1 + 0*8,
-                                  dims.number_of_states[k + 1]);
+                                  dims.number_of_dyn_constraints[k]);
             }
 
             // store additional dynamics jacobian
@@ -136,10 +137,10 @@ namespace fatrop
             U1t.reserve(dims.K - 1);
             for (int k = 0; k < dims.K - 1; ++k)
             {
-                Jt.emplace_back(dims.number_of_states[k + 1], dims.number_of_states[k + 1]);
-                Jt_LU.emplace_back(dims.number_of_states[k + 1], dims.number_of_states[k + 1]);
+                Jt.emplace_back(dims.number_of_states[k + 1], dims.number_of_dyn_constraints[k]);
+                Jt_LU.emplace_back(dims.number_of_states[k + 1], dims.number_of_dyn_constraints[k]);
                 Jt_inv.emplace_back(dims.number_of_states[k + 1], dims.number_of_states[k + 1]);
-                Pl_pre.emplace_back(dims.number_of_states[k + 1]);
+                Pl_pre.emplace_back(dims.number_of_dyn_constraints[k]);
                 Pr_pre.emplace_back(dims.number_of_states[k + 1]);
                 U1U2t.emplace_back(dims.number_of_states[k + 1] + 0*8, dims.number_of_states[k + 1] + 0*8);
                 U1t.emplace_back(dims.number_of_states[k + 1], dims.number_of_states[k + 1]);
@@ -147,12 +148,13 @@ namespace fatrop
             J_ranks = std::vector<Index>(dims.K - 1, 0);
             nb_new_controls = std::vector<Index>(dims.K - 1, 0);
 
-            // enlarge Gg_eqt (since states from the previous time-step could be added)
+            // enlarge Gg_eqt (since dynamics constraints that do not depend on the next states are
+            // treated as path constraints)
             Gg_eqt = {};
             Gg_eqt.reserve(dims.K);
             for (int k = 0; k < dims.K; ++k){
                 Gg_eqt.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1 + 0*8,
-                                  dims.number_of_eq_constraints[k] + ((k < dims.K-1) ? dims.number_of_states[k + 1] : 0));
+                                  dims.number_of_eq_constraints[k] + ((k < dims.K-1) ? dims.number_of_dyn_constraints[k] : 0));
             }
 
             // store eq constraint jacobian
@@ -162,7 +164,7 @@ namespace fatrop
             Gg_ineqt_original.reserve(dims.K);
             for (int k = 0; k < dims.K; ++k){
                 Gg_eqt_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1 + 0*8,
-                                  dims.number_of_eq_constraints[k] + ((k < dims.K-1) ? dims.number_of_states[k + 1] : 0));
+                                  dims.number_of_eq_constraints[k] + ((k < dims.K-1) ? dims.number_of_dyn_constraints[k] : 0));
                 Gg_ineqt.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1 + 0*8,
                                                dims.number_of_ineq_constraints[k]);
                 Gg_ineqt_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 1 + 0*8,
@@ -189,15 +191,17 @@ namespace fatrop
         void transpose_apply_on_right(const OcpInfo& info, const VecRealView &mult_eq, Scalar alpha, const VecRealView& y, VecRealView &out, bool ignore_Jt=false) const;
 
         /**
-         * @brief Jacobian of the dynamics with respect to x[k+1].
+         * @brief Jacobian of the dynamics with respect to x[k+1] (transposed).
          *
-         * Matrix dimensions: nx[k+1] x nx[k+1]
+         * Matrix dimensions: nx[k+1] x n_dyn[k]
          * Where:
          *   nx[k+1]: number of states at time step k+1
+         *   n_dyn[k]: number of dynamics constraints between time step k and k+1
+         * BAbt[k] has the same number of columns (one for every dynamics constraint).
          */
         std::vector<MatRealAllocated> Jt;
-        std::vector<PermutationMatrix> Pl_pre;
-        std::vector<PermutationMatrix> Pr_pre;
+        std::vector<PermutationMatrix> Pl_pre; // permutation of the dynamics constraints (n_dyn[k])
+        std::vector<PermutationMatrix> Pr_pre; // permutation of the states x[k+1] (nx[k+1])
         std::vector<MatRealAllocated> U1U2t; // -(U1^-1 * U2)^T
         std::vector<MatRealAllocated> U1t;    // U1^T
         std::vector<Index> J_ranks;

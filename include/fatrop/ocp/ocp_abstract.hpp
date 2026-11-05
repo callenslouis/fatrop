@@ -291,6 +291,9 @@ namespace fatrop
         virtual Index get_nu(const Index k) const = 0;
         virtual Index get_ng(const Index k) const = 0;
         virtual Index get_ng_ineq(const Index k) const = 0;
+        // number of dynamics constraints F(x[k], u[k], x[k+1]) = 0 between stage k and k+1
+        // (k < K-1), by default one for every state of stage k+1
+        virtual Index get_n_dyn(const Index k) const { return get_nx(k + 1); }
         virtual Index get_horizon_length() const = 0;
         virtual Index eval_BAbt(const Scalar *states_kp1, const Scalar *inputs_k,
                                 const Scalar *states_k, MAT *res, const Index k) {throw std::runtime_error("use of incorrect eval_BAbt method for Implicit OCPs"); return 0;};

@@ -2965,7 +2965,7 @@ void PrintPreProcessNpInfo(const ProblemInfo &info,
     o << "]\n";
     o << "BAbt_original = [\n";
     for (int k = 0; k < info.dims.K - 1; k++){
-        PrintNpArray(jacobian.BAbt_original[k], "", nu[k] + nx[k] + 1, nx[k+1], false, o);
+        PrintNpArray(jacobian.BAbt_original[k], "", nu[k] + nx[k] + 1, info.dims.number_of_dyn_constraints[k], false, o);
         if (k < info.dims.K - 2){ o << ",\n";}
     }
     o << "]\n";
@@ -2979,13 +2979,14 @@ void PrintPreProcessNpInfo(const ProblemInfo &info,
     
     o << "Jt = [\n";
     for (int k = 0; k < info.dims.K - 1; k++){
-        PrintNpArray(jacobian.Jt[k], "", nx[k+1], nx[k+1], false, o);
+        const Index n_dyn = info.dims.number_of_dyn_constraints[k];
+        PrintNpArray(jacobian.Jt[k], "", nx[k+1], n_dyn, false, o);
         if (k < info.dims.K - 2){ o << ",\n";}
         Jt_LU.push_back(jacobian.Jt[k]);
-        Pl.push_back(PermutationMatrix(nx[k+1]));
+        Pl.push_back(PermutationMatrix(n_dyn));
         Pr.push_back(PermutationMatrix(nx[k+1]));
         int rho;
-        lu_fact_transposed(nx[k+1], nx[k+1], nx[k+1], rho, Jt_LU[k], Pl[k], Pr[k]);
+        lu_fact_transposed(n_dyn, nx[k+1], nx[k+1], rho, Jt_LU[k], Pl[k], Pr[k]);
         if (rho != jacobian.J_ranks[k]){
             std::cerr << "Error: LU factorization rank does not match J_ranks." << std::endl;
         }
@@ -2996,12 +2997,14 @@ void PrintPreProcessNpInfo(const ProblemInfo &info,
     o << "L = [\n";
     for (int k = 0; k < info.dims.K - 1; k++){
         o << "np.array([";
-        int nx_next = info.dims.number_of_states[k+1];
+        // L is n_dyn x n_dyn
+        int nx_next = info.dims.number_of_dyn_constraints[k];
+        int rho = jacobian.J_ranks[k];
         if (nx_next == 0){ o << "[]";}
         for (int i = 0; i < nx_next; i++){
             o << "[";
             for (int j = 0; j < nx_next; j++){
-                if (i > j){
+                if (i > j && j < rho){
                     // o << jacobian.Jt_LU[k](j,i);
                     o << std::setw(10) << std::setprecision(10) << Jt_LU[k](j,i);
                 } else if (i == j){
@@ -3026,9 +3029,11 @@ void PrintPreProcessNpInfo(const ProblemInfo &info,
     o << "U = [\n";
     for (int k = 0; k < info.dims.K - 1; k++){
         o << "np.array([";
+        // U is n_dyn x nx_next
+        int n_dyn = info.dims.number_of_dyn_constraints[k];
         int nx_next = info.dims.number_of_states[k+1];
-        if (nx_next == 0){ o << "[]";}
-        for (int i = 0; i < nx_next; i++){
+        if (n_dyn == 0){ o << "[]";}
+        for (int i = 0; i < n_dyn; i++){
             o << "[";
             for (int j = 0; j < nx_next; j++){
                 if (i <= j){
@@ -3042,7 +3047,7 @@ void PrintPreProcessNpInfo(const ProblemInfo &info,
                 }
             }
             o << "]";
-            if (i < nx_next){
+            if (i < n_dyn){
                 o << ",\n";
             }
         }
@@ -3054,7 +3059,7 @@ void PrintPreProcessNpInfo(const ProblemInfo &info,
     o << "Pl = [\n";
     for (int k = 0; k < info.dims.K - 1; k++){
         PermutationMatrix Pl_copy = jacobian.Pl_pre[k];
-        PrintNpArray(PermutationVectorToMatrix(Pl_copy), "", nx[k+1], nx[k+1], false, o);
+        PrintNpArray(PermutationVectorToMatrix(Pl_copy), "", info.dims.number_of_dyn_constraints[k], info.dims.number_of_dyn_constraints[k], false, o);
         if (k < info.dims.K - 2){ o << ",\n";}
     }
     o << "]\n";
@@ -3236,7 +3241,7 @@ ModifiedAugSystemSolver::ModifiedAugSystemSolver(const ProblemInfo &info)
         // The preprocessing should check the rank of the J-matrix to make
         // sure we don't end up in this case.
         number_of_eq_constraints[i] = std::min(
-            number_of_eq_constraints[i] + info.dims.number_of_states[i+1],
+            number_of_eq_constraints[i] + info.dims.number_of_dyn_constraints[i],
             number_of_controls[i] + number_of_states[i]);
     }
     ProblemInfo new_info = ProblemInfo(ProblemDims(info.dims.K, number_of_controls, number_of_states, number_of_eq_constraints,
@@ -4776,8 +4781,9 @@ MatRealAllocated GetKKT(const ProblemInfo &info,
         Index nx_next = info.dims.number_of_states[k + 1];
         Index nu_next = info.dims.number_of_controls[k + 1];
         Index offs_eq_dyn = info.offsets_g_eq_dyn[k];
-        full_matrix_jacobian.block(nx_next, nu + nx, offs_eq_dyn, offs_ux) =
-            transpose(jacobian.BAbt[k].block(nu + nx, nx_next, 0, 0));
+        Index n_dyn = info.dims.number_of_dyn_constraints[k];
+        full_matrix_jacobian.block(n_dyn, nu + nx, offs_eq_dyn, offs_ux) =
+            transpose(jacobian.BAbt[k].block(nu + nx, n_dyn, 0, 0));
         full_matrix_hessian.block(nx_next, nu + nx, offs_x_next, offs_ux) = 
             transpose(hessian.FuFx[k]);
         full_matrix_hessian.block(nu + nx, nx_next, offs_ux, offs_x_next) =
@@ -4791,8 +4797,8 @@ MatRealAllocated GetKKT(const ProblemInfo &info,
                 full_matrix_jacobian(offs_eq_dyn + i, offs_x_next + i) = -1;    
             }
         } else {
-            full_matrix_jacobian.block(nx_next, nx_next, offs_eq_dyn, offs_x_next) = 
-                transpose(jacobian.Jt[k]);
+            full_matrix_jacobian.block(n_dyn, nx_next, offs_eq_dyn, offs_x_next) = 
+                transpose(jacobian.Jt[k].block(nx_next, n_dyn, 0, 0));
         }
     }
 
@@ -4877,6 +4883,8 @@ AugSystemSolver<ImplicitOcpType>::AugSystemSolver(const ProblemInfo &info) : Mod
     int max_nx = *std::max_element(info.dims.number_of_states.begin(), info.dims.number_of_states.end());
     int max_nu = *std::max_element(info.dims.number_of_controls.begin(), info.dims.number_of_controls.end());
     int max_ng = *std::max_element(info.dims.number_of_eq_constraints.begin(), info.dims.number_of_eq_constraints.end());
+    int max_n_dyn = info.dims.number_of_dyn_constraints.empty() ? 0 :
+        *std::max_element(info.dims.number_of_dyn_constraints.begin(), info.dims.number_of_dyn_constraints.end());
     
     number_of_states = info.dims.number_of_states;
     number_of_controls = info.dims.number_of_controls;
@@ -4892,11 +4900,14 @@ AugSystemSolver<ImplicitOcpType>::AugSystemSolver(const ProblemInfo &info) : Mod
     eq_mult_copy.emplace_back(info.number_of_eq_constraints + info.number_of_slack_variables);
 
     int dim = std::max(max_nu + max_nx + 1, max_ng);
-    // TreatStatesAsInputs copies whole rows of Gg_eqt (ng + nx_next columns) and FuFx (nx_next + 8 columns) into scratch
-    int scratch_cols = std::max({dim, max_ng + max_nx, max_nx + 8});
-    scratch = std::make_unique<MatRealAllocated>(dim + 8, scratch_cols);
-    JBAbt.emplace_back(dim + max_nx, max_nx);
-    JBAbt_modified.emplace_back(dim + max_nx, max_nx);
+    // TreatStatesAsInputs copies whole rows of Gg_eqt (ng + n_dyn columns), BAbt (n_dyn columns) and FuFx
+    // (nx_next + 8 columns) into scratch, and scratch holds the n_dyn x nx_next LU factors of J
+    int scratch_rows = std::max(dim, max_n_dyn) + 8;
+    int scratch_cols = std::max({dim, max_ng + max_n_dyn, max_nx + 8});
+    scratch = std::make_unique<MatRealAllocated>(scratch_rows, scratch_cols);
+    // JBAbt = [Jt; BAbt]: one column for every dynamics constraint
+    JBAbt.emplace_back(dim + max_nx, max_n_dyn);
+    JBAbt_modified.emplace_back(dim + max_nx, max_n_dyn);
 
     // by default, all states appear implicitly in the dynamics
     const int K = info.dims.K;
@@ -5274,61 +5285,160 @@ const ProblemInfo &AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInf
     #ifdef PROFILE
     start = std::chrono::high_resolution_clock::now();
     #endif
-    any_rank_deficient = false;
+    dims_modified = false;
     for (int k = 0; k < K-1; ++k){
         int nx = number_of_states[k];
         int nx_next = number_of_states[k + 1];
         int nu = number_of_controls[k];
         int nu_next = number_of_controls[k + 1];
-        // the first nz states of x[k+1] are implicit, the explicit ones satisfy -x[k+1][i] + ... = 0
+        // J[k] is n_dyn x nx_next (Jt[k] = J[k]^T and BAbt[k] have n_dyn columns)
+        const int n_dyn = info.dims.number_of_dyn_constraints[k];
+        // structure J = [D C; 0 -I]: the first nz states of x[k+1] are implicit and appear in the first nv dynamics
+        // constraints (D is nv x nz), the ne explicit states satisfy -x[k+1][nz + i] + ... = 0 (constraint nv + i)
         const int nz = std::min(nb_implicit_states[k], static_cast<Index>(nx_next));
         const int ne = nx_next - nz;
+        const int nv = n_dyn - ne;
         #ifndef NDEBUG
-        for (int i = 0; i < nx_next; i++){
-            for (int j = nz; j < nx_next; j++){
-                fatrop_dbg_assert(jacobian.Jt[k](i, j) == ((i == j) ? -1.0 : 0.0) && "explicit dynamics equations must read -x[k+1][i] + ... = 0");
+        if (nv >= 0){
+            for (int i = 0; i < nx_next; i++){
+                for (int j = 0; j < ne; j++){
+                    fatrop_dbg_assert(jacobian.Jt[k](i, nv + j) == ((i == nz + j) ? -1.0 : 0.0) && "explicit dynamics equations must read -x[k+1][i] + ... = 0");
+                }
             }
         }
         #endif
 
-        int rank;
+        int rank = -1;
         #ifdef PROFILE
         auto inner_start = std::chrono::high_resolution_clock::now();
         auto inner_stop = std::chrono::high_resolution_clock::now();
         #endif
-        // decompose the implicit block D of J = [D C; 0 -I]
-        gecp(nz, nz, jacobian.Jt[k], 0, 0, jacobian.Jt_LU[k], 0, 0);
-        lu_fact_transposed(nz, nz, nz, rank, jacobian.Jt_LU[k], jacobian.Pl_pre[k], jacobian.Pr_pre[k], lu_fact_tol);
+        if (nv >= 0){
+            // decompose the implicit block D of J = [D C; 0 -I], P_l D P_r = [L1 0; L2 I] [U1 U2; 0 0]
+            gecp(nz, nv, jacobian.Jt[k], 0, 0, jacobian.Jt_LU[k], 0, 0);
+            lu_fact_transposed(nv, nz, nz, rank, jacobian.Jt_LU[k], jacobian.Pl_pre[k], jacobian.Pr_pre[k], lu_fact_tol);
+        }
         #ifdef PROFILE
         inner_stop = std::chrono::high_resolution_clock::now();
         duration_decomp_decomp += std::chrono::duration_cast<std::chrono::nanoseconds>(inner_stop - inner_start);
         inner_start = std::chrono::high_resolution_clock::now();
         #endif
-        if (rank == nz){
-            // x[k+1][nz:] = [B A b]_e^T [u; x; 1] and x[k+1][0:nz] = -D^-1 (C x[k+1][nz:] + [B A b]_z^T [u; x; 1]),
-            // so only the columns of BAbt that belong to the implicit states change. The states keep their
-            // order, which leaves the matrices of stage k+1 untouched.
+        if (nv >= 0){
+            // The explicit states are x[k+1][nz:] = [B A b]_e^T [u; x; 1]. Eliminating them from the implicit
+            // equations gives D x[k+1][0:nz] + [B A b]_z~^T [u; x; 1] = 0 with [B A b]_z~ = [B A b]_z + [B A b]_e C^T.
+            // With rank r of D:
+            //  - r implicit equations determine r implicit states (y1 = P_r^T x[k+1][0:nz])
+            //  - the other nv - r implicit equations become path constraints of stage k
+            //  - the other nz - r implicit states (y2) become controls of stage k+1
+            // The explicit states and their dynamics are left as they are.
+            const int r = rank;
             structured_stage[k] = true;
-            jacobian.J_ranks[k] = nx_next;
-            jacobian.nb_new_controls[k] = 0;
-            if (nz > 0){
+            jacobian.J_ranks[k] = r + ne;
+            jacobian.nb_new_controls[k] = nz - r;
+            dims_modified = dims_modified || (r < nv) || (r < nz);
+            if (nu + nx < info.dims.number_of_eq_constraints[k] + nv - r){
+                throw std::runtime_error("The problem seems to be ill-defined "
+                    "since the number of constraints at stage " + std::to_string(k) +
+                    " (" + std::to_string(info.dims.number_of_eq_constraints[k]) + " + " + std::to_string(nv - r) + ") "
+                    "exceeds the number of controls and states (" + std::to_string(nu) + " + " + std::to_string(nx) + ") "
+                    "that can be used to satisfy them.");
+            }
+            if (nv > 0){
                 if (ne > 0){
                     // eliminate the explicit states from the implicit equations: BAbt_z += BAbt_e * C^T
-                    gemm_nn(nu + nx + 1, nz, ne, 1.0, jacobian.BAbt[k], 0, nz, jacobian.Jt[k], nz, 0, 1.0,
+                    gemm_nn(nu + nx + 1, nv, ne, 1.0, jacobian.BAbt[k], 0, nv, jacobian.Jt[k], nz, 0, 1.0,
                             jacobian.BAbt[k], 0, 0, jacobian.BAbt[k], 0, 0);
                 }
-                jacobian.Pl_pre[k].apply_on_cols(nz, &jacobian.BAbt[k].mat());                                    // * P_l
+                jacobian.Pl_pre[k].apply_on_cols(r, &jacobian.BAbt[k].mat());                                     // * P_l
                 // NOTE: blasfeo only has high-performance kernels for the transposed right-side trsm variants,
                 // so transpose the factors once and use X * A^-1 = X * (A^T)^-T
-                getr(nz, nz, jacobian.Jt_LU[k], 0, 0, *scratch, 0, 0);
+                getr(nz, nv, jacobian.Jt_LU[k], 0, 0, *scratch, 0, 0);
                 scratch->mat().use_dA = 0; // the inverse diagonal cached in scratch belongs to another matrix
-                trsm_rltu(nu + nx + 1, nz, 1.0, *scratch, 0, 0, jacobian.BAbt[k], 0, 0, jacobian.BAbt[k], 0, 0);   // * L^-1
-                trsm_rutn(nu + nx + 1, nz, -1.0, *scratch, 0, 0, jacobian.BAbt[k], 0, 0, jacobian.BAbt[k], 0, 0);  // * U^-1
-                jacobian.Pr_pre[k].apply_inverse_on_cols(nz, &jacobian.BAbt[k].mat());                            // * P_r^T
+                trsm_rltu(nu + nx + 1, r, 1.0, *scratch, 0, 0, jacobian.BAbt[k], 0, 0, jacobian.BAbt[k], 0, 0);    // * L1^-1
+                if (nv > r){
+                    gemm_nt(nu + nx + 1, nv - r, r, -1.0, jacobian.BAbt[k], 0, 0, *scratch, r, 0, 1.0,
+                            jacobian.BAbt[k], 0, r, jacobian.BAbt[k], 0, r);                                       // - L2 L1^-1
+                }
+                trsm_rutn(nu + nx + 1, r, -1.0, *scratch, 0, 0, jacobian.BAbt[k], 0, 0, jacobian.BAbt[k], 0, 0);   // * U1^-1
+                if (r < nz){
+                    // U1U2t = -(U1^-1 U2)^T, with y1 = y1~ - U1^-1 U2 y2 for the new state y1~
+                    getr(r, nz - r, *scratch, 0, r, jacobian.U1U2t[k], 0, 0);
+                    trsm_rutn(nz - r, r, -1.0, *scratch, 0, 0, jacobian.U1U2t[k], 0, 0, jacobian.U1U2t[k], 0, 0);
+                }
+            }
+            if (nv > r){
+                // the remaining implicit equations no longer depend on x[k+1]: path constraints of stage k
+                gecp(nu + nx + 1, nv - r, jacobian.BAbt[k], 0, r, jacobian.Gg_eqt[k], 0, info.dims.number_of_eq_constraints[k]);
+                number_of_eq_constraints[k] += nv - r;
+                if (ne > 0){
+                    // dynamics of the explicit states directly after those of the r implicit states
+                    gecp(nu + nx + 1, ne, jacobian.BAbt[k], 0, nv, *scratch, 0, 0);
+                    gecp(nu + nx + 1, ne, *scratch, 0, 0, jacobian.BAbt[k], 0, r);
+                }
+            }
+            if (r == nz){
+                // all implicit states are determined: keep their order, which leaves stage k+1 untouched
+                jacobian.Pr_pre[k].apply_inverse_on_cols(r, &jacobian.BAbt[k].mat());                            // * P_r^T
+            } else {
+                // states of stage k+1: [y1~; x_e], controls of stage k+1: [u; y2]; this is the transformation of
+                // the general case below restricted to the implicit states
+                SaveGg_eqt(info, jacobian, k + 1);
+                SaveFuFx(info, hessian, k);
+                if (k < K - 2){ SaveFuFx(info, hessian, k + 1); }
+                SaveGuGx(info, hessian, k);
+                PermutationMatrix Pr_extended = PermutationMatrix(nu_next + r);
+                for (int i = 0; i < r; i++){ Pr_extended[nu_next + i] = nu_next + jacobian.Pr_pre[k][i]; }
+
+                // hessian of stage k+1
+                trtr_l(nu_next + nx_next, hessian.RSQrqt[k+1], 0, 0, hessian.RSQrqt[k+1], 0, 0);
+                Pr_extended.apply_on_rows(nu_next + r, &hessian.RSQrqt[k+1].mat());
+                gemm_nn(nz - r, nu_next + nx_next, r, 1.0, jacobian.U1U2t[k], 0, 0, hessian.RSQrqt[k+1], nu_next, 0, 1.0,
+                        hessian.RSQrqt[k+1], nu_next + r, 0, hessian.RSQrqt[k+1], nu_next + r, 0);
+                Pr_extended.apply_on_cols(nu_next + r, &hessian.RSQrqt[k+1].mat());
+                gemm_nt(nu_next + nx_next + 1, nz - r, r, 1.0, hessian.RSQrqt[k+1], 0, nu_next, jacobian.U1U2t[k], 0, 0, 1.0,
+                        hessian.RSQrqt[k+1], 0, nu_next + r, hessian.RSQrqt[k+1], 0, nu_next + r);
+
+                // hessian contribution of the dynamics: y2 columns of FuFx move to GuGx
+                jacobian.Pr_pre[k].apply_on_cols(r, &hessian.FuFx[k].mat());
+                gemm_nt(nu + nx, nz - r, r, 1.0, hessian.FuFx[k], 0, 0, jacobian.U1U2t[k], 0, 0, 1.0,
+                        hessian.FuFx[k], 0, r, hessian.FuFx[k], 0, r);
+                gecp(nu + nx, nz - r, hessian.FuFx[k], 0, r, hessian.GuGx[k], 0, nu_next);
+                if (ne > 0){
+                    gecp(nu + nx, ne, hessian.FuFx[k], 0, nz, *scratch, 0, 0);
+                    gecp(nu + nx, ne, *scratch, 0, 0, hessian.FuFx[k], 0, r);
+                }
+
+                // dynamics of stage k+1
+                if (k < K - 2){
+                    const int nx_next_next = number_of_states[k + 2];
+                    Pr_extended.apply_on_rows(nu_next + r, &jacobian.BAbt[k+1].mat());
+                    gemm_nn(nz - r, info.dims.number_of_dyn_constraints[k + 1], r, 1.0, jacobian.U1U2t[k], 0, 0, jacobian.BAbt[k+1], nu_next, 0, 1.0,
+                            jacobian.BAbt[k+1], nu_next + r, 0, jacobian.BAbt[k+1], nu_next + r, 0);
+                    Pr_extended.apply_on_rows(nu_next + r, &hessian.FuFx[k+1].mat());
+                    gemm_nn(nz - r, nx_next_next, r, 1.0, jacobian.U1U2t[k], 0, 0, hessian.FuFx[k+1], nu_next, 0, 1.0,
+                            hessian.FuFx[k+1], nu_next + r, 0, hessian.FuFx[k+1], nu_next + r, 0);
+                }
+
+                // equality constraints of stage k+1
+                Pr_extended.apply_on_rows(nu_next + r, &jacobian.Gg_eqt[k+1].mat());
+                gemm_nn(nz - r, info.dims.number_of_eq_constraints[k+1], r, 1.0, jacobian.U1U2t[k], 0, 0, jacobian.Gg_eqt[k+1], nu_next, 0, 1.0,
+                        jacobian.Gg_eqt[k+1], nu_next + r, 0, jacobian.Gg_eqt[k+1], nu_next + r, 0);
+
+                // move y2 to the controls (the explicit states stay after y1~)
+                TreatStatesAsInputs(nu_next, nz, r, hessian.RSQrqt[k+1], true);
+                TreatStatesAsInputs(nu_next, nz, r, hessian.RSQrqt[k+1]);
+                TreatStatesAsInputs(nu_next, nz, r, jacobian.Gg_eqt[k+1], true);
+                if (k < K - 2){
+                    TreatStatesAsInputs(nu_next, nz, r, jacobian.BAbt[k+1], true);
+                    TreatStatesAsInputs(nu_next, nz, r, hessian.FuFx[k+1], true);
+                }
+                number_of_controls[k + 1] += nz - r;
+                number_of_states[k + 1] = r + ne;
             }
             // the columns of FuFx that belong to explicit states are often zero, the recursion can skip them
-            Index fufx_width = nx_next;
-            while (fufx_width > nz){
+            // (not when stage k+1 has new controls: the recursion then adds GuGx terms to all columns)
+            Index fufx_width = r + ne;
+            while (r == nz && fufx_width > r){
                 bool zero_column = true;
                 for (Index i = 0; i < nu + nx && zero_column; i++){ zero_column = (hessian.FuFx[k](i, fufx_width - 1) == 0.0); }
                 if (!zero_column) break;
@@ -5342,8 +5452,11 @@ const ProblemInfo &AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInf
             continue;
         }
 
-        // general case (the implicit block is rank deficient): factorize the full J and treat the
-        // undetermined states as controls of the next stage
+        // general case (J does not have the structure [D C; 0 -I] for the given number of implicit states):
+        // factorize the full n_dyn x nx_next matrix J, P_l J P_r = [L1 0; L2 I] [U1 U2; 0 0] with rank r. Then
+        //  - r dynamics constraints determine r states,
+        //  - the remaining n_dyn - r constraints no longer depend on x[k+1] and become path constraints of stage k,
+        //  - the remaining nx_next - r (undetermined) states become controls of stage k+1.
         structured_stage[k] = false;
         FuFx_width[k] = -1;
         SaveGg_eqt(info, jacobian, k);
@@ -5353,9 +5466,9 @@ const ProblemInfo &AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInf
         SaveGuGx(info, hessian, k);
 
         // construct JABbt-matrix
-        gecp(nx_next, nx_next, jacobian.Jt[k], 0, 0, JBAbt[0], 0, 0);
-        gecp(nx_next, nx_next, jacobian.Jt[k], 0, 0, JBAbt_modified[0], 0, 0);
-        gecp(nu + nx + 1, nx_next, jacobian.BAbt[k], 0, 0, JBAbt_modified[0], nx_next, 0);
+        gecp(nx_next, n_dyn, jacobian.Jt[k], 0, 0, JBAbt[0], 0, 0);
+        gecp(nx_next, n_dyn, jacobian.Jt[k], 0, 0, JBAbt_modified[0], 0, 0);
+        gecp(nu + nx + 1, n_dyn, jacobian.BAbt[k], 0, 0, JBAbt_modified[0], nx_next, 0);
         #ifdef PROFILE
         inner_stop = std::chrono::high_resolution_clock::now();
         duration_decomp_copies += std::chrono::duration_cast<std::chrono::nanoseconds>(inner_stop - inner_start);
@@ -5364,22 +5477,22 @@ const ProblemInfo &AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInf
 
         // decompose J matrix (the rows of BAbt are transformed by the triangular solves below, so they
         // are left out of the factorization)
-        lu_fact_transposed(nx_next, nx_next, nx_next, rank, JBAbt[0], jacobian.Pl_pre[k], jacobian.Pr_pre[k], lu_fact_tol);
+        lu_fact_transposed(n_dyn, nx_next, nx_next, rank, JBAbt[0], jacobian.Pl_pre[k], jacobian.Pr_pre[k], lu_fact_tol);
         gecp(rank, rank, JBAbt[0], 0, 0, jacobian.U1t[k], 0, 0);
-        any_rank_deficient = any_rank_deficient || (rank < nx_next);
+        dims_modified = dims_modified || (rank < nx_next) || (rank < n_dyn);
         // PrintLuInfo(JBAbt, jacobian.Jt[k], jacobian.Pl_pre[k], jacobian.Pr_pre[k]);
         #ifdef PROFILE
         inner_stop = std::chrono::high_resolution_clock::now();
         duration_decomp_decomp += std::chrono::duration_cast<std::chrono::nanoseconds>(inner_stop - inner_start);
         inner_start = std::chrono::high_resolution_clock::now();
         #endif
-        if (nu + nx < info.dims.number_of_eq_constraints[k] + nx_next - rank){
+        if (nu + nx < info.dims.number_of_eq_constraints[k] + n_dyn - rank){
             // there will be more constraints at this stage than can be
             // satisfied using the constrols and the states.
             // likely, the problem is ill-defined
             throw std::runtime_error("The problem seems to be ill-defined "
                 "since the number of constraints at stage " + std::to_string(k) + 
-                " (" + std::to_string(info.dims.number_of_eq_constraints[k]) + " + " + std::to_string(nx_next-rank) + ") "
+                " (" + std::to_string(info.dims.number_of_eq_constraints[k]) + " + " + std::to_string(n_dyn-rank) + ") "
                 "exceeds the number of controls and states (" + std::to_string(nu) + " + " + std::to_string(nx) + ") "
                 "that can be used to satisfy them.");
         }
@@ -5392,11 +5505,16 @@ const ProblemInfo &AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInf
         // NOTE: blasfeo only has high-performance kernels for the transposed right-side trsm variants
         // (trsm_runu and trsm_rlnn fall back to the reference implementation), so transpose the
         // factors once and use X * A^-1 = X * (A^T)^-T
-        getr(nx_next, nx_next, JBAbt[0], 0, 0, *scratch, 0, 0);
+        getr(nx_next, n_dyn, JBAbt[0], 0, 0, *scratch, 0, 0);
         scratch->mat().use_dA = 0; // the inverse diagonal cached in scratch belongs to another matrix
-        trsm_rltu(nx_next + nu + nx + 1, nx_next, 1.0, *scratch, 0, 0, JBAbt_modified[0], 0, 0, JBAbt_modified[0], 0, 0);    // * L^-1
-        trsm_rutn(nx_next + nu + nx + 1, rank, -1.0, *scratch, 0, 0, JBAbt_modified[0], 0, 0, JBAbt_modified[0], 0, 0);      // * U^-1
-        gecp(nu + nx + 1, nx_next, JBAbt_modified[0], nx_next, 0, jacobian.BAbt[k], 0, 0);
+        // * [L1 0; L2 I]^-1, the remaining (numerically zero) block of the factorization is not used
+        trsm_rltu(nx_next + nu + nx + 1, rank, 1.0, *scratch, 0, 0, JBAbt_modified[0], 0, 0, JBAbt_modified[0], 0, 0);      // * L1^-1
+        if (n_dyn > rank){
+            gemm_nt(nx_next + nu + nx + 1, n_dyn - rank, rank, -1.0, JBAbt_modified[0], 0, 0, *scratch, rank, 0, 1.0,
+                    JBAbt_modified[0], 0, rank, JBAbt_modified[0], 0, rank);                                                    // - L2 L1^-1
+        }
+        trsm_rutn(nx_next + nu + nx + 1, rank, -1.0, *scratch, 0, 0, JBAbt_modified[0], 0, 0, JBAbt_modified[0], 0, 0);      // * U1^-1
+        gecp(nu + nx + 1, n_dyn, JBAbt_modified[0], nx_next, 0, jacobian.BAbt[k], 0, 0);
         jacobian.Pr_pre[k].apply_on_rows(rank, &(JBAbt_modified[0]).mat());                                              // * P_r
         gecp(nx_next-rank, rank, JBAbt_modified[0], rank, 0, jacobian.U1U2t[k], 0, 0);
 
@@ -5439,9 +5557,9 @@ const ProblemInfo &AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInf
         // right multiply with Dr^-1
         if (k < K - 2){
             int nx_next_next = number_of_states[k + 2];
-            // dynamics jacobian
+            // dynamics jacobian (one column for every dynamics constraint of stage k+1)
             Pr_extended.apply_on_rows(nu_next + rank, &jacobian.BAbt[k+1].mat());
-            gemm_nn(nx_next - rank, nx_next_next, rank, 1.0, jacobian.U1U2t[k], 0, 0, jacobian.BAbt[k+1], nu_next, 0, 1.0, 
+            gemm_nn(nx_next - rank, info.dims.number_of_dyn_constraints[k + 1], rank, 1.0, jacobian.U1U2t[k], 0, 0, jacobian.BAbt[k+1], nu_next, 0, 1.0,
                     jacobian.BAbt[k+1], nu_next + rank, 0, jacobian.BAbt[k+1], nu_next + rank, 0);
             // dynamics hessian
             Pr_extended.apply_on_rows(nu_next + rank, &hessian.FuFx[k+1].mat());
@@ -5472,14 +5590,14 @@ const ProblemInfo &AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInf
                 TreatStatesAsInputs(nu_next, nx_next, rank, hessian.FuFx[k+1], true);
             }
 
-            // treat some of the dynamics constraints as path constraints
-            gecp(nu + nx + 1, nx_next - rank, jacobian.BAbt[k], 0, rank, jacobian.Gg_eqt[k], 0, info.dims.number_of_eq_constraints[k]);
-
             // update dimensions
-            int sk = nx_next - rank;
-            number_of_controls[k + 1] += sk;
-            number_of_eq_constraints[k] += sk;
+            number_of_controls[k + 1] += nx_next - rank;
             number_of_states[k + 1] = rank;
+        }
+        // Treat the dynamics constraints that no longer depend on x[k+1] as path constraints
+        if (rank < n_dyn){
+            gecp(nu + nx + 1, n_dyn - rank, jacobian.BAbt[k], 0, rank, jacobian.Gg_eqt[k], 0, info.dims.number_of_eq_constraints[k]);
+            number_of_eq_constraints[k] += n_dyn - rank;
         }
         #ifdef PROFILE
         inner_stop = std::chrono::high_resolution_clock::now();
@@ -5493,7 +5611,7 @@ const ProblemInfo &AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInf
         jacobian.J_ranks[k] = rank;
         jacobian.nb_new_controls[k] = nx_next - rank;
         // jacobian.Jt_LU[k] = JBAbt[0];
-        gecp(nx_next, nx_next, JBAbt[0], 0, 0, jacobian.Jt_LU[k], 0, 0);
+        gecp(nx_next, n_dyn, JBAbt[0], 0, 0, jacobian.Jt_LU[k], 0, 0);
         #ifdef PROFILE
         inner_stop = std::chrono::high_resolution_clock::now();
         duration_decomp_store += std::chrono::duration_cast<std::chrono::nanoseconds>(inner_stop - inner_start);
@@ -5505,9 +5623,10 @@ const ProblemInfo &AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInf
 
     start = std::chrono::high_resolution_clock::now();
     #endif
-    // the dimensions only change when some J is rank deficient
+    // the dimensions only change when some J does not have full rank n_dyn = nx_next; the modified problem
+    // has one dynamics constraint for every state (n_dyn = nx_next = rank)
     const ProblemInfo *modified_info_p = &info;
-    if (any_rank_deficient){
+    if (dims_modified){
         modified_info_storage = std::make_shared<ProblemInfo>(ProblemDims(K, number_of_controls, number_of_states, number_of_eq_constraints, number_of_ineq_constraints));
         modified_info_p = modified_info_storage.get();
     }
@@ -5576,7 +5695,7 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
     auto start = std::chrono::high_resolution_clock::now();
     #endif
     // without rank deficient J, the modified problem has the same layout as the original one
-    if (any_rank_deficient){
+    if (dims_modified){
         veccp(x.m(), x, 0, x_copy[0], 0);
         veccp(eq_mult.m(), eq_mult, 0, eq_mult_copy[0], 0);
     }
@@ -5589,9 +5708,10 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
         #ifdef PROFILE
         start = std::chrono::high_resolution_clock::now();
         #endif
-        if (any_rank_deficient){
+        if (dims_modified){
         Index nu = info.dims.number_of_controls[k];
-        Index s = (k < info.dims.K - 1) ? info.dims.number_of_states[k + 1] - jacobian.J_ranks[k] : 0;
+        // dynamics constraints that were treated as path constraints, and states that were treated as controls
+        Index s = (k < info.dims.K - 1) ? info.dims.number_of_dyn_constraints[k] - jacobian.J_ranks[k] : 0;
         Index s_states = (k > 0) ? info.dims.number_of_states[k] - jacobian.J_ranks[k-1] : 0;
 
         // controls (plain copy)
@@ -5601,7 +5721,15 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
         veccp(nu, x_copy[0], modified_info.offsets_primal_u[k], x, info.offsets_primal_u[k]);
 
         // states (copy existing states, and append additional states treated as controls)
-        if (k > 0){
+        if (k > 0 && structured_stage[k-1]){
+            // modified states [y1~; x_e] and controls [u; y2] -> [y1~; y2; x_e]
+            const Index nz = std::min(nb_implicit_states[k-1], info.dims.number_of_states[k]);
+            const Index ne = info.dims.number_of_states[k] - nz;
+            const Index r = jacobian.J_ranks[k-1] - ne;
+            veccp(r, x_copy[0], modified_info.offsets_primal_x[k], x, info.offsets_primal_x[k]);
+            veccp(nz - r, x_copy[0], modified_info.offsets_primal_u[k] + nu, x, info.offsets_primal_x[k] + r);
+            veccp(ne, x_copy[0], modified_info.offsets_primal_x[k] + r, x, info.offsets_primal_x[k] + nz);
+        } else if (k > 0){
             // for (int i = 0; i < jacobian.J_ranks[k-1]; i++){
             //     x(info.offsets_primal_x[k] + i) = (x_copy[0])(modified_info.offsets_primal_x[k] + i);
             // }
@@ -5616,7 +5744,17 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
             // }
             veccp(info.dims.number_of_states[k], x_copy[0], modified_info.offsets_primal_x[k], x, info.offsets_primal_x[k]);
         }
-        if (k < info.dims.K - 1){
+        if (k < info.dims.K - 1 && structured_stage[k]){
+            // modified dynamics [r implicit; ne explicit] and path constraints [nv - r implicit]
+            // -> [r implicit; nv - r implicit; ne explicit]
+            const Index nz = std::min(nb_implicit_states[k], info.dims.number_of_states[k + 1]);
+            const Index ne = info.dims.number_of_states[k + 1] - nz;
+            const Index nv = info.dims.number_of_dyn_constraints[k] - ne;
+            const Index r = jacobian.J_ranks[k] - ne;
+            veccp(r, eq_mult_copy[0], modified_info.offsets_g_eq_dyn[k], eq_mult, info.offsets_g_eq_dyn[k]);
+            veccp(nv - r, eq_mult_copy[0], modified_info.offsets_g_eq_path[k] + info.dims.number_of_eq_constraints[k], eq_mult, info.offsets_g_eq_dyn[k] + r);
+            veccp(ne, eq_mult_copy[0], modified_info.offsets_g_eq_dyn[k] + r, eq_mult, info.offsets_g_eq_dyn[k] + nv);
+        } else if (k < info.dims.K - 1){
             // dynamics (copy existing dynamics, and append additional path constraints)
             // for (int i = 0; i < jacobian.J_ranks[k]; i++){
             //     eq_mult(info.offsets_g_eq_dyn[k] + i) = (eq_mult_copy[0])(modified_info.offsets_g_eq_dyn[k] + i);
@@ -5650,25 +5788,40 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
 
         // scale states and dynamics multipliers
         if (k > 0 && structured_stage[k-1]){
-            // the states kept their order, only the multipliers of the dynamics have to be transformed back
+            // only the implicit states and the multipliers of the dynamics have to be transformed back
             const Index nx = info.dims.number_of_states[k];
             const Index nz = std::min(nb_implicit_states[k-1], nx);
+            const Index ne = nx - nz;
+            const Index nv = info.dims.number_of_dyn_constraints[k-1] - ne;
+            const Index r = jacobian.J_ranks[k-1] - ne;
             const Index offs_dyn = info.offsets_g_eq_dyn[k-1];
-            if (nz > 0){
-                // multipliers of the implicit equations: -D^-T * lambda_z
-                jacobian.Pr_pre[k-1].apply(nz, &eq_mult.vec(), offs_dyn);
-                trsv_lnn(nz, jacobian.Jt_LU[k-1], 0, 0, eq_mult, offs_dyn, eq_mult, offs_dyn);
-                vecsc(nz, -1.0, eq_mult, offs_dyn);
-                trsv_unu(nz, nz, jacobian.Jt_LU[k-1], 0, 0, eq_mult, offs_dyn, eq_mult, offs_dyn);
-                jacobian.Pl_pre[k-1].apply_inverse(nz, &eq_mult.vec(), offs_dyn);
+            const Index offs_x = info.offsets_primal_x[k];
+            if (r < nz){
+                // y1 = y1~ - U1^-1 U2 y2, x[k][0:nz] = P_r [y1; y2]
+                gemv_t(nz - r, r, 1.0, jacobian.U1U2t[k-1], 0, 0, x, offs_x + r, 1.0, x, offs_x, x, offs_x);
+                jacobian.Pr_pre[k-1].apply_inverse(r, &x.vec(), offs_x);
+            }
+            if (nv > 0){
+                // multipliers of the implicit equations: P_l^T [L1 0; L2 I]^-T [-U1^-T lambda_1; lambda_2]
+                if (r == nz){
+                    // the dynamics of the implicit states were kept in the original order
+                    jacobian.Pr_pre[k-1].apply(r, &eq_mult.vec(), offs_dyn);
+                }
+                trsv_lnn(r, jacobian.Jt_LU[k-1], 0, 0, eq_mult, offs_dyn, eq_mult, offs_dyn);
+                vecsc(r, -1.0, eq_mult, offs_dyn);
+                trsv_unu(r, nv, jacobian.Jt_LU[k-1], 0, 0, eq_mult, offs_dyn, eq_mult, offs_dyn);
+                jacobian.Pl_pre[k-1].apply_inverse(r, &eq_mult.vec(), offs_dyn);
                 // multipliers of the explicit equations: lambda_e + C^T * lambda_z
-                gemv_n(nx - nz, nz, 1.0, jacobian.Jt[k-1], nz, 0, eq_mult, offs_dyn, 1.0,
-                       eq_mult, offs_dyn + nz, eq_mult, offs_dyn + nz);
+                if (ne > 0){
+                    gemv_n(ne, nv, 1.0, jacobian.Jt[k-1], nz, 0, eq_mult, offs_dyn, 1.0,
+                           eq_mult, offs_dyn + nv, eq_mult, offs_dyn + nv);
+                }
             }
         }
         else if (k > 0){
             // if (k < info.dims.K){
-            gemv_t(info.dims.number_of_states[k] - jacobian.J_ranks[k-1], info.dims.number_of_states[k], 1.0, 
+            // x_a += (U1^-1 U2) x_b, only the first J_ranks columns of U1U2t are set
+            gemv_t(info.dims.number_of_states[k] - jacobian.J_ranks[k-1], jacobian.J_ranks[k-1], 1.0, 
                 jacobian.U1U2t[k-1], 0, 0, 
                 x, info.offsets_primal_x[k] + jacobian.J_ranks[k-1], 1.0, 
                 x, info.offsets_primal_x[k], 
@@ -5680,8 +5833,8 @@ void AugSystemSolver<ImplicitOcpType>::PostProcess(const ProblemInfo &info,
             // PrintNpArray(eq_mult, info.offsets_g_eq_dyn[k-1], info.dims.number_of_states[k], "\n[" + std::to_string(k) + "] eq_mult before");
             trsv_lnn(jacobian.J_ranks[k-1], jacobian.U1t[k-1], 0, 0, eq_mult, info.offsets_g_eq_dyn[k-1], eq_mult, info.offsets_g_eq_dyn[k-1]);
             vecsc(jacobian.J_ranks[k-1], -1.0, eq_mult, info.offsets_g_eq_dyn[k-1]);
-            // L^-T *
-            trsv_unu(info.dims.number_of_states[k], info.dims.number_of_states[k], jacobian.Jt_LU[k-1], 0, 0, eq_mult, info.offsets_g_eq_dyn[k-1], eq_mult, info.offsets_g_eq_dyn[k-1]);
+            // [L1 0; L2 I]^-T *
+            trsv_unu(jacobian.J_ranks[k-1], info.dims.number_of_dyn_constraints[k-1], jacobian.Jt_LU[k-1], 0, 0, eq_mult, info.offsets_g_eq_dyn[k-1], eq_mult, info.offsets_g_eq_dyn[k-1]);
             // Pl * 
             jacobian.Pl_pre[k-1].apply_inverse(jacobian.J_ranks[k-1], &eq_mult.vec(), info.offsets_g_eq_dyn[k-1]);
             // std::cout << "eq_mult after:\n" << eq_mult << std::endl;

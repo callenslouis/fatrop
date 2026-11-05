@@ -699,11 +699,14 @@ namespace fatrop
         /**
          * @brief Sets the number of states of x[k+1] that appear implicitly in the dynamics.
          *
-         * The first nz states of x[k+1] are implicit, the remaining nx[k+1] - nz states are
-         * explicit: the dynamics equation nz + i only contains x[k+1][nz + i], with coefficient -1.
-         * In terms of Jt[k] = J^T this means Jt[k][0:nz, nz:] = 0 and Jt[k][nz:, nz:] = -I, while
-         * the implicit equations can depend on all states (Jt[k][:, 0:nz] is dense). Only the
-         * nz x nz implicit block of J is then factorized. By default all states are implicit.
+         * The first nz states of x[k+1] are implicit, the remaining ne = nx[k+1] - nz states are
+         * explicit. The first nv = n_dyn[k] - ne dynamics equations are implicit and can depend on all
+         * states, the explicit equation nv + i only contains x[k+1][nz + i], with coefficient -1:
+         * J = [D C; 0 -I] with D of size nv x nz (nv can differ from nz). In terms of Jt[k] = J^T this
+         * means Jt[k][0:nz, nv:] = 0 and Jt[k][nz:, nv:] = -I. Only D is factorized: with rank r, r
+         * implicit equations determine r implicit states, the other nv - r implicit equations become
+         * path constraints and the other nz - r implicit states become controls of the next stage.
+         * By default all states are implicit (J = D). If nv < 0, the full J is factorized.
          * @param nz Number of implicit states, the same for every stage (clipped to nx[k+1]).
          */
         void set_nb_of_implicit_states(Index nz);
@@ -792,10 +795,12 @@ namespace fatrop
 
         // number of implicit states of x[k+1] (see set_nb_of_implicit_states)
         std::vector<Index> nb_implicit_states;
-        // true when the implicit block of J[k] has full rank: then only that block is factorized
-        // and the states keep their order, so the matrices of stage k+1 are left untouched
+        // true when J[k] = [D C; 0 -I] was handled by factorizing only the implicit block D
         std::vector<bool> structured_stage;
-        bool any_rank_deficient = false;
+        // true when the modified problem has other dimensions than the original one, i.e. when some
+        // dynamics constraints are treated as path constraints or some states as controls
+        // (rank(J[k]) < n_dyn[k] or rank(J[k]) < nx[k+1])
+        bool dims_modified = false;
         std::shared_ptr<ProblemInfo> modified_info_storage; // (ProblemInfo is incomplete here)
         std::vector<bool> Gg_eqt_saved;
         std::vector<bool> Gg_ineqt_saved;

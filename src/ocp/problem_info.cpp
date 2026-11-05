@@ -35,7 +35,7 @@ ProblemInfo::ProblemInfo(const ProblemDims &dims)
                                                 dims.number_of_ineq_constraints.end(), 0);
     // compute the number of equality constraints
     number_of_eq_constraints =
-        std::accumulate(dims.number_of_states.begin() + 1, dims.number_of_states.end(), 0) +
+        std::accumulate(dims.number_of_dyn_constraints.begin(), dims.number_of_dyn_constraints.end(), 0) +
         std::accumulate(dims.number_of_eq_constraints.begin(), dims.number_of_eq_constraints.end(),
                         0) +
         std::accumulate(dims.number_of_ineq_constraints.begin(),
@@ -62,11 +62,11 @@ ProblemInfo::ProblemInfo(const ProblemDims &dims)
     compute_offsets(dims.number_of_eq_constraints.begin(), dims.number_of_eq_constraints.end(), 0,
                     offsets_eq.begin());
     offsets_dyn = std::vector<Index>(dims.K, 0);
-    compute_offsets(dims.number_of_states.begin() + 1, dims.number_of_states.end(), 0,
+    compute_offsets(dims.number_of_dyn_constraints.begin(), dims.number_of_dyn_constraints.end(), 0,
                     offsets_dyn.begin());
     // compute the number of (dyn, path, slack)-equality constraints
     number_of_g_eq_dyn =
-        std::accumulate(dims.number_of_states.begin() + 1, dims.number_of_states.end(), 0);
+        std::accumulate(dims.number_of_dyn_constraints.begin(), dims.number_of_dyn_constraints.end(), 0);
     number_of_g_eq_path = std::accumulate(dims.number_of_eq_constraints.begin(),
                                           dims.number_of_eq_constraints.end(), 0);
     number_of_g_eq_slack = std::accumulate(dims.number_of_ineq_constraints.begin(),
@@ -76,7 +76,7 @@ ProblemInfo::ProblemInfo(const ProblemDims &dims)
     offset_g_eq_path = 0;
     offset_g_eq_dyn = number_of_g_eq_path;
     offset_g_eq_slack = offset_g_eq_dyn + number_of_g_eq_dyn;
-    compute_offsets(dims.number_of_states.begin() + 1, dims.number_of_states.end(), offset_g_eq_dyn,
+    compute_offsets(dims.number_of_dyn_constraints.begin(), dims.number_of_dyn_constraints.end(), offset_g_eq_dyn,
                     offsets_g_eq_dyn.begin());
     compute_offsets(dims.number_of_eq_constraints.begin(), dims.number_of_eq_constraints.end(),
                     offset_g_eq_path, offsets_g_eq_path.begin());

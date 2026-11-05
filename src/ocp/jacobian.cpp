@@ -231,13 +231,13 @@ void Jacobian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
     // GENERAL CASE
     for (int k = 0; k < info.dims.K - 1; ++k){
         // consider provided right-hand-side as b column
-        rowin(info.dims.number_of_states[k + 1], 1.0,
+        rowin(info.dims.number_of_dyn_constraints[k], 1.0,
               g, info.offsets_g_eq_dyn[k], 
               BAbt[k], info.dims.number_of_states[k] + 
               info.dims.number_of_controls[k], 0);
         // BAbt_original[k] = BAbt[k];
         gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
-             info.dims.number_of_states[k + 1], BAbt[k], 0, 0, BAbt_original[k], 0, 0);
+             info.dims.number_of_dyn_constraints[k], BAbt[k], 0, 0, BAbt_original[k], 0, 0);
 
     }
     // Gg_eqt and Gg_ineqt are only modified in some cases, AugSystemSolver<ImplicitOcpType>
@@ -309,7 +309,7 @@ void Jacobian<ImplicitOcpType>::ResetPreProcess(const ProblemInfo &info){
         // std::cout << "BAbt_original[" << k << "]:" << std::endl << BAbt_original[k] << std::endl;
         // BAbt[k] = BAbt_original[k];
         gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
-             info.dims.number_of_states[k + 1], BAbt_original[k], 0, 0, BAbt[k], 0, 0);
+             info.dims.number_of_dyn_constraints[k], BAbt_original[k], 0, 0, BAbt[k], 0, 0);
     }
     // Gg_eqt and Gg_ineqt are restored by AugSystemSolver<ImplicitOcpType> if they were modified
 }
@@ -346,16 +346,17 @@ void Jacobian<ImplicitOcpType>::apply_on_right(const OcpInfo& info, const VecRea
         Index nu = info.dims.number_of_controls[k];
         Index nx = info.dims.number_of_states[k];
         Index nx_next = info.dims.number_of_states[k + 1];
+        Index n_dyn = info.dims.number_of_dyn_constraints[k];
         Index offset_ux = info.offsets_primal_u[k];
         Index offset_x_next = info.offsets_primal_x[k + 1];
         Index offset_dyn_eq = info.offsets_g_eq_dyn[k];
-        // apply out[offs:offs+nx] =  BAbt.T @ x[offs:offs+nu+nx] + Jt @ x_next[offs:offs+nx]
-        gemv_t(nu + nx, nx_next, 1.0, BAbt[k], 0, 0, x, offset_ux, 1.0, out, offset_dyn_eq, out,
+        // apply out[offs:offs+n_dyn] =  BAbt.T @ x[offs:offs+nu+nx] + Jt.T @ x_next[offs:offs+nx_next]
+        gemv_t(nu + nx, n_dyn, 1.0, BAbt[k], 0, 0, x, offset_ux, 1.0, out, offset_dyn_eq, out,
                offset_dyn_eq);
         MatRealAllocated Jt_curr = Jt[k];
         if (ignore_Jt){
             for (int i = 0; i < nx_next; i++){
-                for (int j = 0; j < nx_next; j++){
+                for (int j = 0; j < n_dyn; j++){
                     if (i != j || i > J_ranks[k] || j > J_ranks[k]){
                         Jt_curr(i, j) = 0.0;
                     } else {
@@ -365,7 +366,7 @@ void Jacobian<ImplicitOcpType>::apply_on_right(const OcpInfo& info, const VecRea
             }
         }
         // axpy(nx_next, -1.0, x, offset_x_next, out, offset_dyn_eq, out, offset_dyn_eq);
-        gemv_t(nx_next, nx_next, 1.0, Jt_curr, 0, 0, x, offset_x_next, 1.0, out,
+        gemv_t(nx_next, n_dyn, 1.0, Jt_curr, 0, 0, x, offset_x_next, 1.0, out,
                offset_dyn_eq, out, offset_dyn_eq);
     }
     // equality path constraints
@@ -410,14 +411,15 @@ void Jacobian<ImplicitOcpType>::transpose_apply_on_right(const OcpInfo &info, co
         Index offs_ux = info.offsets_primal_u[k];
         Index offs_x_next = info.offsets_primal_x[k + 1];
         Index nx_next = info.dims.number_of_states[k + 1];
+        Index n_dyn = info.dims.number_of_dyn_constraints[k];
         Index offset_g_dyn = info.offsets_g_eq_dyn[k];
-        // apply out[offs_ux:offs_ux + nu + nx] +=  BAbt @ mult_eq[offs_g_dyn:offs_g_dyn + nx_next]
-        gemv_n(nu + nx, nx_next, 1.0, BAbt[k], 0, 0, mult_eq, offset_g_dyn, 1.0, out, offs_ux, out,
+        // apply out[offs_ux:offs_ux + nu + nx] +=  BAbt @ mult_eq[offs_g_dyn:offs_g_dyn + n_dyn]
+        gemv_n(nu + nx, n_dyn, 1.0, BAbt[k], 0, 0, mult_eq, offset_g_dyn, 1.0, out, offs_ux, out,
                offs_ux);
         MatRealAllocated Jt_curr = Jt[k];
         if (ignore_Jt){
             for (int i = 0; i < nx_next; i++){
-                for (int j = 0; j < nx_next; j++){
+                for (int j = 0; j < n_dyn; j++){
                     if (i != j || i > J_ranks[k] || j > J_ranks[k]){
                         Jt_curr(i, j) = 0.0;
                     } else {
@@ -427,7 +429,7 @@ void Jacobian<ImplicitOcpType>::transpose_apply_on_right(const OcpInfo &info, co
             }
         }
         // axpy(nx_next, -1.0, mult_eq, offset_g_dyn, out, offs_x_next, out, offs_x_next);
-        gemv_n(nx_next, nx_next, 1.0, Jt_curr, 0, 0, mult_eq, offset_g_dyn, 1.0, out,
+        gemv_n(nx_next, n_dyn, 1.0, Jt_curr, 0, 0, mult_eq, offset_g_dyn, 1.0, out,
                offs_x_next, out, offs_x_next);
     };
     // equality path constraints' contributions Gg_eqt @ mult_eq

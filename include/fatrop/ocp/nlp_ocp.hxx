@@ -27,6 +27,13 @@ namespace fatrop
                     ng[k] = ocp.get_ng(k);
                     ng_ineq[k] = ocp.get_ng_ineq(k);
                 }
+                if constexpr (std::is_same_v<OcpAbstractTag, ImplicitOcpAbstractDynamic>)
+                {
+                    std::vector<Index> n_dyn(K > 0 ? K - 1 : 0);
+                    for (Index k = 0; k < K - 1; k++)
+                        n_dyn[k] = ocp.get_n_dyn(k);
+                    return ProblemDims(K, nu, nx, ng, ng_ineq, n_dyn);
+                }
                 return ProblemDims(K, nu, nx, ng, ng_ineq);
             }
             static NlpDims get_nlp_dims(const ProblemDims &ocp_dims)
@@ -42,7 +49,7 @@ namespace fatrop
                                                 ocp_dims.number_of_ineq_constraints[k];
                     if (k != ocp_dims.K - 1)
                     {
-                        number_of_eq_constraints += ocp_dims.number_of_states[k + 1];
+                        number_of_eq_constraints += ocp_dims.number_of_dyn_constraints[k];
                     }
                     number_of_ineq_constraints += ocp_dims.number_of_ineq_constraints[k];
                 }
