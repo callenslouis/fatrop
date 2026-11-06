@@ -843,7 +843,7 @@ int main(int argc, char **argv)
     // usage: benchmark [generalized | fully_implicit | varying_implicit | generalized_independent] [number of runs]
     BenchmarkManager bm = BenchmarkManager();
     std::string mode = (argc > 1) ? argv[1] : "generalized";
-    std::string file_name = "benchmark_results_" + mode + "_20000_thesis_non_square.csv";
+    std::string file_name = "benchmark_results_" + mode + "_20000_thesis_non_square_new.csv";
     if (mode == "fully_implicit"){
         bm.implicit_mode = ImplicitMode::fully_implicit;
     } else if (mode == "varying_implicit"){
