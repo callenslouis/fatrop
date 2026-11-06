@@ -4973,6 +4973,7 @@ AugSystemSolver<ImplicitOcpType>::AugSystemSolver(const ProblemInfo &info) : Mod
     const int max_ng_ineq = *std::max_element(info.dims.number_of_ineq_constraints.begin(),
                                               info.dims.number_of_ineq_constraints.end());
     ineq_rhs_row.emplace_back(1, std::max(max_ng_ineq, 1));
+    ineq_scaled.emplace_back(max_nu + max_nx + 1, std::max(max_ng_ineq, 1));
     // fast solve_rhs
     v_rhs_dyn.emplace_back(std::max(max_n_dyn, 1));
     v_rhs_ineq.emplace_back(std::max(max_ng_ineq, 1));
@@ -5040,6 +5041,7 @@ void AugSystemSolver<ImplicitOcpType>::SaveGuGx(const ProblemInfo &info, Hessian
     gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
          info.dims.number_of_controls[k + 1], hessian.GuGx[k], 0, 0, hessian.GuGx_original[k], 0, 0);
     GuGx_saved[k] = true;
+    hessian.GuGx_is_zero[k] = false; // GuGx[k] is written after saving it
 }
 
 void AugSystemSolver<ImplicitOcpType>::RestoreSavedMatrices(const ProblemInfo &info, Jacobian<ImplicitOcpType> &jacobian, Hessian<ImplicitOcpType> &hessian){
@@ -5060,6 +5062,7 @@ void AugSystemSolver<ImplicitOcpType>::RestoreSavedMatrices(const ProblemInfo &i
         if (k < info.dims.K - 1 && GuGx_saved[k]){
             gecp(nunx1, info.dims.number_of_controls[k + 1], hessian.GuGx_original[k], 0, 0, hessian.GuGx[k], 0, 0);
             GuGx_saved[k] = false;
+            hessian.GuGx_is_zero[k] = true;
         }
     }
 }
@@ -5419,15 +5422,16 @@ const ProblemInfo &AugSystemSolver<ImplicitOcpType>::PreProcess(const ProblemInf
         {
             if (ng_ineq > 0)
             {
-                SaveGg_ineqt(info, jacobian, k);
+                // Gg_ineqt D_s^-1 in a scratch matrix (scaling Gg_ineqt itself would require saving and restoring it)
+                gecp(nu + nx + 1, ng_ineq, jacobian.Gg_ineqt[k], 0, 0, ineq_scaled[0], 0, 0);
                 for (Index i = 0; i < ng_ineq; i++)
                 {
                     Scalar scaling_factor = 1.0 / (*D_s)(offs_ineq_k + i);
-                    colsc(nu + nx + 1, scaling_factor, jacobian.Gg_ineqt[k], 0, i);
+                    colsc(nu + nx + 1, scaling_factor, ineq_scaled[0], 0, i);
                 }
                 // add the penalty to hessian
-                syrk_ln_mn(nu + nx + 1, nu + nx, ng_ineq, 1.0, jacobian.Gg_ineqt[k], 0, 0,
-                           jacobian.Gg_ineqt_original[k], 0, 0, 1.0, hessian.RSQrqt[k], 0, 0, hessian.RSQrqt[k],
+                syrk_ln_mn(nu + nx + 1, nu + nx, ng_ineq, 1.0, ineq_scaled[0], 0, 0,
+                           jacobian.Gg_ineqt[k], 0, 0, 1.0, hessian.RSQrqt[k], 0, 0, hessian.RSQrqt[k],
                            0, 0);
                 // NOTE: the syrk above also adds the rhs contribution to the last row of RSQrqt, from which f is
                 // extracted at the end of the preprocessing (an update of f itself would be overwritten there)

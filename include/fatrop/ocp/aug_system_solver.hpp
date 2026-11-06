@@ -817,6 +817,8 @@ namespace fatrop
         std::vector<MatRealAllocated> JBAbt_modified;
         // solve_rhs: [g_ineq / D_s]^T, used to add the inequality contribution to the last row of RSQrqt
         std::vector<MatRealAllocated> ineq_rhs_row;
+        // solve: Gg_ineqt D_s^-1
+        std::vector<MatRealAllocated> ineq_scaled;
         // std::vector<PermutationMatrix> Pr_extended;
 
         // number of implicit states of x[k+1] (see set_nb_of_implicit_states)

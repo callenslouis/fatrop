@@ -8,6 +8,7 @@
 #include "fatrop/ocp/problem_info.hpp"
 
 #include <chrono>
+#include <utility>
 
 using namespace fatrop;
 
@@ -304,13 +305,10 @@ void Jacobian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
 }
 
 void Jacobian<ImplicitOcpType>::ResetPreProcess(const ProblemInfo &info){
-    for (int k = 0; k < info.dims.K - 1; ++k){
-        // std::cout << "BAbt[" << k << "]:" << std::endl << BAbt[k] << std::endl;
-        // std::cout << "BAbt_original[" << k << "]:" << std::endl << BAbt_original[k] << std::endl;
-        // BAbt[k] = BAbt_original[k];
-        gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
-             info.dims.number_of_dyn_constraints[k], BAbt_original[k], 0, 0, BAbt[k], 0, 0);
-    }
+    // PreProcess copied the original BAbt into BAbt_original: swap the buffers instead of copying them back
+    // (BAbt_original then holds the preprocessed matrices, it is overwritten by the next PreProcess)
+    (void)info;
+    std::swap(BAbt, BAbt_original);
     // Gg_eqt and Gg_ineqt are restored by AugSystemSolver<ImplicitOcpType> if they were modified
 }
 
@@ -353,6 +351,12 @@ void Jacobian<ImplicitOcpType>::apply_on_right(const OcpInfo& info, const VecRea
         // apply out[offs:offs+n_dyn] =  BAbt.T @ x[offs:offs+nu+nx] + Jt.T @ x_next[offs:offs+nx_next]
         gemv_t(nu + nx, n_dyn, 1.0, BAbt[k], 0, 0, x, offset_ux, 1.0, out, offset_dyn_eq, out,
                offset_dyn_eq);
+        if (!ignore_Jt){
+            gemv_t(nx_next, n_dyn, 1.0, Jt[k], 0, 0, x, offset_x_next, 1.0, out, offset_dyn_eq, out,
+                   offset_dyn_eq);
+            continue;
+        }
+        // (only for ignore_Jt: a modified copy of Jt)
         MatRealAllocated Jt_curr = Jt[k];
         if (ignore_Jt){
             for (int i = 0; i < nx_next; i++){
@@ -416,6 +420,12 @@ void Jacobian<ImplicitOcpType>::transpose_apply_on_right(const OcpInfo &info, co
         // apply out[offs_ux:offs_ux + nu + nx] +=  BAbt @ mult_eq[offs_g_dyn:offs_g_dyn + n_dyn]
         gemv_n(nu + nx, n_dyn, 1.0, BAbt[k], 0, 0, mult_eq, offset_g_dyn, 1.0, out, offs_ux, out,
                offs_ux);
+        if (!ignore_Jt){
+            gemv_n(nx_next, n_dyn, 1.0, Jt[k], 0, 0, mult_eq, offset_g_dyn, 1.0, out, offs_x_next, out,
+                   offs_x_next);
+            continue;
+        }
+        // (only for ignore_Jt: a modified copy of Jt)
         MatRealAllocated Jt_curr = Jt[k];
         if (ignore_Jt){
             for (int i = 0; i < nx_next; i++){

@@ -10,6 +10,7 @@
 
 #include <chrono>
 #include <map>
+#include <utility>
 
 using namespace fatrop;
 
@@ -118,20 +119,10 @@ void Hessian<ImplicitOcpType>::PreProcess(const ProblemInfo &info,
 void Hessian<ImplicitOcpType>::ResetPreProcess(const ProblemInfo &info, 
                                                const Jacobian<ImplicitOcpType> &jacobian)
 {
-    for (int k = 0; k < info.dims.K; ++k){
-        // std::cout << "RSQrqt[" << k << "]:" << std::endl << RSQrqt[k] << std::endl;
-        // std::cout << "RSQrqt_original[" << k << "]:" << std::endl << RSQrqt_original[k] << std::endl;
-        // if (k < info.dims.K-1){ 
-        //     std::cout << "FuFx[" << k << "]:" << std::endl << FuFx[k] << std::endl;
-        //     std::cout << "FuFx_original[" << k << "]:" << std::endl << FuFx_original[k] << std::endl;
-        //     std::cout << "GuGx[" << k << "]:" << std::endl << GuGx[k] << std::endl;
-        //     std::cout << "GuGx_original[" << k << "]:" << std::endl << GuGx_original[k] << std::endl;
-        // }
-        // RSQrqt[k] = RSQrqt_original[k];
-        gecp(info.dims.number_of_states[k] + info.dims.number_of_controls[k] + 1,
-             info.dims.number_of_states[k] + info.dims.number_of_controls[k], RSQrqt_original[k], 0, 0,
-             RSQrqt[k], 0, 0);
-    }
+    // PreProcess copied the original RSQrqt into RSQrqt_original: swap the buffers instead of copying them back
+    // (RSQrqt_original then holds the preprocessed matrices, it is overwritten by the next PreProcess)
+    (void)info; (void)jacobian;
+    std::swap(RSQrqt, RSQrqt_original);
     // FuFx and GuGx are restored by AugSystemSolver<ImplicitOcpType> if they were modified
 }
 
@@ -167,6 +158,7 @@ void Hessian<ImplicitOcpType>::apply_on_right(const OcpInfo& info,
         gemv_n(nu + nx, nx_next, 1.0, FuFx[k], 0, 0, 
                x, info.offsets_primal_x[k + 1], 1.0, out, info.offsets_primal_u[k], 
                out, info.offsets_primal_u[k]);
+        if (GuGx_is_zero[k]) continue; // GuGx is only nonzero during the preprocessing of a rank deficient J
         gemv_t(nu + nx, nu_next, 1.0, GuGx[k], 0, 0, 
                x, info.offsets_primal_u[k], 1.0, out, info.offsets_primal_u[k + 1], 
                out, info.offsets_primal_u[k + 1]);

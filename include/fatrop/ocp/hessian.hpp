@@ -7,6 +7,8 @@
 
 #include "fatrop/nlp/hessian.hpp"
 #include "fatrop/linear_algebra/fwd.hpp"
+#include <algorithm>
+#include <vector>
 #include "fatrop/ocp/fwd.hpp"
 #include "fatrop/linear_algebra/matrix.hpp"
 #include "fatrop/ocp/dims.hpp"
@@ -125,6 +127,7 @@ namespace fatrop
                 GuGx_original.emplace_back(dims.number_of_controls[k] + dims.number_of_states[k] + 8,
                                            dims.number_of_controls[k + 1] + dims.number_of_states[k + 1] + 8);
             }
+            GuGx_is_zero.assign(std::max(dims.K - 1, 0), true);
         }
 
         Hessian(const Hessian &other) = default;
@@ -136,6 +139,7 @@ namespace fatrop
               FuFx_original(std::move(other.FuFx_original)),
               GuGx(std::move(other.GuGx)),
               GuGx_original(std::move(other.GuGx_original)),
+              GuGx_is_zero(std::move(other.GuGx_is_zero)),
               RSQrqt_original(std::move(other.RSQrqt_original)),
               duration_copy_RSQrqt(other.duration_copy_RSQrqt),
               duration_modifying_RSQrqt(other.duration_modifying_RSQrqt) {
@@ -150,6 +154,7 @@ namespace fatrop
                 FuFx_original = std::move(other.FuFx_original);
                 GuGx = std::move(other.GuGx);
                 GuGx_original = std::move(other.GuGx_original);
+                GuGx_is_zero = std::move(other.GuGx_is_zero);
                 RSQrqt_original = std::move(other.RSQrqt_original);
                 duration_copy_RSQrqt = other.duration_copy_RSQrqt;
                 duration_modifying_RSQrqt = other.duration_modifying_RSQrqt;
@@ -173,6 +178,9 @@ namespace fatrop
         std::vector<MatRealAllocated> RSQrqt_original;
         std::vector<MatRealAllocated> FuFx_original;
         std::vector<MatRealAllocated> GuGx_original;
+        // GuGx[k] is zero, except while AugSystemSolver<ImplicitOcpType> preprocesses a rank deficient J[k]
+        // (it is maintained there, apply_on_right skips the GuGx terms when it is true)
+        std::vector<bool> GuGx_is_zero;
 
         // printing
         friend std::ostream& operator<<(std::ostream& os, const Hessian<ImplicitOcpType>& hess)
