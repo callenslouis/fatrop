@@ -544,6 +544,9 @@ namespace fatrop
         std::vector<MatRealAllocated> GuGx_hat;
         std::vector<MatRealAllocated> RSQrqt_underbar;
         std::vector<MatRealAllocated> v_r_tilde;
+        // solve_rhs: GuGx contributions of stage k+1 to the rhs [r; q] of stage k (the vector counterpart of
+        // the updates of the last row of RSQrqt_underbar[k] in solve)
+        std::vector<VecRealAllocated> v_RSQrqt_underbar;
 
         std::vector<MatRealAllocated> Ppt;
         std::vector<MatRealAllocated> Hh;
@@ -721,6 +724,13 @@ namespace fatrop
          */
         void set_nb_of_implicit_states(const std::vector<Index> &nz);
 
+        /**
+         * @brief Enables the fast solve_rhs (option linsol_implicit_rhs_fast_path, default true): when every
+         * J[k] is structured with a full rank implicit block D, solve_rhs reuses the preprocessed matrices of
+         * the last solve and only transforms the rhs vectors (instead of preprocessing all matrices again).
+         */
+        void set_rhs_fast_path(const bool &value) { use_rhs_fast_path = value; }
+
         std::chrono::nanoseconds duration_preprocess = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_preprocess_jac = std::chrono::nanoseconds(0);
         std::chrono::nanoseconds duration_preprocess_hess = std::chrono::nanoseconds(0);
@@ -758,13 +768,21 @@ namespace fatrop
         void SaveGuGx(const ProblemInfo &info, Hessian<ImplicitOcpType> &hessian, Index k);
         void RestoreSavedMatrices(const ProblemInfo &info, Jacobian<ImplicitOcpType> &jacobian, Hessian<ImplicitOcpType> &hessian);
 
-        void PostProcess(const ProblemInfo &info, 
+        void PostProcess(const ProblemInfo &info,
                          const ProblemInfo &modified_info,
                          Jacobian<ImplicitOcpType> &jacobian,
                          Hessian<ImplicitOcpType> &hessian,
                          VecRealView &x, VecRealView &eq_mult,
                          const VecRealView* D_s, const VecRealView* D_eq,
-                         const VecRealView &g);
+                         const VecRealView &g,
+                         bool reset_matrices = true);
+
+        // fast solve_rhs: the rhs part of PreProcess (for structured stages with a full rank D only), it maps
+        // (f, g) of the original problem to (f_out, g_out) of the modified problem without touching any matrix
+        void PreProcessRhs(const ProblemInfo &info, const ProblemInfo &modified_info,
+                           const Jacobian<ImplicitOcpType> &jacobian,
+                           const VecRealView &f, const VecRealView &g, const VecRealView &D_s,
+                           VecRealView &f_out, VecRealView &g_out);
 
         // take last (nx_next - rank) columns (or rows) and insert them after
         // the first nu_next columns (or rows) of A, while shifting all
@@ -797,6 +815,8 @@ namespace fatrop
         std::unique_ptr<MatRealAllocated> scratch = std::make_unique<MatRealAllocated>(0,0);
         std::vector<MatRealAllocated> JBAbt;
         std::vector<MatRealAllocated> JBAbt_modified;
+        // solve_rhs: [g_ineq / D_s]^T, used to add the inequality contribution to the last row of RSQrqt
+        std::vector<MatRealAllocated> ineq_rhs_row;
         // std::vector<PermutationMatrix> Pr_extended;
 
         // number of implicit states of x[k+1] (see set_nb_of_implicit_states)
@@ -812,6 +832,15 @@ namespace fatrop
         std::vector<bool> Gg_ineqt_saved;
         std::vector<bool> FuFx_saved;
         std::vector<bool> GuGx_saved;
+
+        // fast solve_rhs (see set_rhs_fast_path)
+        bool use_rhs_fast_path = true;
+        // set by the preprocessing of solve: true when every stage is structured with a full rank D, so that
+        // the matrices of the modified problem only differ from the original ones in BAbt (cached below)
+        bool rhs_fast_path_valid = false;
+        std::vector<MatRealAllocated> BAbt_preprocessed;
+        std::vector<VecRealAllocated> v_rhs_dyn;  // dynamics rhs of one stage
+        std::vector<VecRealAllocated> v_rhs_ineq; // g_ineq / D_s of one stage
     };
 
 } // namespace fatrop

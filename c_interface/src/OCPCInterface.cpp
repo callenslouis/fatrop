@@ -769,6 +769,8 @@ namespace fatrop
             return 1;
         if (n == "linsol_nb_of_implicit_states")
             return 1;
+        if (n == "linsol_implicit_rhs_fast_path")
+            return 2;
         if (n == "problem_type")
             return 3;
         return -1;
